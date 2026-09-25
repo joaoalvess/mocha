@@ -1,0 +1,132 @@
+# Mocha: regras para agentes de IA
+
+O trabalho é feito por um **orquestrador** (a sessão principal) que delega **pacotes de trabalho (WPs)** a **subagentes**. Leia a seção do seu papel e as seções comuns.
+
+- `docs/SPEC.md`: fonte da verdade (o quê e como).
+- `docs/PLANO.md`: fases, ondas, WPs, critérios de aceite, bloqueios e status.
+- `docs/referencias/moshi/`: referência visual obrigatória para toda UI.
+
+## Orquestrador
+
+1. Leia este arquivo, a SPEC inteira e a fase atual do PLANO.
+2. Apresente ao João um plano curto da fase: ondas, WPs por onda, bloqueios que precisam dele agora. Espere a aprovação antes de delegar.
+3. Peça todos os bloqueios (`Bx`) da fase de uma vez, no começo.
+4. **Fase 0**: o WP0.1 é feito por você mesmo, direto em `main` (`git init` e o commit dos docs primeiro). Só depois você cria a branch `fase/0`. Nas outras fases, você cria `fase/<id>` a partir de `main` antes de delegar.
+5. Delegue cada WP a um subagente com: o bloco do WP no PLANO, as §§ da SPEC citadas, a lista de arquivos existentes relevantes e a seção "Subagente" deste arquivo. No máximo 3 subagentes ao mesmo tempo, spikes incluídos.
+6. Você é o dono de `MochaKit/Package.swift`, `project.yml`, `MochaKit/Sources/MochaProtocol/**`, `MochaKit/Fixtures/protocol/**`, `docs/SPEC.md`, `docs/PLANO.md` e `docs/HANDOFF.md`. Aplique você as mudanças que os subagentes propuserem nesses arquivos. Spikes escrevem só no diretório dono listado no PLANO, que inclui o próprio `docs/spikes/<Sx>.md`.
+7. Revise cada entrega contra os critérios de aceite, rode a validação (ou delegue a um subagente de validação, que devolve só passou/falhou e os trechos de erro), faça os commits do WP e atualize a tabela de status do PLANO.
+8. Ao fim de cada spike, aplique no PLANO e na SPEC o que o relatório lista em "Impacto".
+9. Não delegue decisões de arquitetura nem a revisão final.
+
+## Subagente
+
+1. Trabalhe só no **diretório dono** do seu WP. Precisa mudar um arquivo fora dele (inclusive os do orquestrador)? Descreva a mudança como diff no relatório.
+2. Siga a SPEC. Se algo da SPEC estiver errado ou impossível, pare e reporte; não improvise contrato.
+3. **Não faça commit.** O orquestrador commita.
+4. Rode os testes do seu escopo antes de entregar (§Builds e testes).
+5. Entregue o relatório no formato do fim deste arquivo.
+
+## Ambiente
+
+- macOS 27, Xcode 27 (Swift 6.4), Apple M1 com 8 GB. O shell do João é fish; scripts do repositório são bash.
+- Ferramentas:
+  - `/opt/homebrew/bin`: `xcodegen`, `herdr`, `rg`, `fd`, `gh`.
+  - `/usr/local/bin/tailscale`.
+  - `/usr/bin/jq`.
+  - Se o `PATH` estiver vazio num subagente, use caminhos absolutos.
+- O João roda tudo dentro do Herdr (`HERDR_ENV=1`). Processos longos (daemon em primeiro plano, `log stream`, app no simulador) rodam numa tab do Herdr, não no Bash do agente:
+  1. `herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd ~/Developer/mocha --label <o-que> --no-focus`;
+  2. `herdr pane run <pane> "<comando>"`;
+  3. leia a saída com `herdr pane read --source recent-unwrapped`.
+  Deixe a tab aberta enquanto o processo roda.
+- **Scripts**:
+  - `scripts/bootstrap.sh`: gera o `Mocha.xcodeproj`;
+  - `scripts/test.sh`: testes do MochaKit;
+  - `scripts/build-app.sh`: build para o simulador;
+  - `scripts/build-daemon.sh`: build release do `mochad`;
+  - `scripts/run-daemon.sh`: `mochad run` em primeiro plano.
+
+## Código
+
+- Swift 6 com strict concurrency completo. Estado mutável compartilhado fica em `actor`; UI em `@MainActor` com `@Observable`.
+- Identificadores em inglês. Texto de UI em português do Brasil com acentuação correta.
+- Sem comentários no código; nomes explicam o código.
+- Sem `try!`, `fatalError` ou force unwrap em código de produção (testes podem).
+- Sem `@unchecked Sendable`, a não ser justificado no relatório.
+- Dependências: só as da SPEC §11. Uma nova exige entrar na §11 antes, com aprovação do João.
+- Não mexa em arquivos fora do escopo. Algo fora do escopo precisa de correção? Descreva no relatório.
+
+## Builds e testes
+
+- Swift Testing (`import Testing`).
+- Testes unitários nunca usam o Herdr real, o Claude real, a rede, o APNs nem o Keychain real: use `MochaTestSupport` e `MochaKit/Fixtures/`.
+- Testes que tocam o sistema real levam a tag `.integration` e só rodam com `MOCHA_INTEGRATION=1`.
+- Subagentes em paralelo: `swift test --package-path MochaKit --scratch-path MochaKit/.build/<WP>`.
+- `xcodebuild`: um por vez na máquina, com `-derivedDataPath build/DerivedData-<WP>`.
+- **UI**:
+  - compare capturas do simulador (`xcrun simctl io booted screenshot <arquivo>`) com os prints de `docs/referencias/moshi/` e liste as diferenças no relatório;
+  - cores exatamente as da SPEC §6.2;
+  - antes de rodar verificação pesada de UI, o orquestrador oferece ao João testar no iPhone.
+
+## Limites no ambiente do João
+
+- **Herdr**:
+  - o Herdr é real e está em uso;
+  - é permitido: ler estado; criar e fechar os workspaces de laboratório `mocha-lab-<Sx>` (um por spike, com diretório em `~/Developer/mocha-lab/<Sx>/`, fora do repositório) e mexer neles; criar tabs no workspace da própria sessão do orquestrador para processos longos (§Ambiente);
+  - nunca mande texto ou teclas para qualquer outro pane.
+- **Claude**:
+  - não edite `~/.claude/settings.json`; sessões de teste usam `claude --setting-sources project,local --settings <arquivo>`;
+  - o `mochad install-hooks` real roda só nos WPs de integração, com o ok do João.
+- **Tailscale**: não altere a config sem o ok do João (S5 e `serve-setup`).
+- **Segredos**: nunca commite a `.p8`, tokens ou segredos. Nunca os imprima no log.
+- **Distribuição**: nunca faça upload para o TestFlight ou o App Store Connect sem pedido explícito do João.
+- **Aparelhos**: instalar no iPhone pelo Xcode é permitido quando o WP pede.
+
+## Git
+
+- A branch de cada fase é `fase/<id>` (ex.: `fase/0`, `fase/1a-core`), criada a partir de `main`. A exceção é o WP0.1, feito direto em `main`.
+- O merge em `main` acontece no fim da fase: para a Fase 0, quando todos os WPs e spikes estiverem concluídos e o João der o ok; nas demais, depois do checklist do WP de integração.
+- Commits pequenos, em inglês, no padrão Conventional Commits com escopo:
+  - `feat(daemon): …`, `feat(app): …`, `feat(protocol): …`;
+  - `test(transcript): …`, `docs(spec): …`, `chore(scaffold): …`.
+  O primeiro commit do repositório é `docs(spec): add spec, plan and agent rules`.
+  Um ou mais commits por WP, sempre com caminhos explícitos no `git add`.
+- Nunca adicione `Co-Authored-By` nem qualquer atribuição a IA.
+- Não há remoto. Não faça push. `reset --hard`, `clean -f` e rebase só com o ok do João.
+- Mudanças temporárias de depuração (logs, mocks, overrides) saem antes do commit.
+
+## Contexto e retomada
+
+- O orquestrador mantém o contexto baixo delegando:
+  - builds, testes e instalações: o subagente devolve só passou/falhou e os erros relevantes;
+  - leitura extensa (interfaces de SDK, código de dependências, transcripts grandes);
+  - pesquisa na web.
+- Ao se aproximar de **500 mil tokens**, pare num ponto limpo: commite o que está pronto e escreva `docs/HANDOFF.md` (fase, onda, WPs concluídos com commits, WPs em andamento e o que falta em cada um, bloqueios pendentes, próximo passo). Uma sessão nova continua com a seção "Continuar" de `prompts/orquestrador.md`.
+
+## Parar e reportar
+
+Pare e reporte, sem improvisar, quando:
+
+- uma API da Apple, do Herdr, do Claude Code ou do Tailscale divergir do que a SPEC descreve;
+- um critério de aceite for impossível como escrito;
+- o trabalho exigir ação do João (bloqueios, permissões de sistema, teste no iPhone, autorização de config).
+
+## Relatório (subagente → orquestrador)
+
+```
+## <WP> — <título>
+Status: concluído | parcial | bloqueado
+Arquivos: <lista de caminhos criados ou alterados>
+Feito:
+- …
+Validação:
+- <comando> → <resultado>
+Critérios de aceite:
+- [x] … / [ ] … (motivo)
+Mudanças propostas fora do meu diretório:
+- <arquivo>: <diff ou descrição>
+Pendências / decisões para o João:
+- …
+Impacto na SPEC ou no PLANO (spikes):
+- § / WP — o que muda
+```
