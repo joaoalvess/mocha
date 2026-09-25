@@ -78,7 +78,7 @@ Nada disto entra em nenhuma fase acima: outros agentes (Codex, Antigravity e dem
                 │ wss://mac-mini.tail1234.ts.net/v1
                 │ (tailnet, TLS com certificado do Tailscale)
 ┌───────────────▼──────────────── MacBook ───────────────────────────┐
-│ tailscale serve  ──►  gateway (socket Unix 0600 ou 127.0.0.1)      │
+│ tailscale serve  ──►  gateway (127.0.0.1:47421)                    │
 │                        │                                           │
 │                 ┌──────▼──────────── mochad ─────────────────────┐ │
 │                 │ Gateway · Pairing · SessionHub                 │ │
@@ -186,7 +186,9 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 3. Se a resposta vier pelo terminal do Mac, o daemon percebe (conexão do hook fechada, status do Herdr saindo de `blocked` ou `tool_result` no transcript) e retira o pedido (§8.3).
 
 **Reconexão**
-- O app reconecta com backoff exponencial (0,5 s → 8 s, com jitter) enquanto está em primeiro plano. Ao reconectar, reenvia `hello`, recebe `tree` e reabre o chat visível com `openChat` (página nova; o app substitui a lista).
+- O app reconecta com backoff exponencial enquanto está em primeiro plano: 0,5 s, 1 s, 2 s, 4 s e depois 8 s. Cada espera é multiplicada por um jitter de 0,8–1,2 e limitada a 8 s, e a contagem zera a cada conexão aberta. Se o `NWPathMonitor` informa caminho `.satisfied` durante uma espera, a tentativa sai na hora. Ao reconectar, o app reenvia `hello`, recebe `tree` e reabre o chat visível com `openChat` (página nova; o app substitui a lista).
+- **A troca de rede não derruba a conexão**: o WebSocket passa dentro do túnel do Tailscale, que troca Wi-Fi por 4G sem fechar o TCP. No S5 (iPhone 14), Wi-Fi → 4G e 4G → Wi-Fi seguraram o tráfego por ~6,9 s e ~8,5 s, e depois tudo chegou, sem reconexão. Por isso o app não fecha nem reabre o WebSocket quando a rede muda.
+- **Heartbeat**: com o app em primeiro plano, o `ConnectionManager` manda um ping de WebSocket (`sendPing`) a cada 5 s, e um logo depois de cada mudança de caminho, sempre com um `receive()` pendente (sem ele o pong não é processado; WP0.3). Um ping sem pong por 15 s marca a conexão como morta: o app cancela a tarefa e segue o backoff. O servidor não manda ping (§4.4). Referência medida: eco de WebSocket com mediana de 12 ms no Wi-Fi e 36 ms no 4G; volta do background em 1 tentativa, com handshake de 87–203 ms.
 - O daemon reconecta ao socket do Herdr a cada 2 s se o Herdr cair, e reconstrói o estado com `session.snapshot` e as inscrições, na ordem de §3.1.3.
 
 ---
@@ -433,7 +435,7 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `mochad pair` | Gera um token de pareamento de uso único (válido por 10 min) e imprime o QR no terminal (§4.5) |
 | `mochad devices` | Lista e remove aparelhos pareados (`--remove <id>`) |
 | `mochad install-hooks` / `uninstall-hooks` | §3.3 |
-| `mochad serve-setup` | Mostra (e com `--apply` executa) o comando `tailscale serve` (§4.5) |
+| `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
 | `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID>` | Guarda a chave no Keychain e grava `keyId`/`teamId` no config |
 | `mochad apns test [--device <id>]` | Manda um push de teste |
 | `mochad status` | Estado do daemon, do Herdr e do Serve, clientes conectados |
@@ -443,9 +445,8 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 
 | Caminho | Conteúdo |
 |---|---|
-| `~/Library/Application Support/Mocha/config.json` | `hookPort` (47420), `gateway` (`{"kind":"unix","path":…}` ou `{"kind":"tcp","port":47421}`), `apns{teamId, keyId, bundleId}`, `hookSecret` |
+| `~/Library/Application Support/Mocha/config.json` | `hookPort` (47420), `gatewayPort` (47421), `apns{teamId, keyId, bundleId}`, `hookSecret` |
 | `~/Library/Application Support/Mocha/devices.json` | Aparelhos (§4.6). Permissão 0600 |
-| `~/Library/Application Support/Mocha/gateway.sock` | Socket Unix do gateway (0600), se o S5 aprovar |
 | `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (1b). Apagadas depois de 7 dias |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
 | Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` |
@@ -454,7 +455,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 
 ### §4.4 HttpServer
 
-- `NWListener` TCP em `127.0.0.1` para os hooks. O gateway fica no socket Unix ou em `127.0.0.1` (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket.
+- `NWListener` TCP em `127.0.0.1`: os hooks em 47420 (§3.3) e o gateway em 47421 (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket. O binding `.unixSocket(path:)` continua no `HttpServer`, mas o gateway não o usa (S5).
 - Suporta: linha de requisição, headers, corpo com `Content-Length` (limite de 1 MB; 20 MB só em `/v1/upload`; acima disso, 413), resposta com `Content-Length`, `Connection: close`. Sem chunked, sem keep-alive, sem HTTP/2.
 - Handlers são `async` e podem segurar a resposta por até 600 s (necessário para o `PermissionRequest`, §8.1). A conexão fechada pelo cliente cancela a `Task` do handler.
 - **WebSocket**: o upgrade (`Sec-WebSocket-Accept` com SHA-1 + base64) e o framing RFC 6455 são implementados no próprio `HttpServer`: frames de texto e binário, fragmentação de entrada, ping/pong automático, close, e máscara obrigatória nos frames do cliente. Sem extensões (sem `permessage-deflate`). O `NWProtocolWebSocket` fica de fora porque, no stack do listener, ele não atende HTTP comum na mesma porta.
@@ -467,7 +468,18 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 
 ### §4.5 Exposição, pareamento e autenticação
 
-- **Exposição**: `tailscale serve --bg --https=443 <alvo>`, onde `<alvo>` é `unix:<gateway.sock>` (preferido) ou `http://127.0.0.1:47421`. O socket Unix só vale se dois pontos se confirmarem: que o `NWListener` escuta em `NWEndpoint.unix(path:)` (confirmado no WP0.3) e que o Tailscale standalone (que roda como extensão de sistema) consegue abrir um socket em `~/Library/Application Support/Mocha/`. Sem isso, fica o TCP em `127.0.0.1`. O S5 registra o comando exato. O iPhone acessa `wss://mac-mini.tail1234.ts.net/v1`.
+- **Exposição**: `tailscale serve --bg --https=443 http://127.0.0.1:47421`. O gateway escuta só em TCP `127.0.0.1:47421`, e o iPhone acessa `wss://mac-mini.tail1234.ts.net/v1`. O socket Unix foi descartado no S5: a extensão de sistema do Tailscale standalone roda em sandbox e recebe `connect: operation not permitted` ao abrir um socket em `~/Library/Application Support/Mocha/` (o cliente vê 502).
+  - **Desfazer**: `tailscale serve --https=443 off` remove só esse handler. `tailscale serve reset` apaga toda a config de Serve do Mac e só serve se não houver outra.
+  - **Conferir**: `tailscale serve status --json` tem, em `Web["<host>:443"].Handlers["/"]`, `"Proxy": "http://127.0.0.1:47421"`.
+  - **Certificado**: o primeiro HTTPS do nó emite o certificado Let's Encrypt e segura o TLS por até ~1 min. Depois disso, o Tailscale renova sozinho (validade de 90 dias). O `serve-setup --apply` aquece com `GET https://<host>/v1/health` e limite de 90 s.
+  - **CLI**: o `mochad` chama `/Applications/Tailscale.app/Contents/MacOS/tailscale` pelo caminho absoluto (o `/usr/local/bin/tailscale` é um wrapper) e lê o host em `tailscale status --json` (`.Self.DNSName`, sem o ponto final).
+  - **O que o proxy faz**:
+    - repassa `Authorization`, a query string intacta e o corpo com `Content-Length`;
+    - fala HTTP/1.1 com o daemon, mesmo com o cliente em h2;
+    - acrescenta `X-Forwarded-For` (IP do tailnet do aparelho), `X-Forwarded-Host`, `X-Forwarded-Proto`, `Tailscale-User-Login`, `Tailscale-User-Name`, `Tailscale-User-Profile-Pic`, `Tailscale-Headers-Info` e `Accept-Encoding: gzip`;
+    - repassa o upgrade de WebSocket, o ping/pong e o close com código e motivo, e não derruba conexão ociosa (testado até ~190 s);
+    - transforma corpo sem tamanho conhecido em chunked, que o daemon recusa com 411 (§4.4);
+    - responde 502 quando o gateway não está escutando.
 - **Pareamento**:
   1. `mochad pair` gera um código de pareamento aleatório de 32 bytes (base64url) e imprime um QR (CoreImage `CIQRCodeGenerator` renderizado com meio-blocos Unicode) com `mocha://pair?url=<wss url>&code=<código>`.
   2. O app lê o QR (câmera, `DataScannerViewController`) ou recebe o link colado.
@@ -747,7 +759,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `GET /v1/health` | `{"ok":true,"version":"…","herdr":true}` (para o `doctor` e o S5) | 1a-core |
 | `GET /v1` (upgrade) | WebSocket | 1a-core |
 | `POST /v1/respond` | Corpo `{requestId, response}` (mesmo JSON de §5.2.1). Usado pelas ações de notificação sem abrir o app. 200 com `{}`, 404 se o pedido não existe mais | 1b |
-| `POST /v1/upload` | Corpo binário, `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta `{"path": "/Users/…/uploads/<uuid>.<ext>"}` | 1b |
+| `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta `{"path": "/Users/…/uploads/<uuid>.<ext>"}` | 1b |
 
 ---
 
@@ -759,7 +771,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 - Estado de UI em classes `@Observable @MainActor`. A conexão fica num `actor ConnectionManager` que expõe `AsyncStream` de mensagens do servidor.
 - Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug).
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
-- O WebSocket fica aberto só com o app ativo e fecha ao ir para background (`scenePhase`).
+- O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
 - **Deep links**: `mocha://agent/<paneId>` abre o chat e `mocha://pair?url=…&code=…` inicia o pareamento. O `paneId` vai percent-encoded, porque contém `:`.
 
 ### §6.2 Design system
@@ -1014,7 +1026,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 
 ## §10 Segurança
 
-- O daemon só escuta em `127.0.0.1` ou num socket Unix 0600. A exposição ao iPhone é só pelo `tailscale serve` (tailnet privada, TLS).
+- O daemon só escuta em `127.0.0.1` (hooks em 47420, gateway em 47421). A exposição ao iPhone é só pelo `tailscale serve` (tailnet privada, TLS). Os headers `Tailscale-User-*` e `X-Forwarded-*` que o Serve acrescenta não autenticam nada, porque um processo local pode conectar direto na porta e forjá-los: a autenticação é sempre o token do aparelho (§4.5).
 - O token de aparelho fica no Keychain do iPhone. O daemon guarda só o SHA-256 dele.
 - O código de pareamento é de uso único e expira em 10 min.
 - O `HookServer` exige `X-Mocha-Hook-Secret` e escuta só em `127.0.0.1`.
@@ -1058,3 +1070,5 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | O Herdr ignora parâmetros desconhecidos, e o alvo omitido cai no pane focado do João | Tipos de parâmetro com os nomes exatos de `herdr-api.schema.json`, alvo sempre explícito, teste de contrato contra o schema; o daemon não chama métodos de foco, split, layout nem escrita de workspace |
 | Troca de sessão (`/clear`) sem evento do Herdr | Detecção por `pane_updated`, `agent.get` e reconciliação (§3.1.3); hook `SessionStart` a partir da 1a-final |
 | Build do Xcode e perfil com push expiram | Perfil de desenvolvimento de ~1 ano; `doctor` do app em Ajustes mostra a validade quando disponível |
+| A extensão do Tailscale standalone não abre socket Unix fora do sandbox | Gateway em TCP `127.0.0.1:47421` (S5); o `doctor` acusa alvo `unix:` no Serve |
+| O primeiro HTTPS do nó segura o TLS por ~1 min enquanto o certificado é emitido | `serve-setup --apply` aquece o health com limite de 90 s; o `doctor` separa timeout de TLS de 502 |
