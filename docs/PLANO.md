@@ -186,7 +186,8 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Faz**:
   1. Servir `/v1/health` e um WS de eco (com o `HttpServer` do WP0.3) atrás de `tailscale serve --bg --https=443`, testando os alvos `unix:<socket>` e `http://127.0.0.1:47421`. Confirmar que os headers (`Authorization`) chegam, se a query string é descartada, e se o Tailscale standalone consegue abrir o socket em `~/Library/Application Support/Mocha/`.
   2. Cliente de teste iOS (simulador e iPhone) com `URLSessionWebSocketTask`: conexão, envio, queda de Wi-Fi/4G e retorno, e ida e volta de background.
-  3. Registrar o comando final do `serve-setup` e como desfazê-lo (`tailscale serve reset` só se não houver outras configs; hoje não há nenhuma).
+  3. Confirmar que um `POST` com corpo (como o futuro `/v1/upload`) passa pelo `tailscale serve` com `Content-Length`: se o proxy repassar em chunked, o `HttpServer` responde 411 (§4.4).
+  4. Registrar o comando final do `serve-setup` e como desfazê-lo (`tailscale serve reset` só se não houver outras configs; hoje não há nenhuma).
 - **Aceite**:
   - [ ] `S5.md` com o alvo escolhido, os comandos, as latências medidas e o comportamento de reconexão.
   - [ ] Seção "Impacto" com o texto novo da §4.5 da SPEC, pronto para o orquestrador aplicar.
@@ -293,7 +294,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaClient/`, `MochaKit/Tests/MochaClientTests/`, `App/Sources/Connection/`, `App/Sources/Pairing/`, `App/Sources/Settings/`.
 - **Depende de**: WP0.2, WP0.3, S5, WP-I1.
 - **SPEC**: §2.3 (Reconexão), §4.5, §6.1, §6.3 (Pareamento, Ajustes).
-- **Faz**: `ConnectionManager` (actor, em `MochaClient`) com backoff e `TokenStore` injetado; `KeychainTokenStore` no app; `scenePhase`; leitura de QR com `DataScannerViewController`; link colado; estados de erro; tela de Ajustes com estado da conexão, versões e desparear.
+- **Faz**: `ConnectionManager` (actor, em `MochaClient`) com backoff e `TokenStore` injetado, sempre com um `receive()` pendente no `URLSessionWebSocketTask` (sem ele, o pong do `sendPing` e o close do servidor não são processados; WP0.3); `KeychainTokenStore` no app; `scenePhase`; leitura de QR com `DataScannerViewController`; link colado; estados de erro; tela de Ajustes com estado da conexão, versões e desparear.
 - **Aceite**:
   - [ ] `MochaClientTests` contra um servidor WS de teste montado com o `HttpServer` (WP0.3): pareamento por código → token salvo no `TokenStore` → reconexão com token, queda do servidor e sequência de backoff.
   - [ ] No simulador, com `-demo`, as telas de pareamento e Ajustes aparecem e navegam. O pareamento contra o `mochad` real acontece no WP-X1.
@@ -508,7 +509,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 |---|---|---|
 | WP0.1 | feito | f5adafc |
 | WP0.2 | feito | 51ead39, 8bad988 |
-| WP0.3 | todo | |
+| WP0.3 | feito | 6213de7 |
 | S1 | feito | ce6ff4f |
 | S2 | feito | 4648a76 |
 | S3 | feito | 0c0c24c |
