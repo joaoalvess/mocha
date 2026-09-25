@@ -1,0 +1,6 @@
+{
+  "id": "sub1",
+  "result": {
+    "type": "subscription_started"
+  }
+}

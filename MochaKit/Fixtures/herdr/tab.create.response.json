@@ -1,0 +1,31 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "tab_created",
+    "tab": {
+      "tab_id": "w1A:t2",
+      "workspace_id": "w1A",
+      "number": 2,
+      "label": "start",
+      "focused": false,
+      "pane_count": 1,
+      "agent_status": "unknown"
+    },
+    "root_pane": {
+      "pane_id": "w1A:p3",
+      "terminal_id": "term_65c55b4e02a8bb2",
+      "workspace_id": "w1A",
+      "tab_id": "w1A:t2",
+      "focused": false,
+      "cwd": "/Users/dev/projects/demo-app",
+      "foreground_cwd": "/Users/dev/projects/demo-app",
+      "agent_status": "unknown",
+      "scroll": {
+        "offset_from_bottom": 0,
+        "max_offset_from_bottom": 0,
+        "viewport_rows": 41
+      },
+      "revision": 0
+    }
+  }
+}

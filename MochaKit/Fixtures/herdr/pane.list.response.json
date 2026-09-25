@@ -1,0 +1,154 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "pane_list",
+    "panes": [
+      {
+        "pane_id": "wJ:p7",
+        "terminal_id": "term_65c482d6b08d54c",
+        "workspace_id": "wJ",
+        "tab_id": "wJ:t7",
+        "focused": true,
+        "cwd": "/Users/dev/Developer",
+        "foreground_cwd": "/Users/dev/Developer",
+        "agent": "claude",
+        "terminal_title": "◑ tarefa principal",
+        "terminal_title_stripped": "tarefa principal",
+        "agent_status": "working",
+        "tokens": {
+          "quota_nest_gap": "​⠀",
+          "quota_stack": "255990255",
+          "quota_week_warning": "7d  ▰▰▰▱▱▱  42% 17h16m",
+          "effort": "xhigh",
+          "quota_provider": "Claude",
+          "quota_icon": "⁡",
+          "quota_cache_ttl": "ttl≈58m",
+          "quota_5h_normal": "5h  ▰▰▰▰▰▱  96% 26m",
+          "quota_topic": "tarefa de exemplo",
+          "quota_provider_model": "Claude/Opus 5.5 (1M context)",
+          "quota_group": "Developer",
+          "quota_context_normal": "cx  ▰▰▰▰▰▱  78%",
+          "quota_cache": "cache 97.1%"
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "11111111-1111-4111-8111-111111111111"
+        },
+        "scroll": {
+          "offset_from_bottom": 0,
+          "max_offset_from_bottom": 0,
+          "viewport_rows": 41
+        },
+        "revision": 1271
+      },
+      {
+        "pane_id": "wJ:pG",
+        "terminal_id": "term_65c51a4003936ab",
+        "workspace_id": "wJ",
+        "tab_id": "wJ:tE",
+        "focused": false,
+        "cwd": "/Users/dev/Developer",
+        "foreground_cwd": "/Users/dev/Developer",
+        "terminal_title": "coffee ~/Developer",
+        "terminal_title_stripped": "coffee ~/Developer",
+        "agent_status": "unknown",
+        "scroll": {
+          "offset_from_bottom": 0,
+          "max_offset_from_bottom": 0,
+          "viewport_rows": 41
+        },
+        "revision": 4
+      },
+      {
+        "pane_id": "w17:p1",
+        "terminal_id": "term_65c4ff4fa6a5976",
+        "workspace_id": "w17",
+        "tab_id": "w17:t1",
+        "focused": false,
+        "cwd": "/Users/dev/projects/demo-api",
+        "foreground_cwd": "/Users/dev/projects/demo-api/.claude/worktrees/feature",
+        "agent": "claude",
+        "terminal_title": "✳ revisão do código",
+        "terminal_title_stripped": "revisão do código",
+        "agent_status": "idle",
+        "tokens": {
+          "effort": "xhigh",
+          "quota_week_inline_unknown": "7d stale 5h",
+          "quota_cache": "cache 99.9%",
+          "quota_icon": "",
+          "quota_nest_gap": "​⠀",
+          "quota_context_normal": "cx  ▰▰▰▰▰▱  79%",
+          "quota_stack": "255990255",
+          "quota_cache_state": "no cached",
+          "quota_provider_model": "Claude/Opus 5.5 (1M context)",
+          "quota_topic": "tarefa de exemplo",
+          "quota_provider": "Claude",
+          "quota_group": "demo-api"
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "22222222-2222-4222-8222-222222222222"
+        },
+        "scroll": {
+          "offset_from_bottom": 0,
+          "max_offset_from_bottom": 0,
+          "viewport_rows": 41
+        },
+        "revision": 1202
+      },
+      {
+        "pane_id": "wY:p2",
+        "terminal_id": "term_65c4f3fd099886b",
+        "workspace_id": "wY",
+        "tab_id": "wY:t2",
+        "focused": false,
+        "cwd": "/Users/dev/projects",
+        "foreground_cwd": "/Users/dev/projects",
+        "terminal_title": "~/projects",
+        "terminal_title_stripped": "~/projects",
+        "agent_status": "unknown",
+        "tokens": {
+          "quota_provider_model": "Claude/Opus 5.5 (1M context)",
+          "quota_topic": "tarefa de exemplo",
+          "quota_icon": "​  ⁠",
+          "quota_provider": "Claude",
+          "quota_cache": "cache 94.0%",
+          "quota_week_warning": "7d  ▰▰▰▱▱▱  45% 1d0h",
+          "quota_stack": "255990255",
+          "quota_5h_normal": "5h  ▰▰▰▰▰▱  95% 2h55m",
+          "quota_context_normal": "cx  ▰▰▰▰▰▱  91%",
+          "quota_nest_gap": "​⠀",
+          "quota_cache_ttl": "ttl≈57m"
+        },
+        "scroll": {
+          "offset_from_bottom": 0,
+          "max_offset_from_bottom": 0,
+          "viewport_rows": 41
+        },
+        "revision": 31
+      },
+      {
+        "pane_id": "wW:p1",
+        "terminal_id": "term_65c482238710e49",
+        "workspace_id": "wW",
+        "tab_id": "wW:t1",
+        "focused": false,
+        "cwd": "/Users/dev/projects/notes",
+        "foreground_cwd": "/Users/dev/projects/notes",
+        "terminal_title": "~/p/notes",
+        "terminal_title_stripped": "~/p/notes",
+        "agent_status": "unknown",
+        "scroll": {
+          "offset_from_bottom": 0,
+          "max_offset_from_bottom": 0,
+          "viewport_rows": 41
+        },
+        "revision": 7
+      }
+    ]
+  }
+}

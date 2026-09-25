@@ -1,0 +1,11 @@
+{
+  "data": {
+    "agent": "claude",
+    "final_status": "done",
+    "pane_id": "w1A:p3",
+    "released": true,
+    "type": "pane_agent_detected",
+    "workspace_id": "w1A"
+  },
+  "event": "pane_agent_detected"
+}

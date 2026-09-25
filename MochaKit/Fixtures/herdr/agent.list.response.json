@@ -1,0 +1,168 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "agent_list",
+    "agents": [
+      {
+        "terminal_id": "term_65c482d6b08d54c",
+        "agent": "claude",
+        "terminal_title": "◑ tarefa principal",
+        "terminal_title_stripped": "tarefa principal",
+        "agent_status": "working",
+        "tokens": {
+          "quota_5h_normal": "5h  ▰▰▰▰▰▱  95% 19m",
+          "quota_topic": "tarefa de exemplo",
+          "quota_provider_model": "Claude/Opus 5.5 (1M context)",
+          "quota_cache": "cache 97.1%",
+          "quota_cache_ttl": "ttl≈51m",
+          "quota_stack": "255990255",
+          "quota_week_warning": "7d  ▰▰▱▱▱▱  41% 17h09m",
+          "quota_provider": "Claude",
+          "effort": "xhigh",
+          "quota_icon": "⁡",
+          "quota_group": "Developer",
+          "quota_context_normal": "cx  ▰▰▰▰▰▱  78%",
+          "quota_nest_gap": "​⠀"
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "11111111-1111-4111-8111-111111111111"
+        },
+        "workspace_id": "wJ",
+        "tab_id": "wJ:t7",
+        "pane_id": "wJ:p7",
+        "focused": true,
+        "state_change_seq": 531,
+        "cwd": "/Users/dev/Developer",
+        "foreground_cwd": "/Users/dev/Developer",
+        "revision": 1297
+      },
+      {
+        "terminal_id": "term_65c4ff4fa6a5976",
+        "agent": "claude",
+        "terminal_title": "✳ revisão do código",
+        "terminal_title_stripped": "revisão do código",
+        "agent_status": "idle",
+        "tokens": {
+          "quota_cache": "cache 99.9%",
+          "quota_stack": "255990255",
+          "quota_cache_state": "no cached",
+          "quota_nest_gap": "​⠀",
+          "effort": "xhigh",
+          "quota_provider": "Claude",
+          "quota_week_inline_unknown": "7d stale 5h",
+          "quota_context_normal": "cx  ▰▰▰▰▰▱  79%",
+          "quota_provider_model": "Claude/Opus 5.5 (1M context)",
+          "quota_group": "demo-api",
+          "quota_topic": "tarefa de exemplo",
+          "quota_icon": ""
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "22222222-2222-4222-8222-222222222222"
+        },
+        "workspace_id": "w17",
+        "tab_id": "w17:t1",
+        "pane_id": "w17:p1",
+        "focused": false,
+        "state_change_seq": 463,
+        "cwd": "/Users/dev/projects/demo-api",
+        "foreground_cwd": "/Users/dev/projects/demo-api/.claude/worktrees/feature",
+        "revision": 1221
+      },
+      {
+        "terminal_id": "term_65c55a39b32e6ad",
+        "agent": "claude",
+        "terminal_title": "✳ Claude Code",
+        "terminal_title_stripped": "Claude Code",
+        "agent_status": "done",
+        "tokens": {
+          "quota_icon": "⁠",
+          "quota_stack": "255990255",
+          "quota_provider": "Claude",
+          "quota_group": "demo-app",
+          "quota_topic": "Liste tres frutas, uma por linha, sem ferramentas.",
+          "quota_provider_model": "Claude",
+          "quota_nest_gap": "​⠀"
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "53360f7b-12da-40ad-b37f-37b246ccfc35"
+        },
+        "workspace_id": "w1A",
+        "tab_id": "w1A:t1",
+        "pane_id": "w1A:p1",
+        "focused": false,
+        "state_change_seq": 545,
+        "cwd": "/Users/dev/projects/demo-app",
+        "foreground_cwd": "/Users/dev/projects/demo-app",
+        "revision": 20
+      },
+      {
+        "terminal_id": "term_65c55b2d00b83b1",
+        "agent": "claude",
+        "terminal_title": "◑ Parágrafo sobre chá",
+        "terminal_title_stripped": "Parágrafo sobre chá",
+        "agent_status": "working",
+        "tokens": {
+          "quota_provider_model": "Claude",
+          "quota_icon": "​  ⁡",
+          "quota_topic": "Escreva um paragrafo de 200 palavras sobre cha, sem",
+          "quota_nest_gap": "​⠀",
+          "quota_stack": "255990255",
+          "quota_provider": "Claude"
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "c31eceaf-ad1d-4b76-b947-380a7f8c668b"
+        },
+        "workspace_id": "w1A",
+        "tab_id": "w1A:t1",
+        "pane_id": "w1A:p2",
+        "focused": false,
+        "state_change_seq": 557,
+        "cwd": "/Users/dev/projects/demo-app",
+        "foreground_cwd": "/Users/dev/projects/demo-app",
+        "revision": 7
+      },
+      {
+        "terminal_id": "term_65c55ae8415c6ae",
+        "agent": "claude",
+        "terminal_title": "✳ Ok",
+        "terminal_title_stripped": "Ok",
+        "agent_status": "done",
+        "tokens": {
+          "quota_nest_gap": "​⠀",
+          "quota_provider_model": "Claude",
+          "quota_topic": "Use a ferramenta Write para criar o arquivo b.txt com o conteudo tchau. Nao f…",
+          "quota_icon": "⁠",
+          "quota_provider": "Claude",
+          "quota_stack": "255990255",
+          "quota_group": "demo-lab"
+        },
+        "agent_session": {
+          "source": "herdr:claude",
+          "agent": "claude",
+          "kind": "id",
+          "value": "48614493-c08b-4f14-aa98-a82aa84cfdc0"
+        },
+        "workspace_id": "w1B",
+        "tab_id": "w1B:t1",
+        "pane_id": "w1B:p1",
+        "focused": false,
+        "state_change_seq": 555,
+        "cwd": "/Users/dev/projects/demo-lab",
+        "foreground_cwd": "/Users/dev/projects/demo-lab",
+        "revision": 15
+      }
+    ]
+  }
+}

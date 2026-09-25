@@ -1,0 +1,31 @@
+{
+  "data": {
+    "layout": {
+      "area": {
+        "height": 41,
+        "width": 131,
+        "x": 0,
+        "y": 0
+      },
+      "focused_pane_id": "w1A:p1",
+      "panes": [
+        {
+          "focused": true,
+          "pane_id": "w1A:p1",
+          "rect": {
+            "height": 41,
+            "width": 131,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ],
+      "splits": [],
+      "tab_id": "w1A:t1",
+      "workspace_id": "w1A",
+      "zoomed": false
+    },
+    "type": "layout_updated"
+  },
+  "event": "layout_updated"
+}

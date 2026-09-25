@@ -1,0 +1,7 @@
+{
+  "id": "x2:sub:0:probe",
+  "error": {
+    "code": "pane_not_found",
+    "message": "pane w99:p99 not found"
+  }
+}

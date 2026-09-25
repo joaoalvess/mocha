@@ -1,0 +1,7 @@
+{
+  "id": "r1",
+  "error": {
+    "code": "timeout",
+    "message": "timed out waiting for agent status"
+  }
+}

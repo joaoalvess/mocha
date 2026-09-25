@@ -1,0 +1,53 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "tab_list",
+    "tabs": [
+      {
+        "tab_id": "wJ:t7",
+        "workspace_id": "wJ",
+        "number": 7,
+        "label": "Claude: tarefa principal",
+        "focused": true,
+        "pane_count": 1,
+        "agent_status": "working"
+      },
+      {
+        "tab_id": "wJ:tE",
+        "workspace_id": "wJ",
+        "number": 14,
+        "label": "Caffeinate",
+        "focused": false,
+        "pane_count": 1,
+        "agent_status": "unknown"
+      },
+      {
+        "tab_id": "w17:t1",
+        "workspace_id": "w17",
+        "number": 1,
+        "label": "Claude: revisão do código",
+        "focused": false,
+        "pane_count": 1,
+        "agent_status": "idle"
+      },
+      {
+        "tab_id": "wY:t2",
+        "workspace_id": "wY",
+        "number": 2,
+        "label": "fish",
+        "focused": false,
+        "pane_count": 1,
+        "agent_status": "unknown"
+      },
+      {
+        "tab_id": "wW:t1",
+        "workspace_id": "wW",
+        "number": 1,
+        "label": "fish",
+        "focused": false,
+        "pane_count": 1,
+        "agent_status": "unknown"
+      }
+    ]
+  }
+}

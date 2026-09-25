@@ -1,0 +1,40 @@
+{
+  "data": {
+    "pane": {
+      "agent": "claude",
+      "agent_session": {
+        "agent": "claude",
+        "kind": "id",
+        "source": "herdr:claude",
+        "value": "f83af5a9-c009-4ffd-a271-9f12b2409c78"
+      },
+      "agent_status": "working",
+      "cwd": "/Users/dev/projects/demo-app",
+      "focused": false,
+      "foreground_cwd": "/Users/dev/projects/demo-app",
+      "pane_id": "w1A:p1",
+      "revision": 7,
+      "scroll": {
+        "max_offset_from_bottom": 0,
+        "offset_from_bottom": 0,
+        "viewport_rows": 41
+      },
+      "tab_id": "w1A:t1",
+      "terminal_id": "term_65c55a39b32e6ad",
+      "terminal_title": "◐ Claude Code",
+      "terminal_title_stripped": "Claude Code",
+      "tokens": {
+        "quota_group": "demo-app",
+        "quota_icon": "⁡",
+        "quota_nest_gap": "​⠀",
+        "quota_provider": "Claude",
+        "quota_provider_model": "Claude",
+        "quota_stack": "255990255",
+        "quota_topic": "Responda apenas com a palavra: pronto"
+      },
+      "workspace_id": "w1A"
+    },
+    "type": "pane_updated"
+  },
+  "event": "pane_updated"
+}

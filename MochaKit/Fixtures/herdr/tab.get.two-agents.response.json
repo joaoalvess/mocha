@@ -1,0 +1,15 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "tab_info",
+    "tab": {
+      "tab_id": "w1A:t1",
+      "workspace_id": "w1A",
+      "number": 1,
+      "label": "Claude: clear",
+      "focused": false,
+      "pane_count": 2,
+      "agent_status": "done"
+    }
+  }
+}
