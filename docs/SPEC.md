@@ -28,8 +28,8 @@ O **modo agente** (chat) é a tela principal. O terminal é secundário e entra 
 | Agente | Claude Code 2.1.x (CLI), rodando dentro de panes do Herdr |
 | Rede | Tailscale 1.98 no Mac (app standalone) e no iPhone. O iPhone só alcança o Mac pelo tailnet. Nome MagicDNS do Mac: `mac-mini.tail1234.ts.net` (certificados HTTPS do tailnet já ativos) |
 | Toolchain | Xcode 27, Swift 6.4, XcodeGen (`/opt/homebrew/bin/xcodegen`) |
-| Distribuição | Conta Apple Developer paga, uso pessoal, **sem App Store**. Instalação pelo Xcode (perfil de desenvolvimento, validade de ~1 ano, APNs **sandbox**) ou TestFlight interno (build de 90 dias, APNs **produção**) |
-| Identificadores | App `com.joaoalves.mocha`, extensão `com.joaoalves.mocha.widgets`, LaunchAgent `com.joaoalves.mochad`. O Team ID é definido no bloqueio B1 (`docs/PLANO.md`) |
+| Distribuição | Conta Apple Developer paga do time da empresa (B1), uso pessoal, **sem App Store**. Instalação pelo Xcode (perfil de desenvolvimento, validade de ~1 ano, APNs **sandbox**) ou TestFlight interno (build de 90 dias, APNs **produção**) |
+| Identificadores | App `com.example.mocha`, extensão `com.example.mocha.widgets`, LaunchAgent `com.joaoalves.mochad`. O Team ID é definido no bloqueio B1 (`docs/PLANO.md`). Tudo o que é registrado na conta Apple (App IDs, App Groups e afins) usa nomes discretos com o prefixo `com.example.mocha` e nunca leva "mocha" nem "joaoalves"; os identificadores locais do Mac (LaunchAgent, Keychain, log, filas) continuam `com.joaoalves.*` |
 
 ### §1.3 Escopo por fase
 
@@ -860,7 +860,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 
 - **APNs**: HTTP/2 via `URLSession` para `api.sandbox.push.apple.com` ou `api.push.apple.com`, conforme o `env` do token do aparelho (o app manda `env` junto com o token; build do Xcode = `sandbox`, TestFlight = `production`, detectado pelo `aps-environment` do perfil embutido ou por flag de build).
 - **JWT**: ES256 com a `.p8` (CryptoKit `P256.Signing.PrivateKey(pemRepresentation:)`). A assinatura usa `signature.rawRepresentation` (r‖s), **não DER**. O token é reutilizado e renovado a cada 40 min (a Apple rejeita renovação abaixo de 20 min e token acima de 60 min).
-- **Headers**: `apns-topic: com.joaoalves.mocha`, `apns-push-type: alert`, `apns-priority: 10` (alertas são imediatos; prioridade 5 pode atrasar a entrega), `apns-collapse-id` por agente.
+- **Headers**: `apns-topic: com.example.mocha`, `apns-push-type: alert`, `apns-priority: 10` (alertas são imediatos; prioridade 5 pode atrasar a entrega), `apns-collapse-id` por agente.
 - **Tipos**:
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown. `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você (`blocked` no Herdr **ou** `PermissionRequest`/`Notification`): título "Claude precisa de você · <workspace>", corpo com o resumo do pedido. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
@@ -899,7 +899,7 @@ public struct ContentState: Codable, Hashable {
 - **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link).
 - **Ciclo de vida**:
   - **Início**: quando algum agente passa a `working` e não há atividade ativa. Com o app em primeiro plano, `Activity.request(…, pushType: .token)`; com o app fora, push-to-start (`apns-push-type: liveactivity`, `event: start`, token de push-to-start obtido em `Activity<…>.pushToStartTokenUpdates`).
-  - **Atualização**: `event: update`, `apns-topic: com.joaoalves.mocha.push-type.liveactivity`, `apns-priority: 5`, e `10` só quando `waiting` passa de 0 para ≥ 1. No máximo uma atualização a cada 10 s, exceto a transição para `blocked`.
+  - **Atualização**: `event: update`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-priority: 5`, e `10` só quando `waiting` passa de 0 para ≥ 1. No máximo uma atualização a cada 10 s, exceto a transição para `blocked`.
   - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min.
   - **Limite de 8 h**: ao completar 7 h 50 min, o daemon encerra e inicia outra com push-to-start.
 - **Tokens**: o app observa `pushTokenUpdates` de cada atividade e `pushToStartTokenUpdates`, e envia `registerLiveActivity`. Sem conexão, guarda o token e reenvia na próxima conexão.
