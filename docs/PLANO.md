@@ -36,9 +36,9 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 
 | Código | O que o João faz | Necessário em |
 |---|---|---|
-| B1 | Confirmar a conta Apple Developer paga ativa e informar o **Team ID** (developer.apple.com › Membership) | S4, WP-I1 (assinatura no device) |
-| B2 | Criar uma chave **APNs** (developer.apple.com › Certificates, IDs & Profiles › Keys › "+" › Apple Push Notifications service), baixar a `.p8` e informar o **Key ID**. A importação é feita com `mochad apns import` | S4 |
-| B3 | iPhone com **Modo de Desenvolvedor** ligado (Ajustes › Privacidade e Segurança) e pareado com o Xcode (Window › Devices and Simulators), no mesmo Wi-Fi ou por cabo | S4, WP-X1 |
+| B1 | Confirmar a conta Apple Developer paga ativa e informar o **Team ID** (developer.apple.com › Membership). **Resolvido**: time da empresa, Team ID em `Config/Signing.xcconfig` | S4, WP-I1 (assinatura no device) |
+| B2 | Criar uma chave **APNs** (developer.apple.com › Certificates, IDs & Profiles › Keys › "+" › Apple Push Notifications service), baixar a `.p8` e informar o **Key ID**. A importação é feita com `mochad apns import`. **Resolvido**: chave Team Scoped nova, só para o Mocha; o João informa o caminho da `.p8` e o Key ID ao orquestrador (fora do git) | S4 |
+| B3 | iPhone com **Modo de Desenvolvedor** ligado (Ajustes › Privacidade e Segurança) e pareado com o Xcode (Window › Devices and Simulators), no mesmo Wi-Fi ou por cabo. **Resolvido**: iPhone 14 (iOS 27), Modo de Desenvolvedor ligado e aparelho registrado no time. Sem Dynamic Island: ela é verificada no simulador | S4, WP-X1 |
 | B4 | Os certificados HTTPS do tailnet já estão ativos. Resta **autorizar** o comando `tailscale serve` quando o S5 pedir (ele altera a config do Tailscale do Mac) | S5 |
 | B5 | Ligar o **Login Remoto** (Ajustes do Sistema › Geral › Compartilhamento › Login Remoto) e adicionar a chave pública do app em `~/.ssh/authorized_keys` | Fase 2 |
 | B6 | No app Tailscale do iPhone, ligar **VPN On Demand** (sempre conectado) | WP-X2 |
@@ -75,7 +75,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
   1. `git init` (branch `main`) e `.gitignore` (`.build/`, `build/`, `*.xcodeproj`, `DerivedData`, `.DS_Store`, `xcuserdata/`, `.swiftpm/`, `*.p8`, `Config/Signing.xcconfig`, `MochaKit/Fixtures/transcripts/generated/`).
   2. Primeiro commit só com `docs/`, `prompts/`, `AGENTS.md`, `CLAUDE.md` e `README.md` (`docs(spec): add spec, plan and agent rules`).
   3. `MochaKit/Package.swift` com os targets e dependências da tabela de §2.2 (bibliotecas vazias compilando, `mochad --version` imprimindo `0.1.0`) e os test targets com um teste trivial cada, incluindo `MochaDemoTests`. Cada test target ganha um helper `Fixtures` que resolve `MochaKit/Fixtures/` por `#filePath` (o SwiftPM não aceita recurso fora do diretório do target).
-  4. `project.yml` com os targets `Mocha` (iOS 26, bundle `com.joaoalves.mocha`, dependências de §2.2) e `MochaWidgets` (extensão de widget com Live Activity, bundle `com.joaoalves.mocha.widgets`). `swift-markdown` com a versão estável mais recente, fixada com `exactVersion` e registrada na §11. Assinatura automática com `DEVELOPMENT_TEAM` vindo de `Config/Signing.xcconfig`.
+  4. `project.yml` com os targets `Mocha` (iOS 26, bundle `com.example.mocha`, dependências de §2.2) e `MochaWidgets` (extensão de widget com Live Activity, bundle `com.example.mocha.widgets`). `swift-markdown` com a versão estável mais recente, fixada com `exactVersion` e registrada na §11. Assinatura automática com `DEVELOPMENT_TEAM` vindo de `Config/Signing.xcconfig`.
   5. Entitlements do app: `aps-environment` (development) e `com.apple.developer.usernotifications.time-sensitive`. `NSSupportsLiveActivities = YES` no Info.plist do app.
   6. Scripts de §2.2, executáveis, com `set -euo pipefail` e caminhos absolutos para as ferramentas do Homebrew. O `bootstrap.sh` copia `Config/Signing.example.xcconfig` para `Config/Signing.xcconfig` se ele não existir. O `build-app.sh` compila para o simulador com `CODE_SIGNING_ALLOWED=NO`. O `build-device.sh` compila assinado para o iPhone (`-allowProvisioningUpdates`).
   7. App mínimo: tela preta com "Mocha" em mono. Em `AppShell/`, o ponto de entrada já tem `@UIApplicationDelegateAdaptor` e um roteador de sondas de debug por argumento de launch (`-probe push|gateway`), para o S4 e o S5 plugarem as sondas sem mexer fora dos seus donos.
@@ -438,7 +438,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Depende de**: WP-M8.
 - **SPEC**: §7.3.
 - **Aceite**:
-  - [ ] Tela bloqueada e Dynamic Island (compacta, mínima e expandida) capturadas no device.
+  - [ ] Tela bloqueada capturada no device, e Dynamic Island (compacta, mínima e expandida) capturada no simulador (iPhone 18 Pro), porque o iPhone 14 do João não tem Dynamic Island.
   - [ ] Início por push-to-start com o app encerrado.
 
 ### WP-I10: voz
