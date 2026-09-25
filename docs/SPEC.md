@@ -115,7 +115,7 @@ Princípios:
   MochaKit/                       Swift Package local
     Package.swift
     Sources/
-      MochaProtocol/              tipos compartilhados app ↔ daemon (§5) e o protocolo ServerConnection. Sem dependências
+      MochaProtocol/              tipos compartilhados app ↔ daemon (§5), o protocolo ServerConnection e, só no iOS, MochaAgentsAttributes (§7.3). Sem dependências
       MochaClient/                cliente WS do app: ConnectionManager, reconexão, TokenStore (§6.1)
       MochaDemo/                  ServerConnection em processo com dados de demonstração (Resources/*.json)
       MochaTranscript/            parser do JSONL do Claude Code → ChatItem (§3.2)
@@ -124,13 +124,14 @@ Princípios:
       mochad/                     executável (CLI + run loop)
       MochaTestSupport/           fakes e helpers para os testes do daemon
     Tests/
-      MochaProtocolTests/  MochaClientTests/  MochaTranscriptTests/  MochaHerdrTests/  MochaDaemonCoreTests/
+      MochaProtocolTests/  MochaDemoTests/  MochaClientTests/  MochaTranscriptTests/  MochaHerdrTests/  MochaDaemonCoreTests/
     Fixtures/
       transcripts/  herdr/  hooks/  protocol/
   scripts/
     bootstrap.sh                  xcodegen generate
     test.sh                       swift test --package-path MochaKit
     build-app.sh                  xcodebuild do app para o simulador
+    build-device.sh               xcodebuild assinado do app para o iPhone (-allowProvisioningUpdates)
     build-daemon.sh               swift build -c release --product mochad
     run-daemon.sh                 roda o mochad em primeiro plano com log no stdout
   docs/  prompts/
@@ -149,6 +150,9 @@ Princípios:
 | `mochad` (executável) | macOS | `MochaDaemonCore` |
 | `MochaTestSupport` | macOS | `MochaProtocol`, `MochaDaemonCore` |
 | `MochaClientTests` | macOS | `MochaClient`, `MochaDaemonCore` (usa o `HttpServer` real como servidor WS de teste) |
+| `MochaDemoTests` | macOS | `MochaDemo` |
+
+Os test targets acham `MochaKit/Fixtures/` por um helper `Fixtures` baseado em `#filePath`, porque o SwiftPM não aceita recurso fora do diretório do target.
 
 O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `swift-markdown`. A extensão `MochaWidgets` depende só de `MochaProtocol`. O modo demo liga com o argumento de launch `-demo`: o app usa `DemoServerConnection` (de `MochaDemo`) no lugar da conexão real.
 
@@ -777,7 +781,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 
 ### §7.3 Live Activity agregada (1b)
 
-- Uma única atividade `MochaAgentsAttributes` (sem atributos estáticos relevantes) com `ContentState`:
+- Uma única atividade `MochaAgentsAttributes` (sem atributos estáticos relevantes), definida em `MochaProtocol` sob `#if os(iOS)` (o `ActivityAttributes` não existe no macOS), com `ContentState`:
 
 ```swift
 public struct ContentState: Codable, Hashable {
@@ -870,7 +874,8 @@ O spike S3 fixa o mecanismo e atualiza esta seção. O comportamento-alvo:
 | Dependência | Onde | Licença | Fase |
 |---|---|---|---|
 | Frameworks da Apple (SwiftUI, Network, CryptoKit, Security, ActivityKit, UserNotifications, Speech, VisionKit, PhotosUI, CoreImage) | app e daemon | — | todas |
-| `swift-markdown` (github.com/swiftlang/swift-markdown) | app (`Markdown/`) | Apache-2.0 | 1a-core |
+| `swift-markdown` (github.com/swiftlang/swift-markdown), `exactVersion: 0.9.0` | app (`Markdown/`) | Apache-2.0 | 1a-core |
+| `swift-cmark` e `swift-docc-plugin`, transitivas do `swift-markdown` | app | BSD-2 / Apache-2.0 | 1a-core |
 | Swift Testing | testes | — | todas |
 | `SwiftTerm` (github.com/migueldeicaza/SwiftTerm) | app | MIT | 2 |
 | `Citadel` (github.com/orlandos-nl/Citadel) | app | MIT | 2 |
