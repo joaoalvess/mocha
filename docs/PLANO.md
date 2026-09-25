@@ -205,10 +205,15 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaHerdr/`, `MochaKit/Sources/MochaDaemonCore/Herdr/` e os testes correspondentes.
 - **Depende de**: WP0.2, S2.
 - **SPEC**: §3.1, §4.1.
-- **Faz**: cliente com duas conexões (requisições e eventos), reconexão, snapshot, inscrições por pane, árvore derivada (§3.1.4, com `HEAD` do git lido direto e `isDirty` com cache), comandos `prompt`/`interrupt`, e publicação de mudanças por `AsyncStream`.
+- **Faz**: cliente com uma conexão por requisição (NDJSON, o servidor fecha depois de responder) e conexões de eventos só de leitura (uma global e uma por pane com agente); `ping` com checagem do protocolo 22; bootstrap e reconexão por `session.snapshot` (inscrever → ack → snapshot → aplicar eventos guardados); árvore reconciliada por snapshot com debounce (§3.1.3), com `HEAD` do git lido direto e `isDirty` com cache; detecção de troca de sessão sem evento (§3.1.3); mapa de `pane_moved`; comandos `prompt`/`interrupt`; publicação de mudanças por `AsyncStream`.
 - **Aceite**:
   - [ ] Testes com um servidor de socket falso que reproduz as fixtures do S2: árvore correta, aninhamento de worktree ligado, status por pane, reconexão depois de o socket cair.
-  - [ ] Teste `.integration` (só com `MOCHA_INTEGRATION=1`) lendo o Herdr real sem enviar input.
+  - [ ] O servidor falso reproduz o Herdr real: fecha depois de uma resposta, devolve `id: ""` em `invalid_request`, fecha a conexão de inscrição se o cliente escrever depois do ack, e toca os `stream.*.jsonl`.
+  - [ ] Teste: `tab_closed` e `pane_exited` sem `pane_closed` removem os panes (via snapshot) e fecham as inscrições deles.
+  - [ ] Teste: `agent_session` que muda sem evento é detectada (pelo `pane_updated` e pela reconciliação).
+  - [ ] Teste de contrato: todo método e parâmetro enviado existe em `Fixtures/herdr/herdr-api.schema.json`.
+  - [ ] Teste: protocolo ≠ 22 no `ping` gera o aviso sem derrubar o daemon.
+  - [ ] Teste `.integration` (só com `MOCHA_INTEGRATION=1`) lendo o Herdr real sem enviar input: só `ping`, `session.snapshot`, `agent.list` e uma inscrição global.
 
 ### WP-M2: parser e `TranscriptStore`
 
@@ -241,7 +246,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`.
 - **Aceite**:
   - [ ] `mochad install` sobe o LaunchAgent, e `launchctl print gui/$UID/com.joaoalves.mochad` mostra o serviço rodando.
-  - [ ] `mochad doctor` lista os itens de §4.2 com o estado real.
+  - [ ] `mochad doctor` lista os itens de §4.2 com o estado real, incluindo a versão e o protocolo do `ping` do Herdr (❌ se o socket não existir, ⚠️ se protocolo ≠ 22).
   - [ ] Parado por 10 min: RSS < 30 MB (medido com `footprint` ou `ps`).
   - [ ] `mochad pair` exibe um QR legível pela câmera do iPhone.
 
@@ -404,7 +409,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **SPEC**: §7.3, §5.3 (`registerLiveActivity`, `newAgentTab`), §3.1.2.
 - **Aceite**:
   - [ ] Testes da máquina de estados: início, atualização com o limite de 10 s, prioridade 10 só na transição para bloqueado, fim depois de 60 s ocioso, renovação às 7 h 50 min.
-  - [ ] `newAgentTab` cria a tab no workspace e responde com o `agentId`.
+  - [ ] `newAgentTab` cria a tab no workspace e responde com o `agentId`: `tab.create {workspace_id, cwd, focus:false}` → `agent.start {name:"mocha-<n>", kind:"claude", pane_id:root_pane, args:[]}` → espera `idle` por evento (timeout de 30 s). Se vier `blocked` (diálogo de confiança numa pasta nova), avisa o app em vez de responder sozinho (S2).
 
 ### S6: voz em pt-BR
 
@@ -497,7 +502,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP0.2 | todo | |
 | WP0.3 | todo | |
 | S1 | todo | |
-| S2 | todo | |
+| S2 | feito | 4648a76 |
 | S3 | todo | |
 | S4 | todo | |
 | S5 | todo | |
