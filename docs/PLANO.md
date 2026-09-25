@@ -51,8 +51,8 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 
 **Ondas**
 - **Onda 0.A**: WP0.1, feito pelo orquestrador direto em `main`. Depois, a branch `fase/0`.
-- **Onda 0.B**, em paralelo: WP0.2 · WP0.3 · S2.
-- **Onda 0.C**, em paralelo: S1 · S3.
+- **Onda 0.B**, em paralelo: WP0.2 · S2 · S1.
+- **Onda 0.C**, em paralelo: WP0.3 · S3. O WP0.3 não roda junto com o WP0.2 porque o `swift test` compila o pacote inteiro num bundle só: com o `MochaProtocol` em edição, o build do `MochaDaemonCore` quebra na mesma árvore.
 - **Onda 0.D**: S5 (mexe em `mochad/` e no app; roda sozinho).
 - **Onda 0.E**: S4 (mexe em `mochad/` e no app; roda sozinho). Precisa de B1–B3. Se esses bloqueios atrasarem, o S4 passa para o começo da 1a-final e a Fase 0 fecha sem ele (registrado na tabela de status).
 
@@ -72,14 +72,15 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Depende de**: —
 - **SPEC**: §1.2, §2.2, §11.
 - **Faz**:
-  1. `git init` (branch `main`) e `.gitignore` (`.build/`, `build/`, `*.xcodeproj`, `DerivedData`, `.DS_Store`, `xcuserdata/`, `*.p8`, `Config/Signing.xcconfig`).
+  1. `git init` (branch `main`) e `.gitignore` (`.build/`, `build/`, `*.xcodeproj`, `DerivedData`, `.DS_Store`, `xcuserdata/`, `.swiftpm/`, `*.p8`, `Config/Signing.xcconfig`, `MochaKit/Fixtures/transcripts/generated/`).
   2. Primeiro commit só com `docs/`, `prompts/`, `AGENTS.md`, `CLAUDE.md` e `README.md` (`docs(spec): add spec, plan and agent rules`).
-  3. `MochaKit/Package.swift` com os targets e dependências da tabela de §2.2 (bibliotecas vazias compilando, `mochad --version` imprimindo `0.1.0`) e os test targets com um teste trivial cada.
+  3. `MochaKit/Package.swift` com os targets e dependências da tabela de §2.2 (bibliotecas vazias compilando, `mochad --version` imprimindo `0.1.0`) e os test targets com um teste trivial cada, incluindo `MochaDemoTests`. Cada test target ganha um helper `Fixtures` que resolve `MochaKit/Fixtures/` por `#filePath` (o SwiftPM não aceita recurso fora do diretório do target).
   4. `project.yml` com os targets `Mocha` (iOS 26, bundle `com.joaoalves.mocha`, dependências de §2.2) e `MochaWidgets` (extensão de widget com Live Activity, bundle `com.joaoalves.mocha.widgets`). `swift-markdown` com a versão estável mais recente, fixada com `exactVersion` e registrada na §11. Assinatura automática com `DEVELOPMENT_TEAM` vindo de `Config/Signing.xcconfig`.
   5. Entitlements do app: `aps-environment` (development) e `com.apple.developer.usernotifications.time-sensitive`. `NSSupportsLiveActivities = YES` no Info.plist do app.
-  6. Scripts de §2.2, executáveis, com `set -euo pipefail` e caminhos absolutos para as ferramentas do Homebrew. O `bootstrap.sh` copia `Config/Signing.example.xcconfig` para `Config/Signing.xcconfig` se ele não existir. O `build-app.sh` compila para o simulador com `CODE_SIGNING_ALLOWED=NO`.
-  7. App mínimo: tela preta com "Mocha" em mono.
-  8. Commit do scaffold (`chore(scaffold): …`) em `main` e criação da branch `fase/0`.
+  6. Scripts de §2.2, executáveis, com `set -euo pipefail` e caminhos absolutos para as ferramentas do Homebrew. O `bootstrap.sh` copia `Config/Signing.example.xcconfig` para `Config/Signing.xcconfig` se ele não existir. O `build-app.sh` compila para o simulador com `CODE_SIGNING_ALLOWED=NO`. O `build-device.sh` compila assinado para o iPhone (`-allowProvisioningUpdates`).
+  7. App mínimo: tela preta com "Mocha" em mono. Em `AppShell/`, o ponto de entrada já tem `@UIApplicationDelegateAdaptor` e um roteador de sondas de debug por argumento de launch (`-probe push|gateway`), para o S4 e o S5 plugarem as sondas sem mexer fora dos seus donos.
+  8. `MochaAgentsAttributes` (§7.3) em `MochaProtocol`, sob `#if os(iOS)`, e a extensão `MochaWidgets` com uma Live Activity mínima sobre ele.
+  9. Commit do scaffold (`chore(scaffold): …`) em `main` e criação da branch `fase/0`.
 - **Aceite**:
   - [ ] `scripts/bootstrap.sh` gera `Mocha.xcodeproj` sem erro.
   - [ ] `scripts/test.sh` passa.
@@ -89,7 +90,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 
 ### WP0.2: `MochaProtocol` v1, fixtures e fakes
 
-- **Dono**: `MochaKit/Sources/MochaProtocol/`, `MochaKit/Fixtures/protocol/`, `MochaKit/Sources/MochaDemo/`, `MochaKit/Tests/MochaProtocolTests/`. Executado pelo orquestrador, ou por um subagente com revisão linha a linha.
+- **Dono**: `MochaKit/Sources/MochaProtocol/`, `MochaKit/Fixtures/protocol/`, `MochaKit/Sources/MochaDemo/`, `MochaKit/Tests/MochaProtocolTests/`, `MochaKit/Tests/MochaDemoTests/`. Executado pelo orquestrador, ou por um subagente com revisão linha a linha.
 - **Depende de**: WP0.1.
 - **SPEC**: §5 inteira.
 - **Faz**:
@@ -109,9 +110,10 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **SPEC**: §4.4.
 - **Faz**: servidor HTTP/1.1 mínimo sobre `NWListener` (TCP em `127.0.0.1`; socket Unix se o `NWListener` suportar, senão reporta), com roteador por método e path, handlers `async`, limites de corpo, e WebSocket com upgrade e framing RFC 6455 próprios (§4.4).
 - **Aceite**:
-  - [ ] Teste com `URLSession` real contra a porta efêmera: GET, POST com corpo, 404, 405 e corpo acima do limite (413).
+  - [ ] Teste com `URLSession` real contra a porta efêmera: GET, POST com corpo, 404, 405 e corpo acima do limite (413). O 413 é decidido pelo `Content-Length` e o servidor drena o corpo antes de fechar, para o cliente receber a resposta em vez de um reset.
   - [ ] Handler que segura a resposta (5 s no teste) responde no fim; o cliente que desiste antes cancela a `Task` do handler.
-  - [ ] Teste de WebSocket com `URLSessionWebSocketTask`: handshake, texto nos dois sentidos, mensagem fragmentada, ping/pong e close.
+  - [ ] Teste de WebSocket com `URLSessionWebSocketTask`: handshake, texto nos dois sentidos, ping/pong e close.
+  - [ ] Teste de mensagem fragmentada e de frame sem máscara (rejeitado) com um cliente TCP cru (`NWConnection` e frames montados à mão), porque o `URLSessionWebSocketTask` não fragmenta.
   - [ ] Resultado registrado no relatório: o `NWListener` aceita ou não socket Unix.
   - [ ] Nenhuma dependência nova.
 
@@ -123,7 +125,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Faz**:
   1. Catalogar os tipos e subtipos em transcripts reais de `~/.claude/projects` (versão atual do Claude Code), incluindo imagens coladas, `/clear`, `/compact` (`compact_boundary`), subagentes (`isSidechain`, arquivos em `<session>/subagents/`), erros de ferramenta, interrupção (Esc), AskUserQuestion, pedidos de permissão e plan mode.
   2. Gerar 6–10 fixtures pequenas (≤ 300 linhas cada) cobrindo esses casos. Texto de trabalho (initech, acme) é trocado por texto neutro, preservando a estrutura.
-  3. Gerar uma fixture sintética grande (≥ 50 MB) por script, para medir desempenho. Ela não vai para o git: o script sim.
+  3. Gerar uma fixture sintética grande (≥ 50 MB) por script, para medir desempenho, em `MochaKit/Fixtures/transcripts/generated/` (ignorado pelo git). Ela não vai para o git: o script sim.
   4. No laboratório, confirmar se `/clear` cria um novo `session_id` e como o Herdr reflete isso em `agent.list`.
 - **Aceite**:
   - [ ] `S1.md` com a tabela de mapeamento final (entrada → `ChatItem`), casos-limite e a política para tipos novos.
@@ -163,11 +165,11 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 
 ### S4: APNs e Live Activity saindo do Mac
 
-- **Dono**: `docs/spikes/S4.md`, `MochaKit/Sources/MochaDaemonCore/Push/`, `MochaKit/Sources/mochad/` (subcomandos `apns`), `Widgets/`, `App/Sources/Notifications/`, `App/Sources/LiveActivity/`. O código do S4 é protótipo que o WP-M6 e o WP-I9 evoluem.
+- **Dono**: `docs/spikes/S4.md`, `MochaKit/Sources/MochaDaemonCore/Push/`, `MochaKit/Sources/mochad/` (subcomandos `apns`), `Widgets/`, `App/Sources/Notifications/`, `App/Sources/LiveActivity/`, `App/Sources/Debug/PushProbe*`. O código do S4 é protótipo que o WP-M6 e o WP-I9 evoluem.
 - **Depende de**: WP0.1, WP0.2, B1, B2, B3.
 - **SPEC a atualizar**: §7.
 - **Faz**:
-  1. `mochad apns import`/`apns test` mínimos: JWT com CryptoKit e envio HTTP/2 para o sandbox. Alerta recebido no iPhone com build do Xcode.
+  1. `mochad apns import`/`apns test` mínimos: JWT com CryptoKit e envio HTTP/2 para o sandbox. Alerta recebido no iPhone com build do Xcode. Como o `devices.json` só existe a partir da 1a-core, o `apns test` do spike aceita `--token <hex> --env sandbox`; o app mostra o token numa sonda de debug (`-probe push`), nunca no log.
   2. Live Activity mínima no widget: iniciar pelo app, atualizar por push, encerrar por push, e iniciar por push-to-start com o app encerrado.
   3. Medir o atraso de entrega e confirmar os headers e o comportamento das prioridades 5 e 10.
   4. Confirmar como o app descobre o `env` (sandbox ou produção).
