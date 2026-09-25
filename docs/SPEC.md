@@ -36,7 +36,7 @@ O **modo agente** (chat) é a tela principal. O terminal é secundário e entra 
 | Funcionalidade | Fase |
 |---|---|
 | Pareamento iPhone ↔ Mac por QR | 1a-core |
-| Gaveta de workspaces, tabs e agentes do Herdr, ao vivo (inclui worktrees criados pelos agentes) | 1a-core |
+| Gaveta de workspaces, tabs e agentes do Herdr, ao vivo (inclui os worktrees do Herdr criados pelos agentes) | 1a-core |
 | Chat do agente: histórico paginado, atualização ao vivo, markdown, cards de ferramenta | 1a-core |
 | Enviar prompt, interromper (Esc) | 1a-core |
 | Daemon como LaunchAgent, `doctor` | 1a-core |
@@ -240,7 +240,8 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - **Diretório do workspace**: `worktree.checkout_path` quando existe; senão, o `cwd` do primeiro pane da tab ativa (`active_tab_id`). O workspace não tem `cwd` próprio.
 - `worktree` só aparece em workspaces de um grupo de worktree do Herdr (criados ou abertos por `herdr worktree`, e o workspace principal do repositório). Um workspace aberto num repositório git comum vem sem ele.
 - Um workspace com `worktree.is_linked_worktree == true` fica **aninhado** sob o workspace não-ligado de mesmo `repo_key`. Sem pai aberto, ele fica na raiz.
-- Um worktree criado pelo agente dentro do próprio pane (ex.: `.claude/worktrees/<nome>`) não vira workspace: aparece só no `foreground_cwd` do pane.
+- Um worktree criado pelo agente dentro do próprio pane (ex.: `.claude/worktrees/<nome>`) não vira workspace: aparece só no `foreground_cwd` do pane. Só os worktrees do Herdr são aninhados na gaveta.
+- **Branch do agente**: `AgentSummary.branch` é a branch do `foreground_cwd` do pane (`HEAD` lido direto, como acima). A gaveta a mostra na linha do agente só quando ela difere da branch do workspace (ex.: agente num worktree criado dentro do pane).
 - **Branch**: ler `HEAD` do git do diretório do workspace direto do arquivo, sem subprocesso. Para worktree ligado, `.git` é um arquivo `gitdir: …`; seguir esse caminho.
 - **`isDirty`**: `git -C <diretório> status --porcelain=v1 --untracked-files=normal`, saída não vazia. Roda no máximo a cada 15 s por workspace, com cache, e é recalculado depois de cada `Stop` do agente desse workspace.
 - Tabs sem agente aparecem como shell (ícone `>_`, `label` da tab).
@@ -805,7 +806,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 - Abre pela borda esquerda (arrasto) ou pelo botão do header, e ocupa ~90 % da largura com `scrim` no restante.
 - Topo: campo de busca ("Buscar workspaces, agentes…") filtrando por workspace, tab e título do agente, e o controle segmentado **Recentes** (relógio: agentes por `lastActivityAt`) | **Árvore** (lista).
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados.
-- Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Agente ocioso não tem indicador, como no print. Em `working` o asterisco pulsa; em `blocked` aparece um ponto `dirty` à direita.
+- Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador, como no print. Em `working` o asterisco pulsa; em `blocked` aparece um ponto `dirty` à direita.
 - A linha do chat atual fica com `selectedRow`. Tocar numa tab com agente abre o chat; tocar numa tab de shell mostra "Terminal chega na fase 2".
 - 1b: botão `+` por workspace → "Nova tab com Claude".
 
