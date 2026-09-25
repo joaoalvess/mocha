@@ -499,7 +499,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP | Status | Commit |
 |---|---|---|
 | WP0.1 | feito | f5adafc |
-| WP0.2 | todo | |
+| WP0.2 | feito | 51ead39, 8bad988 |
 | WP0.3 | todo | |
 | S1 | todo | |
 | S2 | feito | 4648a76 |
