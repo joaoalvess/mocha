@@ -339,9 +339,11 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Hooks/`, o comando `install-hooks`/`uninstall-hooks` em `mochad`.
 - **Depende de**: WP0.3, WP-M4, S3.
 - **SPEC**: §3.3.
-- **Faz**: rotas `/hooks/<evento>` no listener local, validação do segredo, tradução dos payloads (fixtures do S3) em eventos internos, merge idempotente no `settings.json` com backup, e detecção do moshi-hook.
+- **Faz**: rotas `POST /hooks/<Evento>` no listener local, validação do segredo, tradução dos payloads (fixtures do S3) em eventos internos, merge idempotente no `settings.json` com backup do bloco de `Fixtures/hooks/settings.install-hooks.proposed.json` (comando `curl` assíncrono em `SessionStart`/`UserPromptSubmit`/`Stop`/`Notification`, `http` em `PermissionRequest`), entradas do Mocha reconhecidas por `127.0.0.1:47420/hooks/` em `url` ou `command`, e detecção do moshi-hook.
 - **Aceite**:
-  - [ ] Testes com as fixtures do S3.
+  - [ ] Testes com as fixtures do S3: cada request de `Fixtures/hooks/` decodifica, com campos opcionais ausentes (`model`, `prompt_id`, `title`, `permission_suggestions`).
+  - [ ] O bloco gerado é igual a `settings.install-hooks.proposed.json`, com a porta e o segredo do config.
+  - [ ] Dois hooks seguidos de um cliente com `Connection: keep-alive` são atendidos sem erro (a resposta leva `Connection: close`, §4.4).
   - [ ] `SessionStart` com `transcript_path` inexistente é aceito, e `source` distingue `clear` de `compact` (S1).
   - [ ] Teste do merge sobre uma cópia do `settings.json` real do João (em diretório temporário): preserva hooks de terceiros, é idempotente e o uninstall remove só o que é do Mocha.
   - [ ] `PermissionRequest` responde `{}` na hora (sem decidir) nesta fase.
@@ -400,11 +402,12 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 ### WP-M7: pedidos pendentes
 
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Pending/`, extensões em `Hooks/`, rota `POST /v1/respond`.
-- **Depende de**: S3, WP-M5, WP-M6, B7.
+- **Depende de**: S3, WP-M1 e WP-M2 (status do Herdr e `tool_result` do transcript para §8.3), WP-M5, WP-M6, B7.
 - **SPEC**: §8, §5.3 (`respond`, `pending`), §5.5, §7.1 (`PERMISSION`/`QUESTION`).
 - **Aceite**:
-  - [ ] Testes dos três desfechos de §8.1: resposta do celular, resposta pelo terminal e timeout.
-  - [ ] Testes do mecanismo de perguntas escolhido no S3.
+  - [ ] Testes dos desfechos de §8.3 a partir dos `sequence.*.jsonl`: celular (allow, deny, answers), terminal "Yes" (status e transcript), terminal "No"/Esc (conexão fechada) e tempo (580 s).
+  - [ ] As respostas codificam igual a `response.PermissionRequest.*.json`.
+  - [ ] `respond` com pergunta sem resposta → `invalidPayload`; `allow` em pergunta e `answers` em permissão → `invalidPayload`.
   - [ ] Push com as categorias certas.
 
 ### WP-M8: Live Activity no daemon, e nova tab
@@ -508,7 +511,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP0.3 | todo | |
 | S1 | feito | ce6ff4f |
 | S2 | feito | 4648a76 |
-| S3 | todo | |
+| S3 | feito | 0c0c24c |
 | S4 | todo | |
 | S5 | todo | |
 | WP-M1 | todo | |
