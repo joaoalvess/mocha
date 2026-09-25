@@ -1,0 +1,10 @@
+.build/
+build/
+*.xcodeproj
+DerivedData
+.DS_Store
+xcuserdata/
+.swiftpm/
+*.p8
+Config/Signing.xcconfig
+MochaKit/Fixtures/transcripts/generated/

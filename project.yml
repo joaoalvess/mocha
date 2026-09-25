@@ -1,0 +1,70 @@
+name: Mocha
+
+options:
+  bundleIdPrefix: com.joaoalves
+  developmentLanguage: pt-BR
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "26.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  MochaKit:
+    path: MochaKit
+  swift-markdown:
+    url: https://github.com/swiftlang/swift-markdown
+    exactVersion: 0.9.0
+
+targets:
+  Mocha:
+    type: application
+    platform: iOS
+    sources:
+      - App/Sources
+      - App/Resources
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.joaoalves.mocha
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Mocha.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: MochaWidgets
+      - package: MochaKit
+        product: MochaProtocol
+      - package: MochaKit
+        product: MochaClient
+      - package: MochaKit
+        product: MochaDemo
+      - package: swift-markdown
+        product: Markdown
+    scheme: {}
+
+  MochaWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widgets/Sources
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.joaoalves.mocha.widgets
+        INFOPLIST_FILE: Widgets/Info.plist
+    dependencies:
+      - package: MochaKit
+        product: MochaProtocol
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
