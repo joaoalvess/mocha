@@ -158,6 +158,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
   2. **Permissão**: com o `PermissionRequest` HTTP segurado, verificar se o diálogo aparece no terminal em paralelo, se a primeira resposta vence dos dois lados, e o formato de allow/deny. Registrar também a sequência de teclas do diálogo para o fallback.
   3. **Pergunta**: testar o mecanismo A (`PreToolUse` + `updatedInput.answers`, com uma e com várias perguntas, múltipla escolha e "Outro") e o B (`send_keys` no seletor), registrando o formato de `answers` que funciona e as sequências de teclas.
   4. Recomendar um mecanismo por tipo, pelo critério de §8.2.
+- **Notas do S1 e do S2**: com diálogo de permissão, o `tool_use` já está no transcript enquanto o Herdr mostra `blocked`. Com AskUserQuestion, a gravação do `tool_use` atrasou até a resposta numa de duas execuções, e numa execução o Herdr não passou por `blocked`: nem o transcript nem só o status do Herdr detectam pergunta pendente. O diálogo de confiança da pasta também é `blocked` (opção padrão "No, exit"), o de permissão abre com "1. Yes" selecionado, e `agent.send_keys` aceita `Escape`/`esc`, `enter` e `down`.
 - **Aceite**:
   - [ ] `S3.md` com a decisão por tipo, os JSONs exatos de resposta e as sequências de teclas.
   - [ ] Seção "Impacto" com o texto novo da §8 da SPEC, pronto para o orquestrador aplicar.
@@ -210,7 +211,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
   - [ ] Testes com um servidor de socket falso que reproduz as fixtures do S2: árvore correta, aninhamento de worktree ligado, status por pane, reconexão depois de o socket cair.
   - [ ] O servidor falso reproduz o Herdr real: fecha depois de uma resposta, devolve `id: ""` em `invalid_request`, fecha a conexão de inscrição se o cliente escrever depois do ack, e toca os `stream.*.jsonl`.
   - [ ] Teste: `tab_closed` e `pane_exited` sem `pane_closed` removem os panes (via snapshot) e fecham as inscrições deles.
-  - [ ] Teste: `agent_session` que muda sem evento é detectada (pelo `pane_updated` e pela reconciliação).
+  - [ ] Teste: `agent_session` que muda sem evento é detectada: `pane_updated` com a sessão antiga seguido de `agent.get` com a nova (reconsulta com atraso), e pela reconciliação por `agent.list` (§3.1.3).
   - [ ] Teste de contrato: todo método e parâmetro enviado existe em `Fixtures/herdr/herdr-api.schema.json`.
   - [ ] Teste: protocolo ≠ 22 no `ping` gera o aviso sem derrubar o daemon.
   - [ ] Teste `.integration` (só com `MOCHA_INTEGRATION=1`) lendo o Herdr real sem enviar input: só `ping`, `session.snapshot`, `agent.list` e uma inscrição global.
@@ -222,10 +223,13 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **SPEC**: §3.2, §5.4.
 - **Faz**: parser de linha → itens (§3.2.2), com resolução de `tool_result` em `toolCall`, índice de offsets, página pelo fim, cursor, acompanhamento com `DispatchSource` e buffer de linha incompleta, troca de sessão.
 - **Aceite**:
-  - [ ] Cada fixture do S1 gera a lista de `ChatItem` esperada (snapshots JSON em `Fixtures/transcripts/expected/`).
-  - [ ] A fixture de 50 MB responde a primeira página em < 300 ms (teste `.integration` medido).
+  - [ ] Cada fixture do S1 gera o snapshot de `Fixtures/transcripts/expected/<fixture>.json` (`{"meta", "items", "stats"}`, itens no estado final), e a sequência de tipos bate com a coluna "Itens esperados" do README das fixtures. Os snapshots são gerados com `MOCHA_UPDATE_SNAPSHOTS=1 swift test --filter TranscriptSnapshotTests`, revisados item a item contra a §3.2.2 antes do commit, e o teste normal compara estruturas, não bytes.
+  - [ ] A fixture de 50 MB (`Fixtures/transcripts/generated/big-50mb.jsonl`, de `swift scripts/gen-big-transcript.swift`) responde a primeira página em < 300 ms (teste `.integration` medido; sem o arquivo, falha com a instrução de gerar).
   - [ ] Append simulado (escrever no arquivo durante o teste) gera `chatAppend`/`chatUpdate` em < 300 ms.
-  - [ ] Linha corrompida é descartada sem derrubar a sessão.
+  - [ ] `malformed.jsonl` termina com 2 linhas descartadas, 1 linha parcial pendente e os desconhecidos listados no README, sem derrubar a sessão.
+  - [ ] Escrever `clear-and-compact.jsonl` e `tool-calls.jsonl` em pedaços, cortando linhas ao meio, gera a mesma lista final da leitura inteira, com os `chatAppend`/`chatUpdate` esperados.
+  - [ ] Página montada no meio de `tool-calls.jsonl` aplica os `tool_result` que ficam depois dela.
+  - [ ] A resolução de sessão ignora `subagents/`, `memory/` e `.jsonl` de plugins, e trata arquivo inexistente como sessão vazia.
 
 ### WP-M3: gateway, `SessionHub`, pareamento e aparelhos
 
@@ -338,6 +342,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Faz**: rotas `/hooks/<evento>` no listener local, validação do segredo, tradução dos payloads (fixtures do S3) em eventos internos, merge idempotente no `settings.json` com backup, e detecção do moshi-hook.
 - **Aceite**:
   - [ ] Testes com as fixtures do S3.
+  - [ ] `SessionStart` com `transcript_path` inexistente é aceito, e `source` distingue `clear` de `compact` (S1).
   - [ ] Teste do merge sobre uma cópia do `settings.json` real do João (em diretório temporário): preserva hooks de terceiros, é idempotente e o uninstall remove só o que é do Mocha.
   - [ ] `PermissionRequest` responde `{}` na hora (sem decidir) nesta fase.
 
@@ -501,7 +506,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP0.1 | feito | f5adafc |
 | WP0.2 | feito | 51ead39, 8bad988 |
 | WP0.3 | todo | |
-| S1 | todo | |
+| S1 | feito | ce6ff4f |
 | S2 | feito | 4648a76 |
 | S3 | todo | |
 | S4 | todo | |
