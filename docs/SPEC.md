@@ -181,9 +181,9 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 3. O toque na notificação abre `mocha://agent/<paneId>`.
 
 **Pedido pendente (1b)**
-1. `PermissionRequest` (ou `PreToolUse` do AskUserQuestion, conforme o spike S3) chega ao `HookServer`. O daemon cria um `PendingRequest`, faz broadcast de `pending` e manda um push time-sensitive com ações.
-2. A resposta chega pelo app (`respond`) ou pela ação da notificação (HTTP, §5.5), e o daemon devolve a decisão ao Claude pelo mecanismo definido em §8.
-3. Se a resposta vier pelo terminal do Mac, o daemon percebe e retira o pedido.
+1. `PermissionRequest` (aprovação de ferramenta ou pergunta do AskUserQuestion) chega ao `HookServer`. O daemon cria um `PendingRequest`, faz broadcast de `pending` e manda um push time-sensitive com ações.
+2. A resposta chega pelo app (`respond`) ou pela ação da notificação (HTTP, §5.5), e o daemon responde o hook segurado (§8.2).
+3. Se a resposta vier pelo terminal do Mac, o daemon percebe (conexão do hook fechada, status do Herdr saindo de `blocked` ou `tool_result` no transcript) e retira o pedido (§8.3).
 
 **Reconexão**
 - O app reconecta com backoff exponencial (0,5 s → 8 s, com jitter) enquanto está em primeiro plano. Ao reconectar, reenvia `hello`, recebe `tree` e reabre o chat visível com `openChat` (página nova; o app substitui a lista).
@@ -217,11 +217,11 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 | `agent.get` | `{target}` (pane id ou nome do agente) | `agent_info` | Reconsulta de um agente (sessão, título, status) | 1a-core |
 | `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
 | `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
-| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe; teclas para diálogos (§8). Tecla inválida → `invalid_key`, nada é enviado | 1a-core / 1b |
+| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
 | `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1b |
 | `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1b |
 | `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1b |
-| `agent.read` | `{target, source: "recent_unwrapped", lines}` | `pane_read` (`read.text`) | Diagnóstico (`doctor`) e fallback de §8 | 1b |
+| `agent.read` | `{target, source: "recent_unwrapped", lines}` | `pane_read` (`read.text`) | Diagnóstico (`doctor`) | 1b |
 
 #### §3.1.3 Eventos
 
@@ -367,24 +367,31 @@ Política para tipos novos:
 
 #### §3.3.1 Instalação
 
-`mochad install-hooks` faz merge em `~/.claude/settings.json` (JSON; fazer backup em `settings.json.mocha-bak` antes da primeira escrita):
+`mochad install-hooks` faz merge em `~/.claude/settings.json` (JSON; backup em `settings.json.mocha-bak` antes da primeira escrita). O bloco exato está em `MochaKit/Fixtures/hooks/settings.install-hooks.proposed.json`.
 
-- Adiciona **uma** entrada de hook `type: "http"` por evento, com `url: "http://127.0.0.1:47420/hooks/<evento>"`, `headers: {"X-Mocha-Pane": "$HERDR_PANE_ID", "X-Mocha-Hook-Secret": "<segredo literal>"}` e `allowedEnvVars: ["HERDR_PANE_ID"]`.
+- **`PermissionRequest`**: uma entrada `type: "http"`, sem `matcher` (cobre as ferramentas e o AskUserQuestion), com `url: "http://127.0.0.1:47420/hooks/PermissionRequest"`, `headers: {"X-Mocha-Pane": "$HERDR_PANE_ID", "X-Mocha-Hook-Secret": "<segredo literal>"}`, `allowedEnvVars: ["HERDR_PANE_ID"]` e `timeout: 590`. É o único evento que precisa segurar a resposta.
+- **`SessionStart`, `UserPromptSubmit`, `Stop` e `Notification`**: uma entrada `type: "command"` por evento, com `async: true`, `timeout: 5` e o comando
+  `/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H "X-Mocha-Pane: $HERDR_PANE_ID" -H 'X-Mocha-Hook-Secret: <segredo literal>' --data-binary @- http://127.0.0.1:47420/hooks/<Evento> || true`.
+  - O Claude Code não aceita hook `http` no `SessionStart` e ignora a entrada em silêncio.
+  - Com o daemon parado, hook `http` que falha mostra "<Evento> hook error · connect ECONNREFUSED" no terminal a cada turno. O comando com `|| true` falha em silêncio. No `PermissionRequest`, a falha do `http` já é silenciosa, e o diálogo segue.
+  - `-o /dev/null` é obrigatório: no `SessionStart` e no `UserPromptSubmit`, a saída em texto vira contexto do Claude.
+  - Com `async: true`, o Claude não espera o comando e não aplica o `timeout`; quem limita o tempo é o `-m 3` do `curl`. O `$HERDR_PANE_ID` é expandido pelo shell do hook, que herda o ambiente do pane.
 - `HERDR_PANE_ID` existe no ambiente de todo processo dentro de um pane do Herdr, junto com `HERDR_TAB_ID` e `HERDR_WORKSPACE_ID`. Hook de Claude fora do Herdr chega com o header vazio e é ignorado. Esses valores são fixados quando o processo nasce. Depois de um `pane_moved` entre workspaces, o Claude continua mandando o `HERDR_PANE_ID` antigo; o `HookServer` traduz pelo mapa `previous_pane_id → pane.pane_id` do `HerdrBridge`.
-- O segredo é o `hookSecret` do `config.json`, escrito literalmente no header. O `HookServer` rejeita requisições sem ele.
+- O segredo é o `hookSecret` do `config.json`, escrito literalmente no header e no comando. O `HookServer` responde 401 sem ele. O segredo fica em texto no `settings.json` e aparece na linha de comando do `curl` enquanto o hook roda; isso é aceito num Mac de um usuário só.
+- **`HookServer`**:
+  - rotas `POST /hooks/<Evento>`, respondendo sempre 200 com JSON (`{}` quando não decide);
+  - o cliente dos hooks `http` é o `axios`, com `Connection: keep-alive`. O `HttpServer` (§4.4) responde sempre com `Connection: close`, e o axios abre outra conexão no hook seguinte; fechar sem esse header faz o hook seguinte falhar com `ECONNRESET`, visível no terminal;
+  - campos opcionais vêm omitidos: `model` (ausente no `clear`), `prompt_id`, `title`, `scratchpad_dir`, `permission_suggestions`, `agent_id` e `agent_type`. Campos desconhecidos são ignorados.
 - Nunca altera nem remove hooks de terceiros. O hook `herdr-agent-state.sh` do Herdr no `SessionStart` **deve continuar**, porque é ele que informa ao Herdr o `session_id` de cada pane. Sem esse hook, `agent_session` não existe no Herdr.
-- É idempotente: rodar de novo não duplica entradas. `mochad uninstall-hooks` remove só as entradas do Mocha.
+- É idempotente: as entradas do Mocha são reconhecidas por `127.0.0.1:47420/hooks/` na `url` ou no `command`, e rodar de novo não duplica nada. `mochad uninstall-hooks` remove só essas entradas.
 
-| Evento | Uso | Timeout | Fase |
-|---|---|---|---|
-| `SessionStart` | pane → `session_id`/`transcript_path`/`source`. Dispara também no `/compact` (`source: compact`, mesmo `session_id`) e no `/clear` (`source: clear`, sessão nova). O `transcript_path` pode apontar para um arquivo que ainda não existe | 5 s | 1a-final |
-| `UserPromptSubmit` | marca o início do turno (Live Activity, inbox) | 5 s | 1a-final |
-| `Stop` | turno concluído → push; `last_assistant_message` | 5 s | 1a-final |
-| `Notification` | sinal secundário de atenção (`idle_prompt`, `elicitation_dialog`) | 5 s | 1a-final |
-| `PermissionRequest` | pedido de aprovação (§8) | 590 s | 1b |
-| `PreToolUse` (matcher `AskUserQuestion`) | pergunta (§8), se o S3 escolher esse caminho | 60 s | 1b |
-
-Na 1a-final o `PermissionRequest` já é recebido **só para notificar**: o daemon responde na hora, sem decisão (`{}`), para não interferir no diálogo do terminal.
+| Evento | Tipo | Uso | Timeout | Fase |
+|---|---|---|---|---|
+| `SessionStart` | comando | pane → `session_id`/`transcript_path`/`source` (`startup`, `resume`, `clear`, `compact`, `fork`). O `compact` mantém o `session_id`, e o `clear` traz sessão nova. O `transcript_path` pode apontar para um arquivo que ainda não existe. `model` pode faltar | 5 s | 1a-final |
+| `UserPromptSubmit` | comando | Início do turno (`prompt`, `prompt_id`). Não dispara para `/clear`, `/compact` e `/exit` | 5 s | 1a-final |
+| `Stop` | comando | Turno concluído → push; `last_assistant_message`. Não dispara em turno interrompido (Esc, "No" no diálogo) | 5 s | 1a-final |
+| `Notification` | comando | Sinal secundário: `permission_prompt` (~6 s depois de um diálogo ou seletor sem tecla; cada tecla adia), `idle_prompt` (~60 s depois do fim do turno sem tecla), `elicitation_dialog` (formulário MCP) | 5 s | 1a-final |
+| `PermissionRequest` | `http` | Aprovação e pergunta (§8). Na 1a-final, responde `{}` na hora, só para notificar | 590 s | 1a-final (notifica), 1b (decide) |
 
 #### §3.3.2 Coexistência com o moshi-hook
 
@@ -629,7 +636,7 @@ public struct PendingRequest: Codable, Sendable, Identifiable {         // 1b
 public enum PendingResponse: Codable, Sendable {                        // 1b
     case allow
     case deny(reason: String?)
-    case answers([String: [String]])      // pergunta → rótulos escolhidos; texto livre vira rótulo único
+    case answers([String: [String]])      // pergunta → rótulos escolhidos (≥ 1 por pergunta); texto livre vira rótulo único
 }
 ```
 
@@ -863,16 +870,16 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 - **Headers**: `apns-topic: com.example.mocha`, `apns-push-type: alert`, `apns-priority: 10` (alertas são imediatos; prioridade 5 pode atrasar a entrega), `apns-collapse-id` por agente.
 - **Tipos**:
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown. `thread-id` = `agentId`; `category` `TURN_DONE`.
-  - Agente precisa de você (`blocked` no Herdr **ou** `PermissionRequest`/`Notification`): título "Claude precisa de você · <workspace>", corpo com o resumo do pedido. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
+  - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
 - **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
-- **Deduplicação**: um alerta de "precisa de você" por pedido; o `blocked` do Herdr e o hook do mesmo momento (janela de 5 s) geram um alerta só.
+- **Deduplicação**: um alerta de "precisa de você" por pedido. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do `PermissionRequest`, o `blocked` do Herdr e o `Notification` `permission_prompt` dessa sessão não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo.
 - **Payload**: `{"aps":{…},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…"}`.
 - Resposta 410 ou `BadDeviceToken` do APNs remove o token do aparelho.
 
 ### §7.2 Ações de notificação (1b)
 
-- `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`).
-- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), para perguntas de opção única cujo texto casa com um rótulo ou vira "Outro". Perguntas com várias questões abrem o app (`.foreground`).
+- `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`). "Negar" manda `deny` com a mensagem padrão (§8.2): o Claude recebe a negação e continua o turno.
+- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Várias perguntas ou `multiSelect` abrem o app (`.foreground`).
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
 
 ### §7.3 Live Activity agregada (1b)
@@ -909,27 +916,73 @@ public struct ContentState: Codable, Hashable {
 
 ## §8 Aprovações e perguntas (1b)
 
-O spike S3 fixa o mecanismo e atualiza esta seção. O comportamento-alvo:
+Mecanismo validado pelo spike S3 no Claude Code 2.1.283. Payloads, respostas e linhas do tempo reais em `MochaKit/Fixtures/hooks/`.
 
-### §8.1 Aprovação de ferramenta
+### §8.1 Mecanismo: `PermissionRequest` segurado
 
-- **Mecanismo padrão**: o hook `PermissionRequest` (HTTP, timeout 590 s) fica pendente no `HookServer` até:
-  - (a) o celular responder, e a resposta vira `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}` ou `{"…":{"decision":{"behavior":"deny","message":"<motivo>"}}}` (formato da doc oficial de hooks, confirmado pelo S3);
-  - (b) a resposta vir pelo terminal do Mac, detectada quando o status do Herdr sai de `blocked` ou o transcript ganha o `tool_result`. Nesse caso o hook responde `{}` e o pedido some;
-  - (c) acabar o tempo. O hook responde `{}` aos 580 s e o diálogo do terminal continua valendo.
-- Na sessão principal do Claude Code o hook roda em paralelo com o diálogo do terminal e vale a primeira resposta. O S3 confirma isso na versão instalada.
-- **Fallback** (se o S3 reprovar o hook): o daemon detecta o diálogo por `blocked` + último `tool_use` sem resultado, e responde com `agent.send_keys` na sequência de teclas do diálogo, registrada pelo S3.
+- Todo diálogo em que o Claude espera uma decisão no terminal dispara o hook `PermissionRequest` no mesmo instante em que o diálogo aparece: a aprovação de ferramenta (Bash, Write, Edit, MCP…) **e** o seletor do `AskUserQuestion`. O hook (HTTP, timeout 590 s, §3.3.1) fica pendente no `HookServer` enquanto o diálogo continua respondível no Mac. Vale a primeira resposta, dos dois lados.
+- Não há hook `PreToolUse` do Mocha nem fallback por `agent.send_keys`.
+- Um agente tem no máximo um pedido pendente. Com várias ferramentas na mesma resposta, o Claude mostra um diálogo por vez e só dispara o `PermissionRequest` seguinte depois que o anterior se resolve.
+- **Entrada** (`Fixtures/hooks/PermissionRequest.*.json`): `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `tool_name`, `tool_input` e, só para ferramentas, `permission_suggestions` (ignorado: não corresponde às opções do diálogo). Não traz `tool_use_id`.
+- **Criação do `PendingRequest`**:
+  - `agentId` vem do header `X-Mocha-Pane`, traduzido depois de `pane_moved` (§3.3.1);
+  - com `tool_name == "AskUserQuestion"`, `kind` = `question(questions:)`, de `tool_input.questions`;
+  - nos demais, `kind` = `permission(toolName:, summary:, inputJSON:)`, com o `summary` da regra do `toolCall` (§3.2.2) e o `tool_input` truncado em 4.000 caracteres;
+  - o daemon guarda o `tool_input` original para montar a resposta.
+- Ao criar o pedido, o daemon faz broadcast de `pending` e manda o push time-sensitive (§7.1). O Herdr mostra o agente `blocked` ~0,1–0,3 s depois, também no seletor do AskUserQuestion, mas o status sozinho não identifica o pedido.
 
-### §8.2 Perguntas (AskUserQuestion)
+### §8.2 Respostas ao hook
 
-- O input do `tool_use` `AskUserQuestion` traz `questions[{question, header, options[{label, description}], multiSelect}]`.
-- **Mecanismo A**: `PreToolUse` com matcher `AskUserQuestion`, pendente até a resposta, e retorno `permissionDecision: "allow"` + `updatedInput` com as `questions` originais e o campo `answers`. As fontes divergem sobre o formato de `answers` (mapa pergunta → rótulo, ou lista de `{question_id, answer}`), então o S3 fixa o formato testando na versão instalada. Esse hook trava o seletor do terminal enquanto espera: usar timeout curto (60 s) e, ao expirar, responder `{}` para o seletor aparecer no Mac.
-- **Mecanismo B**: deixar o seletor aparecer e responder por `agent.send_keys`, com a sequência de navegação registrada pelo S3 (inclui várias perguntas, múltipla escolha e "Outro").
-- O S3 escolhe um dos dois pelo critério: funciona com o terminal aberto e fechado, sem travar o Mac por mais de 60 s.
+Resposta HTTP 200, `Content-Type: application/json` (`Fixtures/hooks/response.*.json`):
 
-### §8.3 Estado
+| `PendingResponse` | Corpo |
+|---|---|
+| `allow` (permissão) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}` |
+| `deny(reason)` (permissão ou pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"<reason, ou 'Negado pelo usuário no iPhone.'>"}}}` |
+| `answers(map)` (pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"questions":<tool_input.questions original>,"answers":{"<question>":"<resposta>"}}}}}` |
+| sem decisão | `{}` |
 
-- O `PendingStore` mantém os pedidos em memória. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada (o Claude volta ao diálogo do terminal).
+- `allow`: a ferramenta roda na hora, e o terminal mostra "Allowed by PermissionRequest hook".
+- `deny`: o Claude recebe a mensagem como `tool_result` com `is_error: true` e **continua o turno**. É diferente do "No" do terminal, que interrompe o turno. O daemon não usa `interrupt: true`.
+- `answers`:
+  - a chave é o texto exato de `question`;
+  - o valor é uma string: o `label` na opção única; os `label`s escolhidos, na ordem das opções, unidos por `", "` no `multiSelect`; o texto digitado, como está, em "Outro" (o Claude não confere contra os rótulos);
+  - `questions` volta sem nenhuma alteração;
+  - toda pergunta precisa de resposta não vazia. O Claude aceita `answers` incompleto e descarta a pergunta sem resposta em silêncio, então o daemon responde `error{invalidPayload}` a um `respond` incompleto;
+  - `allow` numa pergunta e `answers` numa permissão também são `invalidPayload`;
+  - nunca mandar lista no lugar da string: o Claude aceita, mas grava crua e o terminal não mostra o resumo.
+- `{}` (ou corpo vazio) não decide: o diálogo do terminal segue normal. É a resposta da 1a-final e a de §8.3.
+
+### §8.3 Fim do pedido
+
+O pedido sai do `PendingStore`, com broadcast de `pending`, na primeira destas situações:
+
+1. **Resposta do celular** (`respond` ou `POST /v1/respond`): o daemon responde o hook com o corpo de §8.2, e o diálogo do terminal fecha sozinho. Uma segunda resposta ao mesmo pedido recebe `error{requestNotFound}` (404 no HTTP).
+2. **O Claude fecha a conexão do hook**: acontece quando o diálogo é respondido no terminal com "No" ou Esc (o turno é interrompido, sem `Stop`), quando o processo do Claude sai e no timeout do hook.
+3. **Resposta pelo terminal com "Yes" ou uma opção**: o Claude **não** fecha a conexão (ela fica aberta até o timeout) e ignora resposta tardia. O daemon percebe pelo primeiro destes sinais e responde `{}` ao hook ainda aberto:
+   - o status do pane no Herdr sai de `blocked` depois da criação do pedido (~0,1 s depois da tecla);
+   - o transcript ganha o `tool_result` do `tool_use` mais recente com o mesmo nome de ferramenta;
+   - chega `PermissionRequest`, `UserPromptSubmit`, `Stop` ou `SessionEnd` da mesma sessão.
+4. **Tempo**: aos 580 s, o daemon responde `{}`. O diálogo do terminal continua valendo. Se o daemon não responder, o Claude cancela o hook aos 590 s, com o mesmo efeito.
+
+### §8.4 Teclas do diálogo (referência)
+
+Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnóstico. Com o diálogo aberto, `agent.prompt` devolve `agent_blocked`, então texto também vai por `agent.send_keys`: uma tecla por caractere, e `space` para espaço.
+
+| Diálogo | Ação | Teclas |
+|---|---|---|
+| Permissão ("1. Yes" já selecionado) | Permitir uma vez | `enter` |
+| Permissão | Negar (interrompe o turno) | `esc`, ou `down`, `down`, `enter` ("3. No") |
+| Pergunta de opção única | Opção k | `k` (o dígito seleciona e envia), ou `down` × (k−1) e `enter` |
+| Pergunta de opção única | "Outro" | `down` × nº de opções (foca "Type something."), o texto, `enter`. O dígito não foca o campo de texto |
+| Pergunta `multiSelect` | Marcar | `space` (ou `enter`) em cada opção, `down` para navegar; "Type something" também é marcável |
+| Pergunta `multiSelect` | Concluir | `down` até "Submit" (pergunta única) ou "Next" (várias), `enter` |
+| Várias perguntas | Avançar e enviar | Responder uma pergunta avança para a aba seguinte. No fim, a tela "Review your answers" abre com "1. Submit answers" selecionado: `enter` |
+| Qualquer pergunta | Cancelar (interrompe o turno) | `esc` |
+
+### §8.5 Estado
+
+- O `PendingStore` mantém os pedidos em memória, no máximo um por sessão. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada: para o Claude isso é um erro não bloqueante, e o diálogo do terminal continua.
 - `pendingCount` por agente alimenta a gaveta e o `waiting` da Live Activity.
 
 ---
@@ -989,7 +1042,9 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 |---|---|
 | O formato do JSONL do Claude muda numa atualização | Parser tolerante (§3.2.2), fixtures reais versionadas, e o `doctor` mostra a versão do Claude e a taxa de linhas descartadas. O Claude Code se atualiza sozinho (no S1 passou de 2.1.282 para 2.1.283 durante o uso); o `doctor` avisa quando a versão das linhas é maior que a última validada |
 | API do Herdr muda (protocolo ≠ 22) | O `HerdrClient` confere a versão do protocolo no connect; o `doctor` avisa; fixtures em `Fixtures/herdr/` |
-| O hook `PermissionRequest` não roda em paralelo com o diálogo na versão instalada | Fallback por `send_keys` (§8.1), decidido no S3 |
+| O hook `PermissionRequest` não roda em paralelo com o diálogo na versão instalada | Confirmado em paralelo na 2.1.283 (S3). Uma versão nova pode mudar isso: o `doctor` avisa versão acima da validada, e `MochaKit/Fixtures/hooks/` documenta o contrato |
+| A resposta pelo terminal com "Yes" não fecha o hook `PermissionRequest` | Detecção pelo status do Herdr, pelo transcript e pelos hooks da sessão, e `{}` ao hook (§8.3) |
+| Hook `http` com o daemon parado mostra erro no terminal a cada turno | Hooks de comando com `\|\| true`, exceto o `PermissionRequest`, cuja falha é silenciosa (§3.3.1) |
 | Tailscale fora no iPhone | Bloqueio B6 (VPN On Demand); o app mostra "Sem conexão com o Mac" e as ações de notificação avisam a falha |
 | Orçamento de atualização da Live Activity | Prioridade 5 por padrão e limite de uma atualização a cada 10 s (§7.3) |
 | `moshi-hook` competindo pelos hooks | Detecção no `doctor`/`install-hooks` e bloqueio B7 |
