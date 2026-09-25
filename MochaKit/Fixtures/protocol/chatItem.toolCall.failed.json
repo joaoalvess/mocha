@@ -1,0 +1,11 @@
+{
+  "id": "60c24d95-7b8f-4ea3-9fb6-52e37091bec6",
+  "at": "2026-09-25T15:47:30.781Z",
+  "type": "toolCall",
+  "toolUseId": "toolu_01P4Ln7Wd",
+  "name": "Bash",
+  "summary": "swift build",
+  "inputJSON": "{\"command\":\"swift build\",\"description\":\"Compila o pacote\"}",
+  "status": "failed",
+  "resultPreview": "error: cannot find 'LoginButton' in scope"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "2c8e0f51-3d4b-4a6f-9b72-1eaf3c5d7a82",
+  "at": "2026-09-25T15:46:02.310Z",
+  "type": "slashCommand",
+  "name": "/compact",
+  "args": "foca no login",
+  "output": "Conversa compactada."
+}

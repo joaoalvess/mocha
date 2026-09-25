@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "c-20",
+  "type": "registerLiveActivity",
+  "payload": {
+    "pushToStartToken": "80a1f2c3d4e5f60718293a4b5c6d7e8f",
+    "activityId": "B4F1C2D3-9E8A-4B7C-A6D5-E4F3A2B1C0D9",
+    "updateToken": "91b2c3d4e5f60718293a4b5c6d7e8f90",
+    "env": "sandbox"
+  }
+}

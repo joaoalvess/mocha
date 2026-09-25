@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "c-9",
+  "type": "error",
+  "payload": {
+    "code": "agentBlocked",
+    "message": "O agente está esperando uma resposta no terminal."
+  }
+}

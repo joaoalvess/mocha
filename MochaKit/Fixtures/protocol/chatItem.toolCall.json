@@ -1,0 +1,11 @@
+{
+  "id": "b7e0…",
+  "at": "2026-09-25T15:44:41.000Z",
+  "type": "toolCall",
+  "toolUseId": "toolu_01H3…",
+  "name": "Bash",
+  "summary": "scripts/test.sh",
+  "inputJSON": "{\"command\":\"scripts/test.sh\"}",
+  "status": "succeeded",
+  "resultPreview": "All tests passed"
+}

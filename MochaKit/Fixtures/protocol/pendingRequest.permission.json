@@ -1,0 +1,9 @@
+{
+  "id": "5e3b…",
+  "agentId": "w17:p1",
+  "createdAt": "2026-09-25T15:50:00.000Z",
+  "type": "permission",
+  "toolName": "Bash",
+  "summary": "rm -rf build",
+  "inputJSON": "{\"command\":\"rm -rf build\"}"
+}

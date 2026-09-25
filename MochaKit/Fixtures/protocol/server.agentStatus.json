@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "type": "agentStatus",
+  "payload": {
+    "agentId": "w17:p1",
+    "status": "working"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "c-1",
+  "type": "hello",
+  "payload": {
+    "pairingCode": "cGFpcmluZy1jb2RlLWRlbW8tMzItYnl0ZXMtYmFzZTY0dXJs",
+    "deviceName": "iPhone do João",
+    "appVersion": "0.1.0"
+  }
+}
