@@ -1,0 +1,63 @@
+{
+  "session_id": "33333333-3333-4333-8333-333333333333",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-projects-demo-app/33333333-3333-4333-8333-333333333333.jsonl",
+  "cwd": "/Users/dev/projects/demo-app",
+  "scratchpad_dir": "/private/tmp/claude-501/-Users-dev-projects-demo-app/33333333-3333-4333-8333-333333333333/scratchpad",
+  "prompt_id": "5f0c0000-0000-4000-8000-000000000012",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Qual editor?",
+        "header": "Editor",
+        "options": [
+          {
+            "label": "Vim",
+            "description": "Editor Vim"
+          },
+          {
+            "label": "Emacs",
+            "description": "Editor Emacs"
+          }
+        ],
+        "multiSelect": false
+      },
+      {
+        "question": "Quais testes?",
+        "header": "Testes",
+        "options": [
+          {
+            "label": "Unitários",
+            "description": "Testes Unitários"
+          },
+          {
+            "label": "Integração",
+            "description": "Testes de Integração"
+          },
+          {
+            "label": "UI",
+            "description": "Testes de UI"
+          }
+        ],
+        "multiSelect": true
+      },
+      {
+        "question": "Qual tema?",
+        "header": "Tema",
+        "options": [
+          {
+            "label": "Claro",
+            "description": "Tema Claro"
+          },
+          {
+            "label": "Escuro",
+            "description": "Tema Escuro"
+          }
+        ],
+        "multiSelect": false
+      }
+    ]
+  }
+}

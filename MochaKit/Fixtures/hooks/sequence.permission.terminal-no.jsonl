@@ -1,0 +1,14 @@
+{"dt": 0.035, "source": "hook", "event": "UserPromptSubmit", "requestId": "a89c71e1"}
+{"dt": 0.036, "source": "daemon", "action": "respond", "requestId": "a89c71e1", "body": {}}
+{"dt": 0.238, "source": "herdr", "status": "working"}
+{"dt": 1.425, "source": "hook", "event": "PreToolUse", "requestId": "2a6b055b", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000008"}
+{"dt": 1.426, "source": "daemon", "action": "respond", "requestId": "2a6b055b", "body": {}}
+{"dt": 1.462, "source": "hook", "event": "PermissionRequest", "requestId": "66279cc3", "tool_name": "Bash"}
+{"dt": 1.601, "source": "transcript", "block": "tool_use", "name": "Bash", "id": "toolu_01Demo000000000000000008"}
+{"dt": 1.702, "source": "herdr", "status": "blocked"}
+{"dt": 2.0, "source": "terminal", "keys": ["down", "down"]}
+{"dt": 2.5, "source": "terminal", "keys": ["enter"]}
+{"dt": 2.545, "source": "claude", "action": "connectionClosed", "requestId": "66279cc3", "heldSeconds": 1.082}
+{"dt": 2.6, "source": "note", "text": "turno interrompido: sem Stop"}
+{"dt": 2.644, "source": "herdr", "status": "done"}
+{"dt": 2.753, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000008", "is_error": true}

@@ -1,0 +1,80 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume|clear|compact|fork)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/dev/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H \"X-Mocha-Pane: $HERDR_PANE_ID\" -H 'X-Mocha-Hook-Secret: test-secret' --data-binary @- http://127.0.0.1:47420/hooks/SessionStart || true"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H \"X-Mocha-Pane: $HERDR_PANE_ID\" -H 'X-Mocha-Hook-Secret: test-secret' --data-binary @- http://127.0.0.1:47420/hooks/UserPromptSubmit || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H \"X-Mocha-Pane: $HERDR_PANE_ID\" -H 'X-Mocha-Hook-Secret: test-secret' --data-binary @- http://127.0.0.1:47420/hooks/Stop || true"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H \"X-Mocha-Pane: $HERDR_PANE_ID\" -H 'X-Mocha-Hook-Secret: test-secret' --data-binary @- http://127.0.0.1:47420/hooks/Notification || true"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:47420/hooks/PermissionRequest",
+            "headers": {
+              "X-Mocha-Pane": "$HERDR_PANE_ID",
+              "X-Mocha-Hook-Secret": "test-secret"
+            },
+            "allowedEnvVars": [
+              "HERDR_PANE_ID"
+            ],
+            "timeout": 590
+          }
+        ]
+      }
+    ]
+  }
+}

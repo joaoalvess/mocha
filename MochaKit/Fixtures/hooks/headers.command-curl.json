@@ -1,0 +1,9 @@
+{
+  "Host": "127.0.0.1:47420",
+  "User-Agent": "curl/8.7.1",
+  "Accept": "*/*",
+  "Content-Type": "application/json",
+  "X-Mocha-Pane": "w1C:p2",
+  "X-Mocha-Hook-Secret": "test-secret",
+  "Content-Length": "485"
+}

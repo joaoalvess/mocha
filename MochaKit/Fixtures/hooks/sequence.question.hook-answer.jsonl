@@ -1,0 +1,16 @@
+{"dt": 0.029, "source": "hook", "event": "UserPromptSubmit", "requestId": "fb367077"}
+{"dt": 0.03, "source": "daemon", "action": "respond", "requestId": "fb367077", "body": {}}
+{"dt": 0.195, "source": "herdr", "status": "working"}
+{"dt": 3.639, "source": "hook", "event": "PreToolUse", "requestId": "7e22197d", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000010"}
+{"dt": 3.64, "source": "daemon", "action": "respond", "requestId": "7e22197d", "body": {}}
+{"dt": 3.663, "source": "hook", "event": "PermissionRequest", "requestId": "d5c97ea2", "tool_name": "AskUserQuestion"}
+{"dt": 3.752, "source": "herdr", "status": "blocked"}
+{"dt": 3.794, "source": "transcript", "block": "tool_use", "name": "AskUserQuestion", "id": "toolu_01Demo000000000000000010"}
+{"dt": 4.846, "source": "daemon", "action": "respond", "requestId": "d5c97ea2", "body": {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow", "updatedInput": {"questions": [{"question": "Qual editor?", "header": "Editor", "options": [{"label": "Vim", "description": "Editor Vim"}, {"label": "Emacs", "description": "Editor Emacs"}], "multiSelect": false}, {"question": "Quais testes?", "header": "Testes", "options": [{"label": "Unitários", "description": "Testes Unitários"}, {"label": "Integração", "description": "Testes de Integração"}, {"label": "UI", "description": "Testes de UI"}], "multiSelect": true}, {"question": "Qual tema?", "header": "Tema", "options": [{"label": "Claro", "description": "Tema Claro"}, {"label": "Escuro", "description": "Tema Escuro"}], "multiSelect": false}], "answers": {"Qual editor?": "Emacs", "Quais testes?": "Unitários, UI", "Qual tema?": "Sépia"}}}}}}
+{"dt": 4.855, "source": "hook", "event": "PostToolUse", "requestId": "3ef8d3ba", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000010"}
+{"dt": 4.855, "source": "daemon", "action": "respond", "requestId": "3ef8d3ba", "body": {}}
+{"dt": 5.001, "source": "herdr", "status": "working"}
+{"dt": 5.064, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000010", "is_error": false}
+{"dt": 6.859, "source": "hook", "event": "Stop", "requestId": "ebc1994c"}
+{"dt": 6.86, "source": "daemon", "action": "respond", "requestId": "ebc1994c", "body": {}}
+{"dt": 7.168, "source": "herdr", "status": "done"}

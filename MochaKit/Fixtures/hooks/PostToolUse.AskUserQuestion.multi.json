@@ -1,0 +1,130 @@
+{
+  "session_id": "33333333-3333-4333-8333-333333333333",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-projects-demo-app/33333333-3333-4333-8333-333333333333.jsonl",
+  "cwd": "/Users/dev/projects/demo-app",
+  "scratchpad_dir": "/private/tmp/claude-501/-Users-dev-projects-demo-app/33333333-3333-4333-8333-333333333333/scratchpad",
+  "prompt_id": "5f0c0000-0000-4000-8000-000000000014",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Qual runtime?",
+        "header": "Runtime",
+        "options": [
+          {
+            "label": "Node",
+            "description": "Runtime Node"
+          },
+          {
+            "label": "Deno",
+            "description": "Runtime Deno"
+          }
+        ],
+        "multiSelect": false
+      },
+      {
+        "question": "Quais bancos?",
+        "header": "Bancos",
+        "options": [
+          {
+            "label": "Postgres",
+            "description": "Banco Postgres"
+          },
+          {
+            "label": "Redis",
+            "description": "Banco Redis"
+          },
+          {
+            "label": "SQLite",
+            "description": "Banco SQLite"
+          }
+        ],
+        "multiSelect": true
+      },
+      {
+        "question": "Qual nome?",
+        "header": "Nome",
+        "options": [
+          {
+            "label": "Alfa",
+            "description": "Nome Alfa"
+          },
+          {
+            "label": "Beta",
+            "description": "Nome Beta"
+          }
+        ],
+        "multiSelect": false
+      }
+    ],
+    "answers": {
+      "Qual runtime?": "Deno",
+      "Quais bancos?": "Postgres, SQLite",
+      "Qual nome?": "Gama 2"
+    },
+    "annotations": {}
+  },
+  "tool_response": {
+    "questions": [
+      {
+        "question": "Qual runtime?",
+        "header": "Runtime",
+        "options": [
+          {
+            "label": "Node",
+            "description": "Runtime Node"
+          },
+          {
+            "label": "Deno",
+            "description": "Runtime Deno"
+          }
+        ],
+        "multiSelect": false
+      },
+      {
+        "question": "Quais bancos?",
+        "header": "Bancos",
+        "options": [
+          {
+            "label": "Postgres",
+            "description": "Banco Postgres"
+          },
+          {
+            "label": "Redis",
+            "description": "Banco Redis"
+          },
+          {
+            "label": "SQLite",
+            "description": "Banco SQLite"
+          }
+        ],
+        "multiSelect": true
+      },
+      {
+        "question": "Qual nome?",
+        "header": "Nome",
+        "options": [
+          {
+            "label": "Alfa",
+            "description": "Nome Alfa"
+          },
+          {
+            "label": "Beta",
+            "description": "Nome Beta"
+          }
+        ],
+        "multiSelect": false
+      }
+    ],
+    "answers": {
+      "Qual runtime?": "Deno",
+      "Quais bancos?": "Postgres, SQLite",
+      "Qual nome?": "Gama 2"
+    },
+    "annotations": {}
+  },
+  "tool_use_id": "toolu_01Demo000000000000000005",
+  "duration_ms": 5
+}

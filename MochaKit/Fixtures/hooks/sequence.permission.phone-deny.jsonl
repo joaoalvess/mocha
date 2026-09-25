@@ -1,0 +1,14 @@
+{"dt": 0.124, "source": "hook", "event": "UserPromptSubmit", "requestId": "cf8ebc30"}
+{"dt": 0.125, "source": "daemon", "action": "respond", "requestId": "cf8ebc30", "body": {}}
+{"dt": 0.411, "source": "herdr", "status": "working"}
+{"dt": 1.482, "source": "hook", "event": "PreToolUse", "requestId": "92a893f9", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000006"}
+{"dt": 1.482, "source": "daemon", "action": "respond", "requestId": "92a893f9", "body": {}}
+{"dt": 1.496, "source": "hook", "event": "PermissionRequest", "requestId": "337192f0", "tool_name": "Bash"}
+{"dt": 1.656, "source": "daemon", "action": "respond", "requestId": "337192f0", "body": {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "deny", "message": "Negado pelo celular: não crie arquivos agora"}}}}
+{"dt": 1.663, "source": "herdr", "status": "blocked"}
+{"dt": 1.71, "source": "transcript", "block": "tool_use", "name": "Bash", "id": "toolu_01Demo000000000000000006"}
+{"dt": 1.813, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000006", "is_error": true}
+{"dt": 1.977, "source": "herdr", "status": "working"}
+{"dt": 3.653, "source": "hook", "event": "Stop", "requestId": "352230a9"}
+{"dt": 3.653, "source": "daemon", "action": "respond", "requestId": "352230a9", "body": {}}
+{"dt": 3.756, "source": "herdr", "status": "done"}

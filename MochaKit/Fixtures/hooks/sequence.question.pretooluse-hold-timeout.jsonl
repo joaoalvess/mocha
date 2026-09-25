@@ -1,0 +1,19 @@
+{"dt": 0.073, "source": "hook", "event": "UserPromptSubmit", "requestId": "8fd2399b"}
+{"dt": 0.073, "source": "daemon", "action": "respond", "requestId": "8fd2399b", "body": {}}
+{"dt": 0.244, "source": "herdr", "status": "working"}
+{"dt": 2.498, "source": "hook", "event": "PreToolUse", "requestId": "a304ac2b", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000012"}
+{"dt": 62.508, "source": "claude", "action": "connectionClosed", "requestId": "a304ac2b", "heldSeconds": 60.009}
+{"dt": 62.6, "source": "note", "text": "PreToolUse expirou (60 s): o seletor aparece e dispara o PermissionRequest"}
+{"dt": 62.685, "source": "hook", "event": "PermissionRequest", "requestId": "c1aadb5c", "tool_name": "AskUserQuestion"}
+{"dt": 62.75, "source": "herdr", "status": "blocked"}
+{"dt": 62.846, "source": "transcript", "block": "tool_use", "name": "AskUserQuestion", "id": "toolu_01Demo000000000000000012"}
+{"dt": 68.686, "source": "hook", "event": "Notification", "requestId": "e8998967", "notification_type": "permission_prompt"}
+{"dt": 68.688, "source": "daemon", "action": "respond", "requestId": "e8998967", "body": {}}
+{"dt": 70.874, "source": "daemon", "action": "respond", "requestId": "c1aadb5c", "body": {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow", "updatedInput": {"questions": [{"question": "Qual banco?", "header": "Banco", "options": [{"label": "Postgres", "description": "Banco de dados Postgres"}, {"label": "SQLite", "description": "Banco de dados SQLite"}, {"label": "MySQL", "description": "Banco de dados MySQL"}], "multiSelect": false}], "answers": {"Qual banco?": "SQLite"}}}}}}
+{"dt": 70.886, "source": "hook", "event": "PostToolUse", "requestId": "f56e168f", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000012"}
+{"dt": 70.886, "source": "daemon", "action": "respond", "requestId": "f56e168f", "body": {}}
+{"dt": 70.975, "source": "herdr", "status": "working"}
+{"dt": 71.153, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000012", "is_error": false}
+{"dt": 71.999, "source": "hook", "event": "Stop", "requestId": "a2bf5b6e"}
+{"dt": 72.0, "source": "daemon", "action": "respond", "requestId": "a2bf5b6e", "body": {}}
+{"dt": 72.228, "source": "herdr", "status": "done"}

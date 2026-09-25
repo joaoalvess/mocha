@@ -1,0 +1,14 @@
+{"dt": 0.064, "source": "hook", "event": "UserPromptSubmit", "requestId": "2c533fa7"}
+{"dt": 0.065, "source": "daemon", "action": "respond", "requestId": "2c533fa7", "body": {}}
+{"dt": 0.187, "source": "herdr", "status": "working"}
+{"dt": 1.509, "source": "hook", "event": "PreToolUse", "requestId": "00b07ef7", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000007"}
+{"dt": 1.51, "source": "daemon", "action": "respond", "requestId": "00b07ef7", "body": {}}
+{"dt": 1.538, "source": "hook", "event": "PermissionRequest", "requestId": "f7a82d7d", "tool_name": "Bash"}
+{"dt": 1.637, "source": "transcript", "block": "tool_use", "name": "Bash", "id": "toolu_01Demo000000000000000007"}
+{"dt": 1.644, "source": "daemon", "action": "respond", "requestId": "f7a82d7d", "body": {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow"}}}}
+{"dt": 1.681, "source": "hook", "event": "PostToolUse", "requestId": "e3849494", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000007"}
+{"dt": 1.681, "source": "daemon", "action": "respond", "requestId": "e3849494", "body": {}}
+{"dt": 1.849, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000007", "is_error": false}
+{"dt": 2.668, "source": "hook", "event": "Stop", "requestId": "a53f5b86"}
+{"dt": 2.668, "source": "daemon", "action": "respond", "requestId": "a53f5b86", "body": {}}
+{"dt": 3.003, "source": "herdr", "status": "done"}

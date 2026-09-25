@@ -1,0 +1,12 @@
+{"dt": 0.12, "source": "hook", "event": "UserPromptSubmit", "requestId": "bd23abde"}
+{"dt": 0.121, "source": "daemon", "action": "respond", "requestId": "bd23abde", "body": {}}
+{"dt": 0.181, "source": "herdr", "status": "working"}
+{"dt": 2.11, "source": "hook", "event": "PreToolUse", "requestId": "b1511a17", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000011"}
+{"dt": 2.113, "source": "daemon", "action": "respond", "requestId": "b1511a17", "body": {}}
+{"dt": 2.13, "source": "hook", "event": "PermissionRequest", "requestId": "2457005c", "tool_name": "AskUserQuestion"}
+{"dt": 2.271, "source": "herdr", "status": "blocked"}
+{"dt": 2.293, "source": "transcript", "block": "tool_use", "name": "AskUserQuestion", "id": "toolu_01Demo000000000000000011"}
+{"dt": 3.1, "source": "terminal", "keys": ["esc"]}
+{"dt": 3.212, "source": "claude", "action": "connectionClosed", "requestId": "2457005c", "heldSeconds": 1.082}
+{"dt": 3.36, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000011", "is_error": true}
+{"dt": 3.523, "source": "herdr", "status": "done"}
