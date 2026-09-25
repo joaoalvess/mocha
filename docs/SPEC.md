@@ -60,7 +60,7 @@ Nada disto entra em nenhuma fase acima: outros agentes (Codex, Antigravity e dem
 - **Tab**: tab do Herdr (`tab_id`, ex.: `w17:t1`).
 - **Pane**: pane do Herdr (`pane_id`, ex.: `w17:p1`). Um pane movido para outro workspace ganha id novo (evento `pane_moved`), e o agente muda de `AgentID`.
 - **Agente**: um pane onde o Herdr detectou o Claude Code. No protocolo, a identidade do agente é o `pane_id` (`AgentID`).
-- **Sessão**: sessão do Claude Code (`session_id`, UUID). Um agente troca de sessão com `/clear`.
+- **Sessão**: sessão do Claude Code (`session_id`, UUID). Um agente troca de sessão com `/clear`, que cria um arquivo de transcript novo; `/compact` mantém a sessão e o arquivo.
 - **Turno**: do prompt do usuário até o Claude parar (hook `Stop`).
 - **Pedido pendente**: aprovação de ferramenta ou pergunta (AskUserQuestion) esperando resposta (1b).
 
@@ -230,7 +230,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - **Conexão por pane**: uma conexão por pane com agente, só com `{"type":"pane.agent_status_changed","pane_id":…}`. O `data` traz `pane_id`, `workspace_id`, `agent_status` e, havendo agente, `agent`. O `HerdrBridge` abre a conexão no bootstrap e em `pane_agent_detected` sem `released`; depois do ack, chama `agent.get` para cobrir a janela entre a detecção e a inscrição. Fecha a conexão quando o pane sai do snapshot, em `pane_closed`, `pane_exited` e `pane_agent_detected` com `released: true`; em `pane_moved`, reabre com o id novo. Um `pane_id` inexistente derruba a inscrição (`pane_not_found`, id `"<id>:sub:<índice>:probe"`), por isso cada pane tem a sua conexão.
 - **Status**: vem só de `pane.agent_status_changed`, `agent.get` e `session.snapshot`. `idle` e `done` significam pronto (`done` = ainda não visto no Herdr; o daemon não marca como visto, porque isso exige `agent.focus` e move o foco do João). `blocked` cobre diálogo de permissão, pergunta e o diálogo de confiança da pasta na partida. `unknown` = sem agente ou não classificado. O `pane_updated` também traz `agent_status`, mas chega depois e pode ficar defasado. O `agent_status` agregado de tab e workspace prioriza atenção (`done` + `working` → `done`), então o daemon calcula o agregado dele a partir dos agentes.
 - **Árvore**: o Herdr não emite cascata (`tab_closed` e `workspace_closed` não trazem `pane_closed` dos panes; o shell que sai emite só `pane_exited`, e a tab que fica vazia some sem `tab_closed`). Eventos estruturais (`workspace_created`, `workspace_closed`, `workspace_moved`, `workspace_reordered`, `workspace_updated`, `worktree_*`, `tab_created`, `tab_closed`, `tab_moved`, `pane_created`, `pane_closed`, `pane_exited`, `pane_moved`, `pane_agent_detected`) disparam, com debounce de 150 ms, um `session.snapshot`, que é comparado ao estado anterior. Rótulos vêm direto do payload: `workspace_renamed`, `tab_renamed`, e `pane_updated` quando muda `terminal_title_stripped`, `cwd`, `foreground_cwd` ou `agent_session`. Toda mudança dispara `treeChanged` para os clientes, com debounce de 150 ms.
-- **Troca de sessão**: o Herdr **não emite evento** quando `agent_session.value` muda (`/clear`, `claude` novo no pane), e a `revision` do pane não muda. O `HerdrBridge` detecta a troca por: (a) `agent_session.value` diferente em `pane_updated`, `agent.get` ou snapshot; (b) `agent.get` 1 s e 3 s depois de `pane_agent_detected`, até aparecer `agent_session`; (c) `agent.get` a cada hook `SessionStart` (1a-final); (d) `agent.list` a cada 5 s enquanto algum cliente tem chat aberto. Quando muda, o `TranscriptStore` troca o arquivo acompanhado.
+- **Troca de sessão**: o Herdr **não emite evento** quando `agent_session.value` muda (`/clear`, `claude` novo no pane). Ele atualiza o valor pelo próprio hook `SessionStart`, sem mudar a `revision` do pane, e o `pane_updated` do mesmo instante (troca de título) ainda traz a sessão antiga. O `HerdrBridge` detecta a troca por: (a) `agent_session.value` diferente em `pane_updated`, `agent.get` ou snapshot; (b) `agent.get` 1 s depois de cada `pane_updated` de pane com agente, e 1 s e 3 s depois de `pane_agent_detected`, até aparecer `agent_session`; (c) `agent.list` a cada 5 s enquanto algum cliente tem chat aberto ou algum agente está `working`/`blocked`; (d) a partir da 1a-final, o hook `SessionStart` do Mocha (`source` `startup`, `resume`, `clear` ou `compact`, com `session_id` e `transcript_path`) como sinal principal, seguido de `agent.get`. Quando a sessão muda, o `TranscriptStore` troca o arquivo acompanhado e o daemon emite `treeChanged` (o `sessionId` do `AgentSummary` muda).
 - **`pane_moved`**: o pane ganha id novo (`pane.pane_id`), e `previous_pane_id` é o antigo. O `HerdrBridge` guarda o mapa antigo → novo para traduzir hooks (§3.3.1) e publica o agente com o id novo.
 - **Bootstrap e reconexão**: (1) abrir a conexão global e esperar o ack, guardando os eventos que chegarem; (2) `ping` e `session.snapshot`; (3) montar o estado e aplicar os eventos guardados em ordem; (4) abrir as conexões por pane. Se a conexão global receber EOF ou uma requisição falhar ao conectar, o daemon fecha todas as conexões, marca o Herdr indisponível (`herdrUnavailable`) e tenta de novo a cada 2 s, repetindo do passo 1.
 
@@ -251,41 +251,115 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 
 #### §3.2.1 Localização
 
-- Arquivo: `~/.claude/projects/<cwd codificado>/<session_id>.jsonl`.
-- Resolução: procurar `~/.claude/projects/*/<session_id>.jsonl`, com cache do resultado. **Não** reimplementar a codificação do diretório. Quando o hook traz `transcript_path`, ele tem precedência.
-- Transcripts de subagentes ficam fora do arquivo principal e não são exibidos. Linhas com `isSidechain: true` são ignoradas.
+- Arquivo da sessão: `~/.claude/projects/<cwd codificado>/<session_id>.jsonl`.
+- Resolução: procurar só `~/.claude/projects/*/<session_id>.jsonl` (um nível), com cache do resultado. **Não** reimplementar a codificação do diretório. Quando o hook traz `transcript_path`, ele tem precedência.
+- O diretório do projeto também tem `memory/`, `<session_id>/tool-results/`, `<session_id>/subagents/` e `.jsonl` de plugins (ex.: `vercel-plugin/skill-injections.jsonl`, sem `type`). Nunca varrer `**/*.jsonl`.
+- **Criação**: numa sessão nova, o arquivo só nasce na primeira mensagem, e o `transcript_path` do `SessionStart` pode apontar para um arquivo que ainda não existe. O diretório do projeto também pode não existir ainda (primeira sessão naquele `cwd`). O `TranscriptStore` trata arquivo inexistente como sessão vazia e observa o diretório do projeto (ou `~/.claude/projects/`, se ele também não existir) até o arquivo aparecer. Depois de `/clear`, o arquivo novo nasce na hora, já com as linhas do `/clear`.
+- **Sessões**: `/clear` cria um `session_id` novo e um arquivo novo; o antigo só recebe metadados depois disso. `/compact` mantém o `session_id` e o arquivo.
+- **Identidade**: vale `sessionId`. O campo `session_id` (snake_case), presente em parte das linhas, pode trazer a sessão anterior ao `/clear` e é ignorado.
+- **Subagentes**: ficam em `<session_id>/subagents/agent-<agentId>.jsonl` (todas as linhas com `isSidechain: true` e `agentId`), com `agent-<agentId>.meta.json` (`agentType`, `description`, `toolUseId` do `Agent` que o criou). Não são exibidos. No arquivo principal, o subagente aparece só como o `toolCall` `Agent` e, se rodou em background, como a notificação de tarefa. Linhas com `isSidechain: true` no arquivo principal são ignoradas por garantia.
 
-#### §3.2.2 Formato observado (Claude Code 2.1.282)
+#### §3.2.2 Formato e mapeamento (Claude Code 2.1.282)
 
-Uma entrada JSON por linha, com o campo `type`. O formato não é documentado pela Anthropic. O parser **ignora tipos e campos desconhecidos** e nunca falha a sessão inteira por causa de uma linha ruim (a linha é descartada e o problema vai pro log).
+Uma entrada JSON por linha, com o campo `type`. O formato não é documentado pela Anthropic. As fixtures de `MochaKit/Fixtures/transcripts/` cobrem cada caso, e o README delas traz a sequência esperada. O parser ignora campos desconhecidos, trata tipos desconhecidos pela política abaixo e nunca falha a sessão inteira por causa de uma linha ruim: a linha é descartada e contada.
 
-| `type` / `subtype` | Campos relevantes | Vira |
+Cada linha `assistant` tem **um** bloco em `message.content`. Uma resposta da API vira várias linhas com o mesmo `message.id` e `apiBlockIndex` 0, 1, 2… Linhas `user` com `tool_result` podem vir entre blocos da mesma `message.id` (ferramentas em paralelo).
+
+As regras são avaliadas em ordem; vale a primeira que casar.
+
+| Entrada | Condição | Vira |
 |---|---|---|
-| `user`, `message.content` string, `isMeta != true` | `uuid`, `timestamp`, `message.content` | `userPrompt`. Se o texto contém `<command-name>/x</command-name>`, vira `slashCommand` |
-| `user`, `isMeta == true` | — | ignorado |
-| `user`, `message.content` array com `tool_result` | `tool_use_id`, `is_error`, `content` | atualiza o `toolCall` correspondente (status e prévia do resultado) → `chatUpdate` |
-| `user`, array com `text`/`image` | blocos | `userPrompt` com texto e marcação de imagens |
-| `assistant` | `message.id`, `message.model`, `message.content[]` (um bloco por linha), `gitBranch`, `cwd`, `timestamp` | um `ChatItem` por bloco: `text` → `assistantText`, `thinking` → `thinking`, `tool_use{id,name,input}` → `toolCall` |
-| `system` / `turn_duration` | `durationMs`, `messageCount` | `turnFooter` ("Brewed for 45s") |
-| `system` / `away_summary` | `content` | `recap` |
-| `system` / `local_command` | `commandRun`, `content` | anexado ao `slashCommand` anterior como saída |
-| `system` / `compact_boundary` e similares | `content` | `notice` |
-| `ai-title` | `aiTitle` | título do agente (o último vence); não vira item |
-| `attachment`, `mode`, `permission-mode`, `last-prompt`, `queue-operation`, `file-history-*`, `worktree-state`, `atis-latch` | — | ignorados na UI. `permission-mode` atualiza o metadado do agente |
+| qualquer | JSON inválido ou sem `type` string | descartada (contador `dropped`) |
+| qualquer | `isSidechain == true` | ignorada |
+| `ai-title` | — | `ChatMeta.title` (o último vence); não vira item |
+| `permission-mode` | — | `ChatMeta.permissionMode` (o último vence; vistos: `default`, `acceptEdits`, `plan`, `auto`) |
+| `mode`, `atis-latch`, `last-prompt`, `agent-name`, `queue-operation`, `file-history-snapshot`, `file-history-delta`, `worktree-state`, `relocated`, `cost-state`, `pr-link`, `frame-link`, `fork-context-ref`, `bridge-session`, `continued-in` | — | ignorados |
+| `attachment` | `attachment.type == "queued_command"`, `commandMode == "prompt"`, `origin.kind` ausente ou `human`, sem `isMeta` | `userPrompt`: prompt enviado com o Claude trabalhando. `prompt` é string ou blocos `text`/`image` |
+| `attachment` | `queued_command` com `commandMode == "task-notification"` | `notice` com o `<summary>` |
+| `attachment` | demais | ignorado |
+| `user` | `isMeta == true` | ignorado (caveat de comando local, `turnCompanion`, mensagem `peer`, "[Image: original …]") |
+| `user` | `isCompactSummary == true` | ignorado (resumo do `/compact`) |
+| `user`, content string | contém `<command-name>/x</command-name>` | `slashCommand(name: "/x", args: <command-args>)`. Se o último `slashCommand` tem o mesmo `promptId` e o mesmo nome, não cria item (eco do `/compact`) |
+| `user`, content string | começa com `<local-command-stdout>` ou `<local-command-stderr>` | `output` do último `slashCommand`, sem as tags e sem códigos ANSI → `chatUpdate` |
+| `user`, content string | começa com `<bash-input>` (comando `!` do terminal) | `slashCommand(name: "!", args: <comando>)` |
+| `user`, content string | começa com `<bash-stdout>` ou `<bash-stderr>` | `output` do último `slashCommand` (stdout, e stderr se não vazio) → `chatUpdate` |
+| `user`, content string | `origin.kind == "task-notification"` ou começa com `<task-notification>` | `notice` com o `<summary>` (ex.: `Agent "Revisar README" finished`) |
+| `user`, content string | o texto é `/compact` ou `/compact <instruções>` | `slashCommand(name: "/compact", args: …)`: a linha crua que o Claude grava antes de compactar |
+| `user`, content string | demais | `userPrompt(text, imageCount: 0)` |
+| `user`, content array | tem bloco `tool_result` | atualiza o `toolCall` de `tool_use_id`: `failed` se `is_error == true`, senão `succeeded`, com `resultPreview` → `chatUpdate`. `tool_use_id` desconhecido: ignorado e contado |
+| `user`, content array | um único bloco `text` igual a `[Request interrupted by user]` ou `[Request interrupted by user for tool use]` | `notice("Interrompido pelo usuário")` |
+| `user`, content array | blocos `text`/`image` | `userPrompt(text: textos unidos por "\n", imageCount: nº de blocos image)`; outros blocos (ex.: `document`) não contam |
+| `assistant` | `isApiErrorMessage == true` ou `message.model == "<synthetic>"` | `notice` com o texto do bloco (ex.: "API Error: …"); não atualiza modelo nem branch |
+| `assistant`, bloco `text` | texto não vazio depois de aparar espaços | `assistantText(markdown)` |
+| `assistant`, bloco `thinking` | — | `thinking(text:)`, com `nil` quando `thinking == ""` (o caso comum) |
+| `assistant`, bloco `redacted_thinking` | — | `thinking(text: nil)` |
+| `assistant`, bloco `tool_use` | — | `toolCall` com `status: running`, `summary` (abaixo) e `inputJSON` do `input` truncado em 4.000 caracteres |
+| `assistant`, outro bloco | — | ignorado e contado |
+| `system` / `turn_duration` | `durationMs` | `turnFooter(durationMs)`. Turno interrompido não tem `turn_duration` |
+| `system` / `away_summary` | `content` | `recap(text)` |
+| `system` / `local_command` | `content` com `<command-name>` | `slashCommand`, pela mesma regra de `user` |
+| `system` / `local_command` | `content` com `<local-command-stdout>` ou `<local-command-stderr>` | `output` do último `slashCommand` |
+| `system` / `compact_boundary` | — | `notice("Conversa compactada")` |
+| `system` / `informational`, `model_consent_fallback`, `api_error` | `content` | `notice(content)` |
+| `system` / `stop_hook_summary`, `bridge_status`, `agents_killed` | — | ignorados |
+| `system`, outro `subtype` | — | ignorado e contado |
+| outro `type` | — | ignorado e contado |
+
+`toolCall.summary` (uma linha, até 120 caracteres):
+
+| Ferramenta | `summary` |
+|---|---|
+| `Bash` | primeira linha de `command` |
+| `Read`, `Write`, `Edit`, `NotebookEdit` | `file_path`, relativo ao `cwd` da linha quando está dentro dele |
+| `Grep`, `Glob` | `pattern` |
+| `WebFetch` | `url` |
+| `WebSearch`, `ToolSearch` | `query` |
+| `Agent` | `description` |
+| `AskUserQuestion` | `questions[0].question` |
+| `ExitPlanMode` | primeira linha não vazia de `plan` |
+| `Skill` | `skill` |
+| `TaskOutput`, `TaskStop` | `task_id` |
+| demais, inclusive `mcp__*` | primeiro valor string não vazio do `input` |
+
+`toolCall.resultPreview`, truncado em 2.000 caracteres no daemon:
+- `content` string: como está.
+- `content` array: os `text` unidos por `\n`; `image` vira `[imagem]`, `tool_reference` vira o `tool_name` e `document` vira `[documento]`.
+- `AskUserQuestion` com `toolUseResult.answers`: uma linha `pergunta → resposta` por pergunta (`multiSelect` vem com os rótulos separados por vírgula).
+- Pedido negado (`toolDenialKind` `user-rejected`, `automode-blocked` ou `automode-unavailable`) e Esc com a ferramenta rodando chegam com `is_error: true` e viram `failed`.
 
 Regras:
 
-- O id de um item é `<uuid da linha>` para entradas de bloco único, e `<uuid>#<índice>` se um dia vier mais de um bloco por linha.
-- **Modelo e branch do header** vêm da última entrada `assistant` (`message.model`, `gitBranch`). O título vem do último `ai-title`; na falta dele, de `terminal_title_stripped` do Herdr.
-- O Claude grava cada bloco completo, sem streaming por token. Enquanto o status for `working`, o app mostra o indicador de "trabalhando" no fim da lista.
-- `thinking` pode vir sem texto (só assinatura). Nesse caso o item mostra apenas "Pensou", colapsado.
-- A prévia do `tool_result` é truncada em 2.000 caracteres no daemon; o conteúdo completo nunca é enviado ao app no MVP.
+- **Ordem**: a do arquivo. `timestamp` não é monotônico (no `/compact`, linhas gravadas depois têm hora anterior) e só alimenta `ChatItem.at`.
+- **Ids**:
+  - O id do item é `<uuid da linha>`, ou `<uuid>#<índice do bloco>` se uma linha trouxer mais de um bloco (não observado na 2.1.282). Um `userPrompt` de `queued_command` usa o `uuid` da linha `attachment`.
+  - Linhas que só atualizam outro item não geram id: saída de comando, `tool_result` e eco do `/compact`.
+- **`tool_result`**: vem sempre depois do `tool_use`, em até 50 linhas no corpus (99 % em até 3). Um `tool_use` sem resultado fica `running` (AskUserQuestion esperando resposta ou sessão encerrada).
+- **Header**:
+  - Modelo e branch vêm da última linha `assistant` que não seja `<synthetic>` (`message.model`, `gitBranch`).
+  - `gitBranch == "HEAD"` (pasta sem git ou HEAD destacado) vira `nil`. O modelo pode ter sufixo de data (`claude-haiku-4-5-20251001`).
+  - O título vem do último `ai-title`, que começa como frase e depois vira o nome em kebab-case (igual ao título do terminal). Na falta dele, vem de `terminal_title_stripped` do Herdr.
+- **Escrita**:
+  - O Claude grava cada bloco completo, sem streaming por token. Enquanto o status for `working`, o app mostra o indicador de "trabalhando".
+  - Os metadados (`last-prompt`, `ai-title`, `mode`, `permission-mode`, `atis-latch`) são regravados em grupo durante o turno, então `permissionMode` pode atrasar alguns segundos em relação ao terminal.
+- **Comando local**: a saída pode ter códigos ANSI (`\u001b[2m…`), removidos antes de enviar. Quebras de linha nas pontas são aparadas; espaços iniciais ficam (saída de `git status`).
+
+Política para tipos novos:
+
+1. `type`, `subtype`, tipo de bloco ou `attachment.type` desconhecido: a linha (ou o bloco) é ignorada e contada por nome, com um aviso no log por nome e por arquivo, não por linha.
+2. Campos desconhecidos são sempre ignorados. Campos esperados ausentes usam o padrão: `is_error` ausente é sucesso, `thinking` ausente é vazio.
+3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada (2.1.282).
+4. Um tipo novo que precise aparecer no chat entra nesta tabela junto com uma fixture e o snapshot esperado.
 
 #### §3.2.3 Leitura e desempenho
 
-- Os arquivos passam de dezenas de MB em sessões longas.
-- **Primeira abertura**: varredura única do arquivo, montando um índice de offsets de linha. Página inicial = últimos `limit` itens, lidos a partir do fim. Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1.
+- Os arquivos passam de dezenas de MB em sessões longas, e uma linha pode passar de 1 MB (imagem colada em base64; a maior vista tinha 1,8 MB).
+- **Primeira abertura**:
+  - Varredura única do arquivo, montando um índice de offsets de linha; a última linha sem `\n` fica fora do índice.
+  - Página inicial = últimos `limit` itens, lidos a partir do fim.
+  - Ao montar qualquer página, os `tool_result` das até 64 linhas seguintes ao fim dela são aplicados aos `toolCall` da página.
+  - Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1 (fixture de `scripts/gen-big-transcript.swift`).
 - **Acompanhamento**: `DispatchSource.makeFileSystemObjectSource` (`.extend`, `.write`, `.rename`, `.delete`), lendo de `lastOffset` até o fim. Linha incompleta (sem `\n`) fica em buffer até completar.
+- **Arquivo que ainda não existe** (sessão nova sem mensagem): observar o diretório do projeto, ou `~/.claude/projects/` se ele também não existir, até o arquivo aparecer.
 - **Cursor de paginação**: opaco para o app. Internamente é o offset da primeira linha da página.
 - O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para push e Live Activity). Fora disso, fecha o descritor.
 
@@ -303,7 +377,7 @@ Regras:
 
 | Evento | Uso | Timeout | Fase |
 |---|---|---|---|
-| `SessionStart` | pane → `session_id`/`transcript_path` | 5 s | 1a-final |
+| `SessionStart` | pane → `session_id`/`transcript_path`/`source`. Dispara também no `/compact` (`source: compact`, mesmo `session_id`) e no `/clear` (`source: clear`, sessão nova). O `transcript_path` pode apontar para um arquivo que ainda não existe | 5 s | 1a-final |
 | `UserPromptSubmit` | marca o início do turno (Live Activity, inbox) | 5 s | 1a-final |
 | `Stop` | turno concluído → push; `last_assistant_message` | 5 s | 1a-final |
 | `Notification` | sinal secundário de atenção (`idle_prompt`, `elicitation_dialog`) | 5 s | 1a-final |
@@ -506,7 +580,7 @@ public struct ToolCall: Codable, Sendable {
 
 public enum ChatItemKind: Codable, Sendable {
     case userPrompt(text: String, imageCount: Int)
-    case slashCommand(name: String, args: String, output: String?)
+    case slashCommand(name: String, args: String, output: String?)   // name: "/x" ou "!" (comando de shell do terminal)
     case assistantText(markdown: String)
     case thinking(text: String?)
     case toolCall(ToolCall)
@@ -728,21 +802,22 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
   - ponto de status;
   - asterisco do Claude;
   - título (truncado no meio);
-  - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: `claude-opus-5-5` → `opus-5-5`);
+  - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - à direita, um botão redondo que abre a gaveta (bússola).
   - O conteúdo rola por baixo do header.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~20 pt, largura máxima de ~80 %.
   - `assistantText`: markdown à esquerda, largura total, sem bolha.
   - `toolCall`: card `toolCard` de uma linha (`>_ Shell <resumo>` com ✓ ou ✗ à direita). Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`). Tocar expande e mostra, por chamada, o input e a prévia do resultado em mono.
-  - `thinking`: linha colapsada "Pensou" em `textSecondary`; toque expande quando há texto.
+  - `thinking`: linha colapsada "Pensou" em `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
   - `turnFooter`: "Brewed for 45s" em itálico `textSecondary`.
   - `recap`: "**Recap:** …" em itálico `textSecondary`.
-  - `slashCommand`: chip "/clear" discreto.
+  - `slashCommand`: chip discreto com `name` e `args` (ex.: "/clear"); com `output`, o toque expande a saída em mono. `name == "!"` é um comando de shell digitado no terminal.
   - `notice`: texto centralizado pequeno.
   - Indicador "trabalhando…" no fim da lista enquanto `status == working`.
 - **Rolagem**: gruda no fim quando o usuário já está no fim. Se ele rolou pra cima, aparece o botão redondo "↓" (canto inferior direito, acima do composer) e itens novos não mexem na posição.
 - **Paginação**: ao chegar no topo, carrega `before` com um indicador; a posição de leitura se mantém.
+- **Troca de sessão**: quando o `sessionId` do agente do chat aberto muda num `tree`/`treeChanged` (depois de `/clear`), o app reabre o chat com `openChat` e substitui a lista; a sessão nova começa com o chip `/clear`.
 
 **Composer** (flutuante sobre o fim da lista)
 - Campo multilinha "Chat via Mocha…" (até 6 linhas, depois rola).
@@ -912,7 +987,7 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 
 | Risco | Mitigação |
 |---|---|
-| O formato do JSONL do Claude muda numa atualização | Parser tolerante (§3.2.2), fixtures reais versionadas, e o `doctor` mostra a versão do Claude e a taxa de linhas descartadas |
+| O formato do JSONL do Claude muda numa atualização | Parser tolerante (§3.2.2), fixtures reais versionadas, e o `doctor` mostra a versão do Claude e a taxa de linhas descartadas. O Claude Code se atualiza sozinho (no S1 passou de 2.1.282 para 2.1.283 durante o uso); o `doctor` avisa quando a versão das linhas é maior que a última validada |
 | API do Herdr muda (protocolo ≠ 22) | O `HerdrClient` confere a versão do protocolo no connect; o `doctor` avisa; fixtures em `Fixtures/herdr/` |
 | O hook `PermissionRequest` não roda em paralelo com o diálogo na versão instalada | Fallback por `send_keys` (§8.1), decidido no S3 |
 | Tailscale fora no iPhone | Bloqueio B6 (VPN On Demand); o app mostra "Sem conexão com o Mac" e as ações de notificação avisam a falha |
