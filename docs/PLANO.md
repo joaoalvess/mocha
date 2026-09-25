@@ -237,23 +237,25 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Gateway/`, `Pairing/` e `Devices/`, e os testes.
 - **Depende de**: WP0.2, WP0.3, S5.
 - **SPEC**: §4.5, §4.6, §5.
-- **Faz**: rotas `/v1` e `/v1/health`, handshake `hello` com código ou token, `unpair`, `DeviceStore`, `SessionHub` (clientes, chats abertos, primeiro plano) e o roteamento das mensagens de §5.3 da 1a-core para interfaces `HerdrBridging`/`TranscriptProviding`, que o WP-M4 liga às implementações reais.
+- **Faz**: rotas `/v1` e `/v1/health`, handshake `hello` com código ou token, `unpair`, `DeviceStore`, `SessionHub` (clientes, chats abertos, primeiro plano) e o roteamento das mensagens de §5.3 da 1a-core para interfaces `HerdrBridging`/`TranscriptProviding`, que o WP-M4 liga às implementações reais. parte do protótipo `MochaDaemonCore/Gateway/` do S5 (`Gateway.makeRouter()`, `GatewayHealth`, `GatewayEvent`, `HttpResponse.json`). Troca o eco do `/v1` pelo `SessionHub`, liga `herdrAvailable` ao `HerdrBridge` e apaga `GatewaySpikeRoutes.swift` (`/spike/echo`, `GatewaySpikeEcho`) e os dois testes dele em `Tests/MochaDaemonCoreTests/Gateway/GatewayTests.swift`. Binding só `.loopback(port: 47421)`. No encerramento, fecha cada WebSocket com 1001 antes do `HttpServer.stop()`, que hoje corta sem close frame (o app vê POSIX 57).
 - **Aceite**:
   - [ ] Teste de ponta a ponta com um cliente WS de teste: pareamento → token → reconexão com token → `tree` → `openChat` → `chatAppend` (com os fakes de Herdr e de transcript).
   - [ ] Token errado → `unauthorized`; três falhas → conexão fechada.
   - [ ] `devices.json` com permissão 0600 e só com o hash do token.
+  - [ ] `/v1/health` devolve `herdr` com o estado real do `HerdrBridge`.
 
 ### WP-M4: `mochad`: composição, CLI, LaunchAgent e `doctor`
 
 - **Dono**: `MochaKit/Sources/mochad/`, `MochaKit/Sources/MochaDaemonCore/App/`.
 - **Depende de**: WP-M1, WP-M2, WP-M3.
 - **SPEC**: §4.2, §4.3, §4.7.
-- **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`.
+- **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`. remove o subcomando temporário `spike-gateway` (`mochad/SpikeGatewayCommand.swift`, `mochad/SpikeGatewayLog.swift` e o caso no `main.swift`). O `serve-setup` mostra `tailscale serve --bg --https=443 http://127.0.0.1:47421`. `--apply` executa, confere `tailscale serve status --json` (handler `"/"` em `"<host>:443"` com `"Proxy": "http://127.0.0.1:47421"`) e aquece com `GET https://<host>/v1/health` (limite de 90 s). `--remove` executa `tailscale serve --https=443 off`. O Tailscale é chamado pelo caminho absoluto `/Applications/Tailscale.app/Contents/MacOS/tailscale` (o `/usr/local/bin/tailscale` é só um wrapper), sem depender do `PATH` do LaunchAgent. O host vem de `tailscale status --json` → `.Self.DNSName` sem o ponto final, e também monta a URL do `mochad pair`. `doctor`, item Serve: ✅ com o handler certo e o health 200 pela URL `https://<host>`; ❌ sem handler (mostra o comando), com alvo `unix:` ("a extensão do Tailscale não abre socket Unix") ou com 502 ("Serve ativo, gateway sem escutar"); ⚠️ com timeout no TLS ("certificado sendo emitido; tente de novo em 1 min").
 - **Aceite**:
   - [ ] `mochad install` sobe o LaunchAgent, e `launchctl print gui/$UID/com.joaoalves.mochad` mostra o serviço rodando.
   - [ ] `mochad doctor` lista os itens de §4.2 com o estado real, incluindo a versão e o protocolo do `ping` do Herdr (❌ se o socket não existir, ⚠️ se protocolo ≠ 22).
   - [ ] Parado por 10 min: RSS < 30 MB (medido com `footprint` ou `ps`).
   - [ ] `mochad pair` exibe um QR legível pela câmera do iPhone.
+  - [ ] `doctor` distingue sem handler, alvo `unix:`, 502 e timeout de TLS.
 
 ### WP-I1: design system, shell do app e modo demo
 
@@ -294,10 +296,12 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaClient/`, `MochaKit/Tests/MochaClientTests/`, `App/Sources/Connection/`, `App/Sources/Pairing/`, `App/Sources/Settings/`.
 - **Depende de**: WP0.2, WP0.3, S5, WP-I1.
 - **SPEC**: §2.3 (Reconexão), §4.5, §6.1, §6.3 (Pareamento, Ajustes).
-- **Faz**: `ConnectionManager` (actor, em `MochaClient`) com backoff e `TokenStore` injetado, sempre com um `receive()` pendente no `URLSessionWebSocketTask` (sem ele, o pong do `sendPing` e o close do servidor não são processados; WP0.3); `KeychainTokenStore` no app; `scenePhase`; leitura de QR com `DataScannerViewController`; link colado; estados de erro; tela de Ajustes com estado da conexão, versões e desparear.
+- **Faz**: `ConnectionManager` (actor, em `MochaClient`) com backoff e `TokenStore` injetado, sempre com um `receive()` pendente no `URLSessionWebSocketTask` (sem ele, o pong do `sendPing` e o close do servidor não são processados; WP0.3); `KeychainTokenStore` no app; `scenePhase`; leitura de QR com `DataScannerViewController`; link colado; estados de erro; tela de Ajustes com estado da conexão, versões e desparear. parte da sonda `App/Sources/Debug/GatewayProbe*` do S5 (lógica movida para o `ConnectionManager` de `MochaClient`). Backoff, tentativa imediata em `.satisfied`, heartbeat `sendPing` a cada 5 s e depois de mudança de caminho, conexão morta com 15 s sem pong, nada de fechar na troca de rede e close 1001 só em `.background` (§2.3, §6.1). Estados: 502 no handshake → "O Mac respondeu, mas o mochad não está rodando"; timeout ou erro de conexão → "Sem conexão com o Mac". Quando a conexão real existir, apagar `App/Sources/Debug/GatewayProbe*` e o caso `gateway` do `DebugProbe` em `AppShell/RootView.swift`.
 - **Aceite**:
   - [ ] `MochaClientTests` contra um servidor WS de teste montado com o `HttpServer` (WP0.3): pareamento por código → token salvo no `TokenStore` → reconexão com token, queda do servidor e sequência de backoff.
   - [ ] No simulador, com `-demo`, as telas de pareamento e Ajustes aparecem e navegam. O pareamento contra o `mochad` real acontece no WP-X1.
+  - [ ] Teste da sequência de backoff (limite de 8 s depois do jitter, contagem zerada ao abrir) com relógio e aleatoriedade injetados.
+  - [ ] Teste do heartbeat: com o servidor sem pong, a conexão é dada como morta em 15–20 s e reaberta.
 
 ### WP-I5: chat e composer
 
@@ -314,16 +318,17 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 
 - **Dono**: orquestrador. Correções pequenas em qualquer diretório, commitadas separadamente.
 - **Depende de**: todos os WPs da 1a-core e os bloqueios B1, B3, B4 e B8.
-- **Faz**: instala o `mochad` (LaunchAgent), configura o `serve` e instala o app no iPhone pelo Xcode. Depois o João percorre o checklist.
+- **Faz**: instala o `mochad` (LaunchAgent), configura o `serve` (`mochad serve-setup --apply`, só com um ok novo do João, porque o B4 cobriu só o S5; antes dele, `tailscale serve status` precisa estar vazio) e instala o app no iPhone pelo Xcode. Depois o João percorre o checklist.
 - **Checklist do João** (no iPhone, pelo tailnet):
   - [ ] Pareia pelo QR do `mochad pair`.
   - [ ] A gaveta mostra os workspaces, tabs e agentes reais, com branch e `*`.
-  - [ ] Pedir a um agente para criar um worktree faz o workspace novo aparecer aninhado na gaveta sem recarregar.
+  - [ ] Pedir a um agente para criar um worktree com `herdr worktree create` faz o workspace novo aparecer aninhado na gaveta sem recarregar.
   - [ ] Abrir um chat longo mostra a última página em menos de 1 s, e a rolagem pra cima carrega o histórico.
   - [ ] Enviar um prompt pelo celular faz o Claude responder, e a resposta aparece no chat.
   - [ ] Parar interrompe o agente.
   - [ ] Fechar o app, mandar um prompt pelo Mac e reabrir: o chat está atualizado.
-  - [ ] Trocar Wi-Fi ↔ 4G com o app aberto: reconecta sozinho.
+  - [ ] Trocar Wi-Fi ↔ 4G com o app aberto: o chat continua sem reconectar (pode parar de atualizar por até ~10 s).
+  - [ ] App em background ou tela bloqueada por 30 s e de volta: reconecta em menos de 1 s e o chat se atualiza.
   - [ ] O visual bate com os prints do Moshi (ok visual do João).
 
 ---
@@ -458,6 +463,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: a rota HTTP `/v1/upload` em `Gateway/` e a limpeza de `uploads/`. Não mexe no tratamento de mensagens WS (é do WP-M8 nesta onda).
 - **Depende de**: WP-M3.
 - **SPEC**: §5.5, §10.
+- **Faz**: rota `/v1/upload`; o app manda o upload com `URLSession.upload(for:from: Data)`, porque corpo em stream vira chunked no Serve e recebe 411 (§5.5).
 - **Aceite**:
   - [ ] Testes de tipo aceito, limite de 20 MB, nome gerado pelo daemon e limpeza depois de 7 dias.
 
@@ -514,7 +520,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S2 | feito | 4648a76 |
 | S3 | feito | 0c0c24c |
 | S4 | todo | |
-| S5 | todo | |
+| S5 | feito | 2fe94d0, 42ebb0f, 5c65255 |
 | WP-M1 | todo | |
 | WP-M2 | todo | |
 | WP-M3 | todo | |
