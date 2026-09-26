@@ -6,8 +6,8 @@ import Testing
 struct PendingBubblesTests {
     private static let sentAt = Date(timeIntervalSince1970: 1_790_337_600)
 
-    private static func prompt(_ text: String, id: String = UUID().uuidString) -> ChatItem {
-        ChatItem(id: id, at: sentAt, kind: .userPrompt(text: text, imageCount: 0))
+    private static func prompt(_ text: String, imageCount: Int = 0, id: String = UUID().uuidString) -> ChatItem {
+        ChatItem(id: id, at: sentAt, kind: .userPrompt(text: text, imageCount: imageCount))
     }
 
     private static func slash(_ name: String, _ args: String = "", id: String = UUID().uuidString) -> ChatItem {
@@ -21,6 +21,35 @@ struct PendingBubblesTests {
         #expect(added?.text == "roda os testes")
         #expect(blank == nil)
         #expect(pending.bubbles.map(\.text) == ["roda os testes"])
+    }
+
+    @Test func bubbleWithImagesAcceptsAnEmptyTextAndShowsTheAttachmentLine() throws {
+        var pending = PendingBubbles()
+        let imageOnlyAdded = pending.add(" ", imageCount: 2, at: Self.sentAt)
+        let withTextAdded = pending.add("olha isso ", imageCount: 1, at: Self.sentAt)
+        let imageOnly = try #require(imageOnlyAdded)
+        let withText = try #require(withTextAdded)
+        #expect(imageOnly.text.isEmpty)
+        #expect(imageOnly.displayText == "📎 2 imagens")
+        #expect(withText.displayText == "olha isso\n📎 1 imagem")
+        #expect(pending.add("texto", at: Self.sentAt)?.displayText == "texto")
+    }
+
+    @Test func promptWithImagesMatchesByTextAndImageCount() {
+        var pending = PendingBubbles()
+        pending.add("", imageCount: 2, at: Self.sentAt)
+        pending.add("olha isso", imageCount: 1, at: Self.sentAt)
+        pending.match([Self.prompt("", imageCount: 1), Self.prompt("olha isso", imageCount: 0)])
+        #expect(pending.bubbles.count == 2)
+        pending.match([Self.prompt("olha isso\n", imageCount: 1), Self.prompt("", imageCount: 2)])
+        #expect(pending.isEmpty)
+    }
+
+    @Test func bubbleWithImagesNeverMatchesASlashCommand() {
+        var pending = PendingBubbles()
+        pending.add("/compact", imageCount: 1, at: Self.sentAt)
+        pending.match([Self.slash("/compact")])
+        #expect(pending.bubbles.count == 1)
     }
 
     @Test func promptMatchesTheOldestBubbleWithTheSameTextFirst() {
