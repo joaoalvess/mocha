@@ -70,6 +70,13 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
     public var sessionId: String?
     public var lastActivityAt: Date?
     public var pendingCount: Int
+    public var preview: MessagePreview?
+    public var activity: ToolActivity?
+    public var contextLeftPercent: Int?
+    public var sessionStartedAt: Date?
+    public var turnStartedAt: Date?
+    public var turnEndedAt: Date?
+    public var archivedAt: Date?
 
     public init(
         id: AgentID,
@@ -81,7 +88,14 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         branch: String? = nil,
         sessionId: String? = nil,
         lastActivityAt: Date? = nil,
-        pendingCount: Int = 0
+        pendingCount: Int = 0,
+        preview: MessagePreview? = nil,
+        activity: ToolActivity? = nil,
+        contextLeftPercent: Int? = nil,
+        sessionStartedAt: Date? = nil,
+        turnStartedAt: Date? = nil,
+        turnEndedAt: Date? = nil,
+        archivedAt: Date? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -93,10 +107,18 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         self.sessionId = sessionId
         self.lastActivityAt = lastActivityAt
         self.pendingCount = pendingCount
+        self.preview = preview
+        self.activity = activity
+        self.contextLeftPercent = contextLeftPercent
+        self.sessionStartedAt = sessionStartedAt
+        self.turnStartedAt = turnStartedAt
+        self.turnEndedAt = turnEndedAt
+        self.archivedAt = archivedAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, status, title, workspaceLabel, model, branch, sessionId, lastActivityAt, pendingCount
+        case preview, activity, contextLeftPercent, sessionStartedAt, turnStartedAt, turnEndedAt, archivedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -111,6 +133,13 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
         lastActivityAt = try container.decodeProtocolDateIfPresent(forKey: .lastActivityAt)
         pendingCount = try container.decode(Int.self, forKey: .pendingCount)
+        preview = (try? container.decodeIfPresent(MessagePreview.self, forKey: .preview)) ?? nil
+        activity = (try? container.decodeIfPresent(ToolActivity.self, forKey: .activity)) ?? nil
+        contextLeftPercent = try container.decodeIfPresent(Int.self, forKey: .contextLeftPercent)
+        sessionStartedAt = try container.decodeProtocolDateIfPresent(forKey: .sessionStartedAt)
+        turnStartedAt = try container.decodeProtocolDateIfPresent(forKey: .turnStartedAt)
+        turnEndedAt = try container.decodeProtocolDateIfPresent(forKey: .turnEndedAt)
+        archivedAt = try container.decodeProtocolDateIfPresent(forKey: .archivedAt)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -125,5 +154,39 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         try container.encodeIfPresent(sessionId, forKey: .sessionId)
         try container.encodeProtocolDateIfPresent(lastActivityAt, forKey: .lastActivityAt)
         try container.encode(pendingCount, forKey: .pendingCount)
+        try container.encodeIfPresent(preview, forKey: .preview)
+        try container.encodeIfPresent(activity, forKey: .activity)
+        try container.encodeIfPresent(contextLeftPercent, forKey: .contextLeftPercent)
+        try container.encodeProtocolDateIfPresent(sessionStartedAt, forKey: .sessionStartedAt)
+        try container.encodeProtocolDateIfPresent(turnStartedAt, forKey: .turnStartedAt)
+        try container.encodeProtocolDateIfPresent(turnEndedAt, forKey: .turnEndedAt)
+        try container.encodeProtocolDateIfPresent(archivedAt, forKey: .archivedAt)
+    }
+}
+
+public enum MessageAuthor: String, Codable, Sendable, Hashable {
+    case user
+    case assistant
+}
+
+public struct MessagePreview: Codable, Sendable, Hashable {
+    public var author: MessageAuthor
+    public var text: String
+
+    public init(author: MessageAuthor, text: String) {
+        self.author = author
+        self.text = text
+    }
+}
+
+public struct ToolActivity: Codable, Sendable, Hashable {
+    public var toolName: String
+    public var summary: String
+    public var status: ToolStatus
+
+    public init(toolName: String, summary: String, status: ToolStatus) {
+        self.toolName = toolName
+        self.summary = summary
+        self.status = status
     }
 }

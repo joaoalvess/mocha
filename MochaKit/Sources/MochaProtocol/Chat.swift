@@ -175,14 +175,14 @@ public struct ChatMeta: Codable, Sendable, Hashable {
 }
 
 public struct ChatPage: Codable, Sendable, Hashable {
-    public var agentId: AgentID
+    public var target: ChatTarget
     public var meta: ChatMeta
     public var items: [ChatItem]
     public var before: String?
     public var hasMore: Bool
 
-    public init(agentId: AgentID, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool) {
-        self.agentId = agentId
+    public init(target: ChatTarget, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool) {
+        self.target = target
         self.meta = meta
         self.items = items
         self.before = before
@@ -190,12 +190,12 @@ public struct ChatPage: Codable, Sendable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case agentId, meta, items, before, hasMore
+        case agentId, sessionId, meta, items, before, hasMore
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        agentId = try container.decode(AgentID.self, forKey: .agentId)
+        target = try container.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId)
         meta = try container.decode(ChatMeta.self, forKey: .meta)
         items = try container.decodeLossyArray(of: ChatItem.self, forKey: .items)
         before = try container.decodeIfPresent(String.self, forKey: .before)
@@ -204,7 +204,7 @@ public struct ChatPage: Codable, Sendable, Hashable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(agentId, forKey: .agentId)
+        try container.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId)
         try container.encode(meta, forKey: .meta)
         try container.encode(items, forKey: .items)
         try container.encodeIfPresent(before, forKey: .before)

@@ -976,7 +976,7 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - Listas tolerantes: `items` de `chatPage`, `chatAppend` e `chatUpdate`, e `requests` de `pending`, descartam o item que não decodifica e mantêm os outros. As demais listas são estritas.
 - Os códigos de `error` formam um conjunto aberto (`ProtocolErrorCode`): um código desconhecido é preservado.
 - **`ChatTarget`** é achatado no payload que o carrega: `.agent(id)` vira `"agentId": id`, e `.session(id)` vira `"sessionId": id`. Na decodificação, exatamente um dos dois precisa existir; os dois ou nenhum é erro de decodificação.
-- `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
+- `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `AgentSummary.preview` e `AgentSummary.activity` inválidos (autor ou status desconhecido) decodificam como `nil`, sem derrubar a árvore. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
 
