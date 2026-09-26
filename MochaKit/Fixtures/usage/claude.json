@@ -1,0 +1,6 @@
+{
+  "oauthAccount": {
+    "organizationRateLimitTier": "default_claude_max_20x",
+    "emailAddress": "dev@example.com"
+  }
+}
