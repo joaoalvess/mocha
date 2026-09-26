@@ -29,6 +29,7 @@ public actor ConnectionManager: ServerConnection {
     private let stateContinuation: AsyncStream<ConnectionState>.Continuation
     private let configuration: ConnectionConfiguration
     private let tokenStore: any TokenStore
+    private let apnsRegistration: any ApnsRegistrationSource
     private let transport: any WebSocketTransport
     private let clock: any ConnectionClock
     private let pathMonitor: any NetworkPathMonitoring
@@ -51,6 +52,7 @@ public actor ConnectionManager: ServerConnection {
     public init(
         configuration: ConnectionConfiguration,
         tokenStore: any TokenStore,
+        apnsRegistration: any ApnsRegistrationSource = NoApnsRegistration(),
         transport: any WebSocketTransport = URLSessionWebSocketTransport(),
         clock: any ConnectionClock = SystemConnectionClock(),
         pathMonitor: any NetworkPathMonitoring = SystemNetworkPathMonitor(),
@@ -65,6 +67,7 @@ public actor ConnectionManager: ServerConnection {
         self.stateContinuation = stateContinuation
         self.configuration = configuration
         self.tokenStore = tokenStore
+        self.apnsRegistration = apnsRegistration
         self.transport = transport
         self.clock = clock
         self.pathMonitor = pathMonitor
@@ -188,7 +191,8 @@ public actor ConnectionManager: ServerConnection {
             deviceToken: pairing == nil ? credential?.token : nil,
             pairingCode: pairing?.code,
             deviceName: configuration.deviceName,
-            appVersion: configuration.appVersion
+            appVersion: configuration.appVersion,
+            apns: apnsRegistration.currentRegistration()
         )
         guard let text = encode(ClientEnvelope(id: helloId, message: .hello(hello))) else {
             lose(.unreachable)

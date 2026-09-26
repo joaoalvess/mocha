@@ -7,7 +7,8 @@ enum LiveConnection {
     static func make() -> ConnectionManager {
         ConnectionManager(
             configuration: ConnectionConfiguration(deviceName: UIDevice.current.name, appVersion: AppVersion.current.marketing),
-            tokenStore: KeychainTokenStore()
+            tokenStore: KeychainTokenStore(),
+            apnsRegistration: PushRegistration.shared.registrationSource
         )
     }
 }
