@@ -67,6 +67,9 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
         case "pendingResponse":
             let response = try assertRoundTrip(PendingResponse.self, from: data)
             #expect(response.type == type)
+        case "http":
+            #expect(type == "uploadResponse")
+            try assertRoundTrip(UploadResponse.self, from: data)
         default:
             Issue.record("Fixture sem decodificador conhecido: \(name)")
         }
