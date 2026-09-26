@@ -15,6 +15,8 @@ struct SettingsScreen: View {
                 VStack(alignment: .leading, spacing: 0) {
                     pairedMacSection
                     Color.clear.frame(height: 26)
+                    notificationsSection
+                    Color.clear.frame(height: 26)
                     deviceSection
                     Color.clear.frame(height: 26)
                     unpairSection
@@ -62,6 +64,23 @@ struct SettingsScreen: View {
                 }
                 SheetListRow(label: "Herdr", value: herdrText)
             }
+        }
+    }
+
+    private var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionLabel(text: "Notificações")
+            SheetListCard {
+                Toggle(isOn: turnDoneAlertsBinding) {
+                    Text("Turno concluído")
+                        .systemText(.sheetRowLabel)
+                        .foregroundStyle(Palette.textPrimary)
+                        .lineLimit(1)
+                }
+                .toggleStyle(SettingsSwitchStyle())
+                .disabled(!canChangePreferences)
+            }
+            SheetFootnote(text: Text("Avisa quando o Claude termina um turno e o chat dele não está aberto. Pedidos de aprovação sempre avisam."))
         }
     }
 
@@ -116,6 +135,19 @@ struct SettingsScreen: View {
         case false?: "desconectado"
         case nil: "—"
         }
+    }
+
+    private var turnDoneAlertsBinding: Binding<Bool> {
+        Binding(
+            get: { session.preferences?.turnDoneAlerts ?? DevicePreferences().turnDoneAlerts },
+            set: { isOn in
+                Task { try? await session.setTurnDoneAlerts(isOn) }
+            }
+        )
+    }
+
+    private var canChangePreferences: Bool {
+        session.connectionState == .connected && session.preferences != nil
     }
 
     private var unpairFailureBinding: Binding<Bool> {
