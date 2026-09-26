@@ -31,7 +31,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 - macOS 27, Xcode 27 (Swift 6.4), Apple M1 com 8 GB. O shell do João é fish; scripts do repositório são bash.
 - Ferramentas:
   - `/opt/homebrew/bin`: `xcodegen`, `herdr`, `rg`, `fd`, `gh`.
-  - `/usr/local/bin/tailscale`.
+  - `/usr/local/bin/tailscale` (wrapper; o código do `mochad` chama `/Applications/Tailscale.app/Contents/MacOS/tailscale`, §4.5).
   - `/usr/bin/jq`.
   - Se o `PATH` estiver vazio num subagente, use caminhos absolutos.
 - O João roda tudo dentro do Herdr (`HERDR_ENV=1`). Processos longos (daemon em primeiro plano, `log stream`, app no simulador) rodam numa tab do Herdr, não no Bash do agente:
@@ -43,6 +43,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
   - `scripts/bootstrap.sh`: gera o `Mocha.xcodeproj`;
   - `scripts/test.sh`: testes do MochaKit;
   - `scripts/build-app.sh`: build para o simulador;
+  - `scripts/build-device.sh`: build assinado para o iPhone;
   - `scripts/build-daemon.sh`: build release do `mochad`;
   - `scripts/run-daemon.sh`: `mochad run` em primeiro plano.
 
