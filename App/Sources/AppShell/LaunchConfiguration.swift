@@ -23,7 +23,8 @@ struct LaunchConfiguration: Equatable {
         if arguments.contains(demoFlag) {
             configuration.demoOptions = DemoOptions(
                 startsPaired: !arguments.contains(demoUnpairedFlag),
-                runsScript: arguments.contains(demoScriptFlag)
+                runsScript: arguments.contains(demoScriptFlag),
+                isEmpty: arguments.contains(demoEmptyFlag)
             )
             configuration.demoEmpty = arguments.contains(demoEmptyFlag)
         }
