@@ -697,7 +697,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
   - **Desfazer**: `tailscale serve --https=443 off` remove só esse handler. `tailscale serve reset` apaga toda a config de Serve do Mac e só serve se não houver outra.
   - **Conferir**: `tailscale serve status --json` tem, em `Web["<host>:443"].Handlers["/"]`, `"Proxy": "http://127.0.0.1:47421"`.
   - **Certificado**: o primeiro HTTPS do nó emite o certificado Let's Encrypt e segura o TLS por até ~1 min. Depois disso, o Tailscale renova sozinho (validade de 90 dias). O `serve-setup --apply` aquece com `GET https://<host>/v1/health` e limite de 90 s.
-  - **CLI**: o `mochad` chama `/Applications/Tailscale.app/Contents/MacOS/tailscale` pelo caminho absoluto (o `/usr/local/bin/tailscale` é um wrapper) e lê o host em `tailscale status --json` (`.Self.DNSName`, sem o ponto final).
+  - **CLI**: o `mochad` chama `/Applications/Tailscale.app/Contents/MacOS/tailscale` pelo caminho absoluto (o `/usr/local/bin/tailscale` é um wrapper), com `TAILSCALE_BE_CLI=1` no ambiente (sob o launchd não há `TERM`, e sem a variável o binário do app abre em modo GUI e trava), e lê o host em `tailscale status --json` (`.Self.DNSName`, sem o ponto final).
   - **O que o proxy faz**:
     - repassa `Authorization`, a query string intacta e o corpo com `Content-Length`;
     - fala HTTP/1.1 com o daemon, mesmo com o cliente em h2;
