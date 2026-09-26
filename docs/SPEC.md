@@ -436,8 +436,9 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `mochad devices` | Lista e remove aparelhos pareados (`--remove <id>`) |
 | `mochad install-hooks` / `uninstall-hooks` | §3.3 |
 | `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
-| `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID>` | Guarda a chave no Keychain e grava `keyId`/`teamId` no config |
-| `mochad apns test [--device <id>]` | Manda um push de teste |
+| `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
+| `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
+| `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity (1b), com `--working`, `--waiting`, `--title`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Estado do daemon, do Herdr e do Serve, clientes conectados |
 | `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados |
 
@@ -449,7 +450,9 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `~/Library/Application Support/Mocha/devices.json` | Aparelhos (§4.6). Permissão 0600 |
 | `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (1b). Apagadas depois de 7 dias |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
-| Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` |
+| Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` (senha genérica). O ACL confia no binário que criou o item pelo requisito de assinatura, e a lista de partição recebe `teamid:<TEAM>` |
+
+O `mochad` é assinado com a identidade "Apple Development" do time e o identificador fixo `com.joaoalves.mochad` (`codesign --force --sign <identidade> --identifier com.joaoalves.mochad --options runtime`, no `build-daemon.sh` e no `install`). Assim, qualquer build novo lê a chave sem diálogo. Um binário sem assinatura de equipe (padrão do `swift build`) abre o diálogo "Permitir sempre" do Keychain a cada recompilação, e o LaunchAgent travaria esperando um clique.
 
 Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Tokens e segredos nunca vão para o log.
 
@@ -725,7 +728,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` | 1b |
-| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}` | 1b |
+| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
 
 **Servidor → cliente**
 
@@ -760,6 +763,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `GET /v1` (upgrade) | WebSocket | 1a-core |
 | `POST /v1/respond` | Corpo `{requestId, response}` (mesmo JSON de §5.2.1). Usado pelas ações de notificação sem abrir o app. 200 com `{}`, 404 se o pedido não existe mais | 1b |
 | `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta `{"path": "/Users/…/uploads/<uuid>.<ext>"}` | 1b |
+| `POST /v1/live-activity` | Corpo `LiveActivityRegistration` (mesmo JSON do `registerLiveActivity`), com `Authorization: Bearer`. Usado pelo app acordado em background por push-to-start, sem WebSocket aberto, para entregar o token de update da atividade nova. 200 com `{}` | 1b |
 
 ---
 
@@ -881,18 +885,33 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 
 ## §7 Push e Live Activity
 
+Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições reais em `docs/spikes/S4.md`.
+
 ### §7.1 Alertas (1a-final)
 
-- **APNs**: HTTP/2 via `URLSession` para `api.sandbox.push.apple.com` ou `api.push.apple.com`, conforme o `env` do token do aparelho (o app manda `env` junto com o token; build do Xcode = `sandbox`, TestFlight = `production`, detectado pelo `aps-environment` do perfil embutido ou por flag de build).
-- **JWT**: ES256 com a `.p8` (CryptoKit `P256.Signing.PrivateKey(pemRepresentation:)`). A assinatura usa `signature.rawRepresentation` (r‖s), **não DER**. O token é reutilizado e renovado a cada 40 min (a Apple rejeita renovação abaixo de 20 min e token acima de 60 min).
-- **Headers**: `apns-topic: com.example.mocha`, `apns-push-type: alert`, `apns-priority: 10` (alertas são imediatos; prioridade 5 pode atrasar a entrega), `apns-collapse-id` por agente.
+- **APNs**: HTTP/2 via uma `URLSession` do daemon, reaproveitada entre envios (o `URLSession` negocia `h2` sozinho), para `api.sandbox.push.apple.com` ou `api.push.apple.com`, conforme o `env` do token do aparelho. Referência medida com conexão nova a cada envio: resposta em 372–824 ms (mediana 465 ms); alerta com o app aberto em 0,5–1,0 s.
+- **Ambiente do token**: o app manda `env` junto com cada token (`hello.apns`, `registerLiveActivity`). Ele lê `Entitlements.aps-environment` do `embedded.mobileprovision` do próprio bundle (plist dentro do CMS, entre `<?xml` e `</plist>`): `development` → `sandbox`, `production` → `production`. Sem o arquivo (TestFlight, App Store) → `production`. No simulador → `sandbox`.
+- **Chave**: a `.p8` Team Scoped `<KEY_ID>` vale **só no sandbox** (produção responde `403 BadEnvironmentKeyInToken`). Build de TestFlight exige uma chave de produção antes.
+- **JWT**: ES256 com a `.p8` (CryptoKit `P256.Signing.PrivateKey(pemRepresentation:)`). Header `{"alg":"ES256","kid":"<KeyID>"}`, claims `{"iss":"<TeamID>","iat":<segundos Unix>}`, base64url sem padding. A assinatura usa `signature.rawRepresentation` (r‖s, 64 bytes), **não DER**. O token é reutilizado e renovado a cada 40 min (a Apple rejeita renovação abaixo de 20 min e token acima de 60 min), e também na hora em `403 ExpiredProviderToken`.
+- **Headers**:
+  - `apns-topic: com.example.mocha`, `apns-push-type: alert`, `apns-priority: 10`;
+  - `apns-id`: UUID em minúsculas, gerado pelo daemon e registrado no log;
+  - `apns-collapse-id` = `agentId` (≤ 64 bytes);
+  - `apns-expiration`: agora + 1 h para turno concluído e agora + 10 min para "precisa de você" (o hook segura no máximo 590 s).
 - **Tipos**:
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown. `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
 - **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
 - **Deduplicação**: um alerta de "precisa de você" por pedido. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do `PermissionRequest`, o `blocked` do Herdr e o `Notification` `permission_prompt` dessa sessão não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo.
-- **Payload**: `{"aps":{…},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…"}`.
-- Resposta 410 ou `BadDeviceToken` do APNs remove o token do aparelho.
+- **Payload**: `{"aps":{"alert":{"title","body"},"sound":"default","thread-id","category","interruption-level"?},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…","sentAt":<ms Unix>}`. O `sentAt` serve para diagnóstico de atraso. Payload ≤ 4 KB.
+- **Respostas**:
+  - 200 traz `apns-id` e, no sandbox, `apns-unique-id` (consulta no Push Notifications Console);
+  - 410 ou `400 BadDeviceToken` removem o token do aparelho;
+  - `403 ExpiredProviderToken` renova o JWT e repete uma vez;
+  - `403 BadEnvironmentKeyInToken` (a documentação diz `BadEnvironmentKeyIdInToken`; tratar os dois), `InvalidProviderToken` e `TopicDisallowed` são erro de configuração: log e `doctor`, sem retry;
+  - 429 e 5xx seguem com backoff.
+- **Tokens**: hexadecimal de tamanho variável (32 bytes o de alerta, 80 bytes os de Live Activity no iPhone, 128 no simulador). Validar só hex com tamanho par.
+- **Simulador**: não entrega o token de alerta (`registerForRemoteNotifications` nunca responde). Alertas só se testam no iPhone.
 
 ### §7.2 Ações de notificação (1b)
 
@@ -920,15 +939,29 @@ public struct ContentState: Codable, Hashable {
 }
 ```
 
+- **Codificação**: o sistema decodifica o `content-state` com as estratégias **padrão** do `JSONDecoder`. `Date` é um número em segundos desde 2001-01-01 (`timeIntervalSinceReferenceDate`), nunca ISO-8601 nem `ProtocolDate`. O daemon usa o espelho `LiveActivityContentState` (`MochaDaemonCore/Push`), que codifica as datas assim, com `highlight` omitido quando nulo. Já `timestamp`, `stale-date` e `dismissal-date` do `aps` são **segundos Unix** (1970).
 - **Tela bloqueada**: "2 trabalhando · 1 esperando você" e a linha do destaque, com timer desde `since`.
-- **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link).
+- **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link, também em `widgetURL`). O `alert` do push-to-start mostra a apresentação expandida sozinha. No simulador, a captura precisa de `xcrun simctl io <udid> screenshot --mask=black`.
+- **Headers**: `apns-push-type: liveactivity`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-id`. `apns-expiration` e `apns-collapse-id` são aceitos, mas não são necessários.
 - **Ciclo de vida**:
-  - **Início**: quando algum agente passa a `working` e não há atividade ativa. Com o app em primeiro plano, `Activity.request(…, pushType: .token)`; com o app fora, push-to-start (`apns-push-type: liveactivity`, `event: start`, token de push-to-start obtido em `Activity<…>.pushToStartTokenUpdates`).
-  - **Atualização**: `event: update`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-priority: 5`, e `10` só quando `waiting` passa de 0 para ≥ 1. No máximo uma atualização a cada 10 s, exceto a transição para `blocked`.
-  - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min.
+  - **Início**: quando algum agente passa a `working` e não há atividade ativa.
+    - Com o app em primeiro plano, `Activity.request(attributes:content:pushType: .token)`. O token de update chega por `pushTokenUpdates` em ~1,2 s.
+    - Com o app fora, push-to-start com `apns-priority: 10` e o payload `{"aps":{"timestamp","event":"start","content-state","attributes-type":"MochaAgentsAttributes","attributes":{},"alert":{"title","body"},"input-push-token":1}}`. O `alert` é obrigatório. O token vem de `Activity<MochaAgentsAttributes>.pushToStartTokenUpdates` e existe sem permissão de notificação nem atividade aberta.
+    - Mesmo depois de o usuário deslizar o app para fora, o sistema o lança em background em ~1 s. O token de update da atividade nova chega por `Activity.activityUpdates` → `pushTokenUpdates` em 2–40 s, com o app em background.
+  - **Atualização**: `event: update`, `timestamp` (o sistema ignora push com `timestamp` mais antigo que o último aplicado), `content-state` e `stale-date` = agora + 15 min (a atividade fica `stale` se o Mac parar de atualizar).
+    - `apns-priority: 10` em toda mudança que o usuário precisa ver: contagem de `working`/`waiting`, troca do destaque e fim. Medido: 0,6–0,7 s.
+    - `apns-priority: 5` só para mudanças que podem esperar ou se perder (ex.: só o título do destaque). Medido com o iPhone em uso: 45 s e 84 s, e uma se perdeu, coalescida pela seguinte.
+    - No máximo uma atualização a cada 10 s, sempre com o estado mais recente.
+  - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com prioridade 10, o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min. A atividade some na `dismissal-date`.
   - **Limite de 8 h**: ao completar 7 h 50 min, o daemon encerra e inicia outra com push-to-start.
-- **Tokens**: o app observa `pushTokenUpdates` de cada atividade e `pushToStartTokenUpdates`, e envia `registerLiveActivity`. Sem conexão, guarda o token e reenvia na próxima conexão.
-- Payload ≤ 4 KB: o título do destaque vai truncado em 60 caracteres.
+- **Orçamentos** (`liveactivitiesd`, visto no simulador e reavaliado a cada hora): 10 push-to-starts e ~60 updates de prioridade 10 por hora, por app. Com o limite de 10 s e a regra de prioridade acima, o Mocha fica abaixo disso em uso normal. Se não ficar, a alternativa é `NSSupportsLiveActivitiesFrequentUpdates` no Info.plist.
+- **Tokens**:
+  - o app observa `Activity<MochaAgentsAttributes>.activityUpdates`, o `pushTokenUpdates` de cada atividade e `pushToStartTokenUpdates` desde o `application(_:didFinishLaunchingWithOptions:)`, porque o push-to-start acorda o app sem cena;
+  - guarda os tokens (`Application Support/live-activity-tokens.json`);
+  - envia `registerLiveActivity` pelo WebSocket em primeiro plano e por `POST /v1/live-activity` (Bearer) quando foi acordado em background, porque ali não há WebSocket aberto;
+  - sem conexão, reenvia na próxima.
+- Payload ≤ 4 KB: o título do destaque vai truncado em 60 caracteres (um `start` completo tem ~400 bytes).
+- **Simulador**: recebe push-to-start e updates reais do sandbox, mas **não entrega ao app o token de update de uma atividade iniciada por push**. Esse caminho só se testa no iPhone.
 
 ---
 
@@ -1072,3 +1105,6 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | Build do Xcode e perfil com push expiram | Perfil de desenvolvimento de ~1 ano; `doctor` do app em Ajustes mostra a validade quando disponível |
 | A extensão do Tailscale standalone não abre socket Unix fora do sandbox | Gateway em TCP `127.0.0.1:47421` (S5); o `doctor` acusa alvo `unix:` no Serve |
 | O primeiro HTTPS do nó segura o TLS por ~1 min enquanto o certificado é emitido | `serve-setup --apply` aquece o health com limite de 90 s; o `doctor` separa timeout de TLS de 502 |
+| Atualização de Live Activity com prioridade 5 atrasa minutos ou se perde | Prioridade 10 em toda mudança visível, limite de 1 update a cada 10 s (§7.3); `stale-date` marca a atividade como desatualizada |
+| O Keychain pede autorização a cada build novo do `mochad` | Binário sempre assinado com a identidade do time e identificador fixo (§4.3); o `doctor` confere a assinatura |
+| A chave APNs atual só vale no sandbox; TestFlight usa produção | Criar ou habilitar uma chave de produção antes do primeiro build de TestFlight; `BadEnvironmentKeyInToken` aparece no `doctor` (§7.1) |
