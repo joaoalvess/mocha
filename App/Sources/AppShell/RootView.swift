@@ -10,8 +10,6 @@ struct RootView: View {
             switch probe {
             case .push:
                 PushProbeView()
-            case .gateway:
-                GatewayProbeView()
             }
         } else if let preview = launch.preview {
             switch preview {
@@ -32,12 +30,10 @@ struct RootView: View {
     private var content: some View {
         switch startup {
         case .session(let session):
-            AppShellView(session: session, launchURL: launchURL, opensDrawerAtLaunch: opensDrawerAtLaunch)
+            AppShellView(session: session, launchURL: launchURL, opensDrawerAtLaunch: opensDrawerAtLaunch, opensSettingsAtLaunch: opensSettingsAtLaunch)
                 .onOpenURL { session.handle($0) }
         case .demoUnavailable:
             SplashView(message: "Não foi possível abrir o modo demo.")
-        case .awaitingConnection:
-            SplashView(message: nil)
         }
     }
 
@@ -52,6 +48,14 @@ struct RootView: View {
     private var opensDrawerAtLaunch: Bool {
         #if DEBUG
         launch.opensDrawer
+        #else
+        false
+        #endif
+    }
+
+    private var opensSettingsAtLaunch: Bool {
+        #if DEBUG
+        launch.opensSettings
         #else
         false
         #endif

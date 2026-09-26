@@ -2,6 +2,7 @@ import Foundation
 import MochaClient
 import MochaProtocol
 import Observation
+import SwiftUI
 
 struct ChatState: Equatable {
     let route: ChatTarget
@@ -61,7 +62,8 @@ final class AppSession {
     private(set) var chat: ChatState?
     private(set) var chatPath: [ChatTarget] = []
     private(set) var isDrawerOpen = false
-    private(set) var pairingLink: PairingLink?
+    private(set) var pairing = PairingGate()
+    private(set) var pairedAt: Date?
     var sheet: AppSheet?
 
     @ObservationIgnored private let connection: any ServerConnection
@@ -70,17 +72,23 @@ final class AppSession {
     @ObservationIgnored private var consumerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var chatGeneration = 0
+    @ObservationIgnored private let pairingDates: any PairingDateStore
+    @ObservationIgnored private var lifecycleTask: Task<Void, Never>?
+    @ObservationIgnored private var isSceneActive = false
 
-    init(connection: any ServerConnection) {
+    init(connection: any ServerConnection, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
         self.connection = connection
-    }
-
-    var needsPairing: Bool {
-        if case .pairingRequired = connectionState { true } else { false }
+        self.pairingDates = pairingDates
+        pairedAt = pairingDates.pairedAt
     }
 
     var showsPairing: Bool {
-        needsPairing || (pairingLink != nil && connectionState != .connected)
+        pairing.showsPairing
+    }
+
+    var foregroundAgentId: AgentID? {
+        guard case .agent(let agentId)? = visibleChat?.target else { return nil }
+        return agentId
     }
 
     var visibleChat: ChatState? {
@@ -114,8 +122,31 @@ final class AppSession {
                 }
             },
         ]
-        let connection = connection
-        Task { await connection.start() }
+        enqueueLifecycle { await $0.start() }
+    }
+
+    func scenePhaseChanged(to phase: ScenePhase) {
+        isSceneActive = phase == .active
+        sendForeground()
+        guard hasStarted else { return }
+        switch phase {
+        case .active:
+            enqueueLifecycle { await $0.start() }
+        case .background:
+            enqueueLifecycle { await $0.stop() }
+        case .inactive:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    func sendForeground() {
+        guard connectionState == .connected else { return }
+        nextRequestNumber += 1
+        let id = "c-\(nextRequestNumber)"
+        let message = ClientMessage.setForeground(agentId: foregroundAgentId, isActive: isSceneActive)
+        enqueueLifecycle { try? await $0.send(message, id: id) }
     }
 
     func handle(_ url: URL) {
@@ -130,9 +161,19 @@ final class AppSession {
     }
 
     func pair(_ link: PairingLink) {
-        pairingLink = link
-        let connection = connection
-        Task { await connection.pair(link) }
+        if pairing.begin(link) {
+            coverWithPairing()
+        }
+        enqueueLifecycle { await $0.pair(link) }
+    }
+
+    func unpair() async throws {
+        do {
+            try await request(.unpair)
+        } catch AppSessionError.notConnected where connectionState == .pairingRequired(nil) {
+        }
+        pairedAt = nil
+        pairingDates.pairedAt = nil
     }
 
     func openChat(_ target: ChatTarget) {
@@ -278,19 +319,38 @@ final class AppSession {
     }
 
     private func apply(_ state: ConnectionState) {
-        let previous = connectionState
-        let wasConnected = previous == .connected
+        let wasConnected = connectionState == .connected
         connectionState = state
+        if pairing.apply(state) {
+            coverWithPairing()
+        }
         guard state == .connected else {
-            if previous == .connecting, case .pairingRequired = state {
-                pairingLink = nil
-            }
             failAllReplies(with: .notConnected)
             return
         }
-        pairingLink = nil
         if !wasConnected {
             reopenVisibleChat()
+            sendForeground()
+        }
+    }
+
+    private func coverWithPairing() {
+        sheet = nil
+        isDrawerOpen = false
+    }
+
+    private func recordPairing() {
+        let now = Date()
+        pairedAt = now
+        pairingDates.pairedAt = now
+    }
+
+    private func enqueueLifecycle(_ operation: @escaping @Sendable (any ServerConnection) async -> Void) {
+        let previous = lifecycleTask
+        let connection = connection
+        lifecycleTask = Task {
+            await previous?.value
+            await operation(connection)
         }
     }
 
@@ -301,6 +361,9 @@ final class AppSession {
         }
         switch envelope.message {
         case .helloOk(let payload):
+            if payload.deviceToken != nil {
+                recordPairing()
+            }
             host = payload.host
             deviceId = payload.deviceId
             preferences = payload.preferences

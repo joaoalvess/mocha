@@ -5,6 +5,8 @@ struct AppShellView: View {
     @Bindable var session: AppSession
     var launchURL: URL?
     var opensDrawerAtLaunch = false
+    var opensSettingsAtLaunch = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -28,6 +30,12 @@ struct AppShellView: View {
         .sheet(item: $session.sheet) { sheet in
             sheetContent(sheet)
         }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            session.scenePhaseChanged(to: phase)
+        }
+        .onChange(of: session.foregroundAgentId) {
+            session.sendForeground()
+        }
         .task {
             session.start()
             if let launchURL {
@@ -35,6 +43,9 @@ struct AppShellView: View {
             }
             if opensDrawerAtLaunch {
                 session.openDrawer()
+            }
+            if opensSettingsAtLaunch {
+                session.showSettings()
             }
         }
     }
