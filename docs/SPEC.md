@@ -924,7 +924,9 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - cursor inválido ou de outra sessão → `invalidPayload`;
   - agente com `kind != "claude"` → `invalidPayload` ("Chat disponível só para Claude Code");
   - agente sem sessão → `chatPage` com `items: []`, `before: nil` e `hasMore: false`, e o chat passa a ser acompanhado (o arquivo pode nascer depois, §3.2.1);
-  - agente desconhecido, depois de `resolve` (§4.1.1) → `agentNotFound`.
+  - agente desconhecido, depois de `resolve` (§4.1.1) → `agentNotFound`;
+  - com um id antigo traduzido por `resolve`, o `chatPage` volta com o `agentId` atual.
+- **`sendPrompt`, `interrupt` e `slash`**: agente com `kind != "claude"` → `invalidPayload`, com a mesma mensagem do `openChat`.
 - **Erros do Herdr** (§3.1.1):
 
 | Herdr | Protocolo |
