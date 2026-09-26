@@ -70,7 +70,7 @@ enum TranscriptLineParser {
             }
             switch attachment["prompt"] {
             case .string(let text):
-                return [.item(line.item(.userPrompt(text: text, imageCount: 0)))]
+                return [.item(line.item(userPrompt(text, imageCount: 0)))]
             case .array(let blocks):
                 return promptEffects(blocks: blocks, line: line)
             default:
@@ -122,7 +122,7 @@ enum TranscriptLineParser {
             let args = trimmed.dropFirst("/compact".count).trimmingCharacters(in: .whitespacesAndNewlines)
             return [.slashCommand(line.item(.slashCommand(name: "/compact", args: args, output: nil)), promptId: promptId)]
         }
-        return [.item(line.item(.userPrompt(text: text, imageCount: 0)))]
+        return [.item(line.item(userPrompt(text, imageCount: 0)))]
     }
 
     private static func userBlockEffects(_ blocks: [JSONValue], line: Line) -> [LineEffect] {
@@ -163,7 +163,12 @@ enum TranscriptLineParser {
             }
         }
         guard !texts.isEmpty || imageCount > 0 else { return effects }
-        return [.item(line.item(.userPrompt(text: texts.joined(separator: "\n"), imageCount: imageCount)))] + effects
+        return [.item(line.item(userPrompt(texts.joined(separator: "\n"), imageCount: imageCount)))] + effects
+    }
+
+    private static func userPrompt(_ text: String, imageCount: Int) -> ChatItemKind {
+        let markers = ImageMarkers.extract(from: text)
+        return .userPrompt(text: markers.text, imageCount: imageCount + markers.count)
     }
 
     private static func assistantEffects(_ line: Line) -> [LineEffect] {
