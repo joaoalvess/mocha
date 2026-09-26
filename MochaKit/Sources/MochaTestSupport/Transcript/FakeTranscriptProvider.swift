@@ -72,6 +72,11 @@ public actor FakeTranscriptProvider: TranscriptProviding {
         pageErrors[sessionId] = error
     }
 
+    public func publishMeta(_ meta: TranscriptMeta, toSession sessionId: String) {
+        metas[sessionId] = meta
+        emit(.meta(meta), toSession: sessionId)
+    }
+
     public func emit(_ delta: TranscriptDelta, toSession sessionId: String) {
         for continuation in subscribers[sessionId, default: [:]].values {
             continuation.yield(delta)
