@@ -37,6 +37,7 @@
 - [ ] Trocar Wi-Fi ↔ 4G com o app aberto: o chat continua sem reconectar (pode parar de atualizar por até ~10 s).
 - [ ] App em background ou tela bloqueada por 30 s e de volta: reconecta em menos de 1 s.
 - [ ] Parar o `mochad` mostra a cápsula de sem conexão na Home, sem esvaziar a lista.
+- [ ] Foto do rolo, foto da câmera e print colado chegam ao Claude, que descreve a imagem; a bolha mostra "📎 N imagens" (Onda 1.F: WP-M11 · WP-I13, pedida pelo João durante o X1).
 - [ ] O visual bate com o mock (ok visual do João).
 
 ## Estado

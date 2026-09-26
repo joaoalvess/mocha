@@ -29,9 +29,9 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | Fase | Resultado | Marco de integração |
 |---|---|---|
 | 0 | Repositório, contratos, servidor HTTP e todas as incertezas técnicas resolvidas por spikes | — |
-| 1a-core | Parear, Home (central de agentes) com uso do plano e sessões arquivadas, gaveta, ler e mandar mensagem, interromper. Uso diário possível | WP-X1 |
+| 1a-core | Parear, Home (central de agentes) com uso do plano e sessões arquivadas, gaveta, ler e mandar mensagem, mandar imagem, interromper. Uso diário possível | WP-X1 |
 | 1a-final | Push de turno concluído e de agente bloqueado; slash commands | WP-X2 |
-| 1b | Inbox e ações na notificação, Live Activity, voz, imagem, nova tab | WP-X3 |
+| 1b | Inbox e ações na notificação, Live Activity, voz, nova tab | WP-X3 |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
@@ -210,6 +210,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Onda 1.C**, em paralelo: WP-M4 · WP-I3 · WP-I5.
 - **Onda 1.D**, em paralelo: WP-I2 · WP-M10.
 - **Onda 1.E**: WP-X1 (integração).
+- **Onda 1.F**, em paralelo, pedida pelo João durante o X1: WP-M11 · WP-I13 (mandar imagem, antes na 1b). Depois do merge, o `mochad` é reinstalado e o app reinstalado no iPhone; o checklist do X1 ganha o item da imagem.
 
 Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de cada WP ficam em `MochaKit/Tests/<Target>Tests/<Área>/`, sob o mesmo dono.
 
@@ -474,6 +475,40 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] `mochad doctor` mostra o item Uso com a idade do cache.
   - [ ] **Para o João conferir** (checklist do WP-X1): o plano e a conta que aparecem no app batem com a conta real; se não baterem, os nomes das chaves de `~/.claude.json` da §3.4 estão errados.
 
+### WP-M11: upload de imagem no daemon
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Uploads/` (novo), a rota `POST /v1/upload` e a verificação do Bearer em `MochaDaemonCore/Gateway/`, a busca de aparelho por token em `MochaDaemonCore/Devices/`, a ligação em `MochaDaemonCore/App/` (`DaemonPaths`, `DaemonRuntime`), a regra dos marcadores de imagem em `MochaKit/Sources/MochaTranscript/` e `MochaKit/Fixtures/transcripts/`, e os testes (`MochaKit/Tests/MochaDaemonCoreTests/Uploads/` e os do `MochaTranscriptTests` da regra nova).
+- **Depende de**: WP-M3, WP-M10.
+- **SPEC**: §5.5 (`POST /v1/upload`), §3.2 (marcadores de imagem do Mocha), §4.3 (`uploads/`), §10.
+- **Faz**:
+  1. `UploadStore`: grava o corpo atômico com 0600 em `uploads/` (0700), com nome UUID e extensão pelo `Content-Type`, e devolve o caminho absoluto. Limpeza dos arquivos com mais de 7 dias na subida do daemon e a cada 6 h.
+  2. Rota `POST /v1/upload` com `maxBodySize` de 20 MB, Bearer verificado contra o `DeviceStore` (mesma regra do `hello` com `deviceToken`), e os erros da §5.5. Resposta `UploadResponse` do `MochaProtocol`.
+  3. `mochad run` liga o `UploadStore` real e a limpeza.
+  4. `MochaTranscript`: os marcadores `[imagem: <caminho em uploads/>]` saem do texto do `userPrompt` e somam no `imageCount` (§3.2), inclusive no `preview` da Home.
+- **Aceite**:
+  - [ ] Testes da rota: 200 com JPEG, PNG e HEIC, com o caminho em `uploads/` e a extensão certa; 401 sem Bearer e com token desconhecido; 411; 413 acima de 20 MB; 415; 400 com corpo vazio; o nome é gerado pelo daemon e o caminho do cliente é ignorado.
+  - [ ] Testes do `UploadStore`: permissões 0700 e 0600, gravação atômica, limpeza só do que tem mais de 7 dias.
+  - [ ] Testes do transcript: prompt com 1 e com 3 marcadores vira `userPrompt` sem os marcadores e com `imageCount` certo; marcador fora de `uploads/` fica no texto; `queued_command` com marcador; prompt só com marcador vira `[imagem]` no `preview`.
+  - [ ] `scripts/test.sh` verde.
+
+### WP-I13: mandar imagem pelo app
+
+- **Dono**: `App/Sources/Composer/`, a bolha do usuário em `App/Sources/Chat/`, o envio com anexos em `App/Sources/AppShell/AppSession.swift`, `MochaKit/Sources/MochaClient/Connection/` (cliente de upload), `MochaKit/Sources/MochaClient/Presentation/` (texto do prompt com marcadores, redução da imagem) e os testes em `MochaKit/Tests/MochaClientTests/`.
+- **Depende de**: WP-I5, WP-I2. Roda em paralelo com o WP-M11, contra o contrato da §5.5.
+- **SPEC**: §6.5, §6.3 (Composer), §5.5 (`POST /v1/upload`).
+- **Faz**:
+  1. `+` no composer expandido com o menu "Fotos", "Câmera" e "Colar imagem"; faixa de miniaturas com "x"; enviar habilitado com imagem e sem texto; até 5 imagens.
+  2. Redução para 2.048 px no lado maior, JPEG 0,85, com a orientação certa (ImageIO, testável no macOS).
+  3. Cliente de upload no `MochaClient`: `URLSession.upload(for:from: Data)` para `https://<host do pareamento>/v1/upload`, com `Authorization: Bearer <deviceToken>` do `TokenStore` e o `Content-Type`; lê o `UploadResponse`.
+  4. Envio: uploads em sequência e depois um `sendPrompt` com o texto e uma linha `[imagem: <path>]` por imagem. Falha em qualquer upload não envia nada e mantém texto e miniaturas.
+  5. Bolha pendente e definitiva com "📎 1 imagem" / "📎 N imagens".
+  6. No `-demo`, o upload é falso e devolve um caminho em `uploads/`. Uma flag de Debug anexa imagens de amostra para a captura (nome proposto no relatório, para a §6.1).
+- **Aceite**:
+  - [ ] Testes no `MochaClient`: texto do prompt com marcadores na ordem; redução mantém a proporção e o lado maior ≤ 2.048 px; requisição com URL, Bearer, `Content-Type` e corpo `Data`; falha de upload não chama `sendPrompt`.
+  - [ ] No simulador com `-demo`: o menu do `+` aparece; com a flag de amostra, a faixa de miniaturas aparece e o enviar acende sem texto; depois de enviar, a bolha mostra "📎 2 imagens". Capturas comparadas com `08-chat-digitando` (resto do composer inalterado).
+  - [ ] `scripts/test.sh` e `scripts/build-app.sh` verdes.
+  - [ ] No iPhone (checklist do WP-X1): foto do rolo, da câmera e print colado chegam ao Claude, que descreve a imagem.
+
 ### WP-X1: integração da 1a-core
 
 - **Dono**: orquestrador. Correções pequenas em qualquer diretório, commitadas separadamente.
@@ -498,6 +533,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Trocar Wi-Fi ↔ 4G com o app aberto: o chat continua sem reconectar (pode parar de atualizar por até ~10 s).
   - [ ] App em background ou tela bloqueada por 30 s e de volta: reconecta em menos de 1 s.
   - [ ] Parar o `mochad` mostra a cápsula de sem conexão na Home, sem esvaziar a lista.
+  - [ ] Foto do rolo, foto da câmera e print colado chegam ao Claude, que descreve a imagem; a bolha mostra "📎 N imagens".
   - [ ] O visual bate com o mock (ok visual do João).
 
 ---
@@ -642,22 +678,21 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Aceite**:
   - [ ] Ditado em pt-BR no device, com parcial e final no campo, sem envio automático.
 
-### WP-M9: upload no daemon
+### WP-M9: rota de Live Activity no daemon
 
-- **Dono**: as rotas HTTP `/v1/upload` e `/v1/live-activity` em `Gateway/` e a limpeza de `uploads/`. Não mexe no tratamento de mensagens WS (é do WP-M8 nesta onda).
+- **Dono**: a rota HTTP `/v1/live-activity` em `Gateway/`. Não mexe no tratamento de mensagens WS (é do WP-M8 nesta onda). O upload saiu para o WP-M11 (1a-core).
 - **Depende de**: WP-M3.
 - **SPEC**: §5.5, §10.
-- **Faz**: rota `/v1/upload`; o app manda o upload com `URLSession.upload(for:from: Data)`, porque corpo em stream vira chunked no Serve e recebe 411 (§5.5). Também a rota `POST /v1/live-activity` (§5.5, Bearer), que repassa o `LiveActivityRegistration` para a mesma interface que o WP-M8 usa no `registerLiveActivity` (fake nos testes).
+- **Faz**: a rota `POST /v1/live-activity` (§5.5, Bearer, com a verificação do WP-M11), que repassa o `LiveActivityRegistration` para a mesma interface que o WP-M8 usa no `registerLiveActivity` (fake nos testes).
 - **Aceite**:
-  - [ ] Testes de tipo aceito, limite de 20 MB, nome gerado pelo daemon e limpeza depois de 7 dias.
+  - [ ] Testes da rota: 401 sem Bearer, 200 repassando o `LiveActivityRegistration` ao fake.
 
-### WP-I11: imagem e nova tab no app
+### WP-I11: nova tab no app
 
-- **Dono**: `App/Sources/Composer/Attachments*`, o `+` do composer expandido (oculto antes desta fase) e o `+` por workspace na gaveta.
-- **Depende de**: WP-M9, WP-M8.
-- **SPEC**: §6.5, §6.3 (Gaveta, 1b).
+- **Dono**: o `+` por workspace na gaveta. A imagem saiu para o WP-I13 (1a-core).
+- **Depende de**: WP-M8.
+- **SPEC**: §6.3 (Gaveta, 1b).
 - **Aceite**:
-  - [ ] Foto do rolo e print colado chegam ao Claude, que descreve a imagem.
   - [ ] "Nova tab com Claude" abre o chat do agente novo.
 
 ### WP-X3: integração da 1b
@@ -721,6 +756,8 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I2 | feito (QR pela câmera, Keychain real e pareamento com o `mochad` no checklist do WP-X1) | dd92fce, 1f73158, 06354de, 147a24c, 0690dff, 4090942, merge 7d574b1 |
 | WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | e80cfe8, 78b0bce, bb172cb, 2d7b8c5, merge f8b3aea |
 | WP-X1 | preparado (daemon, Serve, `doctor` e build assinado); checklist do João pendente | |
+| WP-M11 | em andamento | |
+| WP-I13 | em andamento | |
 | WP-M5 | todo | |
 | WP-M6 | todo | |
 | WP-I6 | todo | |
