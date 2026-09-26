@@ -53,10 +53,6 @@ struct ChatConversation: View {
             .onChange(of: isFieldFocused) { _, isFocused in
                 if !isFocused { isComposing = false }
             }
-            .onChange(of: foregroundReport, initial: true) {
-                reportForeground()
-            }
-            .onDisappear { reportForeground() }
             .task { await runDebugLaunch() }
     }
 
@@ -364,16 +360,6 @@ struct ChatConversation: View {
         Task { try? await session.request(action.message(for: agentId)) }
     }
 
-    private var foregroundReport: ForegroundReport {
-        ForegroundReport(agentId: ForegroundReport.agentId(of: session.visibleChat?.target), isConnected: isConnected)
-    }
-
-    private func reportForeground() {
-        guard isConnected else { return }
-        let agentId = ForegroundReport.agentId(of: session.visibleChat?.target)
-        Task { try? await session.request(.setForeground(agentId: agentId, isActive: true)) }
-    }
-
     private func runDebugLaunch() async {
         #if DEBUG
         let options = ChatDebugOptions.current()
@@ -483,16 +469,6 @@ struct OlderPageTrigger: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-struct ForegroundReport: Equatable {
-    let agentId: AgentID?
-    let isConnected: Bool
-
-    static func agentId(of target: ChatTarget?) -> AgentID? {
-        guard case .agent(let agentId) = target else { return nil }
-        return agentId
     }
 }
 
