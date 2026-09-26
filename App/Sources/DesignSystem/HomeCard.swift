@@ -83,10 +83,12 @@ struct HomeCardMeta: View {
             Text("Claude Code")
                 .systemText(.cardMetaClaude)
                 .foregroundStyle(tone == .offline ? Palette.offlineClaude : Palette.claude)
+                .fixedSize()
             MetaSeparator()
             Text(time)
                 .systemText(.cardMetaTime)
                 .foregroundStyle(Palette.textSecondary)
+                .fixedSize()
         }
         .lineLimit(1)
         .frame(height: 17.3)
