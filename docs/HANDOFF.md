@@ -2,10 +2,9 @@
 
 ## Estado
 
-- Fase **1a-core**, branch `fase/1a-core`. Sem remoto.
-- **Onda 1.A**: WP-M1 e WP-M2 feitos e mergeados. O WP-I1 está parado no fim da Fase A: o João reprovou o visual no iPhone e pediu o desenho completo do app antes de qualquer UI.
-- **Desenho aprovado**: `docs/design/mock.html` (25 telas; commit `9ed758e`). Referências novas do Moshi em `docs/referencias/moshi/` (`home-agentes`, `uso-plano`, `detalhe-agente`, `chat-ferramentas`, `chat-saida-expandida`, `chat-tabela`; commit `b31ed5e`).
-- **Próximo passo**: aprovar o replanejamento abaixo (há uma decisão de escopo pendente) e executar o Passo 1 (contratos). Nenhum subagente rodando.
+- Noite de 2026-09-26: orquestração autônoma com o mandato do João (escopo B). O progresso fica no ledger `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`, e o relatório final vai no topo deste arquivo.
+- Fase **1a-core**, branch `fase/1a-core`. Sem remoto. Ondas 1.A e 1.A' feitas: M1, M2, D2, M2b, I1.
+- **Próxima onda**: 1.B (M3 · I12 · I4).
 
 ## Commits desta sessão (`fase/1a-core`)
 
@@ -18,18 +17,24 @@
 | `Package.swift` (deps dos testes do daemon) e remoção do `MochaTestSupport/Placeholder.swift` | `d039870`, `e96efce` |
 | SPEC e PLANO do M2 (Claude Code 2.1.283, paginação, meta; constante no M4) | `c0fba01`, `e81c283`, `cdadb31` |
 | Referências novas e mock aprovado | `b31ed5e`, `9ed758e` |
+| Passo 1 (contratos do escopo B: SPEC, AGENTS, PLANO, PNGs do mock, MochaProtocol) | `2fba5f9`, `be6bd8b`, `5434975`, `d59f9d8`, `4da7f18`, `6ebf98a`, `ad32f29`, `0e28ceb` |
+| Onda 1.A': WP-D2 (merge `cb5a698`), WP-M2b (merge `97e13b4`), WP-I1 Fases A e B (merge `cec977f`) e `-demo-empty` | `9e28bea`, `1d5c283` |
 
 Validação: `scripts/test.sh` verde na `fase/1a-core` depois do M2 (protocolo 33, transcript 40, Herdr 44, demo 36, daemon 164, client 1). Medição do M2 em release, sem build: primeira página de 50 MB em 32,5 ms (frio) e ~10 ms.
 
-## WP-I1 (em andamento, sem commit)
+## Decisões tomadas sem o João
 
-- Worktree `.claude/worktrees/I1` (branch `wp/I1`, base `91e0545`, workspace do Herdr `w1J`, tab `build` = `w1J:p2`).
-- Fase A pronta e não commitada: `AppSession`, `DeepLink`, `LaunchConfiguration` (flags `-demo`, `-demo-script`, `-demo-unpaired`, `-probe` e `-preview` só do domínio de argumentos), JetBrains Mono em `App/Resources/Fonts/` com `OFL.txt`, tokens e componentes da primeira versão, e as telas de encaixe. O diff do `App/Info.plist` (`UIAppFonts`, `UILaunchScreen` com `LaunchBackground` e `UIUserInterfaceStyle` Dark) já está aplicado no worktree.
-- Antes de relançar:
-  1. commitar a Fase A em `wp/I1` (o `Info.plist` num commit separado);
-  2. `git merge fase/1a-core` em `wp/I1` depois do Passo 1;
-  3. descartar a navegação gaveta-sobre-chat da Fase A (`MainShellView`, `WorkspaceTree`).
-- O app de demo da Fase A está instalado no iPhone do João (`<udid-do-iphone>`).
+Opção mais simples e fiel ao mock e ao Moshi, conforme o mandato da noite. Confira de manhã.
+
+- **Protocolo**: `ChatTarget` (`agentId` ou `sessionId` achatado no payload); `setForeground` segue só com `agentId`. `preview` e `activity` desconhecidos decodificam como `nil` sem derrubar a árvore. Até o M10, `archive` responde `unknownType`.
+- **Home**: regra das 6 h aplicada ao pé da letra (início da sessão há mais de 6 h → ARQUIVADOS); arrastar para arquivar só em CONCLUÍDOS; cartões de `ArchivedSession` não arrastam; preview `nil` vira "Sessão limpa"; retenção de 7 dias ou 50 sessões.
+- **Chat de sessão encerrada**: pílula "Sessão encerrada · só leitura" no lugar do composer.
+- **Plano e conta**: chaves `oauthAccount.organizationRateLimitTier` e `oauthAccount.emailAddress` inferidas do HANDOFF; o daemon lê em runtime, os testes usam fixture sintética (`MochaKit/Fixtures/usage/claude.json`). **Conferir.**
+- **Janela de contexto**: 1M para opus-4-7+, opus-5*, fable* e sonnet-5*; 200k para o resto.
+- **Terminal (fase 2)**: abre por "Abrir terminal" no detalhe e pelas tabs de shell da gaveta.
+- **Código**: lógica de apresentação (nomes de modelo, ferramentas, tempos relativos) em `MochaClient/Presentation/`, testável.
+- **Demo (D2)**: host "MacBook"; o chat `login-social` alimenta as telas 5/5b/6; `receitas` é o chat longo (2000 itens); a sessão arquivada tem `ChatMeta.status` `idle`; `-demo-empty` troca as tabs por "zsh" e usa uso de 3%/64%.
+- **Ferramentas**: simuladores iPhone 17e (390×844 pt, igual ao mock), um por WP de UI.
 
 ## Decisões do João (2026-09-26)
 
