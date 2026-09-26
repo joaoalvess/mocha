@@ -1,50 +1,25 @@
 # Handoff do orquestrador
 
-## Relatório da noite
+## WP-X2: integração da 1a-final
 
-- **Fases**: a 1a-core está com todo o código feito e mergeado na `fase/1a-core` (WPs e commits na tabela de status do `docs/PLANO.md`). A 1a-final, a 1b e as fases 2 e 3 não começaram. Nada foi mergeado em `main`.
-- **WP-X1 preparado** (2026-09-26, à tarde):
-  - `mochad` instalado: `~/.local/bin/mochad`, assinado pelo time com `com.joaoalves.mochad`; LaunchAgent `com.joaoalves.mochad` rodando; log em `~/Library/Logs/Mocha/mochad.log`.
-  - Serve: `https://mac-mini.tail1234.ts.net` → `http://127.0.0.1:47421`, `/v1/health` 200. Desfaz com `mochad serve-setup --remove`.
-  - `mochad doctor` verde; avisos esperados: hooks só na 1a-final e moshi-hook instalado até a 1b (B7).
-  - App assinado: `build/DerivedData/Build/Products/Debug-iphoneos/Mocha.app` (`com.example.mocha`, time <TEAM_ID>, perfil com o iPhone 14, `aps-environment` development). Log em `build/verify/x1-device-build.log`.
+- **Preparado** (2026-09-26, à noite):
+  - `mochad` da `fase/1a-final` (`926af42`) instalado em `~/.local/bin/mochad`, assinado pelo time com `com.joaoalves.mochad`; LaunchAgent `com.joaoalves.mochad` rodando; log em `~/Library/Logs/Mocha/mochad.log`.
+  - `mochad doctor` verde, com o APNs pronto (key `<KEY_ID>`, time `<TEAM_ID>`). Avisos esperados: hooks até o passo 1 abaixo e moshi-hook instalado até o B7.
+  - Serve sem mudança: `https://mac-mini.tail1234.ts.net` → `http://127.0.0.1:47421`.
+  - App assinado da mesma fase (`com.example.mocha`, `aps-environment` development), instalado no iPhone 14 por `devicectl`. Build em `build/DerivedData/Build/Products/Debug-iphoneos/Mocha.app`, log em `build/verify/x2-device-build.log`.
 - **O que o João faz, em ordem**:
-  1. Liga o iPhone com o Tailscale conectado e apaga o Mocha instalado.
-  2. Instala e abre:
-     - `xcrun devicectl device install app --device <udid-do-iphone> /Users/joaoalves/Developer/mocha/build/DerivedData/Build/Products/Debug-iphoneos/Mocha.app`
-     - `xcrun devicectl device process launch --device <udid-do-iphone> --terminate-existing com.example.mocha`
-  3. Roda `mochad pair` no Mac e lê o QR com a câmera (vale alguns minutos, uma vez só).
-  4. Percorre o checklist do WP-X1 abaixo.
-- **Pendências**: as medições numa janela sem build, o teste instável do `HerdrBridgeTests` e as propostas não aplicadas, todos na seção "Estado"; o hardening do Keychain com `AfterFirstUnlockThisDeviceOnly` espera resposta do João.
-
-### Checklist do WP-X1 (no iPhone, pelo tailnet)
-
-- [ ] O app foi apagado e instalado de novo antes do checklist, porque a sonda de debug pode estar gravada.
-- [ ] Pareia lendo com a câmera o QR do `mochad pair`, e cai na Home.
-- [ ] A Home mostra os agentes reais nas seções certas: um agente trabalhando em TRABALHANDO, com a última ferramenta; um diálogo de permissão no Mac o leva para PRECISA DE VOCÊ; o turno terminado vai para CONCLUÍDOS e, 10 min depois, para ARQUIVADOS.
-- [ ] O anel mostra o contexto livre parecido com o do statusLine do Claude no Mac, e gira enquanto o agente trabalha.
-- [ ] A pílula de uso mostra 5h e 7d iguais aos do Herdr, e o Uso mostra o plano e a conta certos (confere as chaves de `~/.claude.json`).
-- [ ] `/clear` num agente leva a sessão antiga para ARQUIVADOS como "Sessão encerrada", e o chat dela abre só de leitura. Arrastar um card de CONCLUÍDOS o arquiva.
-- [ ] Segurar um card abre o Detalhe; tocar na sessão copia o id.
-- [ ] A gaveta mostra os workspaces, tabs e agentes reais, com branch e `*`; pedir a um agente para criar um worktree com `herdr worktree create` faz o workspace novo aparecer aninhado sem recarregar.
-- [ ] Abrir um chat longo mostra a última página em menos de 1 s, e a rolagem pra cima carrega o histórico.
-- [ ] A rolagem num chat longo fica a 60 fps no iPhone 14.
-- [ ] Arrastar da borda esquerda volta do chat para a Home; tocar no disco também.
-- [ ] O composer fica em uma linha; ao tocar, expande; rolar, tocar fora, abrir a gaveta ou enviar fecham o teclado.
-- [ ] Enviar um prompt pelo celular faz o Claude responder, e a resposta aparece no chat. Enviar durante um turno enfileira.
-- [ ] O botão de parar da linha "Trabalhando…" interrompe o agente.
-- [ ] Fechar o app, mandar um prompt pelo Mac e reabrir: a Home e o chat estão atualizados.
-- [ ] Trocar Wi-Fi ↔ 4G com o app aberto: o chat continua sem reconectar (pode parar de atualizar por até ~10 s).
-- [ ] App em background ou tela bloqueada por 30 s e de volta: reconecta em menos de 1 s.
-- [ ] Parar o `mochad` mostra a cápsula de sem conexão na Home, sem esvaziar a lista.
-- [ ] Foto do rolo, foto da câmera e print colado chegam ao Claude, que descreve a imagem; a bolha mostra "📎 N imagens" (Onda 1.F: WP-M11 · WP-I13, pedida pelo João durante o X1).
-- [ ] O visual bate com o mock (ok visual do João).
+  1. No Mac, `mochad install-hooks`. Ele escreve em `~/.claude/settings.json`, com backup em `settings.json.mocha-bak`, e o `mochad doctor` passa a mostrar os hooks ✅. Enquanto o moshi-hook estiver instalado (B7), os alertas chegam em dobro, do Moshi e do Mocha.
+  2. B6: liga o VPN On Demand no app Tailscale do iPhone.
+  3. Abre o Mocha no iPhone. O app da fase já foi instalado por cima do anterior, e o pareamento continua.
+  4. Aceita a permissão de notificação na primeira conexão. Depois, `mochad devices` e `mochad apns test --device <id>`.
+  5. Percorre o checklist do bloco "### WP-X2" do `docs/PLANO.md`. Os agentes novos do `+` abrem sessões novas do Claude, que já nascem com os hooks do passo 1.
+- **Depois do X2**: com o ok do João, `fase/1a-final` entra em `main`. O B7 (remover o moshi-hook) fica a critério dele, antes da 1b.
 
 ## Estado
 
-- Fase **1a-core**, branch `fase/1a-core`. Sem remoto. Todos os WPs de código estão feitos e mergeados: M1, M2, D2, M2b, I1, M3, I4, I12, I3, M4, M10, I2 e I5 (commits na tabela de status do `docs/PLANO.md`). Nenhum worktree aberto; todos os simuladores desligados.
+- Fase **1a-final**, branch `fase/1a-final` (criada da `fase/1a-core`; `main` em `fb22739`). Sem remoto. WPs de código feitos e mergeados: M5, I6, I7, M6, I11, M6-fix e M12 (commits na tabela de status do `docs/PLANO.md`). `scripts/test.sh`, `build-daemon.sh` e `build-app.sh` verdes em `926af42`. Worktree aberto: `mock-subagentes` (fase subagentes, sem commit, esperando o ok do João no mock). Simuladores desligados.
 - Ledger: `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`.
-- **1a-core concluída**: WP-X1 aprovado pelo João no iPhone e `fase/1a-core` mergeada em `main`. **Próximo passo**: apresentar ao João o plano curto da 1a-final (ondas M5 · I6 · I7 → M6 → X2, bloqueios) e as decisões pendentes: subagentes no app (escopo, fase, mock primeiro) e a "nova tab" (hoje na 1b).
+- **Próximo passo**: o checklist do WP-X2 no iPhone (seção acima). Com o ok do João, merge em `main`; depois, a fase subagentes, a partir do ok no mock.
 - **Medições pendentes** (numa janela sem build, sem nenhum agente rodando):
   - M2b: `BigTranscriptMetaPerformanceTests` < 50 ms e `BigTranscriptPerformanceTests` < 300 ms;
   - I4 e I5: signpost do chat de 2.000 itens (comandos no relatório do I5, com `-chat-perf-sweep`), incluindo os blocos visíveis de uma mensagem de 20 KB;
