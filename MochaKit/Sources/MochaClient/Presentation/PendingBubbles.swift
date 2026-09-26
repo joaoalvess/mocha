@@ -4,8 +4,13 @@ import MochaProtocol
 public struct PendingBubble: Sendable, Hashable, Identifiable {
     public let id: Int
     public let text: String
+    public let imageCount: Int
     public let sentAt: Date
     public fileprivate(set) var isRejected = false
+
+    public var displayText: String {
+        PromptImages.bubbleText(text, imageCount: imageCount)
+    }
 
     public var confirmationDeadline: Date {
         sentAt.addingTimeInterval(PendingBubbles.confirmationTimeout)
@@ -27,11 +32,11 @@ public struct PendingBubbles: Sendable, Hashable {
     public var isEmpty: Bool { bubbles.isEmpty }
 
     @discardableResult
-    public mutating func add(_ text: String, at date: Date) -> PendingBubble? {
+    public mutating func add(_ text: String, imageCount: Int = 0, at date: Date) -> PendingBubble? {
         let text = Self.trimmed(text)
-        guard !text.isEmpty else { return nil }
+        guard !text.isEmpty || imageCount > 0 else { return nil }
         nextId += 1
-        let bubble = PendingBubble(id: nextId, text: text, sentAt: date)
+        let bubble = PendingBubble(id: nextId, text: text, imageCount: max(0, imageCount), sentAt: date)
         bubbles.append(bubble)
         return bubble
     }
@@ -40,7 +45,7 @@ public struct PendingBubbles: Sendable, Hashable {
     public mutating func match(_ items: [ChatItem]) -> [PendingBubble.ID] {
         var matched: [PendingBubble.ID] = []
         for item in items {
-            guard let index = bubbles.firstIndex(where: { Self.matches($0.text, item.kind) }) else { continue }
+            guard let index = bubbles.firstIndex(where: { Self.matches($0, item.kind) }) else { continue }
             matched.append(bubbles.remove(at: index).id)
         }
         return matched
@@ -62,12 +67,12 @@ public struct PendingBubbles: Sendable, Hashable {
         bubbles.removeAll()
     }
 
-    static func matches(_ sent: String, _ kind: ChatItemKind) -> Bool {
+    static func matches(_ bubble: PendingBubble, _ kind: ChatItemKind) -> Bool {
         switch kind {
-        case .userPrompt(let text, _):
-            return trimmed(text) == sent
+        case .userPrompt(let text, let imageCount):
+            return trimmed(text) == bubble.text && imageCount == bubble.imageCount
         case .slashCommand(let name, let args, _):
-            guard let command = commandKey(forSent: sent) else { return false }
+            guard bubble.imageCount == 0, let command = commandKey(forSent: bubble.text) else { return false }
             return command == commandKey(name: name, args: args)
         default:
             return false
