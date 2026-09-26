@@ -75,5 +75,5 @@ final class Runner: NSObject, WKNavigationDelegate {
 let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
 let runner = Runner()
-DispatchQueue.main.asyncAfter(deadline: .now() + 60) { print("timeout"); exit(2) }
+DispatchQueue.main.asyncAfter(deadline: .now() + 180) { print("timeout"); exit(2) }
 app.run()
