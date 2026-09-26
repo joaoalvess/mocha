@@ -37,6 +37,7 @@ enum HerdrBridgeFixtures {
 struct HerdrBridgeHarness {
     static let allowedMethods: Set<String> = [
         "events.subscribe", "ping", "session.snapshot", "agent.list", "agent.get", "agent.prompt", "agent.send_keys",
+        "tab.create", "agent.start", "agent.wait",
     ]
 
     static let fastConfiguration = HerdrBridgeConfiguration(
@@ -104,7 +105,7 @@ struct HerdrBridgeHarness {
         for request in await server.requests {
             #expect(schema.requestViolations(request.line) == [], "\(request.method)")
             #expect(Self.allowedMethods.contains(request.method), "\(request.method)")
-            if ["agent.get", "agent.prompt", "agent.send_keys"].contains(request.method) {
+            if ["agent.get", "agent.prompt", "agent.send_keys", "agent.wait"].contains(request.method) {
                 #expect(request.stringParam("target")?.isEmpty == false)
             }
         }

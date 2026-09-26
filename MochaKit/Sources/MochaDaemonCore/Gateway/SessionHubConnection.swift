@@ -236,7 +236,9 @@ extension SessionHub {
             await run(.prompt(command), agentId: agentId, id: id, clientId: clientId)
         case .setPreferences(let preferences):
             await setPreferences(preferences, id: id, clientId: clientId)
-        case .respond, .newAgentTab, .registerLiveActivity, .unknown:
+        case .newAgentTab(let workspaceId):
+            await openAgentTab(in: workspaceId, id: id, clientId: clientId)
+        case .respond, .registerLiveActivity, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }
@@ -267,6 +269,38 @@ extension SessionHub {
             send(.herdr(error), id: id, to: clientId)
         } catch {
             send(.herdrFailed, id: id, to: clientId)
+        }
+    }
+
+    private func openAgentTab(in workspaceId: WorkspaceID, id: String, clientId: UUID) async {
+        guard await herdr.isAvailable else {
+            send(.herdrUnavailable, id: id, to: clientId)
+            return
+        }
+        guard TreeComposer.containsWorkspace(workspaceId, in: baseTree) else {
+            send(.workspaceNotFound, id: id, to: clientId)
+            return
+        }
+        let herdr = herdr
+        Task { [weak self] in
+            let reply: Result<AgentID, HubError>
+            do {
+                reply = .success(try await herdr.newAgentTab(in: workspaceId))
+            } catch let error as HerdrBridgeError {
+                reply = .failure(.herdr(error))
+            } catch {
+                reply = .failure(.herdrFailed)
+            }
+            await self?.finishAgentTab(reply, id: id, clientId: clientId)
+        }
+    }
+
+    private func finishAgentTab(_ reply: Result<AgentID, HubError>, id: String, clientId: UUID) {
+        switch reply {
+        case .success(let agentId):
+            send(.ack(agentId: agentId), id: id, to: clientId)
+        case .failure(let error):
+            send(error, id: id, to: clientId)
         }
     }
 
