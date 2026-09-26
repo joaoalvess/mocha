@@ -24,7 +24,7 @@ extension SessionHub {
                 send(.invalidSessionId, id: id, to: clientId)
                 return
             }
-            guard await transcripts.meta(forSession: TranscriptSession(sessionId: requestedSessionId)) != nil else {
+            guard await transcripts.meta(forSession: transcriptSession(requestedSessionId)) != nil else {
                 send(.sessionNotFound, id: id, to: clientId)
                 return
             }
@@ -50,7 +50,7 @@ extension SessionHub {
                 return
             }
             if clients[clientId]?.chats[target] == nil,
-                await transcripts.meta(forSession: TranscriptSession(sessionId: sessionId)) == nil
+                await transcripts.meta(forSession: transcriptSession(sessionId)) == nil
             {
                 send(.sessionNotFound, id: id, to: clientId)
                 return
@@ -92,7 +92,7 @@ extension SessionHub {
             return
         }
         do {
-            let page = try await transcripts.page(session: TranscriptSession(sessionId: sessionId), before: before, limit: limit)
+            let page = try await transcripts.page(session: transcriptSession(sessionId), before: before, limit: limit)
             remember(page.meta, forSession: sessionId, source: nil)
             let chatPage = ChatPage(
                 target: target,
@@ -123,7 +123,7 @@ extension SessionHub {
         }
         let subscription: TranscriptSubscription
         do {
-            subscription = try await transcripts.open(session: TranscriptSession(sessionId: sessionId), limit: limit)
+            subscription = try await transcripts.open(session: transcriptSession(sessionId), limit: limit)
         } catch {
             removeChat(token, clientId: clientId)
             send(.transcriptFailed, id: id, to: clientId)
@@ -162,7 +162,7 @@ extension SessionHub {
         guard let sessionId else { return }
         let subscription: TranscriptSubscription
         do {
-            subscription = try await transcripts.open(session: TranscriptSession(sessionId: sessionId), limit: Self.defaultChatLimit)
+            subscription = try await transcripts.open(session: transcriptSession(sessionId), limit: Self.defaultChatLimit)
         } catch {
             gatewayLogger.error("failed to follow the new session of a chat: \(String(describing: error), privacy: .public)")
             return

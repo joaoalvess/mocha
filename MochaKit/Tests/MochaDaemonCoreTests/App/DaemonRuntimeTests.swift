@@ -1,4 +1,5 @@
 import Foundation
+import MochaProtocol
 import MochaTestSupport
 import Network
 import Testing
@@ -139,6 +140,45 @@ struct DaemonRuntimeTests {
             await runtime.stop()
 
             #expect(await iterator.next() == nil)
+        }
+    }
+
+    @Test func aStopHookBecomesAnAlertForTheRegisteredDevice() async throws {
+        try await withTemporaryHome(short: true) { home in
+            let port = try await Self.freePort()
+            try home.write(#"{"gatewayPort": \#(port), "hookSecret": "segredo-do-config"}"#, to: "Library/Application Support/Mocha/config.json", permissions: 0o600)
+            _ = try await DeviceStore(fileURL: home.paths.devicesFile).register(
+                name: "iPhone",
+                token: "t",
+                at: Date(),
+                apns: ApnsRegistration(token: PushTestData.deviceToken, env: .sandbox)
+            )
+            let key = try PushTestData.signingKey()
+            let transport = FakeApnsTransport()
+            var options = Self.options(home, herdrSocket: FakeHerdrServer.temporarySocketPath())
+            options.apnsCredentials = { ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId), key: key) }
+            options.apnsTransport = transport
+            let runtime = DaemonRuntime(options: options)
+
+            let started = try await runtime.start()
+            let accepted = try await sendRequest(
+                "POST",
+                port: started.hookPort,
+                target: "/hooks/Stop",
+                headers: ["X-Mocha-Pane": "w1C:p2", "X-Mocha-Hook-Secret": "segredo-do-config", "Content-Type": "application/json"],
+                body: try Fixtures.data("hooks/Stop.json")
+            )
+            #expect(accepted.status == 200)
+
+            let request = try await eventually { transport.requests.first }
+            #expect(request.url?.host() == "api.sandbox.push.apple.com")
+            let payload = try PushTestData.jsonObject(try #require(request.httpBody))
+            let alert = try #require((payload["aps"] as? [String: Any])?["alert"] as? [String: Any])
+            #expect(alert["title"] as? String == "Claude terminou")
+            #expect(alert["body"] as? String == "pronto")
+            #expect(payload["agentId"] as? String == "w1C:p2")
+
+            await runtime.stop()
         }
     }
 

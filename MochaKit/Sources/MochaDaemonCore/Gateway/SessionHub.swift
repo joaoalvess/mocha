@@ -132,6 +132,8 @@ public actor SessionHub {
     var reportedTurnStarts: [String: Date] = [:]
     var trackedSessions: [String: AgentSummary] = [:]
     var sessionServiceTasks: [Task<Void, Never>] = []
+    var transcriptPaths: [String: String] = [:]
+    var transcriptPathOrder: [String] = []
 
     private var lastSentTree: [WorkspaceNode] = []
     private var liveFollows: [AgentID: LiveFollow] = [:]
@@ -411,7 +413,7 @@ public actor SessionHub {
     private func refreshUnfollowedMetas() async {
         let sessionIds = Set(TreeComposer.agents(in: baseTree).compactMap(\.sessionId))
         for sessionId in sessionIds.subtracting(followedSessionIds()).sorted() {
-            let meta = await transcripts.meta(forSession: TranscriptSession(sessionId: sessionId))
+            let meta = await transcripts.meta(forSession: transcriptSession(sessionId))
             guard !followedSessionIds().contains(sessionId) else { continue }
             metas[sessionId] = meta
         }
@@ -476,8 +478,9 @@ public actor SessionHub {
         let token = UUID()
         liveFollows[agentId] = LiveFollow(token: token, sessionId: sessionId)
         let transcripts = transcripts
+        let session = transcriptSession(sessionId)
         Task { [weak self] in
-            let subscription = try? await transcripts.open(session: TranscriptSession(sessionId: sessionId), limit: Self.homeLiveLimit)
+            let subscription = try? await transcripts.open(session: session, limit: Self.homeLiveLimit)
             guard let self else {
                 subscription?.cancel()
                 return
