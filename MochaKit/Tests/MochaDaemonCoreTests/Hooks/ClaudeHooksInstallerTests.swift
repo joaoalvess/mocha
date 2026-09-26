@@ -275,7 +275,40 @@ struct ClaudeHooksInstallerTests {
         }
     }
 
-    @Test func permissionsTrailingNewlineAndSymlinkArePreserved() async throws {
+    @Test func installOverA0644SettingsLeavesTheFileAndTheBackupAt0600() async throws {
+        try await withTemporaryHome { home in
+            try home.write(SettingsSamples.config(), to: SettingsSamples.configPath, permissions: 0o600)
+            try home.write(SettingsSamples.herdrOnly, to: SettingsSamples.settingsPath, permissions: 0o644)
+            let installer = ClaudeHooksInstaller(paths: home.paths)
+
+            let report = try installer.install()
+
+            #expect(report.changed)
+            #expect(report.backup == installer.backupFile)
+            #expect(fileMode(home.paths.claudeSettingsFile) == 0o600)
+            #expect(fileMode(installer.backupFile) == 0o600)
+        }
+    }
+
+    @Test func installWithoutChangesStillRestrictsTheSettingsAndTheBackupTo0600() async throws {
+        try await withTemporaryHome { home in
+            try home.write(SettingsSamples.config(), to: SettingsSamples.configPath, permissions: 0o600)
+            try home.write(SettingsSamples.herdrOnly, to: SettingsSamples.settingsPath, permissions: 0o644)
+            let installer = ClaudeHooksInstaller(paths: home.paths)
+            _ = try installer.install()
+            for file in [home.paths.claudeSettingsFile, installer.backupFile] {
+                try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path(percentEncoded: false))
+            }
+
+            let report = try installer.install()
+
+            #expect(!report.changed)
+            #expect(fileMode(home.paths.claudeSettingsFile) == 0o600)
+            #expect(fileMode(installer.backupFile) == 0o600)
+        }
+    }
+
+    @Test func trailingNewlineAndSymlinkArePreservedAndTheTargetBecomes0600() async throws {
         try await withTemporaryHome { home in
             try home.write(SettingsSamples.config(), to: SettingsSamples.configPath, permissions: 0o600)
             try home.write(#"{"model": "opus"}"#, to: "dotfiles/claude-settings.json", permissions: 0o640)
@@ -290,7 +323,7 @@ struct ClaudeHooksInstallerTests {
             let link = try FileManager.default.destinationOfSymbolicLink(atPath: home.paths.claudeSettingsFile.path(percentEncoded: false))
             #expect(link.hasSuffix("dotfiles/claude-settings.json"))
             let target = home.url.appending(path: "dotfiles/claude-settings.json")
-            #expect(fileMode(target) == 0o640)
+            #expect(fileMode(target) == 0o600)
             let text = String(decoding: try Data(contentsOf: target), as: UTF8.self)
             #expect(text.hasSuffix("}"))
             #expect(try Self.json(text)["model"] == .string("opus"))
