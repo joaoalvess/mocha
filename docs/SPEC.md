@@ -484,6 +484,8 @@ public protocol HerdrBridging: Sendable {
     func prompt(_ id: AgentID, text: String) async throws
     func interrupt(_ id: AgentID) async throws
     func setOpenChats(_ ids: Set<AgentID>) async
+    func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async
+    func refreshDirtyState(ofAgent id: AgentID) async
     var serverInfo: HerdrServerInfo? { get async }
 }
 
@@ -526,6 +528,8 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
 - `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
 - `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
+- `refreshAgent(_:expectingSession:)` é chamado no `SessionStart` do hook (§3.1.3 d): repete o `agent.get` do pane em 0; 0,5; 1,5 e 3,5 s até o Herdr informar a sessão do hook, sem aplicar a sessão do hook direto, para o estado não alternar entre as duas. Não bloqueia quem chama.
+- `refreshDirtyState(ofAgent:)` é chamado no `Stop`: invalida o cache de `isDirty` do workspace do agente (§3.1.4) e reagenda a árvore.
 - `serverInfo` é a versão e o protocolo do último `ping` (§3.1.1), `nil` antes do primeiro. Alimenta o `status`, o `doctor` e o `/local/status`.
 
 **`TranscriptProviding`**: declarado em `MochaDaemonCore/Transcript/` e implementado pelo `TranscriptStore`.
@@ -754,7 +758,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 | Rota | Resposta |
 |---|---|
 | `POST /local/pairing-code` | `{"code","url","expiresAt"}` (§4.5) |
-| `GET /local/status` | JSON com `version`, `startedAt`, `herdr{available, version?, protocol?}`, `clients[{deviceId, name, connectedAt}]` e `sessions[{sessionId, agentId, claudeVersion?, dropped, orphanResults, unknown}]` |
+| `GET /local/status` | JSON com `version`, `startedAt`, `herdr{available, version?, protocol?}`, `clients[{deviceId, name, connectedAt}]` e `sessions[{sessionId, agentId, claudeVersion?, dropped, orphanResults, unknown}]`, e `apns{configurationErrors[{environment, status, reason, at}]}` com a última recusa de configuração do APNs por ambiente (§7.1), que o `doctor` mostra no item APNs |
 | `DELETE /local/devices/<id>` | 200 com `{}` depois de fechar as conexões do aparelho (`error{unauthorized}` e close 1008) e removê-lo de `devices.json`; 404 se o aparelho não existe |
 
 ### §4.9 SessionArchive
@@ -1394,14 +1398,14 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown (`PlainText.preview(fromMarkdown:)`, §3.2.2). `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
 - **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
-- **Deduplicação**: um alerta de "precisa de você" por pedido. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do `PermissionRequest`, o `blocked` do Herdr e o `Notification` `permission_prompt` dessa sessão não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo.
+- **Deduplicação**: um alerta de "precisa de você" por pedido, contado por `agentId`. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do último alerta de "precisa de você" do agente, o `blocked` do Herdr e o `Notification` `permission_prompt` desse agente não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo. O `blocked` do Herdr só alerta na transição para `blocked`, só em agente Claude e depois de 1 s ainda `blocked`, para o `PermissionRequest` do mesmo diálogo chegar antes. Os outros tipos de `Notification` não geram alerta. Os sinais secundários usam um corpo fixo em português, porque a mensagem do Claude vem em inglês; sem workspace conhecido, o título sai sem " · <workspace>".
 - **Payload**: `{"aps":{"alert":{"title","body"},"sound":"default","thread-id","category","interruption-level"?},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…","sentAt":<ms Unix>}`. O `sentAt` serve para diagnóstico de atraso. Payload ≤ 4 KB.
 - **Respostas**:
   - 200 traz `apns-id` e, no sandbox, `apns-unique-id` (consulta no Push Notifications Console);
   - 410 ou `400 BadDeviceToken` removem o token do aparelho;
   - `403 ExpiredProviderToken` renova o JWT e repete uma vez;
   - `403 BadEnvironmentKeyInToken` (a documentação diz `BadEnvironmentKeyIdInToken`; tratar os dois), `InvalidProviderToken` e `TopicDisallowed` são erro de configuração: log e `doctor`, sem retry;
-  - 429 e 5xx seguem com backoff.
+  - 429, 5xx e erro de transporte (sem resposta) seguem com backoff de 1, 2, 4 e 8 s.
 - **Tokens**: hexadecimal de tamanho variável (32 bytes o de alerta, 80 bytes os de Live Activity no iPhone, 128 no simulador). Validar só hex com tamanho par.
 - **Simulador**: não entrega o token de alerta (`registerForRemoteNotifications` nunca responde). Alertas só se testam no iPhone.
 

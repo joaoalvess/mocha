@@ -630,6 +630,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Com o app aberto em outro chat, o alerta chega como banner (`14b-banner`).
   - [ ] Tocar no push abre o chat certo, com o app encerrado, em background e aberto em outro chat.
   - [ ] Na primeira conexão aparece o pedido de permissão, e o `devices.json` passa a ter o `apns` com `env: sandbox`.
+  - [ ] `mochad devices` e depois `mochad apns test --device <id>` entregam o alerta no iPhone (critério do WP-M6).
   - [ ] Dois alertas do mesmo agente: o segundo substitui o primeiro na Central.
   - [ ] Com "Turno concluído" desligado em Ajustes, só chegam os alertas de "precisa de você", que chegam como time-sensitive.
   - [ ] Um pedido de permissão no Mac gera o push "precisa de você" em menos de 5 s.
@@ -789,7 +790,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M11 | feito | fe805ff, fdd4a93, 51fa807, merge 2ae5ac4 |
 | WP-I13 | feito (fotos, câmera e colar no iPhone ficam no checklist do WP-X1) | ba007da, 51dd365, 5b7f1f5, 5635c99, 74488dc, merge 51cbacf |
 | WP-M5 | feito (o `install-hooks` real fica para o WP-X2) | 955b277, 1913d7b, 80fcd6d, f680732, 90ac833, 1b0d0b3, ca1306c, merge 703c834 |
-| WP-M6 | todo | |
+| WP-M6 | feito (`mochad apns test` real no iPhone fica no checklist do WP-X2) | f1e793c, d36734a, b656fdf, 7a74bff, 4be4a0e, c4d3540, merge ed8f2a1 |
 | WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 4edb3b5, 361288d, ee32e67, 19d4f6c, merge 4a19f28 |
 | WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | e4e6cdf, 1d31ff8, 082bf8c, d368311, merge 80ed3a9 |
 | WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 4697966, ce21252, merge 3c11fdb |
