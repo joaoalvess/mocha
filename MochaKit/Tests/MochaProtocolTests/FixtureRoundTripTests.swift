@@ -148,7 +148,7 @@ enum CanonicalExamples {
             fixture: "server.chatPage.json",
             json: #"{"v":1,"id":"c-7","type":"chatPage","payload":{"agentId":"w17:p1","meta":{"title":"herdr-sidebar abre arquivos em nova tab","workspaceLabel":"Core","model":"claude-opus-5-5","branch":"development","status":"idle"},"items":["#
                 + chatPageItems.joined(separator: ",")
-                + #"],"before":"b:120394","hasMore":true}}"#
+                + #"],"before":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64:120394","hasMore":true}}"#
         ),
         CanonicalExample(
             fixture: "server.agentStatus.json",
