@@ -1,0 +1,178 @@
+import Foundation
+import MochaDaemonCore
+import MochaProtocol
+import Synchronization
+
+public struct FakeHerdrPromptCall: Sendable, Equatable {
+    public let agentId: AgentID
+    public let text: String
+
+    public init(agentId: AgentID, text: String) {
+        self.agentId = agentId
+        self.text = text
+    }
+}
+
+public final class FakeHerdrBridge: HerdrBridging {
+    private struct State {
+        var agents: [AgentID: HerdrAgent]
+        var movedPanes: [AgentID: AgentID] = [:]
+        var serverInfo: HerdrServerInfo?
+        var promptError: HerdrBridgeError?
+        var interruptError: HerdrBridgeError?
+        var promptCalls: [FakeHerdrPromptCall] = []
+        var interruptCalls: [AgentID] = []
+        var openChatsCalls: [Set<AgentID>] = []
+        var resolveCalls: [AgentID] = []
+    }
+
+    public static let defaultServerInfo = HerdrServerInfo(version: "0.9.1", protocolVersion: 22)
+
+    private let hub: HerdrBridgeEventHub
+    private let state: Mutex<State>
+
+    public init(
+        tree: [WorkspaceNode] = [],
+        agents: [HerdrAgent] = [],
+        available: Bool = true,
+        serverInfo: HerdrServerInfo? = FakeHerdrBridge.defaultServerInfo
+    ) {
+        hub = HerdrBridgeEventHub(tree: tree, available: available)
+        state = Mutex(
+            State(
+                agents: Dictionary(agents.map { ($0.paneId, $0) }, uniquingKeysWith: { _, last in last }),
+                serverInfo: serverInfo
+            )
+        )
+    }
+
+    public func events() -> AsyncStream<HerdrBridgeEvent> {
+        hub.subscribe()
+    }
+
+    public var isAvailable: Bool {
+        get async { hub.isAvailable }
+    }
+
+    public func tree() async -> [WorkspaceNode] {
+        hub.tree
+    }
+
+    public func agent(_ id: AgentID) async -> HerdrAgent? {
+        state.withLock { $0.agents[id] }
+    }
+
+    public func resolve(_ id: AgentID) async -> AgentID {
+        state.withLock { state in
+            state.resolveCalls.append(id)
+            var current = id
+            var visited: Set<AgentID> = [id]
+            while let next = state.movedPanes[current], visited.insert(next).inserted {
+                current = next
+            }
+            return current
+        }
+    }
+
+    public func prompt(_ id: AgentID, text: String) async throws {
+        let error = state.withLock { state in
+            state.promptCalls.append(FakeHerdrPromptCall(agentId: id, text: text))
+            return state.promptError
+        }
+        try failIfNeeded(error)
+    }
+
+    public func interrupt(_ id: AgentID) async throws {
+        let error = state.withLock { state in
+            state.interruptCalls.append(id)
+            return state.interruptError
+        }
+        try failIfNeeded(error)
+    }
+
+    public func setOpenChats(_ ids: Set<AgentID>) async {
+        state.withLock { $0.openChatsCalls.append(ids) }
+    }
+
+    public var serverInfo: HerdrServerInfo? {
+        get async { state.withLock { $0.serverInfo } }
+    }
+
+    public func setTree(_ tree: [WorkspaceNode]) {
+        hub.publish(.treeChanged(tree))
+    }
+
+    public func setAvailable(_ available: Bool) {
+        guard hub.isAvailable != available else { return }
+        hub.publish(.availability(available))
+    }
+
+    public func emit(_ event: HerdrBridgeEvent) {
+        hub.publish(event)
+    }
+
+    public func setAgent(_ agent: HerdrAgent) {
+        state.withLock { $0.agents[agent.paneId] = agent }
+    }
+
+    public func removeAgent(_ id: AgentID) {
+        _ = state.withLock { $0.agents.removeValue(forKey: id) }
+    }
+
+    public func movePane(from oldId: AgentID, to newId: AgentID) {
+        state.withLock { state in
+            for (key, value) in state.movedPanes where value == oldId {
+                state.movedPanes[key] = newId
+            }
+            state.movedPanes[oldId] = newId
+            if var agent = state.agents.removeValue(forKey: oldId) {
+                agent.paneId = newId
+                state.agents[newId] = agent
+            }
+        }
+        hub.publish(.paneMoved(from: oldId, to: newId))
+    }
+
+    public func setPromptError(_ error: HerdrBridgeError?) {
+        state.withLock { $0.promptError = error }
+    }
+
+    public func setInterruptError(_ error: HerdrBridgeError?) {
+        state.withLock { $0.interruptError = error }
+    }
+
+    public func setServerInfo(_ info: HerdrServerInfo?) {
+        state.withLock { $0.serverInfo = info }
+    }
+
+    public func finishEvents() {
+        hub.finish()
+    }
+
+    public var promptCalls: [FakeHerdrPromptCall] {
+        state.withLock { $0.promptCalls }
+    }
+
+    public var interruptCalls: [AgentID] {
+        state.withLock { $0.interruptCalls }
+    }
+
+    public var openChatsCalls: [Set<AgentID>] {
+        state.withLock { $0.openChatsCalls }
+    }
+
+    public var resolveCalls: [AgentID] {
+        state.withLock { $0.resolveCalls }
+    }
+
+    public var subscriberCount: Int {
+        hub.subscriberCount
+    }
+
+    private func failIfNeeded(_ configured: HerdrBridgeError?) throws {
+        guard hub.isAvailable else { throw HerdrBridgeError.unavailable }
+        if let configured {
+            throw configured
+        }
+    }
+}
