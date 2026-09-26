@@ -2,14 +2,15 @@ import Foundation
 import MochaProtocol
 
 enum DemoLongChat {
-    static let workspaceId: WorkspaceID = "w3"
-    static let agentId: AgentID = "w3:p3"
+    static let agentId: AgentID = "w3:p1"
     static let itemCount = 2_000
-    static let title = "Refatoração da API de receitas"
+    static let title = "Paginação com cursor em /receitas"
     static let workspaceLabel = "receitas-api"
     static let branch = "development"
     static let model = "claude-opus-5-5"
     static let sessionId = "8b2e6f4a-3c1d-4a9e-b7f5-2d8c0e6a1f93"
+    static let turnStartOffset: TimeInterval = -238
+    static let historyEndOffset: TimeInterval = -300
 
     private static let start = Date(timeIntervalSince1970: 1_789_981_200)
     private static let seed: UInt64 = 0x6D6F_6368_61
@@ -22,43 +23,76 @@ enum DemoLongChat {
                 workspaceLabel: workspaceLabel,
                 model: model,
                 branch: branch,
-                status: .idle,
+                status: .working,
                 permissionMode: "default"
             ),
             items: items()
         )
     }
 
-    static func tab(lastActivityAt: Date?) -> TabNode {
-        TabNode(
-            id: "w3:t3",
-            title: "Claude",
-            agents: [
-                AgentSummary(
-                    id: agentId,
-                    kind: "claude",
-                    status: .idle,
-                    title: title,
-                    workspaceLabel: workspaceLabel,
-                    model: model,
-                    branch: branch,
-                    sessionId: sessionId,
-                    lastActivityAt: lastActivityAt
-                ),
-            ]
-        )
-    }
-
     static func items() -> [ChatItem] {
+        let turn = PaginationTurn.items()
         var writer = TranscriptWriter(start: start, seed: seed)
-        var turn = 0
-        while writer.entries.count < itemCount {
-            writer.writeTurn(turn)
-            turn += 1
+        var turnNumber = 0
+        let historyCount = itemCount - turn.count
+        while writer.entries.count < historyCount {
+            writer.writeTurn(turnNumber)
+            turnNumber += 1
         }
-        return writer.entries.suffix(itemCount).enumerated().map { offset, entry in
+        let history = writer.entries.suffix(historyCount)
+        let historyEnd = DemoDataset.anchor.addingTimeInterval(historyEndOffset)
+        let shift = historyEnd.timeIntervalSince(history.last?.at ?? historyEnd)
+        let shifted = history.map { (at: $0.at.addingTimeInterval(shift), kind: $0.kind) } + turn
+        return shifted.enumerated().map { offset, entry in
             ChatItem(id: "long-\(offset)", at: entry.at, kind: entry.kind)
         }
+    }
+}
+
+private enum PaginationTurn {
+    private static let root = "/Users/dev/projects/receitas-api/"
+
+    static func items() -> [(at: Date, kind: ChatItemKind)] {
+        let steps: [(TimeInterval, ChatItemKind)] = [
+            (DemoLongChat.turnStartOffset, .userPrompt(text: "troca a paginação de /receitas para cursor. mantém o formato da resposta", imageCount: 0)),
+            (-233, .thinking(text: nil)),
+            (-226, .assistantText(markdown: "A listagem usa `LIMIT/OFFSET`; com 40 mil receitas a página 200 leva 1,8 s. Cursor resolve sem mudar o contrato.")),
+            (-221, tool(1, "Bash", #"rg -n "OFFSET" internal/"#, command: #"rg -n "OFFSET" internal/"#, result: "internal/recipes/store.go:88:  LIMIT $1 OFFSET $2")),
+            (-216, tool(2, "Bash", #"rg -n "OFFSET" internal/"#, command: #"rg -n "OFFSET" internal/"#, result: "internal/recipes/store.go:88:  LIMIT $1 OFFSET $2")),
+            (-209, tool(3, "Read", "internal/recipes/handler.go", path: "internal/recipes/handler.go", result: "212 linhas")),
+            (-200, .assistantText(markdown: "Vou usar um cursor opaco em base64 com ordenação estável por id.")),
+            (-194, tool(4, "Read", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "164 linhas")),
+            (-188, tool(5, "Read", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "40 linhas")),
+            (-178, tool(6, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
+            (-167, tool(7, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
+            (-158, tool(8, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
+            (-146, .assistantText(markdown: "Troquei o `OFFSET` por cursor em `ListRecipes` e ajustei o handler. Rodando os testes de integração:")),
+            (-140, tool(9, "Bash", "go test ./internal/... -run Pagination -count=1", command: "go test ./internal/... -run Pagination -count=1", status: .running)),
+        ]
+        return steps.map { (DemoDataset.anchor.addingTimeInterval($0.0), $0.1) }
+    }
+
+    private static func tool(
+        _ number: Int,
+        _ name: String,
+        _ summary: String,
+        command: String? = nil,
+        path: String? = nil,
+        status: ToolStatus = .succeeded,
+        result: String? = nil
+    ) -> ChatItemKind {
+        let input = command.map { TranscriptText.json(["command": $0]) }
+            ?? TranscriptText.json(["file_path": root + (path ?? summary)])
+        return .toolCall(
+            ToolCall(
+                toolUseId: "toolu_long_turn_\(number)",
+                name: name,
+                summary: summary,
+                inputJSON: input,
+                status: status,
+                resultPreview: result
+            )
+        )
     }
 }
 
