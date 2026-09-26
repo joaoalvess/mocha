@@ -708,7 +708,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M1 | feito | a95f3c7, c54fabd, 146201b, 1303675 |
 | WP-M2 | feito | b34bf17, 7f55ad2, 0ea19a6, 52dbc30 |
 | WP-I1 | Fase A feita; Fase B na onda 1.A' | d09483f, fd07098, cab25c6, 1941ba0 |
-| Passo 1 (escopo B) | em andamento | |
+| Passo 1 (escopo B) | feito | 2fba5f9, be6bd8b, 5434975, d59f9d8 e os commits do protocolo |
 | WP-D2 | todo | |
 | WP-M2b | todo | |
 | WP-M3 | todo | |
