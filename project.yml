@@ -1,7 +1,7 @@
 name: Mocha
 
 options:
-  bundleIdPrefix: com.joaoalves
+  bundleIdPrefix: com.example
   developmentLanguage: pt-BR
   createIntermediateGroups: true
   deploymentTarget:
@@ -34,7 +34,7 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.joaoalves.mocha
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.mocha
         INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/Mocha.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -61,7 +61,7 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.joaoalves.mocha.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.mocha.widgets
         INFOPLIST_FILE: Widgets/Info.plist
     dependencies:
       - package: MochaKit

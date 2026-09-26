@@ -1,0 +1,13 @@
+{
+  "Accept": "application/json, text/plain, */*",
+  "Content-Type": "application/json",
+  "X-Mocha-Pane": "w1C:p2",
+  "X-Mocha-Hook-Secret": "test-secret",
+  "X-Test-Braces": "w1C:p2",
+  "X-Test-Unlisted": "",
+  "User-Agent": "axios/1.15.2",
+  "Content-Length": "561",
+  "Accept-Encoding": "gzip, compress, deflate, br",
+  "Host": "127.0.0.1:47420",
+  "Connection": "keep-alive"
+}

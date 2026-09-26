@@ -1,0 +1,20 @@
+{
+  "data": {
+    "type": "workspace_closed",
+    "workspace": {
+      "active_tab_id": "w1A:t1",
+      "agent_status": "unknown",
+      "focused": false,
+      "label": "demo-app",
+      "number": 5,
+      "pane_count": 1,
+      "tab_count": 1,
+      "tokens": {
+        "space_gap": "⠀"
+      },
+      "workspace_id": "w1A"
+    },
+    "workspace_id": "w1A"
+  },
+  "event": "workspace_closed"
+}

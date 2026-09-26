@@ -1,0 +1,20 @@
+{"dt": 0.108, "source": "hook", "event": "UserPromptSubmit", "requestId": "1782bd31"}
+{"dt": 0.108, "source": "daemon", "action": "respond", "requestId": "1782bd31", "body": {}}
+{"dt": 0.272, "source": "herdr", "status": "working"}
+{"dt": 2.144, "source": "hook", "event": "PreToolUse", "requestId": "ac27b7f2", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000009"}
+{"dt": 2.144, "source": "daemon", "action": "respond", "requestId": "ac27b7f2", "body": {}}
+{"dt": 2.164, "source": "hook", "event": "PermissionRequest", "requestId": "b8bd6b06", "tool_name": "Bash"}
+{"dt": 2.278, "source": "transcript", "block": "tool_use", "name": "Bash", "id": "toolu_01Demo000000000000000009"}
+{"dt": 2.354, "source": "herdr", "status": "blocked"}
+{"dt": 8.196, "source": "hook", "event": "Notification", "requestId": "19c10ac4", "notification_type": "permission_prompt"}
+{"dt": 8.197, "source": "daemon", "action": "respond", "requestId": "19c10ac4", "body": {}}
+{"dt": 62.197, "source": "claude", "action": "connectionClosed", "requestId": "b8bd6b06", "heldSeconds": 60.033}
+{"dt": 62.3, "source": "note", "text": "diálogo continua na tela depois do timeout do hook"}
+{"dt": 69.5, "source": "terminal", "keys": ["enter"]}
+{"dt": 69.673, "source": "hook", "event": "PostToolUse", "requestId": "c6367789", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000009"}
+{"dt": 69.676, "source": "daemon", "action": "respond", "requestId": "c6367789", "body": {}}
+{"dt": 69.789, "source": "herdr", "status": "working"}
+{"dt": 69.967, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000009", "is_error": false}
+{"dt": 71.008, "source": "hook", "event": "Stop", "requestId": "14b9c9f7"}
+{"dt": 71.01, "source": "daemon", "action": "respond", "requestId": "14b9c9f7", "body": {}}
+{"dt": 71.263, "source": "herdr", "status": "done"}

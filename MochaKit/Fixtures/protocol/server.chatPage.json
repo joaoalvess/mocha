@@ -1,0 +1,56 @@
+{
+  "v": 1,
+  "id": "c-7",
+  "type": "chatPage",
+  "payload": {
+    "agentId": "w17:p1",
+    "meta": {
+      "title": "herdr-sidebar abre arquivos em nova tab",
+      "workspaceLabel": "Core",
+      "model": "claude-opus-5-5",
+      "branch": "development",
+      "status": "idle"
+    },
+    "items": [
+      {
+        "id": "8f1c…",
+        "at": "2026-09-25T15:44:34.551Z",
+        "type": "userPrompt",
+        "text": "roda os testes",
+        "imageCount": 0
+      },
+      {
+        "id": "9a2d…",
+        "at": "2026-09-25T15:44:40.120Z",
+        "type": "assistantText",
+        "markdown": "Rodando `scripts/test.sh`…"
+      },
+      {
+        "id": "b7e0…",
+        "at": "2026-09-25T15:44:41.000Z",
+        "type": "toolCall",
+        "toolUseId": "toolu_01H3…",
+        "name": "Bash",
+        "summary": "scripts/test.sh",
+        "inputJSON": "{\"command\":\"scripts/test.sh\"}",
+        "status": "succeeded",
+        "resultPreview": "All tests passed"
+      },
+      {
+        "id": "c1f4…",
+        "at": "2026-09-25T15:45:10.000Z",
+        "type": "turnFooter",
+        "durationMs": 45000
+      },
+      {
+        "id": "d2a9…",
+        "at": "2026-09-25T15:45:11.000Z",
+        "type": "slashCommand",
+        "name": "/clear",
+        "args": ""
+      }
+    ],
+    "before": "b:120394",
+    "hasMore": true
+  }
+}

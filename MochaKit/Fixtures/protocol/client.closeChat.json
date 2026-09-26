@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "id": "c-10",
+  "type": "closeChat",
+  "payload": {
+    "agentId": "w17:p1"
+  }
+}

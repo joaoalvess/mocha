@@ -1,0 +1,101 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "workspace_list",
+    "workspaces": [
+      {
+        "workspace_id": "wJ",
+        "number": 1,
+        "label": "Developer",
+        "focused": true,
+        "pane_count": 3,
+        "tab_count": 2,
+        "active_tab_id": "wJ:t7",
+        "agent_status": "working",
+        "tokens": {
+          "space_gap": "⠀",
+          "subtitle_focused": "daily driver"
+        }
+      },
+      {
+        "workspace_id": "w17",
+        "number": 2,
+        "label": "demo-api",
+        "focused": false,
+        "pane_count": 1,
+        "tab_count": 1,
+        "active_tab_id": "w17:t1",
+        "agent_status": "idle",
+        "tokens": {
+          "space_gap": "⠀"
+        },
+        "worktree": {
+          "repo_key": "/Users/dev/projects/demo-api/.git",
+          "repo_name": "demo-api",
+          "repo_root": "/Users/dev/projects/demo-api",
+          "checkout_path": "/Users/dev/projects/demo-api",
+          "is_linked_worktree": false
+        }
+      },
+      {
+        "workspace_id": "wY",
+        "number": 3,
+        "label": "demo-web",
+        "focused": false,
+        "pane_count": 1,
+        "tab_count": 1,
+        "active_tab_id": "wY:t2",
+        "agent_status": "unknown",
+        "tokens": {
+          "space_gap": "⠀"
+        },
+        "worktree": {
+          "repo_key": "/Users/dev/projects/demo-web/.git",
+          "repo_name": "demo-web",
+          "repo_root": "/Users/dev/projects/demo-web",
+          "checkout_path": "/Users/dev/projects/demo-web",
+          "is_linked_worktree": false
+        }
+      },
+      {
+        "workspace_id": "wW",
+        "number": 4,
+        "label": "notes",
+        "focused": false,
+        "pane_count": 1,
+        "tab_count": 1,
+        "active_tab_id": "wW:t1",
+        "agent_status": "unknown",
+        "tokens": {
+          "space_gap": "⠀"
+        }
+      },
+      {
+        "workspace_id": "w1A",
+        "number": 5,
+        "label": "demo-app",
+        "focused": false,
+        "pane_count": 2,
+        "tab_count": 1,
+        "active_tab_id": "w1A:t1",
+        "agent_status": "done",
+        "tokens": {
+          "space_gap": "⠀"
+        }
+      },
+      {
+        "workspace_id": "w1B",
+        "number": 6,
+        "label": "demo-lab",
+        "focused": false,
+        "pane_count": 2,
+        "tab_count": 2,
+        "active_tab_id": "w1B:t1",
+        "agent_status": "done",
+        "tokens": {
+          "space_gap": "⠀"
+        }
+      }
+    ]
+  }
+}

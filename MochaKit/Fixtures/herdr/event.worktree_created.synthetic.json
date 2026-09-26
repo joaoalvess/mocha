@@ -1,0 +1,33 @@
+{
+  "event": "worktree_created",
+  "data": {
+    "type": "worktree_created",
+    "workspace": {
+      "workspace_id": "w6",
+      "number": 2,
+      "label": "feature-x",
+      "focused": false,
+      "pane_count": 1,
+      "tab_count": 1,
+      "active_tab_id": "w6:t1",
+      "agent_status": "working",
+      "worktree": {
+        "repo_key": "/Users/dev/projects/demo-app/.git",
+        "repo_name": "demo-app",
+        "repo_root": "/Users/dev/projects/demo-app",
+        "checkout_path": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+        "is_linked_worktree": true
+      }
+    },
+    "worktree": {
+      "path": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+      "branch": "feature-x",
+      "is_bare": false,
+      "is_detached": false,
+      "is_prunable": false,
+      "is_linked_worktree": true,
+      "open_workspace_id": "w6",
+      "label": "feature-x"
+    }
+  }
+}

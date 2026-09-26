@@ -1,0 +1,18 @@
+{"dt": 0.108, "source": "hook", "event": "UserPromptSubmit", "requestId": "5d2bb3be"}
+{"dt": 0.108, "source": "daemon", "action": "respond", "requestId": "5d2bb3be", "body": {}}
+{"dt": 0.497, "source": "herdr", "status": "working"}
+{"dt": 1.643, "source": "hook", "event": "PreToolUse", "requestId": "a27f20a4", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000001"}
+{"dt": 1.643, "source": "daemon", "action": "respond", "requestId": "a27f20a4", "body": {}}
+{"dt": 1.652, "source": "hook", "event": "PermissionRequest", "requestId": "50c6a828", "tool_name": "Bash"}
+{"dt": 1.845, "source": "transcript", "block": "tool_use", "name": "Bash", "id": "toolu_01Demo000000000000000001"}
+{"dt": 1.943, "source": "herdr", "status": "blocked"}
+{"dt": 2.475, "source": "terminal", "keys": ["enter"]}
+{"dt": 2.527, "source": "hook", "event": "PostToolUse", "requestId": "13081074", "tool_name": "Bash", "tool_use_id": "toolu_01Demo000000000000000001"}
+{"dt": 2.527, "source": "daemon", "action": "respond", "requestId": "13081074", "body": {}}
+{"dt": 2.561, "source": "herdr", "status": "working"}
+{"dt": 2.685, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000001", "is_error": false}
+{"dt": 3.456, "source": "hook", "event": "Stop", "requestId": "4936f1ad"}
+{"dt": 3.456, "source": "daemon", "action": "respond", "requestId": "4936f1ad", "body": {}}
+{"dt": 3.809, "source": "herdr", "status": "done"}
+{"dt": 12.03, "source": "note", "text": "resposta tardia (deny) enviada ao hook ainda aberto: ignorada pelo Claude"}
+{"dt": 12.043, "source": "daemon", "action": "respond", "requestId": "50c6a828", "body": {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "deny", "message": "resposta tardia"}}}}

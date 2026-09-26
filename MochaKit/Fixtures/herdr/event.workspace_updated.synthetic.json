@@ -1,0 +1,23 @@
+{
+  "event": "workspace_updated",
+  "data": {
+    "type": "workspace_updated",
+    "workspace": {
+      "workspace_id": "w5",
+      "number": 1,
+      "label": "demo-app",
+      "focused": true,
+      "pane_count": 1,
+      "tab_count": 1,
+      "active_tab_id": "w5:t1",
+      "agent_status": "idle",
+      "worktree": {
+        "repo_key": "/Users/dev/projects/demo-app/.git",
+        "repo_name": "demo-app",
+        "repo_root": "/Users/dev/projects/demo-app",
+        "checkout_path": "/Users/dev/projects/demo-app",
+        "is_linked_worktree": false
+      }
+    }
+  }
+}

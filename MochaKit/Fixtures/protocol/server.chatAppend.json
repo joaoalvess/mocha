@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "type": "chatAppend",
+  "payload": {
+    "agentId": "w21:p1",
+    "items": [
+      {
+        "id": "3d9f1a62-4e5c-4b70-8c83-2fb04d6e8b93",
+        "at": "2026-09-25T15:47:10.918Z",
+        "type": "thinking"
+      },
+      {
+        "id": "5fb13c84-6a7e-4d92-8ea5-41d26f80adb5",
+        "at": "2026-09-25T15:47:12.450Z",
+        "type": "toolCall",
+        "toolUseId": "toolu_01K8Qm2Zx",
+        "name": "Read",
+        "summary": "Sources/App/LoginView.swift",
+        "inputJSON": "{\"file_path\":\"/Users/dev/projects/demo-app/Sources/App/LoginView.swift\"}",
+        "status": "running"
+      }
+    ]
+  }
+}

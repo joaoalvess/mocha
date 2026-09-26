@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "type": "treeChanged",
+  "payload": {
+    "workspaces": [
+      {
+        "id": "w18",
+        "label": "anotacoes",
+        "number": 2,
+        "isDirty": false,
+        "agentStatus": "idle",
+        "tabs": [
+          {
+            "id": "w18:t1",
+            "title": "zsh",
+            "agents": []
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

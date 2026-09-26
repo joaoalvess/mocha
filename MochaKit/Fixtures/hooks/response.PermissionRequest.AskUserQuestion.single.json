@@ -1,0 +1,34 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "allow",
+      "updatedInput": {
+        "questions": [
+          {
+            "question": "Qual banco?",
+            "header": "Banco",
+            "options": [
+              {
+                "label": "Postgres",
+                "description": "Banco de dados Postgres"
+              },
+              {
+                "label": "SQLite",
+                "description": "Banco de dados SQLite"
+              },
+              {
+                "label": "MySQL",
+                "description": "Banco de dados MySQL"
+              }
+            ],
+            "multiSelect": false
+          }
+        ],
+        "answers": {
+          "Qual banco?": "SQLite"
+        }
+      }
+    }
+  }
+}

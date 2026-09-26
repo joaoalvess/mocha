@@ -1,0 +1,66 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "allow",
+      "updatedInput": {
+        "questions": [
+          {
+            "question": "Qual editor?",
+            "header": "Editor",
+            "options": [
+              {
+                "label": "Vim",
+                "description": "Editor Vim"
+              },
+              {
+                "label": "Emacs",
+                "description": "Editor Emacs"
+              }
+            ],
+            "multiSelect": false
+          },
+          {
+            "question": "Quais testes?",
+            "header": "Testes",
+            "options": [
+              {
+                "label": "Unitários",
+                "description": "Testes Unitários"
+              },
+              {
+                "label": "Integração",
+                "description": "Testes de Integração"
+              },
+              {
+                "label": "UI",
+                "description": "Testes de UI"
+              }
+            ],
+            "multiSelect": true
+          },
+          {
+            "question": "Qual tema?",
+            "header": "Tema",
+            "options": [
+              {
+                "label": "Claro",
+                "description": "Tema Claro"
+              },
+              {
+                "label": "Escuro",
+                "description": "Tema Escuro"
+              }
+            ],
+            "multiSelect": false
+          }
+        ],
+        "answers": {
+          "Qual editor?": "Emacs",
+          "Quais testes?": "Unitários, UI",
+          "Qual tema?": "Sépia"
+        }
+      }
+    }
+  }
+}

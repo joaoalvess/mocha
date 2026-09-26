@@ -1,0 +1,25 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "worktree_list",
+    "source": {
+      "repo_key": "/Users/dev/projects/demo-app/.git",
+      "repo_name": "demo-app",
+      "repo_root": "/Users/dev/projects/demo-app",
+      "source_checkout_path": "/Users/dev/projects/demo-app",
+      "source_workspace_id": "w1A"
+    },
+    "worktrees": [
+      {
+        "path": "/Users/dev/projects/demo-app",
+        "branch": "main",
+        "is_bare": false,
+        "is_detached": false,
+        "is_prunable": false,
+        "is_linked_worktree": false,
+        "open_workspace_id": "w1A",
+        "label": "demo-app"
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "agent_info",
+    "agent": {
+      "terminal_id": "term_65c55b4e02a8bb2",
+      "name": "labstart",
+      "agent": "claude",
+      "terminal_title": "✳ Tres",
+      "terminal_title_stripped": "Tres",
+      "agent_status": "done",
+      "tokens": {
+        "quota_provider_model": "Claude",
+        "quota_stack": "255990255",
+        "quota_topic": "Responda apenas: tres",
+        "quota_icon": "​  ⁠",
+        "quota_nest_gap": "​⠀",
+        "quota_provider": "Claude"
+      },
+      "agent_session": {
+        "source": "herdr:claude",
+        "agent": "claude",
+        "kind": "id",
+        "value": "124fc87d-586a-4f66-b3c0-dbf3f088791b"
+      },
+      "workspace_id": "w1A",
+      "tab_id": "w1A:t2",
+      "pane_id": "w1A:p3",
+      "focused": false,
+      "interactive_ready": true,
+      "state_change_seq": 567,
+      "cwd": "/Users/dev/projects/demo-app",
+      "foreground_cwd": "/Users/dev/projects/demo-app",
+      "revision": 7
+    }
+  }
+}

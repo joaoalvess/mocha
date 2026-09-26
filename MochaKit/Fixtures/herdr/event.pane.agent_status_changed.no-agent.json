@@ -1,0 +1,8 @@
+{
+  "data": {
+    "agent_status": "unknown",
+    "pane_id": "w1A:p3",
+    "workspace_id": "w1A"
+  },
+  "event": "pane.agent_status_changed"
+}

@@ -1,0 +1,28 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "updatedInput": {
+      "questions": [
+        {
+          "question": "Qual formato de saída?",
+          "header": "Formato",
+          "options": [
+            {
+              "label": "JSON",
+              "description": "Formato de dados estruturado em JSON"
+            },
+            {
+              "label": "YAML",
+              "description": "Formato de dados estruturado em YAML"
+            }
+          ],
+          "multiSelect": false
+        }
+      ],
+      "answers": {
+        "Qual formato de saída?": "JSON"
+      }
+    }
+  }
+}

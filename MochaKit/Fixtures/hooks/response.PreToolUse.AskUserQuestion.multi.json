@@ -1,0 +1,64 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "updatedInput": {
+      "questions": [
+        {
+          "question": "Qual formato?",
+          "header": "Formato",
+          "options": [
+            {
+              "label": "JSON",
+              "description": "Formato JSON"
+            },
+            {
+              "label": "YAML",
+              "description": "Formato YAML"
+            }
+          ],
+          "multiSelect": false
+        },
+        {
+          "question": "Quais plataformas?",
+          "header": "Plataformas",
+          "options": [
+            {
+              "label": "iOS",
+              "description": "Plataforma iOS"
+            },
+            {
+              "label": "macOS",
+              "description": "Plataforma macOS"
+            },
+            {
+              "label": "Linux",
+              "description": "Plataforma Linux"
+            }
+          ],
+          "multiSelect": true
+        },
+        {
+          "question": "Qual cor?",
+          "header": "Cor",
+          "options": [
+            {
+              "label": "Azul",
+              "description": "Cor Azul"
+            },
+            {
+              "label": "Verde",
+              "description": "Cor Verde"
+            }
+          ],
+          "multiSelect": false
+        }
+      ],
+      "answers": {
+        "Qual formato?": "YAML",
+        "Quais plataformas?": "iOS, Linux",
+        "Qual cor?": "Roxo"
+      }
+    }
+  }
+}

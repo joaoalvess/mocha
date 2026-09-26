@@ -1,0 +1,12 @@
+{
+  "session_id": "33333333-3333-4333-8333-333333333333",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-projects-demo-app/33333333-3333-4333-8333-333333333333.jsonl",
+  "cwd": "/Users/dev/projects/demo-app",
+  "scratchpad_dir": "/private/tmp/claude-501/-Users-dev-projects-demo-app/33333333-3333-4333-8333-333333333333/scratchpad",
+  "hook_event_name": "SessionStart",
+  "source": "resume",
+  "seconds_since_last_response": 16,
+  "context_tokens": 40654,
+  "prompt_cache_likely_expired": false,
+  "estimated_cache_write_usd": 0.0813
+}

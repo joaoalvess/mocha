@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "type": "agentStatus",
+  "payload": {
+    "agentId": "w21:p1",
+    "status": "blocked",
+    "title": "Login com a Apple"
+  }
+}

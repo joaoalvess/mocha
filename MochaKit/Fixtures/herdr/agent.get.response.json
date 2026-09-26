@@ -1,0 +1,35 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "agent_info",
+    "agent": {
+      "terminal_id": "term_65c55b2d00b83b1",
+      "agent": "claude",
+      "terminal_title": "◑ Parágrafo sobre chá",
+      "terminal_title_stripped": "Parágrafo sobre chá",
+      "agent_status": "working",
+      "tokens": {
+        "quota_provider_model": "Claude",
+        "quota_nest_gap": "​⠀",
+        "quota_stack": "255990255",
+        "quota_provider": "Claude",
+        "quota_icon": "​  ⁡",
+        "quota_topic": "Escreva um paragrafo de 200 palavras sobre cha, sem"
+      },
+      "agent_session": {
+        "source": "herdr:claude",
+        "agent": "claude",
+        "kind": "id",
+        "value": "c31eceaf-ad1d-4b76-b947-380a7f8c668b"
+      },
+      "workspace_id": "w1A",
+      "tab_id": "w1A:t1",
+      "pane_id": "w1A:p2",
+      "focused": false,
+      "state_change_seq": 557,
+      "cwd": "/Users/dev/projects/demo-app",
+      "foreground_cwd": "/Users/dev/projects/demo-app",
+      "revision": 7
+    }
+  }
+}

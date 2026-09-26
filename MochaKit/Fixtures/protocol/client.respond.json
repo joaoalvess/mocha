@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "c-18",
+  "type": "respond",
+  "payload": {
+    "requestId": "5e3b…",
+    "response": {
+      "type": "deny",
+      "reason": "não apaga isso"
+    }
+  }
+}

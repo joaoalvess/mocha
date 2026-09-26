@@ -1,0 +1,10 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "deny",
+      "message": "Parar aqui",
+      "interrupt": true
+    }
+  }
+}

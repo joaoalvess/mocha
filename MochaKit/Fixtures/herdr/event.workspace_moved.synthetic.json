@@ -1,0 +1,44 @@
+{
+  "event": "workspace_moved",
+  "data": {
+    "type": "workspace_moved",
+    "workspace_id": "w6",
+    "insert_index": 0,
+    "workspaces": [
+      {
+        "workspace_id": "w6",
+        "number": 1,
+        "label": "feature-x",
+        "focused": false,
+        "pane_count": 1,
+        "tab_count": 1,
+        "active_tab_id": "w6:t1",
+        "agent_status": "working",
+        "worktree": {
+          "repo_key": "/Users/dev/projects/demo-app/.git",
+          "repo_name": "demo-app",
+          "repo_root": "/Users/dev/projects/demo-app",
+          "checkout_path": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "is_linked_worktree": true
+        }
+      },
+      {
+        "workspace_id": "w5",
+        "number": 2,
+        "label": "demo-app",
+        "focused": true,
+        "pane_count": 1,
+        "tab_count": 1,
+        "active_tab_id": "w5:t1",
+        "agent_status": "idle",
+        "worktree": {
+          "repo_key": "/Users/dev/projects/demo-app/.git",
+          "repo_name": "demo-app",
+          "repo_root": "/Users/dev/projects/demo-app",
+          "checkout_path": "/Users/dev/projects/demo-app",
+          "is_linked_worktree": false
+        }
+      }
+    ]
+  }
+}

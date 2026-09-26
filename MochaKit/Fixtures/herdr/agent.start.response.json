@@ -1,0 +1,31 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "agent_started",
+    "agent": {
+      "terminal_id": "term_65c55b4e02a8bb2",
+      "name": "labstart",
+      "terminal_title": "~/p/demo-app",
+      "terminal_title_stripped": "~/p/demo-app",
+      "agent_status": "unknown",
+      "workspace_id": "w1A",
+      "tab_id": "w1A:t2",
+      "pane_id": "w1A:p3",
+      "focused": false,
+      "launch_pending": true,
+      "state_change_seq": 0,
+      "cwd": "/Users/dev/projects/demo-app",
+      "foreground_cwd": "/Users/dev/projects/demo-app",
+      "revision": 1
+    },
+    "argv": [
+      "claude",
+      "--model",
+      "haiku",
+      "--setting-sources",
+      "project,local",
+      "--settings",
+      "/Users/dev/projects/claude-settings.json"
+    ]
+  }
+}

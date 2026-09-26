@@ -1,0 +1,19 @@
+{
+  "event": "worktree_removed",
+  "data": {
+    "type": "worktree_removed",
+    "workspace_id": "w6",
+    "workspace": null,
+    "forced": false,
+    "worktree": {
+      "path": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+      "branch": "feature-x",
+      "is_bare": false,
+      "is_detached": false,
+      "is_prunable": false,
+      "is_linked_worktree": true,
+      "open_workspace_id": null,
+      "label": "feature-x"
+    }
+  }
+}

@@ -28,15 +28,15 @@ O **modo agente** (chat) é a tela principal. O terminal é secundário e entra 
 | Agente | Claude Code 2.1.x (CLI), rodando dentro de panes do Herdr |
 | Rede | Tailscale 1.98 no Mac (app standalone) e no iPhone. O iPhone só alcança o Mac pelo tailnet. Nome MagicDNS do Mac: `mac-mini.tail1234.ts.net` (certificados HTTPS do tailnet já ativos) |
 | Toolchain | Xcode 27, Swift 6.4, XcodeGen (`/opt/homebrew/bin/xcodegen`) |
-| Distribuição | Conta Apple Developer paga, uso pessoal, **sem App Store**. Instalação pelo Xcode (perfil de desenvolvimento, validade de ~1 ano, APNs **sandbox**) ou TestFlight interno (build de 90 dias, APNs **produção**) |
-| Identificadores | App `com.joaoalves.mocha`, extensão `com.joaoalves.mocha.widgets`, LaunchAgent `com.joaoalves.mochad`. O Team ID é definido no bloqueio B1 (`docs/PLANO.md`) |
+| Distribuição | Conta Apple Developer paga do time da empresa (B1), uso pessoal, **sem App Store**. Instalação pelo Xcode (perfil de desenvolvimento, validade de ~1 ano, APNs **sandbox**) ou TestFlight interno (build de 90 dias, APNs **produção**) |
+| Identificadores | App `com.example.mocha`, extensão `com.example.mocha.widgets`, LaunchAgent `com.joaoalves.mochad`. O Team ID é definido no bloqueio B1 (`docs/PLANO.md`). Tudo o que é registrado na conta Apple (App IDs, App Groups e afins) usa nomes discretos com o prefixo `com.example.mocha` e nunca leva "mocha" nem "joaoalves"; os identificadores locais do Mac (LaunchAgent, Keychain, log, filas) continuam `com.joaoalves.*` |
 
 ### §1.3 Escopo por fase
 
 | Funcionalidade | Fase |
 |---|---|
 | Pareamento iPhone ↔ Mac por QR | 1a-core |
-| Gaveta de workspaces, tabs e agentes do Herdr, ao vivo (inclui worktrees criados pelos agentes) | 1a-core |
+| Gaveta de workspaces, tabs e agentes do Herdr, ao vivo (inclui os worktrees do Herdr criados pelos agentes) | 1a-core |
 | Chat do agente: histórico paginado, atualização ao vivo, markdown, cards de ferramenta | 1a-core |
 | Enviar prompt, interromper (Esc) | 1a-core |
 | Daemon como LaunchAgent, `doctor` | 1a-core |
@@ -56,11 +56,11 @@ Nada disto entra em nenhuma fase acima: outros agentes (Codex, Antigravity e dem
 
 ### §1.5 Glossário
 
-- **Workspace**: workspace do Herdr (`workspace_id`, ex.: `w17`). Pode ser um worktree git ligado a outro workspace do mesmo repositório.
+- **Workspace**: workspace do Herdr (`workspace_id`, ex.: `w17`, `w1A`; ids opacos, nunca reaproveitados). Pode ser um worktree git ligado a outro workspace do mesmo repositório.
 - **Tab**: tab do Herdr (`tab_id`, ex.: `w17:t1`).
-- **Pane**: pane do Herdr (`pane_id`, ex.: `w17:p1`).
+- **Pane**: pane do Herdr (`pane_id`, ex.: `w17:p1`). Um pane movido para outro workspace ganha id novo (evento `pane_moved`), e o agente muda de `AgentID`.
 - **Agente**: um pane onde o Herdr detectou o Claude Code. No protocolo, a identidade do agente é o `pane_id` (`AgentID`).
-- **Sessão**: sessão do Claude Code (`session_id`, UUID). Um agente troca de sessão com `/clear`.
+- **Sessão**: sessão do Claude Code (`session_id`, UUID). Um agente troca de sessão com `/clear`, que cria um arquivo de transcript novo; `/compact` mantém a sessão e o arquivo.
 - **Turno**: do prompt do usuário até o Claude parar (hook `Stop`).
 - **Pedido pendente**: aprovação de ferramenta ou pergunta (AskUserQuestion) esperando resposta (1b).
 
@@ -78,7 +78,7 @@ Nada disto entra em nenhuma fase acima: outros agentes (Codex, Antigravity e dem
                 │ wss://mac-mini.tail1234.ts.net/v1
                 │ (tailnet, TLS com certificado do Tailscale)
 ┌───────────────▼──────────────── MacBook ───────────────────────────┐
-│ tailscale serve  ──►  gateway (socket Unix 0600 ou 127.0.0.1)      │
+│ tailscale serve  ──►  gateway (127.0.0.1:47421)                    │
 │                        │                                           │
 │                 ┌──────▼──────────── mochad ─────────────────────┐ │
 │                 │ Gateway · Pairing · SessionHub                 │ │
@@ -181,13 +181,15 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 3. O toque na notificação abre `mocha://agent/<paneId>`.
 
 **Pedido pendente (1b)**
-1. `PermissionRequest` (ou `PreToolUse` do AskUserQuestion, conforme o spike S3) chega ao `HookServer`. O daemon cria um `PendingRequest`, faz broadcast de `pending` e manda um push time-sensitive com ações.
-2. A resposta chega pelo app (`respond`) ou pela ação da notificação (HTTP, §5.5), e o daemon devolve a decisão ao Claude pelo mecanismo definido em §8.
-3. Se a resposta vier pelo terminal do Mac, o daemon percebe e retira o pedido.
+1. `PermissionRequest` (aprovação de ferramenta ou pergunta do AskUserQuestion) chega ao `HookServer`. O daemon cria um `PendingRequest`, faz broadcast de `pending` e manda um push time-sensitive com ações.
+2. A resposta chega pelo app (`respond`) ou pela ação da notificação (HTTP, §5.5), e o daemon responde o hook segurado (§8.2).
+3. Se a resposta vier pelo terminal do Mac, o daemon percebe (conexão do hook fechada, status do Herdr saindo de `blocked` ou `tool_result` no transcript) e retira o pedido (§8.3).
 
 **Reconexão**
-- O app reconecta com backoff exponencial (0,5 s → 8 s, com jitter) enquanto está em primeiro plano. Ao reconectar, reenvia `hello`, recebe `tree` e reabre o chat visível com `openChat` (página nova; o app substitui a lista).
-- O daemon reconecta ao socket do Herdr a cada 2 s se o Herdr cair, e reconstrói o estado com snapshot + inscrições.
+- O app reconecta com backoff exponencial enquanto está em primeiro plano: 0,5 s, 1 s, 2 s, 4 s e depois 8 s. Cada espera é multiplicada por um jitter de 0,8–1,2 e limitada a 8 s, e a contagem zera a cada conexão aberta. Se o `NWPathMonitor` informa caminho `.satisfied` durante uma espera, a tentativa sai na hora. Ao reconectar, o app reenvia `hello`, recebe `tree` e reabre o chat visível com `openChat` (página nova; o app substitui a lista).
+- **A troca de rede não derruba a conexão**: o WebSocket passa dentro do túnel do Tailscale, que troca Wi-Fi por 4G sem fechar o TCP. No S5 (iPhone 14), Wi-Fi → 4G e 4G → Wi-Fi seguraram o tráfego por ~6,9 s e ~8,5 s, e depois tudo chegou, sem reconexão. Por isso o app não fecha nem reabre o WebSocket quando a rede muda.
+- **Heartbeat**: com o app em primeiro plano, o `ConnectionManager` manda um ping de WebSocket (`sendPing`) a cada 5 s, e um logo depois de cada mudança de caminho, sempre com um `receive()` pendente (sem ele o pong não é processado; WP0.3). Um ping sem pong por 15 s marca a conexão como morta: o app cancela a tarefa e segue o backoff. O servidor não manda ping (§4.4). Referência medida: eco de WebSocket com mediana de 12 ms no Wi-Fi e 36 ms no 4G; volta do background em 1 tentativa, com handshake de 87–203 ms.
+- O daemon reconecta ao socket do Herdr a cada 2 s se o Herdr cair, e reconstrói o estado com `session.snapshot` e as inscrições, na ordem de §3.1.3.
 
 ---
 
@@ -197,38 +199,54 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 
 #### §3.1.1 Conexão
 
-- **Socket**, em ordem de resolução: `HERDR_SOCKET_PATH` → `HERDR_SESSION` (`~/.config/herdr/sessions/<nome>/herdr.sock`) → `~/.config/herdr/herdr.sock`. O LaunchAgent não herda as variáveis dos panes, então na prática usa o caminho padrão. O `mochad` aceita `--herdr-socket <path>` para sobrescrever.
-- **Protocolo**: JSON delimitado por `\n`. A requisição é `{"id":"<string>","method":"<nome>","params":{…}}` e a resposta, `{"id":…,"result":{…}}` ou `{"id":…,"error":{…}}`. Versão do protocolo: 22; o schema completo sai de `herdr api schema --json`.
-- **Inscrições** (`events.subscribe`): o ack é `{"type":"subscription_started"}` e os eventos chegam na mesma conexão. Use uma conexão dedicada para eventos e outra para requisições.
-- Os formatos exatos de parâmetros e eventos são levantados no spike S2 e gravados em `MochaKit/Fixtures/herdr/`. Os tipos de `MochaHerdr` seguem essas fixtures, não este texto.
+- **Socket**, em ordem de resolução: `HERDR_SOCKET_PATH` → `HERDR_SESSION=<nome>` (`~/.config/herdr/sessions/<nome>/herdr.sock`) → `~/.config/herdr/herdr.sock` (modo `0600`). O LaunchAgent não herda as variáveis dos panes, então na prática usa o caminho padrão. O `mochad` aceita `--herdr-socket <path>` para sobrescrever.
+- **Protocolo**: JSON delimitado por `\n` sobre socket Unix. A requisição é `{"id":"<string>","method":"<nome>","params":{…}}`; `id` precisa ser string e `params` é obrigatório (`{}` quando vazio). A resposta é `{"id":…,"result":{"type":"<tipo>",…}}` ou `{"id":…,"error":{"code":"<código>","message":"…"}}`. Todo `result` tem o discriminador `type`.
+- **Uma requisição por conexão**: o servidor responde uma linha e fecha. O `HerdrClient` abre uma conexão por requisição (conectar, escrever a linha com `\n`, ler uma linha, fechar). Requisições concorrentes usam conexões concorrentes; não há multiplexação. Uma linha sem `\n` fica sem resposta, então toda requisição tem timeout: 5 s por padrão, 10 s para `agent.prompt`, e `timeout_ms` + 2 s para chamadas com espera.
+- **Erros**: erro de parse ou validação (`invalid_request`: método desconhecido, campo faltando, tipo errado, JSON malformado) volta com `"id":""`; os demais ecoam o `id`. Códigos tratados: `invalid_request`, `pane_not_found`, `agent_not_found`, `agent_blocked`, `agent_not_ready`, `agent_prompt_stalled`, `invalid_key`, `timeout`. Código desconhecido vira erro genérico.
+- **Parâmetros**: o Herdr **ignora campos desconhecidos em silêncio**, e método com alvo opcional usa o pane **focado** quando o alvo falta. Os tipos de parâmetro do `MochaHerdr` usam os nomes exatos do schema (ex.: `pane.split` usa `target_pane_id`) e sempre informam o alvo. O daemon nunca chama métodos de foco (`*.focus`), `pane.split`, `layout.*` nem escrita de workspace.
+- **Versão**: ao conectar e a cada reconexão, `ping` → `{"type":"pong","version":"0.9.1","protocol":22,"capabilities":{…}}`. Com protocolo diferente de 22, o daemon registra erro, `doctor` e `status` avisam, e ele segue em melhor esforço.
+- **Decodificação**: campos opcionais vêm **omitidos**, não `null` (`agent`, `agent_session`, `worktree`, `name`, `terminal_title*`, `foreground_cwd`, `tokens`). Campos e tipos desconhecidos são ignorados. `tokens` são metadados de plugins do usuário e não são usados.
+- **Inscrições** (`events.subscribe`): a conexão envia **uma** linha `{"id":…,"method":"events.subscribe","params":{"subscriptions":[…]}}`, recebe o ack `{"id":…,"result":{"type":"subscription_started"}}` e daí em diante só recebe eventos, sem replay do que veio antes. Qualquer escrita depois do ack faz o servidor fechar a conexão: o conjunto de uma conexão é imutável, e cancelar é fechar. O servidor não fecha a conexão quando o pane, a tab ou o workspace inscrito some; quem fecha é o cliente.
+- Os formatos exatos (respostas, erros, eventos, fluxos reais e o schema completo `herdr-api.schema.json`) estão em `MochaKit/Fixtures/herdr/`. Os tipos de `MochaHerdr` seguem essas fixtures.
 
 #### §3.1.2 Métodos usados
 
-| Método | Uso | Fase |
-|---|---|---|
-| `workspace.list` | Árvore: `workspace_id`, `label`, `number`, `agent_status`, `worktree{repo_key, repo_name, repo_root, checkout_path, is_linked_worktree}` | 1a-core |
-| `agent.get` | Reconsulta de um agente (troca de sessão, título) | 1a-core |
-| `tab.list` | Tabs de cada workspace (título, `active_tab_id`) | 1a-core |
-| `agent.list` | Agentes: `pane_id`, `tab_id`, `workspace_id`, `agent` (`"claude"`), `agent_status`, `agent_session{value}` (= `session_id` do Claude), `cwd`, `foreground_cwd`, `terminal_title_stripped` | 1a-core |
-| `agent.prompt` | Enviar prompt. É rejeitado com `agent_blocked` se o agente estiver bloqueado | 1a-core |
-| `agent.send_keys` | `Escape` para interromper; teclas para diálogos (§8) | 1a-core / 1b |
-| `tab.create` + `agent.start` | Nova tab com Claude no `checkout_path` (ou `cwd`) do workspace | 1b |
-| `agent.read` | Diagnóstico (`doctor`) e fallback de §8 | 1b |
+| Método | Parâmetros | Resultado (`type`) | Uso | Fase |
+|---|---|---|---|---|
+| `ping` | `{}` | `pong` (`version`, `protocol`) | Checagem de versão no connect | 1a-core |
+| `session.snapshot` | `{}` | `session_snapshot` (`workspaces`, `tabs`, `panes`, `agents`, `layouts`, `focused_*`, `version`, `protocol`) | Bootstrap e reconciliação da árvore | 1a-core |
+| `agent.list` | `{}` | `agent_list` (`pane_id`, `tab_id`, `workspace_id`, `agent`, `agent_status`, `agent_session{value}` = `session_id` do Claude, `cwd`, `foreground_cwd`, `terminal_title_stripped`, `name`) | Reconciliação de sessão (§3.1.3) e `doctor` | 1a-core |
+| `agent.get` | `{target}` (pane id ou nome do agente) | `agent_info` | Reconsulta de um agente (sessão, título, status) | 1a-core |
+| `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
+| `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
+| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
+| `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1b |
+| `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1b |
+| `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1b |
+| `agent.read` | `{target, source: "recent_unwrapped", lines}` | `pane_read` (`read.text`) | Diagnóstico (`doctor`) | 1b |
 
 #### §3.1.3 Eventos
 
-- **Globais**: `workspace.created`, `workspace.closed`, `workspace.renamed`, `workspace.moved`, `workspace.reordered`, `workspace.updated`, `tab.created`, `tab.closed`, `tab.renamed`, `tab.moved`, `pane.created`, `pane.closed`, `pane.exited`, `pane.updated`, `pane.agent_detected`, `worktree.created`, `worktree.removed`. O S2 confirma quais destes aceitam inscrição sem `pane_id`.
-- **Por pane**: `pane.agent_status_changed` exige `pane_id`. O `HerdrBridge` mantém uma inscrição por pane com agente: cria no snapshot inicial e em `pane.agent_detected`/`pane.created`, e remove em `pane.closed`/`pane.exited`.
-- **Troca de sessão**: quando `agent_session.value` de um pane muda (conferido com `agent.get` a cada `pane.updated` e a cada hook `SessionStart`), o `TranscriptStore` troca o arquivo acompanhado.
-- Todo evento que muda a árvore dispara `treeChanged` para os clientes, com debounce de 150 ms.
+- **Envelope**: eventos de ciclo de vida chegam como `{"event":"<nome_com_underscore>","data":{"type":"<nome_com_underscore>",…}}` (a inscrição `workspace.created` produz `workspace_created`). Eventos por pane chegam como `{"event":"pane.agent_status_changed","data":{…}}`, com ponto e sem `data.type`. O decodificador discrimina pelo campo `event`.
+- **Conexão global** (tipos sem `pane_id`): `workspace.created`, `workspace.updated`, `workspace.renamed`, `workspace.moved`, `workspace.reordered`, `workspace.closed`, `worktree.created`, `worktree.opened`, `worktree.removed`, `tab.created`, `tab.closed`, `tab.renamed`, `tab.moved`, `pane.created`, `pane.closed`, `pane.updated`, `pane.moved`, `pane.exited`, `pane.agent_detected`. Um `pane_id` nesses tipos é ignorado. Não são usados: `*.focused`, `workspace.metadata_updated` e `layout.updated`.
+- **Conexão por pane**: uma conexão por pane com agente, só com `{"type":"pane.agent_status_changed","pane_id":…}`. O `data` traz `pane_id`, `workspace_id`, `agent_status` e, havendo agente, `agent`. O `HerdrBridge` abre a conexão no bootstrap e em `pane_agent_detected` sem `released`; depois do ack, chama `agent.get` para cobrir a janela entre a detecção e a inscrição. Fecha a conexão quando o pane sai do snapshot, em `pane_closed`, `pane_exited` e `pane_agent_detected` com `released: true`; em `pane_moved`, reabre com o id novo. Um `pane_id` inexistente derruba a inscrição (`pane_not_found`, id `"<id>:sub:<índice>:probe"`), por isso cada pane tem a sua conexão.
+- **Status**: vem só de `pane.agent_status_changed`, `agent.get` e `session.snapshot`. `idle` e `done` significam pronto (`done` = ainda não visto no Herdr; o daemon não marca como visto, porque isso exige `agent.focus` e move o foco do João). `blocked` cobre diálogo de permissão, pergunta e o diálogo de confiança da pasta na partida. `unknown` = sem agente ou não classificado. O `pane_updated` também traz `agent_status`, mas chega depois e pode ficar defasado. O `agent_status` agregado de tab e workspace prioriza atenção (`done` + `working` → `done`), então o daemon calcula o agregado dele a partir dos agentes.
+- **Árvore**: o Herdr não emite cascata (`tab_closed` e `workspace_closed` não trazem `pane_closed` dos panes; o shell que sai emite só `pane_exited`, e a tab que fica vazia some sem `tab_closed`). Eventos estruturais (`workspace_created`, `workspace_closed`, `workspace_moved`, `workspace_reordered`, `workspace_updated`, `worktree_*`, `tab_created`, `tab_closed`, `tab_moved`, `pane_created`, `pane_closed`, `pane_exited`, `pane_moved`, `pane_agent_detected`) disparam, com debounce de 150 ms, um `session.snapshot`, que é comparado ao estado anterior. Rótulos vêm direto do payload: `workspace_renamed`, `tab_renamed`, e `pane_updated` quando muda `terminal_title_stripped`, `cwd`, `foreground_cwd` ou `agent_session`. Toda mudança dispara `treeChanged` para os clientes, com debounce de 150 ms.
+- **Troca de sessão**: o Herdr **não emite evento** quando `agent_session.value` muda (`/clear`, `claude` novo no pane). Ele atualiza o valor pelo próprio hook `SessionStart`, sem mudar a `revision` do pane, e o `pane_updated` do mesmo instante (troca de título) ainda traz a sessão antiga. O `HerdrBridge` detecta a troca por: (a) `agent_session.value` diferente em `pane_updated`, `agent.get` ou snapshot; (b) `agent.get` 1 s depois de cada `pane_updated` de pane com agente, e 1 s e 3 s depois de `pane_agent_detected`, até aparecer `agent_session`; (c) `agent.list` a cada 5 s enquanto algum cliente tem chat aberto ou algum agente está `working`/`blocked`; (d) a partir da 1a-final, o hook `SessionStart` do Mocha (`source` `startup`, `resume`, `clear` ou `compact`, com `session_id` e `transcript_path`) como sinal principal, seguido de `agent.get`. Quando a sessão muda, o `TranscriptStore` troca o arquivo acompanhado e o daemon emite `treeChanged` (o `sessionId` do `AgentSummary` muda).
+- **`pane_moved`**: o pane ganha id novo (`pane.pane_id`), e `previous_pane_id` é o antigo. O `HerdrBridge` guarda o mapa antigo → novo para traduzir hooks (§3.3.1) e publica o agente com o id novo.
+- **Bootstrap e reconexão**: (1) abrir a conexão global e esperar o ack, guardando os eventos que chegarem; (2) `ping` e `session.snapshot`; (3) montar o estado e aplicar os eventos guardados em ordem; (4) abrir as conexões por pane. Se a conexão global receber EOF ou uma requisição falhar ao conectar, o daemon fecha todas as conexões, marca o Herdr indisponível (`herdrUnavailable`) e tenta de novo a cada 2 s, repetindo do passo 1.
 
 #### §3.1.4 Árvore (derivação)
 
 - Os workspaces seguem a ordem de `number`.
+- **Diretório do workspace**: `worktree.checkout_path` quando existe; senão, o `cwd` do primeiro pane da tab ativa (`active_tab_id`). O workspace não tem `cwd` próprio.
+- `worktree` só aparece em workspaces de um grupo de worktree do Herdr (criados ou abertos por `herdr worktree`, e o workspace principal do repositório). Um workspace aberto num repositório git comum vem sem ele.
 - Um workspace com `worktree.is_linked_worktree == true` fica **aninhado** sob o workspace não-ligado de mesmo `repo_key`. Sem pai aberto, ele fica na raiz.
-- **Branch**: ler `HEAD` do git do `checkout_path` direto do arquivo, sem subprocesso. Para worktree ligado, `.git` é um arquivo `gitdir: …`; seguir esse caminho.
-- **`isDirty`**: `git -C <checkout_path> status --porcelain=v1 --untracked-files=normal`, saída não vazia. Roda no máximo a cada 15 s por workspace, com cache, e é recalculado depois de cada `Stop` do agente desse workspace.
-- Tabs sem agente aparecem como shell (ícone `>_`, título da tab).
+- Um worktree criado pelo agente dentro do próprio pane (ex.: `.claude/worktrees/<nome>`) não vira workspace: aparece só no `foreground_cwd` do pane. Só os worktrees do Herdr são aninhados na gaveta.
+- **Branch do agente**: `AgentSummary.branch` é a branch do `foreground_cwd` do pane (`HEAD` lido direto, como acima). A gaveta a mostra na linha do agente só quando ela difere da branch do workspace (ex.: agente num worktree criado dentro do pane).
+- **Branch**: ler `HEAD` do git do diretório do workspace direto do arquivo, sem subprocesso. Para worktree ligado, `.git` é um arquivo `gitdir: …`; seguir esse caminho.
+- **`isDirty`**: `git -C <diretório> status --porcelain=v1 --untracked-files=normal`, saída não vazia. Roda no máximo a cada 15 s por workspace, com cache, e é recalculado depois de cada `Stop` do agente desse workspace.
+- Tabs sem agente aparecem como shell (ícone `>_`, `label` da tab).
 - Uma tab pode ter mais de um agente (panes divididos). Cada agente vira uma linha própria sob a tab.
 - Agentes que não são Claude Code (`agent != "claude"`) aparecem com ícone genérico e o nome do agente, mas não abrem chat. O toque mostra "Chat disponível só para Claude Code".
 
@@ -236,41 +254,115 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 
 #### §3.2.1 Localização
 
-- Arquivo: `~/.claude/projects/<cwd codificado>/<session_id>.jsonl`.
-- Resolução: procurar `~/.claude/projects/*/<session_id>.jsonl`, com cache do resultado. **Não** reimplementar a codificação do diretório. Quando o hook traz `transcript_path`, ele tem precedência.
-- Transcripts de subagentes ficam fora do arquivo principal e não são exibidos. Linhas com `isSidechain: true` são ignoradas.
+- Arquivo da sessão: `~/.claude/projects/<cwd codificado>/<session_id>.jsonl`.
+- Resolução: procurar só `~/.claude/projects/*/<session_id>.jsonl` (um nível), com cache do resultado. **Não** reimplementar a codificação do diretório. Quando o hook traz `transcript_path`, ele tem precedência.
+- O diretório do projeto também tem `memory/`, `<session_id>/tool-results/`, `<session_id>/subagents/` e `.jsonl` de plugins (ex.: `vercel-plugin/skill-injections.jsonl`, sem `type`). Nunca varrer `**/*.jsonl`.
+- **Criação**: numa sessão nova, o arquivo só nasce na primeira mensagem, e o `transcript_path` do `SessionStart` pode apontar para um arquivo que ainda não existe. O diretório do projeto também pode não existir ainda (primeira sessão naquele `cwd`). O `TranscriptStore` trata arquivo inexistente como sessão vazia e observa o diretório do projeto (ou `~/.claude/projects/`, se ele também não existir) até o arquivo aparecer. Depois de `/clear`, o arquivo novo nasce na hora, já com as linhas do `/clear`.
+- **Sessões**: `/clear` cria um `session_id` novo e um arquivo novo; o antigo só recebe metadados depois disso. `/compact` mantém o `session_id` e o arquivo.
+- **Identidade**: vale `sessionId`. O campo `session_id` (snake_case), presente em parte das linhas, pode trazer a sessão anterior ao `/clear` e é ignorado.
+- **Subagentes**: ficam em `<session_id>/subagents/agent-<agentId>.jsonl` (todas as linhas com `isSidechain: true` e `agentId`), com `agent-<agentId>.meta.json` (`agentType`, `description`, `toolUseId` do `Agent` que o criou). Não são exibidos. No arquivo principal, o subagente aparece só como o `toolCall` `Agent` e, se rodou em background, como a notificação de tarefa. Linhas com `isSidechain: true` no arquivo principal são ignoradas por garantia.
 
-#### §3.2.2 Formato observado (Claude Code 2.1.282)
+#### §3.2.2 Formato e mapeamento (Claude Code 2.1.282)
 
-Uma entrada JSON por linha, com o campo `type`. O formato não é documentado pela Anthropic. O parser **ignora tipos e campos desconhecidos** e nunca falha a sessão inteira por causa de uma linha ruim (a linha é descartada e o problema vai pro log).
+Uma entrada JSON por linha, com o campo `type`. O formato não é documentado pela Anthropic. As fixtures de `MochaKit/Fixtures/transcripts/` cobrem cada caso, e o README delas traz a sequência esperada. O parser ignora campos desconhecidos, trata tipos desconhecidos pela política abaixo e nunca falha a sessão inteira por causa de uma linha ruim: a linha é descartada e contada.
 
-| `type` / `subtype` | Campos relevantes | Vira |
+Cada linha `assistant` tem **um** bloco em `message.content`. Uma resposta da API vira várias linhas com o mesmo `message.id` e `apiBlockIndex` 0, 1, 2… Linhas `user` com `tool_result` podem vir entre blocos da mesma `message.id` (ferramentas em paralelo).
+
+As regras são avaliadas em ordem; vale a primeira que casar.
+
+| Entrada | Condição | Vira |
 |---|---|---|
-| `user`, `message.content` string, `isMeta != true` | `uuid`, `timestamp`, `message.content` | `userPrompt`. Se o texto contém `<command-name>/x</command-name>`, vira `slashCommand` |
-| `user`, `isMeta == true` | — | ignorado |
-| `user`, `message.content` array com `tool_result` | `tool_use_id`, `is_error`, `content` | atualiza o `toolCall` correspondente (status e prévia do resultado) → `chatUpdate` |
-| `user`, array com `text`/`image` | blocos | `userPrompt` com texto e marcação de imagens |
-| `assistant` | `message.id`, `message.model`, `message.content[]` (um bloco por linha), `gitBranch`, `cwd`, `timestamp` | um `ChatItem` por bloco: `text` → `assistantText`, `thinking` → `thinking`, `tool_use{id,name,input}` → `toolCall` |
-| `system` / `turn_duration` | `durationMs`, `messageCount` | `turnFooter` ("Brewed for 45s") |
-| `system` / `away_summary` | `content` | `recap` |
-| `system` / `local_command` | `commandRun`, `content` | anexado ao `slashCommand` anterior como saída |
-| `system` / `compact_boundary` e similares | `content` | `notice` |
-| `ai-title` | `aiTitle` | título do agente (o último vence); não vira item |
-| `attachment`, `mode`, `permission-mode`, `last-prompt`, `queue-operation`, `file-history-*`, `worktree-state`, `atis-latch` | — | ignorados na UI. `permission-mode` atualiza o metadado do agente |
+| qualquer | JSON inválido ou sem `type` string | descartada (contador `dropped`) |
+| qualquer | `isSidechain == true` | ignorada |
+| `ai-title` | — | `ChatMeta.title` (o último vence); não vira item |
+| `permission-mode` | — | `ChatMeta.permissionMode` (o último vence; vistos: `default`, `acceptEdits`, `plan`, `auto`) |
+| `mode`, `atis-latch`, `last-prompt`, `agent-name`, `queue-operation`, `file-history-snapshot`, `file-history-delta`, `worktree-state`, `relocated`, `cost-state`, `pr-link`, `frame-link`, `fork-context-ref`, `bridge-session`, `continued-in` | — | ignorados |
+| `attachment` | `attachment.type == "queued_command"`, `commandMode == "prompt"`, `origin.kind` ausente ou `human`, sem `isMeta` | `userPrompt`: prompt enviado com o Claude trabalhando. `prompt` é string ou blocos `text`/`image` |
+| `attachment` | `queued_command` com `commandMode == "task-notification"` | `notice` com o `<summary>` |
+| `attachment` | demais | ignorado |
+| `user` | `isMeta == true` | ignorado (caveat de comando local, `turnCompanion`, mensagem `peer`, "[Image: original …]") |
+| `user` | `isCompactSummary == true` | ignorado (resumo do `/compact`) |
+| `user`, content string | contém `<command-name>/x</command-name>` | `slashCommand(name: "/x", args: <command-args>)`. Se o último `slashCommand` tem o mesmo `promptId` e o mesmo nome, não cria item (eco do `/compact`) |
+| `user`, content string | começa com `<local-command-stdout>` ou `<local-command-stderr>` | `output` do último `slashCommand`, sem as tags e sem códigos ANSI → `chatUpdate` |
+| `user`, content string | começa com `<bash-input>` (comando `!` do terminal) | `slashCommand(name: "!", args: <comando>)` |
+| `user`, content string | começa com `<bash-stdout>` ou `<bash-stderr>` | `output` do último `slashCommand` (stdout, e stderr se não vazio) → `chatUpdate` |
+| `user`, content string | `origin.kind == "task-notification"` ou começa com `<task-notification>` | `notice` com o `<summary>` (ex.: `Agent "Revisar README" finished`) |
+| `user`, content string | o texto é `/compact` ou `/compact <instruções>` | `slashCommand(name: "/compact", args: …)`: a linha crua que o Claude grava antes de compactar |
+| `user`, content string | demais | `userPrompt(text, imageCount: 0)` |
+| `user`, content array | tem bloco `tool_result` | atualiza o `toolCall` de `tool_use_id`: `failed` se `is_error == true`, senão `succeeded`, com `resultPreview` → `chatUpdate`. `tool_use_id` desconhecido: ignorado e contado |
+| `user`, content array | um único bloco `text` igual a `[Request interrupted by user]` ou `[Request interrupted by user for tool use]` | `notice("Interrompido pelo usuário")` |
+| `user`, content array | blocos `text`/`image` | `userPrompt(text: textos unidos por "\n", imageCount: nº de blocos image)`; outros blocos (ex.: `document`) não contam |
+| `assistant` | `isApiErrorMessage == true` ou `message.model == "<synthetic>"` | `notice` com o texto do bloco (ex.: "API Error: …"); não atualiza modelo nem branch |
+| `assistant`, bloco `text` | texto não vazio depois de aparar espaços | `assistantText(markdown)` |
+| `assistant`, bloco `thinking` | — | `thinking(text:)`, com `nil` quando `thinking == ""` (o caso comum) |
+| `assistant`, bloco `redacted_thinking` | — | `thinking(text: nil)` |
+| `assistant`, bloco `tool_use` | — | `toolCall` com `status: running`, `summary` (abaixo) e `inputJSON` do `input` truncado em 4.000 caracteres |
+| `assistant`, outro bloco | — | ignorado e contado |
+| `system` / `turn_duration` | `durationMs` | `turnFooter(durationMs)`. Turno interrompido não tem `turn_duration` |
+| `system` / `away_summary` | `content` | `recap(text)` |
+| `system` / `local_command` | `content` com `<command-name>` | `slashCommand`, pela mesma regra de `user` |
+| `system` / `local_command` | `content` com `<local-command-stdout>` ou `<local-command-stderr>` | `output` do último `slashCommand` |
+| `system` / `compact_boundary` | — | `notice("Conversa compactada")` |
+| `system` / `informational`, `model_consent_fallback`, `api_error` | `content` | `notice(content)` |
+| `system` / `stop_hook_summary`, `bridge_status`, `agents_killed` | — | ignorados |
+| `system`, outro `subtype` | — | ignorado e contado |
+| outro `type` | — | ignorado e contado |
+
+`toolCall.summary` (uma linha, até 120 caracteres):
+
+| Ferramenta | `summary` |
+|---|---|
+| `Bash` | primeira linha de `command` |
+| `Read`, `Write`, `Edit`, `NotebookEdit` | `file_path`, relativo ao `cwd` da linha quando está dentro dele |
+| `Grep`, `Glob` | `pattern` |
+| `WebFetch` | `url` |
+| `WebSearch`, `ToolSearch` | `query` |
+| `Agent` | `description` |
+| `AskUserQuestion` | `questions[0].question` |
+| `ExitPlanMode` | primeira linha não vazia de `plan` |
+| `Skill` | `skill` |
+| `TaskOutput`, `TaskStop` | `task_id` |
+| demais, inclusive `mcp__*` | primeiro valor string não vazio do `input` |
+
+`toolCall.resultPreview`, truncado em 2.000 caracteres no daemon:
+- `content` string: como está.
+- `content` array: os `text` unidos por `\n`; `image` vira `[imagem]`, `tool_reference` vira o `tool_name` e `document` vira `[documento]`.
+- `AskUserQuestion` com `toolUseResult.answers`: uma linha `pergunta → resposta` por pergunta (`multiSelect` vem com os rótulos separados por vírgula).
+- Pedido negado (`toolDenialKind` `user-rejected`, `automode-blocked` ou `automode-unavailable`) e Esc com a ferramenta rodando chegam com `is_error: true` e viram `failed`.
 
 Regras:
 
-- O id de um item é `<uuid da linha>` para entradas de bloco único, e `<uuid>#<índice>` se um dia vier mais de um bloco por linha.
-- **Modelo e branch do header** vêm da última entrada `assistant` (`message.model`, `gitBranch`). O título vem do último `ai-title`; na falta dele, de `terminal_title_stripped` do Herdr.
-- O Claude grava cada bloco completo, sem streaming por token. Enquanto o status for `working`, o app mostra o indicador de "trabalhando" no fim da lista.
-- `thinking` pode vir sem texto (só assinatura). Nesse caso o item mostra apenas "Pensou", colapsado.
-- A prévia do `tool_result` é truncada em 2.000 caracteres no daemon; o conteúdo completo nunca é enviado ao app no MVP.
+- **Ordem**: a do arquivo. `timestamp` não é monotônico (no `/compact`, linhas gravadas depois têm hora anterior) e só alimenta `ChatItem.at`.
+- **Ids**:
+  - O id do item é `<uuid da linha>`, ou `<uuid>#<índice do bloco>` se uma linha trouxer mais de um bloco (não observado na 2.1.282). Um `userPrompt` de `queued_command` usa o `uuid` da linha `attachment`.
+  - Linhas que só atualizam outro item não geram id: saída de comando, `tool_result` e eco do `/compact`.
+- **`tool_result`**: vem sempre depois do `tool_use`, em até 50 linhas no corpus (99 % em até 3). Um `tool_use` sem resultado fica `running` (AskUserQuestion esperando resposta ou sessão encerrada).
+- **Header**:
+  - Modelo e branch vêm da última linha `assistant` que não seja `<synthetic>` (`message.model`, `gitBranch`).
+  - `gitBranch == "HEAD"` (pasta sem git ou HEAD destacado) vira `nil`. O modelo pode ter sufixo de data (`claude-haiku-4-5-20251001`).
+  - O título vem do último `ai-title`, que começa como frase e depois vira o nome em kebab-case (igual ao título do terminal). Na falta dele, vem de `terminal_title_stripped` do Herdr.
+- **Escrita**:
+  - O Claude grava cada bloco completo, sem streaming por token. Enquanto o status for `working`, o app mostra o indicador de "trabalhando".
+  - Os metadados (`last-prompt`, `ai-title`, `mode`, `permission-mode`, `atis-latch`) são regravados em grupo durante o turno, então `permissionMode` pode atrasar alguns segundos em relação ao terminal.
+- **Comando local**: a saída pode ter códigos ANSI (`\u001b[2m…`), removidos antes de enviar. Quebras de linha nas pontas são aparadas; espaços iniciais ficam (saída de `git status`).
+
+Política para tipos novos:
+
+1. `type`, `subtype`, tipo de bloco ou `attachment.type` desconhecido: a linha (ou o bloco) é ignorada e contada por nome, com um aviso no log por nome e por arquivo, não por linha.
+2. Campos desconhecidos são sempre ignorados. Campos esperados ausentes usam o padrão: `is_error` ausente é sucesso, `thinking` ausente é vazio.
+3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada: 2.1.282 no S1, atualizada pelo WP-M2 para a versão instalada depois de rodar as fixtures e os transcripts reais.
+4. Um tipo novo que precise aparecer no chat entra nesta tabela junto com uma fixture e o snapshot esperado.
 
 #### §3.2.3 Leitura e desempenho
 
-- Os arquivos passam de dezenas de MB em sessões longas.
-- **Primeira abertura**: varredura única do arquivo, montando um índice de offsets de linha. Página inicial = últimos `limit` itens, lidos a partir do fim. Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1.
+- Os arquivos passam de dezenas de MB em sessões longas, e uma linha pode passar de 1 MB (imagem colada em base64; a maior vista tinha 1,8 MB).
+- **Primeira abertura**:
+  - Varredura única do arquivo, montando um índice de offsets de linha; a última linha sem `\n` fica fora do índice.
+  - Página inicial = últimos `limit` itens, lidos a partir do fim.
+  - Ao montar qualquer página, os `tool_result` das até 64 linhas seguintes ao fim dela são aplicados aos `toolCall` da página.
+  - Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1 (fixture de `scripts/gen-big-transcript.swift`).
 - **Acompanhamento**: `DispatchSource.makeFileSystemObjectSource` (`.extend`, `.write`, `.rename`, `.delete`), lendo de `lastOffset` até o fim. Linha incompleta (sem `\n`) fica em buffer até completar.
+- **Arquivo que ainda não existe** (sessão nova sem mensagem): observar o diretório do projeto, ou `~/.claude/projects/` se ele também não existir, até o arquivo aparecer.
 - **Cursor de paginação**: opaco para o app. Internamente é o offset da primeira linha da página.
 - O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para push e Live Activity). Fora disso, fecha o descritor.
 
@@ -278,24 +370,31 @@ Regras:
 
 #### §3.3.1 Instalação
 
-`mochad install-hooks` faz merge em `~/.claude/settings.json` (JSON; fazer backup em `settings.json.mocha-bak` antes da primeira escrita):
+`mochad install-hooks` faz merge em `~/.claude/settings.json` (JSON; backup em `settings.json.mocha-bak` antes da primeira escrita). O bloco exato está em `MochaKit/Fixtures/hooks/settings.install-hooks.proposed.json`.
 
-- Adiciona **uma** entrada de hook `type: "http"` por evento, com `url: "http://127.0.0.1:47420/hooks/<evento>"`, `headers: {"X-Mocha-Pane": "$HERDR_PANE_ID", "X-Mocha-Hook-Secret": "<segredo literal>"}` e `allowedEnvVars: ["HERDR_PANE_ID"]`.
-- `HERDR_PANE_ID` existe no ambiente de todo processo dentro de um pane do Herdr, junto com `HERDR_TAB_ID` e `HERDR_WORKSPACE_ID`. Hook de Claude fora do Herdr chega com o header vazio e é ignorado.
-- O segredo é o `hookSecret` do `config.json`, escrito literalmente no header. O `HookServer` rejeita requisições sem ele.
-- Nunca altera nem remove hooks de terceiros. O hook `herdr-agent-state.sh` do Herdr no `SessionStart` **deve continuar**, porque é ele que informa ao Herdr o `session_id` de cada pane.
-- É idempotente: rodar de novo não duplica entradas. `mochad uninstall-hooks` remove só as entradas do Mocha.
+- **`PermissionRequest`**: uma entrada `type: "http"`, sem `matcher` (cobre as ferramentas e o AskUserQuestion), com `url: "http://127.0.0.1:47420/hooks/PermissionRequest"`, `headers: {"X-Mocha-Pane": "$HERDR_PANE_ID", "X-Mocha-Hook-Secret": "<segredo literal>"}`, `allowedEnvVars: ["HERDR_PANE_ID"]` e `timeout: 590`. É o único evento que precisa segurar a resposta.
+- **`SessionStart`, `UserPromptSubmit`, `Stop` e `Notification`**: uma entrada `type: "command"` por evento, com `async: true`, `timeout: 5` e o comando
+  `/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H "X-Mocha-Pane: $HERDR_PANE_ID" -H 'X-Mocha-Hook-Secret: <segredo literal>' --data-binary @- http://127.0.0.1:47420/hooks/<Evento> || true`.
+  - O Claude Code não aceita hook `http` no `SessionStart` e ignora a entrada em silêncio.
+  - Com o daemon parado, hook `http` que falha mostra "<Evento> hook error · connect ECONNREFUSED" no terminal a cada turno. O comando com `|| true` falha em silêncio. No `PermissionRequest`, a falha do `http` já é silenciosa, e o diálogo segue.
+  - `-o /dev/null` é obrigatório: no `SessionStart` e no `UserPromptSubmit`, a saída em texto vira contexto do Claude.
+  - Com `async: true`, o Claude não espera o comando e não aplica o `timeout`; quem limita o tempo é o `-m 3` do `curl`. O `$HERDR_PANE_ID` é expandido pelo shell do hook, que herda o ambiente do pane.
+- `HERDR_PANE_ID` existe no ambiente de todo processo dentro de um pane do Herdr, junto com `HERDR_TAB_ID` e `HERDR_WORKSPACE_ID`. Hook de Claude fora do Herdr chega com o header vazio e é ignorado. Esses valores são fixados quando o processo nasce. Depois de um `pane_moved` entre workspaces, o Claude continua mandando o `HERDR_PANE_ID` antigo; o `HookServer` traduz pelo mapa `previous_pane_id → pane.pane_id` do `HerdrBridge`.
+- O segredo é o `hookSecret` do `config.json`, escrito literalmente no header e no comando. O `HookServer` responde 401 sem ele. O segredo fica em texto no `settings.json` e aparece na linha de comando do `curl` enquanto o hook roda; isso é aceito num Mac de um usuário só.
+- **`HookServer`**:
+  - rotas `POST /hooks/<Evento>`, respondendo 200 com JSON (`{}` quando não decide), ou 401 sem o segredo;
+  - o cliente dos hooks `http` é o `axios`, com `Connection: keep-alive`. O `HttpServer` (§4.4) responde sempre com `Connection: close`, e o axios abre outra conexão no hook seguinte; fechar sem esse header faz o hook seguinte falhar com `ECONNRESET`, visível no terminal;
+  - campos opcionais vêm omitidos: `model` (ausente no `clear`), `prompt_id`, `title`, `scratchpad_dir`, `permission_suggestions`, `agent_id` e `agent_type`. Campos desconhecidos são ignorados.
+- Nunca altera nem remove hooks de terceiros. O hook `herdr-agent-state.sh` do Herdr no `SessionStart` **deve continuar**, porque é ele que informa ao Herdr o `session_id` de cada pane. Sem esse hook, `agent_session` não existe no Herdr.
+- É idempotente: as entradas do Mocha são reconhecidas por `127.0.0.1:47420/hooks/` na `url` ou no `command`, e rodar de novo não duplica nada. `mochad uninstall-hooks` remove só essas entradas.
 
-| Evento | Uso | Timeout | Fase |
-|---|---|---|---|
-| `SessionStart` | pane → `session_id`/`transcript_path` | 5 s | 1a-final |
-| `UserPromptSubmit` | marca o início do turno (Live Activity, inbox) | 5 s | 1a-final |
-| `Stop` | turno concluído → push; `last_assistant_message` | 5 s | 1a-final |
-| `Notification` | sinal secundário de atenção (`idle_prompt`, `elicitation_dialog`) | 5 s | 1a-final |
-| `PermissionRequest` | pedido de aprovação (§8) | 590 s | 1b |
-| `PreToolUse` (matcher `AskUserQuestion`) | pergunta (§8), se o S3 escolher esse caminho | 60 s | 1b |
-
-Na 1a-final o `PermissionRequest` já é recebido **só para notificar**: o daemon responde na hora, sem decisão (`{}`), para não interferir no diálogo do terminal.
+| Evento | Tipo | Uso | Timeout | Fase |
+|---|---|---|---|---|
+| `SessionStart` | comando | pane → `session_id`/`transcript_path`/`source` (`startup`, `resume`, `clear`, `compact`, `fork`). O `compact` mantém o `session_id`, e o `clear` traz sessão nova. O `transcript_path` pode apontar para um arquivo que ainda não existe. `model` pode faltar | 5 s | 1a-final |
+| `UserPromptSubmit` | comando | Início do turno (`prompt`, `prompt_id`). Não dispara para `/clear`, `/compact` e `/exit` | 5 s | 1a-final |
+| `Stop` | comando | Turno concluído → push; `last_assistant_message`. Não dispara em turno interrompido (Esc, "No" no diálogo) | 5 s | 1a-final |
+| `Notification` | comando | Sinal secundário: `permission_prompt` (~6 s depois de um diálogo ou seletor sem tecla; cada tecla adia), `idle_prompt` (~60 s depois do fim do turno sem tecla), `elicitation_dialog` (formulário MCP) | 5 s | 1a-final |
+| `PermissionRequest` | `http` | Aprovação e pergunta (§8). Na 1a-final, responde `{}` na hora, só para notificar | 590 s | 1a-final (notifica), 1b (decide) |
 
 #### §3.3.2 Coexistência com o moshi-hook
 
@@ -336,9 +435,10 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `mochad pair` | Gera um token de pareamento de uso único (válido por 10 min) e imprime o QR no terminal (§4.5) |
 | `mochad devices` | Lista e remove aparelhos pareados (`--remove <id>`) |
 | `mochad install-hooks` / `uninstall-hooks` | §3.3 |
-| `mochad serve-setup` | Mostra (e com `--apply` executa) o comando `tailscale serve` (§4.5) |
-| `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID>` | Guarda a chave no Keychain e grava `keyId`/`teamId` no config |
-| `mochad apns test [--device <id>]` | Manda um push de teste |
+| `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
+| `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
+| `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
+| `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity (1b), com `--working`, `--waiting`, `--title`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Estado do daemon, do Herdr e do Serve, clientes conectados |
 | `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados |
 
@@ -346,26 +446,43 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 
 | Caminho | Conteúdo |
 |---|---|
-| `~/Library/Application Support/Mocha/config.json` | `hookPort` (47420), `gateway` (`{"kind":"unix","path":…}` ou `{"kind":"tcp","port":47421}`), `apns{teamId, keyId, bundleId}`, `hookSecret` |
+| `~/Library/Application Support/Mocha/config.json` | `hookPort` (47420), `gatewayPort` (47421), `apns{teamId, keyId, bundleId}`, `hookSecret` |
 | `~/Library/Application Support/Mocha/devices.json` | Aparelhos (§4.6). Permissão 0600 |
-| `~/Library/Application Support/Mocha/gateway.sock` | Socket Unix do gateway (0600), se o S5 aprovar |
 | `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (1b). Apagadas depois de 7 dias |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
-| Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` |
+| Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` (senha genérica). O ACL confia no binário que criou o item pelo requisito de assinatura, e a lista de partição recebe `teamid:<TEAM>` |
+
+O `mochad` é assinado com a identidade "Apple Development" do time e o identificador fixo `com.joaoalves.mochad` (`codesign --force --sign <identidade> --identifier com.joaoalves.mochad --options runtime`, no `build-daemon.sh` e no `install`). Assim, qualquer build novo lê a chave sem diálogo. Um binário sem assinatura de equipe (padrão do `swift build`) abre o diálogo "Permitir sempre" do Keychain a cada recompilação, e o LaunchAgent travaria esperando um clique.
 
 Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Tokens e segredos nunca vão para o log.
 
 ### §4.4 HttpServer
 
-- `NWListener` TCP em `127.0.0.1` para os hooks. O gateway fica no socket Unix ou em `127.0.0.1` (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket.
+- `NWListener` TCP em `127.0.0.1`: os hooks em 47420 (§3.3) e o gateway em 47421 (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket. O binding `.unixSocket(path:)` continua no `HttpServer`, mas o gateway não o usa (S5).
 - Suporta: linha de requisição, headers, corpo com `Content-Length` (limite de 1 MB; 20 MB só em `/v1/upload`; acima disso, 413), resposta com `Content-Length`, `Connection: close`. Sem chunked, sem keep-alive, sem HTTP/2.
 - Handlers são `async` e podem segurar a resposta por até 600 s (necessário para o `PermissionRequest`, §8.1). A conexão fechada pelo cliente cancela a `Task` do handler.
 - **WebSocket**: o upgrade (`Sec-WebSocket-Accept` com SHA-1 + base64) e o framing RFC 6455 são implementados no próprio `HttpServer`: frames de texto e binário, fragmentação de entrada, ping/pong automático, close, e máscara obrigatória nos frames do cliente. Sem extensões (sem `permessage-deflate`). O `NWProtocolWebSocket` fica de fora porque, no stack do listener, ele não atende HTTP comum na mesma porta.
 - Resposta a método desconhecido ou path inválido: 404/405 com corpo vazio.
+- **Bindings**: `.loopback(port:)` (127.0.0.1) e `.unixSocket(path:)`. O `NWListener` escuta em `NWEndpoint.unix(path:)` (confirmado no WP0.3): o servidor remove um socket antigo antes do bind (só se o caminho for socket), aplica 0600 depois do `.ready` e apaga o arquivo no `stop`.
+- **Respostas do próprio servidor**: `Transfer-Encoding` (chunked ou outro) → 411; requisição malformada (linha ou header inválido, `Content-Length` inválido ou conflitante) → 400; versão diferente de 1.0/1.1 → 505; cabeçalho acima de 32 KiB → 431; cabeçalho incompleto em 30 s → fecha sem resposta; 405 leva `Allow`; erro lançado pelo handler → 500 vazio. 204, 304 e 1xx saem sem `Content-Length` (RFC 9110). O handler não sobrescreve `Content-Length`, `Connection` nem `Transfer-Encoding`. `Expect: 100-continue` não é tratado.
+- **Resposta antecipada** (413, 404 ou 405 com corpo pendente): o servidor drena o corpo até `min(Content-Length, 32 MiB)` ou EOF, com limite de 10 s, antes de fechar, para o cliente receber a resposta em vez de um reset.
+- **Tempo do handler**: o servidor não impõe timeout; o limite (ex.: 580 s do `PermissionRequest`, §8.3) é de quem chama. O cliente que fecha ou meio-fecha (shutdown de escrita) a conexão cancela a `Task` do handler.
+- **WebSocket**: limite de mensagem de 1 MiB por padrão, configurável por rota; close com eco do código e espera de até 5 s pelo close do cliente; o servidor não manda ping periódico.
 
 ### §4.5 Exposição, pareamento e autenticação
 
-- **Exposição**: `tailscale serve --bg --https=443 <alvo>`, onde `<alvo>` é `unix:<gateway.sock>` (preferido) ou `http://127.0.0.1:47421`. O socket Unix só vale se o S5 confirmar dois pontos: que o `NWListener` escuta em `NWEndpoint.unix(path:)` e que o Tailscale standalone (que roda como extensão de sistema) consegue abrir um socket em `~/Library/Application Support/Mocha/`. Sem isso, fica o TCP em `127.0.0.1`. O S5 registra o comando exato. O iPhone acessa `wss://mac-mini.tail1234.ts.net/v1`.
+- **Exposição**: `tailscale serve --bg --https=443 http://127.0.0.1:47421`. O gateway escuta só em TCP `127.0.0.1:47421`, e o iPhone acessa `wss://mac-mini.tail1234.ts.net/v1`. O socket Unix foi descartado no S5: a extensão de sistema do Tailscale standalone roda em sandbox e recebe `connect: operation not permitted` ao abrir um socket em `~/Library/Application Support/Mocha/` (o cliente vê 502).
+  - **Desfazer**: `tailscale serve --https=443 off` remove só esse handler. `tailscale serve reset` apaga toda a config de Serve do Mac e só serve se não houver outra.
+  - **Conferir**: `tailscale serve status --json` tem, em `Web["<host>:443"].Handlers["/"]`, `"Proxy": "http://127.0.0.1:47421"`.
+  - **Certificado**: o primeiro HTTPS do nó emite o certificado Let's Encrypt e segura o TLS por até ~1 min. Depois disso, o Tailscale renova sozinho (validade de 90 dias). O `serve-setup --apply` aquece com `GET https://<host>/v1/health` e limite de 90 s.
+  - **CLI**: o `mochad` chama `/Applications/Tailscale.app/Contents/MacOS/tailscale` pelo caminho absoluto (o `/usr/local/bin/tailscale` é um wrapper) e lê o host em `tailscale status --json` (`.Self.DNSName`, sem o ponto final).
+  - **O que o proxy faz**:
+    - repassa `Authorization`, a query string intacta e o corpo com `Content-Length`;
+    - fala HTTP/1.1 com o daemon, mesmo com o cliente em h2;
+    - acrescenta `X-Forwarded-For` (IP do tailnet do aparelho), `X-Forwarded-Host`, `X-Forwarded-Proto`, `Tailscale-User-Login`, `Tailscale-User-Name`, `Tailscale-User-Profile-Pic`, `Tailscale-Headers-Info` e `Accept-Encoding: gzip`;
+    - repassa o upgrade de WebSocket, o ping/pong e o close com código e motivo, e não derruba conexão ociosa (testado até ~190 s);
+    - transforma corpo sem tamanho conhecido em chunked, que o daemon recusa com 411 (§4.4);
+    - responde 502 quando o gateway não está escutando.
 - **Pareamento**:
   1. `mochad pair` gera um código de pareamento aleatório de 32 bytes (base64url) e imprime um QR (CoreImage `CIQRCodeGenerator` renderizado com meio-blocos Unicode) com `mocha://pair?url=<wss url>&code=<código>`.
   2. O app lê o QR (câmera, `DataScannerViewController`) ou recebe o link colado.
@@ -397,6 +514,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 - Latência de evento do Herdr até `agentStatus` no app, na mesma rede: < 250 ms.
 - Latência de linha nova no JSONL até `chatAppend`: < 300 ms.
 - Nenhum polling abaixo de 2 s. Tudo é orientado a eventos (socket do Herdr e DispatchSource).
+- Referência medida (S2): o Herdr entrega `pane.agent_status_changed` 30–100 ms depois da mudança de estado, e o `working` chega 0,5–0,7 s depois do envio do prompt (o `agent.prompt` leva ~300 ms).
 
 ---
 
@@ -490,7 +608,7 @@ public struct ToolCall: Codable, Sendable {
 
 public enum ChatItemKind: Codable, Sendable {
     case userPrompt(text: String, imageCount: Int)
-    case slashCommand(name: String, args: String, output: String?)
+    case slashCommand(name: String, args: String, output: String?)   // name: "/x" ou "!" (comando de shell do terminal)
     case assistantText(markdown: String)
     case thinking(text: String?)
     case toolCall(ToolCall)
@@ -539,7 +657,7 @@ public struct PendingRequest: Codable, Sendable, Identifiable {         // 1b
 public enum PendingResponse: Codable, Sendable {                        // 1b
     case allow
     case deny(reason: String?)
-    case answers([String: [String]])      // pergunta → rótulos escolhidos; texto livre vira rótulo único
+    case answers([String: [String]])      // pergunta → rótulos escolhidos (≥ 1 por pergunta); texto livre vira rótulo único
 }
 ```
 
@@ -553,6 +671,9 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - Opcionais `nil` são omitidos. Datas em ISO-8601 com milissegundos (`2026-09-25T15:44:34.551Z`).
 - O `Codable` é implementado à mão, com testes de ida e volta contra as fixtures de `MochaKit/Fixtures/protocol/`.
 - Um `type` desconhecido em `ChatItem` decodifica como `unsupported(type:)`; nos demais enums, como erro de decodificação só daquele item.
+- `AgentStatus` com valor desconhecido decodifica como `.unknown`.
+- Listas tolerantes: `items` de `chatPage`, `chatAppend` e `chatUpdate`, e `requests` de `pending`, descartam o item que não decodifica e mantêm os outros. As demais listas são estritas.
+- Os códigos de `error` formam um conjunto aberto (`ProtocolErrorCode`): um código desconhecido é preservado.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
 
@@ -589,6 +710,8 @@ Envelope completo:
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage` e `LiveActivityRegistration`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`.
+
 **Cliente → servidor**
 
 | `type` | payload | Resposta | Fase |
@@ -605,7 +728,7 @@ Todas as requisições do cliente podem receber `error` em vez da resposta indic
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` | 1b |
-| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}` | 1b |
+| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
 
 **Servidor → cliente**
 
@@ -639,7 +762,8 @@ Todas as requisições do cliente podem receber `error` em vez da resposta indic
 | `GET /v1/health` | `{"ok":true,"version":"…","herdr":true}` (para o `doctor` e o S5) | 1a-core |
 | `GET /v1` (upgrade) | WebSocket | 1a-core |
 | `POST /v1/respond` | Corpo `{requestId, response}` (mesmo JSON de §5.2.1). Usado pelas ações de notificação sem abrir o app. 200 com `{}`, 404 se o pedido não existe mais | 1b |
-| `POST /v1/upload` | Corpo binário, `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta `{"path": "/Users/…/uploads/<uuid>.<ext>"}` | 1b |
+| `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta `{"path": "/Users/…/uploads/<uuid>.<ext>"}` | 1b |
+| `POST /v1/live-activity` | Corpo `LiveActivityRegistration` (mesmo JSON do `registerLiveActivity`), com `Authorization: Bearer`. Usado pelo app acordado em background por push-to-start, sem WebSocket aberto, para entregar o token de update da atividade nova. 200 com `{}` | 1b |
 
 ---
 
@@ -651,7 +775,7 @@ Todas as requisições do cliente podem receber `error` em vez da resposta indic
 - Estado de UI em classes `@Observable @MainActor`. A conexão fica num `actor ConnectionManager` que expõe `AsyncStream` de mensagens do servidor.
 - Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug).
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
-- O WebSocket fica aberto só com o app ativo e fecha ao ir para background (`scenePhase`).
+- O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
 - **Deep links**: `mocha://agent/<paneId>` abre o chat e `mocha://pair?url=…&code=…` inicia o pareamento. O `paneId` vai percent-encoded, porque contém `:`.
 
 ### §6.2 Design system
@@ -698,7 +822,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 - Abre pela borda esquerda (arrasto) ou pelo botão do header, e ocupa ~90 % da largura com `scrim` no restante.
 - Topo: campo de busca ("Buscar workspaces, agentes…") filtrando por workspace, tab e título do agente, e o controle segmentado **Recentes** (relógio: agentes por `lastActivityAt`) | **Árvore** (lista).
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados.
-- Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Agente ocioso não tem indicador, como no print. Em `working` o asterisco pulsa; em `blocked` aparece um ponto `dirty` à direita.
+- Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador, como no print. Em `working` o asterisco pulsa; em `blocked` aparece um ponto `dirty` à direita.
 - A linha do chat atual fica com `selectedRow`. Tocar numa tab com agente abre o chat; tocar numa tab de shell mostra "Terminal chega na fase 2".
 - 1b: botão `+` por workspace → "Nova tab com Claude".
 
@@ -707,21 +831,22 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
   - ponto de status;
   - asterisco do Claude;
   - título (truncado no meio);
-  - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: `claude-opus-5-5` → `opus-5-5`);
+  - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - à direita, um botão redondo que abre a gaveta (bússola).
   - O conteúdo rola por baixo do header.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~20 pt, largura máxima de ~80 %.
   - `assistantText`: markdown à esquerda, largura total, sem bolha.
   - `toolCall`: card `toolCard` de uma linha (`>_ Shell <resumo>` com ✓ ou ✗ à direita). Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`). Tocar expande e mostra, por chamada, o input e a prévia do resultado em mono.
-  - `thinking`: linha colapsada "Pensou" em `textSecondary`; toque expande quando há texto.
+  - `thinking`: linha colapsada "Pensou" em `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
   - `turnFooter`: "Brewed for 45s" em itálico `textSecondary`.
   - `recap`: "**Recap:** …" em itálico `textSecondary`.
-  - `slashCommand`: chip "/clear" discreto.
+  - `slashCommand`: chip discreto com `name` e `args` (ex.: "/clear"); com `output`, o toque expande a saída em mono. `name == "!"` é um comando de shell digitado no terminal.
   - `notice`: texto centralizado pequeno.
   - Indicador "trabalhando…" no fim da lista enquanto `status == working`.
 - **Rolagem**: gruda no fim quando o usuário já está no fim. Se ele rolou pra cima, aparece o botão redondo "↓" (canto inferior direito, acima do composer) e itens novos não mexem na posição.
 - **Paginação**: ao chegar no topo, carrega `before` com um indicador; a posição de leitura se mantém.
+- **Troca de sessão**: quando o `sessionId` do agente do chat aberto muda num `tree`/`treeChanged` (depois de `/clear`), o app reabre o chat com `openChat` e substitui a lista; a sessão nova começa com o chip `/clear`.
 
 **Composer** (flutuante sobre o fim da lista)
 - Campo multilinha "Chat via Mocha…" (até 6 linhas, depois rola).
@@ -760,23 +885,38 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 
 ## §7 Push e Live Activity
 
+Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições reais em `docs/spikes/S4.md`.
+
 ### §7.1 Alertas (1a-final)
 
-- **APNs**: HTTP/2 via `URLSession` para `api.sandbox.push.apple.com` ou `api.push.apple.com`, conforme o `env` do token do aparelho (o app manda `env` junto com o token; build do Xcode = `sandbox`, TestFlight = `production`, detectado pelo `aps-environment` do perfil embutido ou por flag de build).
-- **JWT**: ES256 com a `.p8` (CryptoKit `P256.Signing.PrivateKey(pemRepresentation:)`). A assinatura usa `signature.rawRepresentation` (r‖s), **não DER**. O token é reutilizado e renovado a cada 40 min (a Apple rejeita renovação abaixo de 20 min e token acima de 60 min).
-- **Headers**: `apns-topic: com.joaoalves.mocha`, `apns-push-type: alert`, `apns-priority: 10` (alertas são imediatos; prioridade 5 pode atrasar a entrega), `apns-collapse-id` por agente.
+- **APNs**: HTTP/2 via uma `URLSession` do daemon, reaproveitada entre envios (o `URLSession` negocia `h2` sozinho), para `api.sandbox.push.apple.com` ou `api.push.apple.com`, conforme o `env` do token do aparelho. Referência medida com conexão nova a cada envio: resposta em 372–824 ms (mediana 465 ms); alerta com o app aberto em 0,5–1,0 s.
+- **Ambiente do token**: o app manda `env` junto com cada token (`hello.apns`, `registerLiveActivity`). Ele lê `Entitlements.aps-environment` do `embedded.mobileprovision` do próprio bundle (plist dentro do CMS, entre `<?xml` e `</plist>`): `development` → `sandbox`, `production` → `production`. Sem o arquivo (TestFlight, App Store) → `production`. No simulador → `sandbox`.
+- **Chave**: a `.p8` Team Scoped `<KEY_ID>` vale **só no sandbox** (produção responde `403 BadEnvironmentKeyInToken`). Build de TestFlight exige uma chave de produção antes.
+- **JWT**: ES256 com a `.p8` (CryptoKit `P256.Signing.PrivateKey(pemRepresentation:)`). Header `{"alg":"ES256","kid":"<KeyID>"}`, claims `{"iss":"<TeamID>","iat":<segundos Unix>}`, base64url sem padding. A assinatura usa `signature.rawRepresentation` (r‖s, 64 bytes), **não DER**. O token é reutilizado e renovado a cada 40 min (a Apple rejeita renovação abaixo de 20 min e token acima de 60 min), e também na hora em `403 ExpiredProviderToken`.
+- **Headers**:
+  - `apns-topic: com.example.mocha`, `apns-push-type: alert`, `apns-priority: 10`;
+  - `apns-id`: UUID em minúsculas, gerado pelo daemon e registrado no log;
+  - `apns-collapse-id` = `agentId` (≤ 64 bytes);
+  - `apns-expiration`: agora + 1 h para turno concluído e agora + 10 min para "precisa de você" (o hook segura no máximo 590 s).
 - **Tipos**:
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown. `thread-id` = `agentId`; `category` `TURN_DONE`.
-  - Agente precisa de você (`blocked` no Herdr **ou** `PermissionRequest`/`Notification`): título "Claude precisa de você · <workspace>", corpo com o resumo do pedido. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
+  - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
 - **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
-- **Deduplicação**: um alerta de "precisa de você" por pedido; o `blocked` do Herdr e o hook do mesmo momento (janela de 5 s) geram um alerta só.
-- **Payload**: `{"aps":{…},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…"}`.
-- Resposta 410 ou `BadDeviceToken` do APNs remove o token do aparelho.
+- **Deduplicação**: um alerta de "precisa de você" por pedido. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do `PermissionRequest`, o `blocked` do Herdr e o `Notification` `permission_prompt` dessa sessão não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo.
+- **Payload**: `{"aps":{"alert":{"title","body"},"sound":"default","thread-id","category","interruption-level"?},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…","sentAt":<ms Unix>}`. O `sentAt` serve para diagnóstico de atraso. Payload ≤ 4 KB.
+- **Respostas**:
+  - 200 traz `apns-id` e, no sandbox, `apns-unique-id` (consulta no Push Notifications Console);
+  - 410 ou `400 BadDeviceToken` removem o token do aparelho;
+  - `403 ExpiredProviderToken` renova o JWT e repete uma vez;
+  - `403 BadEnvironmentKeyInToken` (a documentação diz `BadEnvironmentKeyIdInToken`; tratar os dois), `InvalidProviderToken` e `TopicDisallowed` são erro de configuração: log e `doctor`, sem retry;
+  - 429 e 5xx seguem com backoff.
+- **Tokens**: hexadecimal de tamanho variável (32 bytes o de alerta, 80 bytes os de Live Activity no iPhone, 128 no simulador). Validar só hex com tamanho par.
+- **Simulador**: não entrega o token de alerta (`registerForRemoteNotifications` nunca responde). Alertas só se testam no iPhone.
 
 ### §7.2 Ações de notificação (1b)
 
-- `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`).
-- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), para perguntas de opção única cujo texto casa com um rótulo ou vira "Outro". Perguntas com várias questões abrem o app (`.foreground`).
+- `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`). "Negar" manda `deny` com a mensagem padrão (§8.2): o Claude recebe a negação e continua o turno.
+- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Várias perguntas ou `multiSelect` abrem o app (`.foreground`).
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
 
 ### §7.3 Live Activity agregada (1b)
@@ -799,41 +939,101 @@ public struct ContentState: Codable, Hashable {
 }
 ```
 
+- **Codificação**: o sistema decodifica o `content-state` com as estratégias **padrão** do `JSONDecoder`. `Date` é um número em segundos desde 2001-01-01 (`timeIntervalSinceReferenceDate`), nunca ISO-8601 nem `ProtocolDate`. O daemon usa o espelho `LiveActivityContentState` (`MochaDaemonCore/Push`), que codifica as datas assim, com `highlight` omitido quando nulo. Já `timestamp`, `stale-date` e `dismissal-date` do `aps` são **segundos Unix** (1970).
 - **Tela bloqueada**: "2 trabalhando · 1 esperando você" e a linha do destaque, com timer desde `since`.
-- **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link).
+- **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link, também em `widgetURL`). O `alert` do push-to-start mostra a apresentação expandida sozinha. No simulador, a captura precisa de `xcrun simctl io <udid> screenshot --mask=black`.
+- **Headers**: `apns-push-type: liveactivity`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-id`. `apns-expiration` e `apns-collapse-id` são aceitos, mas não são necessários.
 - **Ciclo de vida**:
-  - **Início**: quando algum agente passa a `working` e não há atividade ativa. Com o app em primeiro plano, `Activity.request(…, pushType: .token)`; com o app fora, push-to-start (`apns-push-type: liveactivity`, `event: start`, token de push-to-start obtido em `Activity<…>.pushToStartTokenUpdates`).
-  - **Atualização**: `event: update`, `apns-topic: com.joaoalves.mocha.push-type.liveactivity`, `apns-priority: 5`, e `10` só quando `waiting` passa de 0 para ≥ 1. No máximo uma atualização a cada 10 s, exceto a transição para `blocked`.
-  - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min.
+  - **Início**: quando algum agente passa a `working` e não há atividade ativa.
+    - Com o app em primeiro plano, `Activity.request(attributes:content:pushType: .token)`. O token de update chega por `pushTokenUpdates` em ~1,2 s.
+    - Com o app fora, push-to-start com `apns-priority: 10` e o payload `{"aps":{"timestamp","event":"start","content-state","attributes-type":"MochaAgentsAttributes","attributes":{},"alert":{"title","body"},"input-push-token":1}}`. O `alert` é obrigatório. O token vem de `Activity<MochaAgentsAttributes>.pushToStartTokenUpdates` e existe sem permissão de notificação nem atividade aberta.
+    - Mesmo depois de o usuário deslizar o app para fora, o sistema o lança em background em ~1 s. O token de update da atividade nova chega por `Activity.activityUpdates` → `pushTokenUpdates` em 2–40 s, com o app em background.
+  - **Atualização**: `event: update`, `timestamp` (o sistema ignora push com `timestamp` mais antigo que o último aplicado), `content-state` e `stale-date` = agora + 15 min (a atividade fica `stale` se o Mac parar de atualizar).
+    - `apns-priority: 10` em toda mudança que o usuário precisa ver: contagem de `working`/`waiting`, troca do destaque e fim. Medido: 0,6–0,7 s.
+    - `apns-priority: 5` só para mudanças que podem esperar ou se perder (ex.: só o título do destaque). Medido com o iPhone em uso: 45 s e 84 s, e uma se perdeu, coalescida pela seguinte.
+    - No máximo uma atualização a cada 10 s, sempre com o estado mais recente.
+  - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com prioridade 10, o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min. A atividade some na `dismissal-date`.
   - **Limite de 8 h**: ao completar 7 h 50 min, o daemon encerra e inicia outra com push-to-start.
-- **Tokens**: o app observa `pushTokenUpdates` de cada atividade e `pushToStartTokenUpdates`, e envia `registerLiveActivity`. Sem conexão, guarda o token e reenvia na próxima conexão.
-- Payload ≤ 4 KB: o título do destaque vai truncado em 60 caracteres.
+- **Orçamentos** (`liveactivitiesd`, visto no simulador e reavaliado a cada hora): 10 push-to-starts e ~60 updates de prioridade 10 por hora, por app. Com o limite de 10 s e a regra de prioridade acima, o Mocha fica abaixo disso em uso normal. Se não ficar, a alternativa é `NSSupportsLiveActivitiesFrequentUpdates` no Info.plist.
+- **Tokens**:
+  - o app observa `Activity<MochaAgentsAttributes>.activityUpdates`, o `pushTokenUpdates` de cada atividade e `pushToStartTokenUpdates` desde o `application(_:didFinishLaunchingWithOptions:)`, porque o push-to-start acorda o app sem cena;
+  - guarda os tokens (`Application Support/live-activity-tokens.json`);
+  - envia `registerLiveActivity` pelo WebSocket em primeiro plano e por `POST /v1/live-activity` (Bearer) quando foi acordado em background, porque ali não há WebSocket aberto;
+  - sem conexão, reenvia na próxima.
+- Payload ≤ 4 KB: o título do destaque vai truncado em 60 caracteres (um `start` completo tem ~400 bytes).
+- **Simulador**: recebe push-to-start e updates reais do sandbox, mas **não entrega ao app o token de update de uma atividade iniciada por push**. Esse caminho só se testa no iPhone.
 
 ---
 
 ## §8 Aprovações e perguntas (1b)
 
-O spike S3 fixa o mecanismo e atualiza esta seção. O comportamento-alvo:
+Mecanismo validado pelo spike S3 no Claude Code 2.1.283. Payloads, respostas e linhas do tempo reais em `MochaKit/Fixtures/hooks/`.
 
-### §8.1 Aprovação de ferramenta
+### §8.1 Mecanismo: `PermissionRequest` segurado
 
-- **Mecanismo padrão**: o hook `PermissionRequest` (HTTP, timeout 590 s) fica pendente no `HookServer` até:
-  - (a) o celular responder, e a resposta vira `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}` ou `{"…":{"decision":{"behavior":"deny","message":"<motivo>"}}}` (formato da doc oficial de hooks, confirmado pelo S3);
-  - (b) a resposta vir pelo terminal do Mac, detectada quando o status do Herdr sai de `blocked` ou o transcript ganha o `tool_result`. Nesse caso o hook responde `{}` e o pedido some;
-  - (c) acabar o tempo. O hook responde `{}` aos 580 s e o diálogo do terminal continua valendo.
-- Na sessão principal do Claude Code o hook roda em paralelo com o diálogo do terminal e vale a primeira resposta. O S3 confirma isso na versão instalada.
-- **Fallback** (se o S3 reprovar o hook): o daemon detecta o diálogo por `blocked` + último `tool_use` sem resultado, e responde com `agent.send_keys` na sequência de teclas do diálogo, registrada pelo S3.
+- Todo diálogo em que o Claude espera uma decisão no terminal dispara o hook `PermissionRequest` no mesmo instante em que o diálogo aparece: a aprovação de ferramenta (Bash, Write, Edit, MCP…) **e** o seletor do `AskUserQuestion`. O hook (HTTP, timeout 590 s, §3.3.1) fica pendente no `HookServer` enquanto o diálogo continua respondível no Mac. Vale a primeira resposta, dos dois lados.
+- Não há hook `PreToolUse` do Mocha nem fallback por `agent.send_keys`.
+- Um agente tem no máximo um pedido pendente. Com várias ferramentas na mesma resposta, o Claude mostra um diálogo por vez e só dispara o `PermissionRequest` seguinte depois que o anterior se resolve.
+- **Entrada** (`Fixtures/hooks/PermissionRequest.*.json`): `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `tool_name`, `tool_input` e, só para ferramentas, `permission_suggestions` (ignorado: não corresponde às opções do diálogo). Não traz `tool_use_id`.
+- **Criação do `PendingRequest`**:
+  - `agentId` vem do header `X-Mocha-Pane`, traduzido depois de `pane_moved` (§3.3.1);
+  - com `tool_name == "AskUserQuestion"`, `kind` = `question(questions:)`, de `tool_input.questions`;
+  - nos demais, `kind` = `permission(toolName:, summary:, inputJSON:)`, com o `summary` da regra do `toolCall` (§3.2.2) e o `tool_input` truncado em 4.000 caracteres;
+  - o daemon guarda o `tool_input` original para montar a resposta.
+- Ao criar o pedido, o daemon faz broadcast de `pending` e manda o push time-sensitive (§7.1). O Herdr mostra o agente `blocked` ~0,1–0,3 s depois, também no seletor do AskUserQuestion, mas o status sozinho não identifica o pedido.
 
-### §8.2 Perguntas (AskUserQuestion)
+### §8.2 Respostas ao hook
 
-- O input do `tool_use` `AskUserQuestion` traz `questions[{question, header, options[{label, description}], multiSelect}]`.
-- **Mecanismo A**: `PreToolUse` com matcher `AskUserQuestion`, pendente até a resposta, e retorno `permissionDecision: "allow"` + `updatedInput` com as `questions` originais e o campo `answers`. As fontes divergem sobre o formato de `answers` (mapa pergunta → rótulo, ou lista de `{question_id, answer}`), então o S3 fixa o formato testando na versão instalada. Esse hook trava o seletor do terminal enquanto espera: usar timeout curto (60 s) e, ao expirar, responder `{}` para o seletor aparecer no Mac.
-- **Mecanismo B**: deixar o seletor aparecer e responder por `agent.send_keys`, com a sequência de navegação registrada pelo S3 (inclui várias perguntas, múltipla escolha e "Outro").
-- O S3 escolhe um dos dois pelo critério: funciona com o terminal aberto e fechado, sem travar o Mac por mais de 60 s.
+Resposta HTTP 200, `Content-Type: application/json` (`Fixtures/hooks/response.*.json`):
 
-### §8.3 Estado
+| `PendingResponse` | Corpo |
+|---|---|
+| `allow` (permissão) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}` |
+| `deny(reason)` (permissão ou pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"<reason, ou 'Negado pelo usuário no iPhone.'>"}}}` |
+| `answers(map)` (pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"questions":<tool_input.questions original>,"answers":{"<question>":"<resposta>"}}}}}` |
+| sem decisão | `{}` |
 
-- O `PendingStore` mantém os pedidos em memória. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada (o Claude volta ao diálogo do terminal).
+- `allow`: a ferramenta roda na hora, e o terminal mostra "Allowed by PermissionRequest hook".
+- `deny`: o Claude recebe a mensagem como `tool_result` com `is_error: true` e **continua o turno**. É diferente do "No" do terminal, que interrompe o turno. O daemon não usa `interrupt: true`.
+- `answers`:
+  - a chave é o texto exato de `question`;
+  - o valor é uma string: o `label` na opção única; os `label`s escolhidos, na ordem das opções, unidos por `", "` no `multiSelect`; o texto digitado, como está, em "Outro" (o Claude não confere contra os rótulos);
+  - `questions` volta sem nenhuma alteração;
+  - toda pergunta precisa de resposta não vazia. O Claude aceita `answers` incompleto e descarta a pergunta sem resposta em silêncio, então o daemon responde `error{invalidPayload}` a um `respond` incompleto;
+  - `allow` numa pergunta e `answers` numa permissão também são `invalidPayload`;
+  - nunca mandar lista no lugar da string: o Claude aceita, mas grava crua e o terminal não mostra o resumo.
+- `{}` (ou corpo vazio) não decide: o diálogo do terminal segue normal. É a resposta da 1a-final e a de §8.3.
+
+### §8.3 Fim do pedido
+
+O pedido sai do `PendingStore`, com broadcast de `pending`, na primeira destas situações:
+
+1. **Resposta do celular** (`respond` ou `POST /v1/respond`): o daemon responde o hook com o corpo de §8.2, e o diálogo do terminal fecha sozinho. Uma segunda resposta ao mesmo pedido recebe `error{requestNotFound}` (404 no HTTP).
+2. **O Claude fecha a conexão do hook**: acontece quando o diálogo é respondido no terminal com "No" ou Esc (o turno é interrompido, sem `Stop`), quando o processo do Claude sai e no timeout do hook.
+3. **Resposta pelo terminal com "Yes" ou uma opção**: o Claude **não** fecha a conexão (ela fica aberta até o timeout) e ignora resposta tardia. O daemon percebe pelo primeiro destes sinais e responde `{}` ao hook ainda aberto:
+   - o status do pane no Herdr sai de `blocked` depois da criação do pedido (~0,1 s depois da tecla);
+   - o transcript ganha o `tool_result` do `tool_use` mais recente com o mesmo nome de ferramenta;
+   - chega `PermissionRequest`, `UserPromptSubmit` ou `Stop` da mesma sessão.
+4. **Tempo**: aos 580 s, o daemon responde `{}`. O diálogo do terminal continua valendo. Se o daemon não responder, o Claude cancela o hook aos 590 s, com o mesmo efeito.
+
+### §8.4 Teclas do diálogo (referência)
+
+Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnóstico. Com o diálogo aberto, `agent.prompt` devolve `agent_blocked`, então texto também vai por `agent.send_keys`: uma tecla por caractere, e `space` para espaço.
+
+| Diálogo | Ação | Teclas |
+|---|---|---|
+| Permissão ("1. Yes" já selecionado) | Permitir uma vez | `enter` |
+| Permissão | Negar (interrompe o turno) | `esc`, ou `down`, `down`, `enter` ("3. No") |
+| Pergunta de opção única | Opção k | `k` (o dígito seleciona e envia), ou `down` × (k−1) e `enter` |
+| Pergunta de opção única | "Outro" | `down` × nº de opções (foca "Type something."), o texto, `enter`. O dígito não foca o campo de texto |
+| Pergunta `multiSelect` | Marcar | `space` (ou `enter`) em cada opção, `down` para navegar; "Type something" também é marcável |
+| Pergunta `multiSelect` | Concluir | `down` até "Submit" (pergunta única) ou "Next" (várias), `enter` |
+| Várias perguntas | Avançar e enviar | Responder uma pergunta avança para a aba seguinte. No fim, a tela "Review your answers" abre com "1. Submit answers" selecionado: `enter` |
+| Qualquer pergunta | Cancelar (interrompe o turno) | `esc` |
+
+### §8.5 Estado
+
+- O `PendingStore` mantém os pedidos em memória, no máximo um por sessão. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada: para o Claude isso é um erro não bloqueante, e o diálogo do terminal continua.
 - `pendingCount` por agente alimenta a gaveta e o `waiting` da Live Activity.
 
 ---
@@ -859,7 +1059,7 @@ O spike S3 fixa o mecanismo e atualiza esta seção. O comportamento-alvo:
 
 ## §10 Segurança
 
-- O daemon só escuta em `127.0.0.1` ou num socket Unix 0600. A exposição ao iPhone é só pelo `tailscale serve` (tailnet privada, TLS).
+- O daemon só escuta em `127.0.0.1` (hooks em 47420, gateway em 47421). A exposição ao iPhone é só pelo `tailscale serve` (tailnet privada, TLS). Os headers `Tailscale-User-*` e `X-Forwarded-*` que o Serve acrescenta não autenticam nada, porque um processo local pode conectar direto na porta e forjá-los: a autenticação é sempre o token do aparelho (§4.5).
 - O token de aparelho fica no Keychain do iPhone. O daemon guarda só o SHA-256 dele.
 - O código de pareamento é de uso único e expira em 10 min.
 - O `HookServer` exige `X-Mocha-Hook-Secret` e escuta só em `127.0.0.1`.
@@ -891,11 +1091,19 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 
 | Risco | Mitigação |
 |---|---|
-| O formato do JSONL do Claude muda numa atualização | Parser tolerante (§3.2.2), fixtures reais versionadas, e o `doctor` mostra a versão do Claude e a taxa de linhas descartadas |
+| O formato do JSONL do Claude muda numa atualização | Parser tolerante (§3.2.2), fixtures reais versionadas, e o `doctor` mostra a versão do Claude e a taxa de linhas descartadas. O Claude Code se atualiza sozinho (no S1 passou de 2.1.282 para 2.1.283 durante o uso); o `doctor` avisa quando a versão das linhas é maior que a última validada |
 | API do Herdr muda (protocolo ≠ 22) | O `HerdrClient` confere a versão do protocolo no connect; o `doctor` avisa; fixtures em `Fixtures/herdr/` |
-| O hook `PermissionRequest` não roda em paralelo com o diálogo na versão instalada | Fallback por `send_keys` (§8.1), decidido no S3 |
+| O hook `PermissionRequest` não roda em paralelo com o diálogo na versão instalada | Confirmado em paralelo na 2.1.283 (S3). Uma versão nova pode mudar isso: o `doctor` avisa versão acima da validada, e `MochaKit/Fixtures/hooks/` documenta o contrato |
+| A resposta pelo terminal com "Yes" não fecha o hook `PermissionRequest` | Detecção pelo status do Herdr, pelo transcript e pelos hooks da sessão, e `{}` ao hook (§8.3) |
+| Hook `http` com o daemon parado mostra erro no terminal a cada turno | Hooks de comando com `\|\| true`, exceto o `PermissionRequest`, cuja falha é silenciosa (§3.3.1) |
 | Tailscale fora no iPhone | Bloqueio B6 (VPN On Demand); o app mostra "Sem conexão com o Mac" e as ações de notificação avisam a falha |
-| Orçamento de atualização da Live Activity | Prioridade 5 por padrão e limite de uma atualização a cada 10 s (§7.3) |
 | `moshi-hook` competindo pelos hooks | Detecção no `doctor`/`install-hooks` e bloqueio B7 |
 | Arquivos de transcript muito grandes | Índice de offsets, leitura pelo fim, prévias truncadas (§3.2.3) |
+| O Herdr ignora parâmetros desconhecidos, e o alvo omitido cai no pane focado do João | Tipos de parâmetro com os nomes exatos de `herdr-api.schema.json`, alvo sempre explícito, teste de contrato contra o schema; o daemon não chama métodos de foco, split, layout nem escrita de workspace |
+| Troca de sessão (`/clear`) sem evento do Herdr | Detecção por `pane_updated`, `agent.get` e reconciliação (§3.1.3); hook `SessionStart` a partir da 1a-final |
 | Build do Xcode e perfil com push expiram | Perfil de desenvolvimento de ~1 ano; `doctor` do app em Ajustes mostra a validade quando disponível |
+| A extensão do Tailscale standalone não abre socket Unix fora do sandbox | Gateway em TCP `127.0.0.1:47421` (S5); o `doctor` acusa alvo `unix:` no Serve |
+| O primeiro HTTPS do nó segura o TLS por ~1 min enquanto o certificado é emitido | `serve-setup --apply` aquece o health com limite de 90 s; o `doctor` separa timeout de TLS de 502 |
+| Atualização de Live Activity com prioridade 5 atrasa minutos ou se perde | Prioridade 10 em toda mudança visível, limite de 1 update a cada 10 s (§7.3); `stale-date` marca a atividade como desatualizada |
+| O Keychain pede autorização a cada build novo do `mochad` | Binário sempre assinado com a identidade do time e identificador fixo (§4.3); o `doctor` confere a assinatura |
+| A chave APNs atual só vale no sandbox; TestFlight usa produção | Criar ou habilitar uma chave de produção antes do primeiro build de TestFlight; `BadEnvironmentKeyInToken` aparece no `doctor` (§7.1) |

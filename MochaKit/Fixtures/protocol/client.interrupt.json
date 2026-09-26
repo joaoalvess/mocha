@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "id": "c-11",
+  "type": "interrupt",
+  "payload": {
+    "agentId": "w17:p1"
+  }
+}

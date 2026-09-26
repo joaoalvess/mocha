@@ -14,7 +14,7 @@ let package = Package(
     targets: [
         .target(name: "MochaProtocol"),
         .target(name: "MochaClient", dependencies: ["MochaProtocol"]),
-        .target(name: "MochaDemo", dependencies: ["MochaProtocol"]),
+        .target(name: "MochaDemo", dependencies: ["MochaProtocol"], resources: [.process("Resources")]),
         .target(name: "MochaTranscript", dependencies: ["MochaProtocol"]),
         .target(name: "MochaHerdr"),
         .target(name: "MochaDaemonCore", dependencies: ["MochaProtocol", "MochaTranscript", "MochaHerdr"]),

@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "c-9",
+  "type": "sendPrompt",
+  "payload": {
+    "agentId": "w17:p1",
+    "text": "roda os testes"
+  }
+}

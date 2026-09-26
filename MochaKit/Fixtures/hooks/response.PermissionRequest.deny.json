@@ -1,0 +1,9 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "deny",
+      "message": "Negado pelo celular: não crie arquivos agora"
+    }
+  }
+}

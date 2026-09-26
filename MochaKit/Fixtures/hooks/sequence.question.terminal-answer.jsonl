@@ -1,0 +1,18 @@
+{"dt": 0.111, "source": "hook", "event": "UserPromptSubmit", "requestId": "74c850c3"}
+{"dt": 0.111, "source": "daemon", "action": "respond", "requestId": "74c850c3", "body": {}}
+{"dt": 0.188, "source": "herdr", "status": "working"}
+{"dt": 2.368, "source": "hook", "event": "PreToolUse", "requestId": "3cf65c5a", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000004"}
+{"dt": 2.369, "source": "daemon", "action": "respond", "requestId": "3cf65c5a", "body": {}}
+{"dt": 2.377, "source": "hook", "event": "PermissionRequest", "requestId": "a519bf9a", "tool_name": "AskUserQuestion"}
+{"dt": 2.498, "source": "transcript", "block": "tool_use", "name": "AskUserQuestion", "id": "toolu_01Demo000000000000000004"}
+{"dt": 2.585, "source": "herdr", "status": "blocked"}
+{"dt": 3.5, "source": "terminal", "keys": ["down"]}
+{"dt": 4.05, "source": "terminal", "keys": ["enter"]}
+{"dt": 4.136, "source": "hook", "event": "PostToolUse", "requestId": "7af497a3", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_01Demo000000000000000004"}
+{"dt": 4.136, "source": "daemon", "action": "respond", "requestId": "7af497a3", "body": {}}
+{"dt": 4.321, "source": "transcript", "block": "tool_result", "tool_use_id": "toolu_01Demo000000000000000004", "is_error": false}
+{"dt": 4.459, "source": "herdr", "status": "working"}
+{"dt": 5.205, "source": "hook", "event": "Stop", "requestId": "a88f9362"}
+{"dt": 5.205, "source": "daemon", "action": "respond", "requestId": "a88f9362", "body": {}}
+{"dt": 5.293, "source": "herdr", "status": "done"}
+{"dt": 62.421, "source": "claude", "action": "connectionClosed", "requestId": "a519bf9a", "heldSeconds": 60.044}

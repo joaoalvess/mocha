@@ -1,0 +1,22 @@
+{
+  "data": {
+    "pane": {
+      "agent_status": "unknown",
+      "cwd": "/Users/dev/projects/demo-app",
+      "focused": false,
+      "foreground_cwd": "/Users/dev/projects/demo-app",
+      "pane_id": "w1A:p1",
+      "revision": 0,
+      "scroll": {
+        "max_offset_from_bottom": 0,
+        "offset_from_bottom": 0,
+        "viewport_rows": 41
+      },
+      "tab_id": "w1A:t1",
+      "terminal_id": "term_65c55a39b32e6ad",
+      "workspace_id": "w1A"
+    },
+    "type": "pane_created"
+  },
+  "event": "pane_created"
+}

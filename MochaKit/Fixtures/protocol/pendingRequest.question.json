@@ -1,0 +1,22 @@
+{
+  "id": "6f4c…",
+  "agentId": "w17:p1",
+  "createdAt": "2026-09-25T15:51:00.000Z",
+  "type": "question",
+  "questions": [
+    {
+      "header": "Formato",
+      "question": "Qual formato?",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "JSON",
+          "description": "…"
+        },
+        {
+          "label": "YAML"
+        }
+      ]
+    }
+  ]
+}

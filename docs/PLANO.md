@@ -36,10 +36,10 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 
 | Código | O que o João faz | Necessário em |
 |---|---|---|
-| B1 | Confirmar a conta Apple Developer paga ativa e informar o **Team ID** (developer.apple.com › Membership) | S4, WP-I1 (assinatura no device) |
-| B2 | Criar uma chave **APNs** (developer.apple.com › Certificates, IDs & Profiles › Keys › "+" › Apple Push Notifications service), baixar a `.p8` e informar o **Key ID**. A importação é feita com `mochad apns import` | S4 |
-| B3 | iPhone com **Modo de Desenvolvedor** ligado (Ajustes › Privacidade e Segurança) e pareado com o Xcode (Window › Devices and Simulators), no mesmo Wi-Fi ou por cabo | S4, WP-X1 |
-| B4 | Os certificados HTTPS do tailnet já estão ativos. Resta **autorizar** o comando `tailscale serve` quando o S5 pedir (ele altera a config do Tailscale do Mac) | S5 |
+| B1 | Confirmar a conta Apple Developer paga ativa e informar o **Team ID** (developer.apple.com › Membership). **Resolvido**: time da empresa, Team ID em `Config/Signing.xcconfig` | S4, WP-I1 (assinatura no device) |
+| B2 | Criar uma chave **APNs** (developer.apple.com › Certificates, IDs & Profiles › Keys › "+" › Apple Push Notifications service), baixar a `.p8` e informar o **Key ID**. A importação é feita com `mochad apns import`. **Resolvido**: chave Team Scoped nova, só para o Mocha; o João informa o caminho da `.p8` e o Key ID ao orquestrador (fora do git) | S4 |
+| B3 | iPhone com **Modo de Desenvolvedor** ligado (Ajustes › Privacidade e Segurança) e pareado com o Xcode (Window › Devices and Simulators), no mesmo Wi-Fi ou por cabo. **Resolvido**: iPhone 14 (iOS 27), Modo de Desenvolvedor ligado e aparelho registrado no time. Sem Dynamic Island: ela é verificada no simulador | S4, WP-X1 |
+| B4 | Os certificados HTTPS do tailnet já estão ativos. Resta **autorizar** o comando `tailscale serve` quando o S5 pedir (ele altera a config do Tailscale do Mac). **Autorizado** em 2026-09-25 para o S5: `tailscale serve --bg --https=443` com os alvos `unix:` e `http://127.0.0.1:47421`, e `tailscale serve reset` no fim. A config definitiva (`mochad serve-setup --apply`, WP-X1) pede um ok novo | S5 |
 | B5 | Ligar o **Login Remoto** (Ajustes do Sistema › Geral › Compartilhamento › Login Remoto) e adicionar a chave pública do app em `~/.ssh/authorized_keys` | Fase 2 |
 | B6 | No app Tailscale do iPhone, ligar **VPN On Demand** (sempre conectado) | WP-X2 |
 | B7 | Remover os hooks do Moshi: `moshi-hook uninstall` e `brew services stop moshi-hook`. Só **depois** que o Mocha estiver cobrindo o uso diário (fim da 1a-final) | Antes da fase 1b |
@@ -75,7 +75,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
   1. `git init` (branch `main`) e `.gitignore` (`.build/`, `build/`, `*.xcodeproj`, `DerivedData`, `.DS_Store`, `xcuserdata/`, `.swiftpm/`, `*.p8`, `Config/Signing.xcconfig`, `MochaKit/Fixtures/transcripts/generated/`).
   2. Primeiro commit só com `docs/`, `prompts/`, `AGENTS.md`, `CLAUDE.md` e `README.md` (`docs(spec): add spec, plan and agent rules`).
   3. `MochaKit/Package.swift` com os targets e dependências da tabela de §2.2 (bibliotecas vazias compilando, `mochad --version` imprimindo `0.1.0`) e os test targets com um teste trivial cada, incluindo `MochaDemoTests`. Cada test target ganha um helper `Fixtures` que resolve `MochaKit/Fixtures/` por `#filePath` (o SwiftPM não aceita recurso fora do diretório do target).
-  4. `project.yml` com os targets `Mocha` (iOS 26, bundle `com.joaoalves.mocha`, dependências de §2.2) e `MochaWidgets` (extensão de widget com Live Activity, bundle `com.joaoalves.mocha.widgets`). `swift-markdown` com a versão estável mais recente, fixada com `exactVersion` e registrada na §11. Assinatura automática com `DEVELOPMENT_TEAM` vindo de `Config/Signing.xcconfig`.
+  4. `project.yml` com os targets `Mocha` (iOS 26, bundle `com.example.mocha`, dependências de §2.2) e `MochaWidgets` (extensão de widget com Live Activity, bundle `com.example.mocha.widgets`). `swift-markdown` com a versão estável mais recente, fixada com `exactVersion` e registrada na §11. Assinatura automática com `DEVELOPMENT_TEAM` vindo de `Config/Signing.xcconfig`.
   5. Entitlements do app: `aps-environment` (development) e `com.apple.developer.usernotifications.time-sensitive`. `NSSupportsLiveActivities = YES` no Info.plist do app.
   6. Scripts de §2.2, executáveis, com `set -euo pipefail` e caminhos absolutos para as ferramentas do Homebrew. O `bootstrap.sh` copia `Config/Signing.example.xcconfig` para `Config/Signing.xcconfig` se ele não existir. O `build-app.sh` compila para o simulador com `CODE_SIGNING_ALLOWED=NO`. O `build-device.sh` compila assinado para o iPhone (`-allowProvisioningUpdates`).
   7. App mínimo: tela preta com "Mocha" em mono. Em `AppShell/`, o ponto de entrada já tem `@UIApplicationDelegateAdaptor` e um roteador de sondas de debug por argumento de launch (`-probe push|gateway`), para o S4 e o S5 plugarem as sondas sem mexer fora dos seus donos.
@@ -158,6 +158,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
   2. **Permissão**: com o `PermissionRequest` HTTP segurado, verificar se o diálogo aparece no terminal em paralelo, se a primeira resposta vence dos dois lados, e o formato de allow/deny. Registrar também a sequência de teclas do diálogo para o fallback.
   3. **Pergunta**: testar o mecanismo A (`PreToolUse` + `updatedInput.answers`, com uma e com várias perguntas, múltipla escolha e "Outro") e o B (`send_keys` no seletor), registrando o formato de `answers` que funciona e as sequências de teclas.
   4. Recomendar um mecanismo por tipo, pelo critério de §8.2.
+- **Notas do S1 e do S2**: com diálogo de permissão, o `tool_use` já está no transcript enquanto o Herdr mostra `blocked`. Com AskUserQuestion, a gravação do `tool_use` atrasou até a resposta numa de duas execuções, e numa execução o Herdr não passou por `blocked`: nem o transcript nem só o status do Herdr detectam pergunta pendente. O diálogo de confiança da pasta também é `blocked` (opção padrão "No, exit"), o de permissão abre com "1. Yes" selecionado, e `agent.send_keys` aceita `Escape`/`esc`, `enter` e `down`.
 - **Aceite**:
   - [ ] `S3.md` com a decisão por tipo, os JSONs exatos de resposta e as sequências de teclas.
   - [ ] Seção "Impacto" com o texto novo da §8 da SPEC, pronto para o orquestrador aplicar.
@@ -185,7 +186,8 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Faz**:
   1. Servir `/v1/health` e um WS de eco (com o `HttpServer` do WP0.3) atrás de `tailscale serve --bg --https=443`, testando os alvos `unix:<socket>` e `http://127.0.0.1:47421`. Confirmar que os headers (`Authorization`) chegam, se a query string é descartada, e se o Tailscale standalone consegue abrir o socket em `~/Library/Application Support/Mocha/`.
   2. Cliente de teste iOS (simulador e iPhone) com `URLSessionWebSocketTask`: conexão, envio, queda de Wi-Fi/4G e retorno, e ida e volta de background.
-  3. Registrar o comando final do `serve-setup` e como desfazê-lo (`tailscale serve reset` só se não houver outras configs; hoje não há nenhuma).
+  3. Confirmar que um `POST` com corpo (como o futuro `/v1/upload`) passa pelo `tailscale serve` com `Content-Length`: se o proxy repassar em chunked, o `HttpServer` responde 411 (§4.4).
+  4. Registrar o comando final do `serve-setup` e como desfazê-lo (`tailscale serve reset` só se não houver outras configs; hoje não há nenhuma).
 - **Aceite**:
   - [ ] `S5.md` com o alvo escolhido, os comandos, as latências medidas e o comportamento de reconexão.
   - [ ] Seção "Impacto" com o texto novo da §4.5 da SPEC, pronto para o orquestrador aplicar.
@@ -205,10 +207,15 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaHerdr/`, `MochaKit/Sources/MochaDaemonCore/Herdr/` e os testes correspondentes.
 - **Depende de**: WP0.2, S2.
 - **SPEC**: §3.1, §4.1.
-- **Faz**: cliente com duas conexões (requisições e eventos), reconexão, snapshot, inscrições por pane, árvore derivada (§3.1.4, com `HEAD` do git lido direto e `isDirty` com cache), comandos `prompt`/`interrupt`, e publicação de mudanças por `AsyncStream`.
+- **Faz**: cliente com uma conexão por requisição (NDJSON, o servidor fecha depois de responder) e conexões de eventos só de leitura (uma global e uma por pane com agente); `ping` com checagem do protocolo 22; bootstrap e reconexão por `session.snapshot` (inscrever → ack → snapshot → aplicar eventos guardados); árvore reconciliada por snapshot com debounce (§3.1.3), com `HEAD` do git lido direto e `isDirty` com cache; detecção de troca de sessão sem evento (§3.1.3); mapa de `pane_moved`; comandos `prompt`/`interrupt`; publicação de mudanças por `AsyncStream`.
 - **Aceite**:
   - [ ] Testes com um servidor de socket falso que reproduz as fixtures do S2: árvore correta, aninhamento de worktree ligado, status por pane, reconexão depois de o socket cair.
-  - [ ] Teste `.integration` (só com `MOCHA_INTEGRATION=1`) lendo o Herdr real sem enviar input.
+  - [ ] O servidor falso reproduz o Herdr real: fecha depois de uma resposta, devolve `id: ""` em `invalid_request`, fecha a conexão de inscrição se o cliente escrever depois do ack, e toca os `stream.*.jsonl`.
+  - [ ] Teste: `tab_closed` e `pane_exited` sem `pane_closed` removem os panes (via snapshot) e fecham as inscrições deles.
+  - [ ] Teste: `agent_session` que muda sem evento é detectada: `pane_updated` com a sessão antiga seguido de `agent.get` com a nova (reconsulta com atraso), e pela reconciliação por `agent.list` (§3.1.3).
+  - [ ] Teste de contrato: todo método e parâmetro enviado existe em `Fixtures/herdr/herdr-api.schema.json`.
+  - [ ] Teste: protocolo ≠ 22 no `ping` gera o aviso sem derrubar o daemon.
+  - [ ] Teste `.integration` (só com `MOCHA_INTEGRATION=1`) lendo o Herdr real sem enviar input: só `ping`, `session.snapshot`, `agent.list` e uma inscrição global.
 
 ### WP-M2: parser e `TranscriptStore`
 
@@ -217,33 +224,39 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **SPEC**: §3.2, §5.4.
 - **Faz**: parser de linha → itens (§3.2.2), com resolução de `tool_result` em `toolCall`, índice de offsets, página pelo fim, cursor, acompanhamento com `DispatchSource` e buffer de linha incompleta, troca de sessão.
 - **Aceite**:
-  - [ ] Cada fixture do S1 gera a lista de `ChatItem` esperada (snapshots JSON em `Fixtures/transcripts/expected/`).
-  - [ ] A fixture de 50 MB responde a primeira página em < 300 ms (teste `.integration` medido).
+  - [ ] Cada fixture do S1 gera o snapshot de `Fixtures/transcripts/expected/<fixture>.json` (`{"meta", "items", "stats"}`, itens no estado final), e a sequência de tipos bate com a coluna "Itens esperados" do README das fixtures. Os snapshots são gerados com `MOCHA_UPDATE_SNAPSHOTS=1 swift test --filter TranscriptSnapshotTests`, revisados item a item contra a §3.2.2 antes do commit, e o teste normal compara estruturas, não bytes.
+  - [ ] A fixture de 50 MB (`Fixtures/transcripts/generated/big-50mb.jsonl`, de `swift scripts/gen-big-transcript.swift`) responde a primeira página em < 300 ms (teste `.integration` medido; sem o arquivo, falha com a instrução de gerar).
   - [ ] Append simulado (escrever no arquivo durante o teste) gera `chatAppend`/`chatUpdate` em < 300 ms.
-  - [ ] Linha corrompida é descartada sem derrubar a sessão.
+  - [ ] `malformed.jsonl` termina com 2 linhas descartadas, 1 linha parcial pendente e os desconhecidos listados no README, sem derrubar a sessão.
+  - [ ] Escrever `clear-and-compact.jsonl` e `tool-calls.jsonl` em pedaços, cortando linhas ao meio, gera a mesma lista final da leitura inteira, com os `chatAppend`/`chatUpdate` esperados.
+  - [ ] Página montada no meio de `tool-calls.jsonl` aplica os `tool_result` que ficam depois dela.
+  - [ ] A resolução de sessão ignora `subagents/`, `memory/` e `.jsonl` de plugins, e trata arquivo inexistente como sessão vazia.
 
 ### WP-M3: gateway, `SessionHub`, pareamento e aparelhos
 
-- **Dono**: `MochaKit/Sources/MochaDaemonCore/Gateway/`, `Pairing/` e `Devices/`, e os testes.
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Gateway/`, `Pairing/` e `Devices/`, e os testes; também a remoção do `spike-gateway` (`mochad/SpikeGatewayCommand.swift`, `mochad/SpikeGatewayLog.swift` e o caso no `mochad/main.swift`), que depende de `GatewaySpikeRoutes.swift` e sairia do ar junto com ele.
 - **Depende de**: WP0.2, WP0.3, S5.
 - **SPEC**: §4.5, §4.6, §5.
-- **Faz**: rotas `/v1` e `/v1/health`, handshake `hello` com código ou token, `unpair`, `DeviceStore`, `SessionHub` (clientes, chats abertos, primeiro plano) e o roteamento das mensagens de §5.3 da 1a-core para interfaces `HerdrBridging`/`TranscriptProviding`, que o WP-M4 liga às implementações reais.
+- **Faz**: rotas `/v1` e `/v1/health`, handshake `hello` com código ou token, `unpair`, `DeviceStore`, `SessionHub` (clientes, chats abertos, primeiro plano) e o roteamento das mensagens de §5.3 da 1a-core para interfaces `HerdrBridging`/`TranscriptProviding`, que o WP-M4 liga às implementações reais. Parte do protótipo `MochaDaemonCore/Gateway/` do S5 (`Gateway.makeRouter()`, `GatewayHealth`, `GatewayEvent`, `HttpResponse.json`). Troca o eco do `/v1` pelo `SessionHub`, liga `herdrAvailable` ao `HerdrBridge` e apaga `GatewaySpikeRoutes.swift` (`/spike/echo`, `GatewaySpikeEcho`) e os dois testes dele em `Tests/MochaDaemonCoreTests/Gateway/GatewayTests.swift`, junto com o subcomando `spike-gateway` do `mochad`, que depende dele. Binding só `.loopback(port: 47421)`. No encerramento, fecha cada WebSocket com 1001 antes do `HttpServer.stop()`, que hoje corta sem close frame (o app vê POSIX 57).
 - **Aceite**:
   - [ ] Teste de ponta a ponta com um cliente WS de teste: pareamento → token → reconexão com token → `tree` → `openChat` → `chatAppend` (com os fakes de Herdr e de transcript).
   - [ ] Token errado → `unauthorized`; três falhas → conexão fechada.
   - [ ] `devices.json` com permissão 0600 e só com o hash do token.
+  - [ ] `/v1/health` devolve `herdr` com o estado real do `HerdrBridge`.
 
 ### WP-M4: `mochad`: composição, CLI, LaunchAgent e `doctor`
 
-- **Dono**: `MochaKit/Sources/mochad/`, `MochaKit/Sources/MochaDaemonCore/App/`.
+- **Dono**: `MochaKit/Sources/mochad/`, `MochaKit/Sources/MochaDaemonCore/App/`, `scripts/build-daemon.sh`.
 - **Depende de**: WP-M1, WP-M2, WP-M3.
 - **SPEC**: §4.2, §4.3, §4.7.
-- **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`.
+- **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`. O `spike-gateway` já saiu no WP-M3; resta confirmar que não sobrou nada dele (`mochad/SpikeGatewayCommand.swift`, `mochad/SpikeGatewayLog.swift` e o caso no `main.swift`). O `serve-setup` mostra `tailscale serve --bg --https=443 http://127.0.0.1:47421`. `--apply` executa, confere `tailscale serve status --json` (handler `"/"` em `"<host>:443"` com `"Proxy": "http://127.0.0.1:47421"`) e aquece com `GET https://<host>/v1/health` (limite de 90 s). `--remove` executa `tailscale serve --https=443 off`. O Tailscale é chamado pelo caminho absoluto `/Applications/Tailscale.app/Contents/MacOS/tailscale` (o `/usr/local/bin/tailscale` é só um wrapper), sem depender do `PATH` do LaunchAgent. O host vem de `tailscale status --json` → `.Self.DNSName` sem o ponto final, e também monta a URL do `mochad pair`. `doctor`, item Serve: ✅ com o handler certo e o health 200 pela URL `https://<host>`; ❌ sem handler (mostra o comando), com alvo `unix:` ("a extensão do Tailscale não abre socket Unix") ou com 502 ("Serve ativo, gateway sem escutar"); ⚠️ com timeout no TLS ("certificado sendo emitido; tente de novo em 1 min"). Do S4: `scripts/build-daemon.sh` e `mochad install` assinam o binário com a identidade "Apple Development" do time: `codesign --force --sign <identidade> --identifier com.joaoalves.mochad --options runtime`. A identidade vem de `security find-identity -v -p codesigning`, filtrada pelo certificado cujo OU é o `DEVELOPMENT_TEAM` de `Config/Signing.xcconfig`; sem ela, avisa que o Keychain vai pedir autorização. `doctor`, item APNs: config presente; binário assinado pelo time (`codesign -dr -` com `identifier "com.joaoalves.mochad"`); item do Keychain presente (`SecItemCopyMatching` sem `kSecReturnData`, sem ler o segredo).
 - **Aceite**:
   - [ ] `mochad install` sobe o LaunchAgent, e `launchctl print gui/$UID/com.joaoalves.mochad` mostra o serviço rodando.
-  - [ ] `mochad doctor` lista os itens de §4.2 com o estado real.
+  - [ ] `mochad doctor` lista os itens de §4.2 com o estado real, incluindo a versão e o protocolo do `ping` do Herdr (❌ se o socket não existir, ⚠️ se protocolo ≠ 22).
   - [ ] Parado por 10 min: RSS < 30 MB (medido com `footprint` ou `ps`).
   - [ ] `mochad pair` exibe um QR legível pela câmera do iPhone.
+  - [ ] `doctor` distingue sem handler, alvo `unix:`, 502 e timeout de TLS.
+  - [ ] Depois de reinstalar um build novo, `mochad apns test` não abre diálogo do Keychain.
 
 ### WP-I1: design system, shell do app e modo demo
 
@@ -284,10 +297,12 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaClient/`, `MochaKit/Tests/MochaClientTests/`, `App/Sources/Connection/`, `App/Sources/Pairing/`, `App/Sources/Settings/`.
 - **Depende de**: WP0.2, WP0.3, S5, WP-I1.
 - **SPEC**: §2.3 (Reconexão), §4.5, §6.1, §6.3 (Pareamento, Ajustes).
-- **Faz**: `ConnectionManager` (actor, em `MochaClient`) com backoff e `TokenStore` injetado; `KeychainTokenStore` no app; `scenePhase`; leitura de QR com `DataScannerViewController`; link colado; estados de erro; tela de Ajustes com estado da conexão, versões e desparear.
+- **Faz**: `ConnectionManager` (actor, em `MochaClient`) com backoff e `TokenStore` injetado, sempre com um `receive()` pendente no `URLSessionWebSocketTask` (sem ele, o pong do `sendPing` e o close do servidor não são processados; WP0.3); `KeychainTokenStore` no app; `scenePhase`; leitura de QR com `DataScannerViewController`; link colado; estados de erro; tela de Ajustes com estado da conexão, versões e desparear. Parte da sonda `App/Sources/Debug/GatewayProbe*` do S5 (lógica movida para o `ConnectionManager` de `MochaClient`). Backoff, tentativa imediata em `.satisfied`, heartbeat `sendPing` a cada 5 s e depois de mudança de caminho, conexão morta com 15 s sem pong, nada de fechar na troca de rede e close 1001 só em `.background` (§2.3, §6.1). Estados: 502 no handshake → "O Mac respondeu, mas o mochad não está rodando"; timeout ou erro de conexão → "Sem conexão com o Mac". Quando a conexão real existir, apagar `App/Sources/Debug/GatewayProbe*` e o caso `gateway` do `DebugProbe` em `AppShell/RootView.swift`.
 - **Aceite**:
   - [ ] `MochaClientTests` contra um servidor WS de teste montado com o `HttpServer` (WP0.3): pareamento por código → token salvo no `TokenStore` → reconexão com token, queda do servidor e sequência de backoff.
   - [ ] No simulador, com `-demo`, as telas de pareamento e Ajustes aparecem e navegam. O pareamento contra o `mochad` real acontece no WP-X1.
+  - [ ] Teste da sequência de backoff (limite de 8 s depois do jitter, contagem zerada ao abrir) com relógio e aleatoriedade injetados.
+  - [ ] Teste do heartbeat: com o servidor sem pong, a conexão é dada como morta em 15–20 s e reaberta.
 
 ### WP-I5: chat e composer
 
@@ -304,16 +319,17 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 
 - **Dono**: orquestrador. Correções pequenas em qualquer diretório, commitadas separadamente.
 - **Depende de**: todos os WPs da 1a-core e os bloqueios B1, B3, B4 e B8.
-- **Faz**: instala o `mochad` (LaunchAgent), configura o `serve` e instala o app no iPhone pelo Xcode. Depois o João percorre o checklist.
+- **Faz**: instala o `mochad` (LaunchAgent), configura o `serve` (`mochad serve-setup --apply`, só com um ok novo do João, porque o B4 cobriu só o S5; antes dele, `tailscale serve status` precisa estar vazio) e instala o app no iPhone pelo Xcode. Depois o João percorre o checklist.
 - **Checklist do João** (no iPhone, pelo tailnet):
   - [ ] Pareia pelo QR do `mochad pair`.
   - [ ] A gaveta mostra os workspaces, tabs e agentes reais, com branch e `*`.
-  - [ ] Pedir a um agente para criar um worktree faz o workspace novo aparecer aninhado na gaveta sem recarregar.
+  - [ ] Pedir a um agente para criar um worktree com `herdr worktree create` faz o workspace novo aparecer aninhado na gaveta sem recarregar.
   - [ ] Abrir um chat longo mostra a última página em menos de 1 s, e a rolagem pra cima carrega o histórico.
   - [ ] Enviar um prompt pelo celular faz o Claude responder, e a resposta aparece no chat.
   - [ ] Parar interrompe o agente.
   - [ ] Fechar o app, mandar um prompt pelo Mac e reabrir: o chat está atualizado.
-  - [ ] Trocar Wi-Fi ↔ 4G com o app aberto: reconecta sozinho.
+  - [ ] Trocar Wi-Fi ↔ 4G com o app aberto: o chat continua sem reconectar (pode parar de atualizar por até ~10 s).
+  - [ ] App em background ou tela bloqueada por 30 s e de volta: reconecta em menos de 1 s e o chat se atualiza.
   - [ ] O visual bate com os prints do Moshi (ok visual do João).
 
 ---
@@ -330,31 +346,37 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Hooks/`, o comando `install-hooks`/`uninstall-hooks` em `mochad`.
 - **Depende de**: WP0.3, WP-M4, S3.
 - **SPEC**: §3.3.
-- **Faz**: rotas `/hooks/<evento>` no listener local, validação do segredo, tradução dos payloads (fixtures do S3) em eventos internos, merge idempotente no `settings.json` com backup, e detecção do moshi-hook.
+- **Faz**: rotas `POST /hooks/<Evento>` no listener local, validação do segredo, tradução dos payloads (fixtures do S3) em eventos internos, merge idempotente no `settings.json` com backup do bloco de `Fixtures/hooks/settings.install-hooks.proposed.json` (comando `curl` assíncrono em `SessionStart`/`UserPromptSubmit`/`Stop`/`Notification`, `http` em `PermissionRequest`), entradas do Mocha reconhecidas por `127.0.0.1:47420/hooks/` em `url` ou `command`, e detecção do moshi-hook.
 - **Aceite**:
-  - [ ] Testes com as fixtures do S3.
+  - [ ] Testes com as fixtures do S3: cada request de `Fixtures/hooks/` decodifica, com campos opcionais ausentes (`model`, `prompt_id`, `title`, `permission_suggestions`).
+  - [ ] O merge sobre um `settings.json` que só tem o hook do Herdr resulta igual a `settings.install-hooks.proposed.json`, com a porta e o segredo do config.
+  - [ ] Dois hooks seguidos de um cliente com `Connection: keep-alive` são atendidos sem erro (a resposta leva `Connection: close`, §4.4).
+  - [ ] `SessionStart` com `transcript_path` inexistente é aceito, e `source` distingue `clear` de `compact` (S1).
   - [ ] Teste do merge sobre uma cópia do `settings.json` real do João (em diretório temporário): preserva hooks de terceiros, é idempotente e o uninstall remove só o que é do Mocha.
   - [ ] `PermissionRequest` responde `{}` na hora (sem decidir) nesta fase.
 
 ### WP-M6: `PushService` (alertas)
 
-- **Dono**: `MochaKit/Sources/MochaDaemonCore/Push/`, o comando `apns` em `mochad`, e o tratamento de `setPreferences` em `Gateway/`/`Devices/` (único WP da onda).
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Push/`, o comando `apns` em `mochad`, o tratamento de `setPreferences`, `slash` e `hello.apns` em `Gateway/`/`Devices/`, e a ligação dos hooks aos serviços em `MochaDaemonCore/App/` (único WP da onda).
 - **Depende de**: S4, WP-M5.
 - **SPEC**: §7.1, §4.6.
-- **Faz**: JWT com cache e renovação, cliente HTTP/2, escolha de ambiente por aparelho, os dois tipos de alerta, supressão por primeiro plano e por preferência, deduplicação e limpeza de token inválido.
+- **Faz**: JWT com cache e renovação, cliente HTTP/2, escolha de ambiente por aparelho, os dois tipos de alerta, supressão por primeiro plano e por preferência, deduplicação e limpeza de token inválido. Parte do protótipo `MochaDaemonCore/Push/` do S4, que já tem `ApnsJWT`, `ApnsTokenProvider` (40 min, invalidação em `ExpiredProviderToken`), `ApnsRequest` (headers e validações de 4 KB e 64 bytes), `ApnsResponse`, `ApnsClient`, `URLSessionApnsTransport` (métrica h2), `ApnsAlertPush`, `KeychainApnsKeyStore`, `ApnsConfigStore` e `ApnsKeyImporter`, com 26 testes em `Tests/MochaDaemonCoreTests/Push/`. Evolui o `ApnsClient` para uma `URLSession` única reaproveitada entre envios. Política de headers da §7.1 (`apns-expiration` por tipo, `apns-collapse-id` = `agentId`, `apns-id` no log). Respostas: 410 e `BadDeviceToken` removem o token; `ExpiredProviderToken` renova e repete uma vez; `BadEnvironmentKeyInToken`, `BadEnvironmentKeyIdInToken` e `InvalidProviderToken` viram erro de configuração no log e no `doctor`, sem retry; 429 e 5xx com backoff. O `mochad apns test` passa a aceitar `--device <id>` (de `devices.json`), e o `--token <hex> --env` fica como diagnóstico. O `apns liveactivity start|update|end` fica como diagnóstico até o WP-M8.
 - **Aceite**:
   - [ ] Testes do JWT (formato e assinatura verificável com a chave pública), da montagem de payloads e das regras de supressão e deduplicação, com cliente APNs falso.
   - [ ] `mochad apns test` entrega no iPhone.
+  - [ ] Teste: `403 BadEnvironmentKeyInToken` não é repetido e aparece no `doctor`.
+  - [ ] `slash` vira `agent.prompt` com o comando (§5.3), `hello.apns` grava o token e o `env` no `devices.json` (§4.6), e o `SessionStart` do hook dispara o `agent.get` e a troca de arquivo do `TranscriptStore` (§3.1.3 d).
 
 ### WP-I6: notificações no app
 
 - **Dono**: `App/Sources/Notifications/`, o campo `apns` do `hello` em `App/Sources/Connection/` e `MochaKit/Sources/MochaClient/` (único WP da onda que mexe ali), e o item de notificações em `App/Sources/Settings/`.
 - **Depende de**: S4, WP-I2.
 - **SPEC**: §7.1, §6.1 (deep links), §6.3 (Ajustes).
-- **Faz**: pedido de permissão (`.alert`, `.sound`, `.badge`; o time-sensitive vem do entitlement do WP0.1 e do `interruption-level` do payload), registro do token com `env` no `hello`, `setForeground`, categorias `TURN_DONE`/`NEEDS_INPUT`, o toque abrindo o chat certo (com o app encerrado, em background ou aberto em outro chat), e o controle "Avisar quando o Claude terminar" em Ajustes (`setPreferences`).
+- **Faz**: pedido de permissão (`.alert`, `.sound`, `.badge`; o time-sensitive vem do entitlement do WP0.1 e do `interruption-level` do payload), registro do token com `env` no `hello`, `setForeground`, categorias `TURN_DONE`/`NEEDS_INPUT`, o toque abrindo o chat certo (com o app encerrado, em background ou aberto em outro chat), e o controle "Avisar quando o Claude terminar" em Ajustes (`setPreferences`). Parte de `App/Sources/Notifications/` do S4: `PushRegistration` (permissão e registro) e `ApnsEnvironmentDetector` (`env` pelo `embedded.mobileprovision`). `registerForRemoteNotifications` a cada launch; o token chega em ~0,2 s. O delegate do `UNUserNotificationCenter` é definido no `didFinishLaunchingWithOptions`, `nonisolated`, com a variante de completion handler, porque os tipos de UserNotifications não são `Sendable` (como no `PushProbeNotificationDelegate` do S4). Alertas só testáveis no iPhone, porque o simulador não entrega o token de alerta.
 - **Aceite**:
   - [ ] Os três estados de abertura testados no device (checklist no relatório).
-  - [ ] Nada de alerta do agente que está aberto na tela.
+  - [ ] O app manda `setForeground` ao abrir, trocar e fechar um chat, e ao ir para background (a supressão do alerta é do WP-M6 e é conferida no WP-X2).
+  - [ ] Dois alertas com o mesmo `agentId`: o segundo substitui o primeiro na Central (`apns-collapse-id`), que o S4 não verificou em detalhe.
 
 ### WP-I7: menu de slash
 
@@ -382,7 +404,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 
 **Ondas**
 - **Onda 3.A**, em paralelo: WP-M7 · S6.
-- **Onda 3.B**, em paralelo: WP-M8 · WP-M9.
+- **Onda 3.B**, em paralelo: WP-M8 · WP-M9. Antes da onda, o orquestrador cria em `MochaKit/Sources/MochaDaemonCore/LiveActivity/` o protocolo que recebe um `LiveActivityRegistration` (usado pelo `registerLiveActivity` do WP-M8 e pelo `POST /v1/live-activity` do WP-M9).
 - **Onda 3.C**, em paralelo: WP-I8 · WP-I9 · WP-I10.
 - **Onda 3.D**: WP-I11.
 - **Onda 3.E**: WP-X3.
@@ -390,11 +412,13 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 ### WP-M7: pedidos pendentes
 
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Pending/`, extensões em `Hooks/`, rota `POST /v1/respond`.
-- **Depende de**: S3, WP-M5, WP-M6, B7.
+- **Faz**: `PendingStore` com um pedido por sessão, criação a partir do `PermissionRequest` (permissão ou pergunta), respostas de §8.2 e os desfechos de §8.3; sem `PreToolUse` e sem `send_keys`.
+- **Depende de**: S3, WP-M1 e WP-M2 (status do Herdr e `tool_result` do transcript para §8.3), WP-M5, WP-M6, B7.
 - **SPEC**: §8, §5.3 (`respond`, `pending`), §5.5, §7.1 (`PERMISSION`/`QUESTION`).
 - **Aceite**:
-  - [ ] Testes dos três desfechos de §8.1: resposta do celular, resposta pelo terminal e timeout.
-  - [ ] Testes do mecanismo de perguntas escolhido no S3.
+  - [ ] Testes dos desfechos de §8.3 a partir dos `sequence.*.jsonl`: celular (allow, deny, answers), terminal "Yes" (status e transcript), terminal "No"/Esc (conexão fechada) e tempo (580 s).
+  - [ ] As respostas codificam igual a `response.PermissionRequest.*.json`.
+  - [ ] `respond` com pergunta sem resposta → `invalidPayload`; `allow` em pergunta e `answers` em permissão → `invalidPayload`.
   - [ ] Push com as categorias certas.
 
 ### WP-M8: Live Activity no daemon, e nova tab
@@ -402,9 +426,11 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, o envio `liveactivity` em `Push/`, a extensão do `HerdrBridge` para `newAgentTab`, e o tratamento das mensagens WS `registerLiveActivity`/`newAgentTab` no `SessionHub`. Não mexe em rotas HTTP (são do WP-M9 nesta onda).
 - **Depende de**: S4, WP-M6.
 - **SPEC**: §7.3, §5.3 (`registerLiveActivity`, `newAgentTab`), §3.1.2.
+- **Faz**: usa `LiveActivityPush` e `LiveActivityContentState` de `Push/` (datas em segundos desde 2001, testado). Regras de prioridade da §7.3 nova. Push-to-start com `alert` + `input-push-token: 1`. `stale-date` = agora + 15 min a cada update. No máximo 10 push-to-starts por hora (a renovação de 7 h 50 min usa um). O token de update de uma atividade iniciada por push chega por `registerLiveActivity` 2–40 s depois do start. Antes disso, o daemon só guarda o estado. A rota HTTP `POST /v1/live-activity` é do WP-M9; o WP-M8 expõe a interface que ela chama.
 - **Aceite**:
-  - [ ] Testes da máquina de estados: início, atualização com o limite de 10 s, prioridade 10 só na transição para bloqueado, fim depois de 60 s ocioso, renovação às 7 h 50 min.
-  - [ ] `newAgentTab` cria a tab no workspace e responde com o `agentId`.
+  - [ ] Testes da máquina de estados: início, atualização com o limite de 10 s, prioridade 10 em mudança de contagem, destaque ou fim e 5 só em mudança de título, fim depois de 60 s ocioso, renovação às 7 h 50 min.
+  - [ ] Teste: o `content-state` codifica datas em segundos desde 2001.
+  - [ ] `newAgentTab` cria a tab no workspace e responde com o `agentId`: `tab.create {workspace_id, cwd, focus:false}` → `agent.start {name:"mocha-<n>", kind:"claude", pane_id:root_pane, args:[]}` → espera `idle` por evento (timeout de 30 s). Se vier `blocked` (diálogo de confiança numa pasta nova), avisa o app em vez de responder sozinho (S2).
 
 ### S6: voz em pt-BR
 
@@ -427,8 +453,9 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `Widgets/`, `App/Sources/LiveActivity/`.
 - **Depende de**: WP-M8.
 - **SPEC**: §7.3.
+- **Faz**: parte do protótipo `App/Sources/LiveActivity/` (`AgentsActivityController`, `LiveActivityTokenStore`) e de `Widgets/Sources/AgentsLiveActivity.swift`. O gancho no `AppDelegate` já existe. Quando o app é acordado em background por push-to-start, manda o token com `POST /v1/live-activity` (Bearer), porque não há WebSocket aberto. Em primeiro plano, manda `registerLiveActivity` pelo WS. O visual segue a §7.3 e os prints (a linha "atualizado às … há …" é só da sonda). No fim do WP, apaga `App/Sources/Debug/PushProbe*` e o caso `push` do `DebugProbe` em `AppShell/RootView.swift`. Push-to-start e token de update só testáveis no iPhone. Dynamic Island capturada no simulador com `simctl io … screenshot --mask=black`.
 - **Aceite**:
-  - [ ] Tela bloqueada e Dynamic Island (compacta, mínima e expandida) capturadas no device.
+  - [ ] Tela bloqueada capturada no device, e Dynamic Island (compacta, mínima e expandida) capturada no simulador (iPhone 18 Pro), porque o iPhone 14 do João não tem Dynamic Island.
   - [ ] Início por push-to-start com o app encerrado.
 
 ### WP-I10: voz
@@ -441,9 +468,10 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 
 ### WP-M9: upload no daemon
 
-- **Dono**: a rota HTTP `/v1/upload` em `Gateway/` e a limpeza de `uploads/`. Não mexe no tratamento de mensagens WS (é do WP-M8 nesta onda).
+- **Dono**: as rotas HTTP `/v1/upload` e `/v1/live-activity` em `Gateway/` e a limpeza de `uploads/`. Não mexe no tratamento de mensagens WS (é do WP-M8 nesta onda).
 - **Depende de**: WP-M3.
 - **SPEC**: §5.5, §10.
+- **Faz**: rota `/v1/upload`; o app manda o upload com `URLSession.upload(for:from: Data)`, porque corpo em stream vira chunked no Serve e recebe 411 (§5.5). Também a rota `POST /v1/live-activity` (§5.5, Bearer), que repassa o `LiveActivityRegistration` para a mesma interface que o WP-M8 usa no `registerLiveActivity` (fake nos testes).
 - **Aceite**:
   - [ ] Testes de tipo aceito, limite de 20 MB, nome gerado pelo daemon e limpeza depois de 7 dias.
 
@@ -493,14 +521,14 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 
 | WP | Status | Commit |
 |---|---|---|
-| WP0.1 | todo | |
-| WP0.2 | todo | |
-| WP0.3 | todo | |
-| S1 | todo | |
-| S2 | todo | |
-| S3 | todo | |
-| S4 | todo | |
-| S5 | todo | |
+| WP0.1 | feito | f5adafc |
+| WP0.2 | feito | 51ead39, 8bad988 |
+| WP0.3 | feito | 6213de7 |
+| S1 | feito | ce6ff4f |
+| S2 | feito | 4648a76 |
+| S3 | feito | 0c0c24c |
+| S4 | feito | 51ef5f9, 86de9d4, bd5db4e |
+| S5 | feito | 2fe94d0, 42ebb0f, 5c65255 |
 | WP-M1 | todo | |
 | WP-M2 | todo | |
 | WP-M3 | todo | |

@@ -1,0 +1,39 @@
+{
+  "event": "pane_moved",
+  "data": {
+    "type": "pane_moved",
+    "previous_pane_id": "w5:p3",
+    "previous_workspace_id": "w5",
+    "previous_tab_id": "w5:t2",
+    "pane": {
+      "pane_id": "w6:p2",
+      "terminal_id": "term_0000000000000a1",
+      "workspace_id": "w6",
+      "tab_id": "w6:t2",
+      "focused": false,
+      "cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+      "foreground_cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+      "agent": "claude",
+      "agent_status": "idle",
+      "agent_session": {
+        "source": "herdr:claude",
+        "agent": "claude",
+        "kind": "id",
+        "value": "33333333-3333-4333-8333-333333333333"
+      },
+      "revision": 14
+    },
+    "created_tab": {
+      "tab_id": "w6:t2",
+      "workspace_id": "w6",
+      "number": 2,
+      "label": "claude",
+      "focused": false,
+      "pane_count": 1,
+      "agent_status": "idle"
+    },
+    "created_workspace": null,
+    "closed_tab_id": "w5:t2",
+    "closed_workspace_id": null
+  }
+}

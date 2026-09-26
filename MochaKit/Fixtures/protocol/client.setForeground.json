@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "c-12",
+  "type": "setForeground",
+  "payload": {
+    "agentId": "w17:p1",
+    "isActive": true
+  }
+}

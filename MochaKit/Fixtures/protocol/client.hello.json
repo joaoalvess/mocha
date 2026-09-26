@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "c-1",
+  "type": "hello",
+  "payload": {
+    "deviceToken": "Zm9vYmFyLWRlbW8tdG9rZW4tMzItYnl0ZXMtYmFzZTY0dXJs",
+    "deviceName": "iPhone do João",
+    "appVersion": "0.1.0",
+    "apns": {
+      "token": "7c4a8d09ca3762af61e59520943dc26494f8941b7c4a8d09ca3762af61e59520",
+      "env": "sandbox"
+    }
+  }
+}
