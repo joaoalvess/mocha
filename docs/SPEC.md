@@ -122,7 +122,7 @@ Princípios:
       MochaHerdr/                 cliente do socket do Herdr (§3.1)
       MochaDaemonCore/            serviços do daemon (§4)
       mochad/                     executável (CLI + run loop)
-      MochaTestSupport/           fakes e helpers para os testes do daemon
+      MochaTestSupport/           fakes e helpers de teste do pacote (daemon e cliente), um subdiretório por área (Herdr/, Transcript/, Http/, …)
     Tests/
       MochaProtocolTests/  MochaDemoTests/  MochaClientTests/  MochaTranscriptTests/  MochaHerdrTests/  MochaDaemonCoreTests/
     Fixtures/
@@ -148,13 +148,15 @@ Princípios:
 | `MochaHerdr` | macOS | — |
 | `MochaDaemonCore` | macOS | `MochaProtocol`, `MochaTranscript`, `MochaHerdr` |
 | `mochad` (executável) | macOS | `MochaDaemonCore` |
-| `MochaTestSupport` | macOS | `MochaProtocol`, `MochaDaemonCore` |
-| `MochaClientTests` | macOS | `MochaClient`, `MochaDaemonCore` (usa o `HttpServer` real como servidor WS de teste) |
+| `MochaTestSupport` | macOS | `MochaProtocol`, `MochaHerdr`, `MochaTranscript`, `MochaDaemonCore` |
+| `MochaClientTests` | macOS | `MochaClient`, `MochaDaemonCore` (usa o `HttpServer` real como servidor WS de teste), `MochaTestSupport` |
 | `MochaDemoTests` | macOS | `MochaDemo` |
+| `MochaHerdrTests` | macOS | `MochaHerdr`, `MochaTestSupport` |
+| `MochaTranscriptTests` | macOS | `MochaTranscript`, `MochaTestSupport` |
 
 Os test targets acham `MochaKit/Fixtures/` por um helper `Fixtures` baseado em `#filePath`, porque o SwiftPM não aceita recurso fora do diretório do target.
 
-O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `swift-markdown`. A extensão `MochaWidgets` depende só de `MochaProtocol`. O modo demo liga com o argumento de launch `-demo`: o app usa `DemoServerConnection` (de `MochaDemo`) no lugar da conexão real.
+O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `swift-markdown`. A extensão `MochaWidgets` depende só de `MochaProtocol`. O modo demo liga com o argumento de launch `-demo`: o app usa `DemoServerConnection` (de `MochaDemo`) no lugar da conexão real. Junto com `-demo`, o argumento `-demo-script` liga um roteiro de eventos (árvore mudando, troca de sessão, append contínuo, queda e volta da conexão), usado nos WPs de UI. O projeto tem um esquema "Mocha Demo" que passa `-demo`.
 
 ### §2.3 Fluxos principais
 
@@ -245,7 +247,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - Um worktree criado pelo agente dentro do próprio pane (ex.: `.claude/worktrees/<nome>`) não vira workspace: aparece só no `foreground_cwd` do pane. Só os worktrees do Herdr são aninhados na gaveta.
 - **Branch do agente**: `AgentSummary.branch` é a branch do `foreground_cwd` do pane (`HEAD` lido direto, como acima). A gaveta a mostra na linha do agente só quando ela difere da branch do workspace (ex.: agente num worktree criado dentro do pane).
 - **Branch**: ler `HEAD` do git do diretório do workspace direto do arquivo, sem subprocesso. Para worktree ligado, `.git` é um arquivo `gitdir: …`; seguir esse caminho.
-- **`isDirty`**: `git -C <diretório> status --porcelain=v1 --untracked-files=normal`, saída não vazia. Roda no máximo a cada 15 s por workspace, com cache, e é recalculado depois de cada `Stop` do agente desse workspace.
+- **`isDirty`**: `git --no-optional-locks -C <diretório> status --porcelain=v1 --untracked-files=normal`, saída não vazia. Sem `--no-optional-locks`, o `status` pega o `index.lock` e pode fazer falhar um `git commit` que um agente esteja rodando no mesmo repositório. Roda no máximo a cada 15 s por workspace, com cache, e é recalculado depois de cada `Stop` do agente desse workspace.
 - Tabs sem agente aparecem como shell (ícone `>_`, `label` da tab).
 - Uma tab pode ter mais de um agente (panes divididos). Cada agente vira uma linha própria sob a tab.
 - Agentes que não são Claude Code (`agent != "claude"`) aparecem com ícone genérico e o nome do agente, mas não abrem chat. O toque mostra "Chat disponível só para Claude Code".
@@ -363,7 +365,7 @@ Política para tipos novos:
   - Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1 (fixture de `scripts/gen-big-transcript.swift`).
 - **Acompanhamento**: `DispatchSource.makeFileSystemObjectSource` (`.extend`, `.write`, `.rename`, `.delete`), lendo de `lastOffset` até o fim. Linha incompleta (sem `\n`) fica em buffer até completar.
 - **Arquivo que ainda não existe** (sessão nova sem mensagem): observar o diretório do projeto, ou `~/.claude/projects/` se ele também não existir, até o arquivo aparecer.
-- **Cursor de paginação**: opaco para o app. Internamente é o offset da primeira linha da página.
+- **Cursor de paginação**: opaco para o app. Internamente é `<sessionId>:<offset>`, com o offset da primeira linha da página, que precisa ser o início de uma linha do índice. Cursor de outra sessão ou fora do índice é inválido (§5.3.1).
 - O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para push e Live Activity). Fora disso, fecha o descritor.
 
 ### §3.3 Hooks do Claude Code
@@ -423,7 +425,141 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `PendingStore` | Pedidos pendentes (1b), timeouts e resolução |
 | `PushService` | APNs: JWT, alertas, Live Activity, escolha de ambiente (§7) |
 | `DeviceStore` | Aparelhos pareados (§4.6) |
-| `Pairing` | Geração de token e QR (§4.5) |
+| `Pairing` | Emissão do código de pareamento e troca por token (§4.5) |
+| `LocalControl` | Canal local da CLI no socket Unix (§4.8) |
+
+#### §4.1.1 Interfaces internas
+
+Esboço normativo, como a §5.2. Nomes valem como estão; a implementação pode acrescentar.
+
+**`HerdrBridging`**: declarado em `MochaDaemonCore/Herdr/` e implementado pelo `HerdrBridge`.
+
+```swift
+public protocol HerdrBridging: Sendable {
+    func events() -> AsyncStream<HerdrBridgeEvent>
+    var isAvailable: Bool { get async }
+    func tree() async -> [WorkspaceNode]
+    func agent(_ id: AgentID) async -> HerdrAgent?
+    func resolve(_ id: AgentID) async -> AgentID
+    func prompt(_ id: AgentID, text: String) async throws
+    func interrupt(_ id: AgentID) async throws
+    func setOpenChats(_ ids: Set<AgentID>) async
+}
+
+public enum HerdrBridgeEvent: Sendable {
+    case snapshot(tree: [WorkspaceNode], available: Bool)
+    case treeChanged([WorkspaceNode])
+    case agentStatus(AgentID, AgentStatus, title: String?)
+    case sessionChanged(AgentID, sessionId: String?)
+    case availability(Bool)
+    case paneMoved(from: AgentID, to: AgentID)
+}
+
+public struct HerdrAgent: Sendable, Equatable {
+    public var paneId: AgentID
+    public var workspaceId: WorkspaceID
+    public var kind: String                // campo `agent` do Herdr
+    public var status: AgentStatus
+    public var sessionId: String?          // agent_session.value
+    public var cwd: String?
+    public var foregroundCwd: String?
+    public var terminalTitle: String?      // terminal_title_stripped
+}
+
+public enum HerdrBridgeError: Error, Sendable, Equatable {
+    case unavailable
+    case agentNotFound
+    case agentBlocked
+    case herdr(code: String, message: String)
+}
+```
+
+- `events()`: cada chamada cria um assinante novo. O primeiro elemento é o estado atual (`.snapshot`); depois vêm os eventos.
+- O buffer de cada assinante é `.bufferingNewest(256)`. Um assinante lento não trava os outros.
+- `agent(_:)` devolve o agente como o Herdr o vê: pane, workspace, tipo, status, sessão, `cwd`, `foreground_cwd` e título do terminal.
+- `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
+- `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
+- `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
+
+**`TranscriptProviding`**: declarado em `MochaDaemonCore/Transcript/` e implementado pelo `TranscriptStore`.
+
+```swift
+public protocol TranscriptProviding: Sendable {
+    func open(session: TranscriptSession, limit: Int) async throws -> TranscriptSubscription
+    func page(session: TranscriptSession, before: String, limit: Int) async throws -> TranscriptPage
+    func meta(forSession session: TranscriptSession) async -> TranscriptMeta?
+    func stats(forSession session: TranscriptSession) async -> TranscriptStats?
+}
+
+public struct TranscriptSession: Sendable, Hashable {
+    public var sessionId: String
+    public var transcriptPath: String?     // do hook, quando existe (§3.2.1)
+}
+
+public struct TranscriptPage: Sendable {
+    public var items: [ChatItem]
+    public var before: String?             // cursor (§3.2.3)
+    public var hasMore: Bool
+    public var meta: TranscriptMeta
+}
+
+public struct TranscriptSubscription: Sendable {
+    public var page: TranscriptPage
+    public var deltas: AsyncStream<TranscriptDelta>
+    public func cancel()
+}
+
+public enum TranscriptDelta: Sendable {
+    case append([ChatItem])
+    case update([ChatItem])
+    case meta(TranscriptMeta)
+}
+
+public struct TranscriptMeta: Sendable, Equatable {
+    public var title: String?              // último ai-title
+    public var model: String?
+    public var branch: String?             // gitBranch
+    public var permissionMode: String?
+    public var claudeVersion: String?
+    public var lastModified: Date?         // mtime do arquivo
+}
+
+public struct TranscriptStats: Sendable, Equatable {
+    public var dropped: Int
+    public var orphanResults: Int
+    public var unknown: [String: Int]      // tipo desconhecido → linhas
+    public var claudeVersion: String?
+}
+
+public enum TranscriptError: Error, Sendable, Equatable {
+    case invalidCursor
+}
+```
+
+- `open` é atômico: devolve a última página e um stream com os deltas a partir do fim dela, sem perder nem duplicar linhas gravadas entre a leitura e a inscrição.
+- Contagem de referência por assinante: o arquivo é acompanhado enquanto houver ao menos uma inscrição viva. Cancelar uma inscrição (`cancel()` ou fim da `Task` consumidora) não afeta as outras.
+- `page`: cursor inválido ou de outra sessão lança `TranscriptError.invalidCursor`.
+- `meta(forSession:)` é lido do fim do arquivo, sem índice completo, com cache por tamanho e mtime. Devolve `nil` se o arquivo não existe.
+- `stats(forSession:)` alimenta o `doctor` (§4.2) pelo `/local/status` (§4.8).
+
+**Fakes**: `FakeHerdrBridge` (`MochaTestSupport/Herdr/`) e `FakeTranscriptProvider` (`MochaTestSupport/Transcript/`) implementam os dois protocolos e são controlados pelo teste: emitem eventos, fixam a árvore e as páginas e contam as chamadas.
+
+#### §4.1.2 Composição
+
+O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para os clientes.
+
+- **Fronteira**: o `HerdrBridge` monta a árvore inteira com o que vem do Herdr e do git (ids, rótulos, `number`, `repoName`, `branch`, `isDirty`, tabs, agentes com `kind`, `status`, `sessionId`, `branch` e o `title` do terminal, e o `agentStatus` agregado). O `SessionHub` sobrescreve só `AgentSummary.title`, `model` e `lastActivityAt`, com o `TranscriptMeta` da sessão.
+- `AgentSummary.title`: `TranscriptMeta.title` (ai-title) quando existe; senão, o título do terminal do Herdr (`terminal_title_stripped`); senão, o `label` da tab; senão, "Claude Code". `ChatMeta.title` segue a mesma ordem. `AgentSummary.model` vem de `TranscriptMeta.model`.
+- `AgentSummary.branch`: `HEAD` do `foreground_cwd` (§3.1.4). `ChatMeta.branch`: `gitBranch` do transcript (§3.2.2).
+- `WorkspaceNode.agentStatus`: agregado dos agentes das tabs do próprio workspace (os worktrees filhos têm o agregado deles), com a prioridade `blocked` > `working` > `done` > `idle` > `unknown`. Workspace sem agente fica `unknown`.
+- `WorkspaceNode.repoName` = `worktree.repo_name`; sem `worktree`, `nil`. `AgentSummary.lastActivityAt` = `TranscriptMeta.lastModified`. `HostInfo.hostName` = nome do Mac (`Host.current().localizedName`).
+- `ChatMeta`: `title`, `model`, `branch` e `permissionMode` vêm do transcript; `workspaceLabel` e `status`, do Herdr.
+- **Eventos para os clientes**:
+  - mudança de status gera `agentStatus` na hora e `treeChanged` com debounce de 150 ms;
+  - `chatMeta` sai só quando o `TranscriptMeta` de um chat aberto muda;
+  - troca de sessão gera `treeChanged`, e o chat aberto passa para o arquivo novo.
+- **`pane_moved`**: mensagens com o id antigo são traduzidas por `resolve`. O app reaponta o chat aberto pelo `sessionId` que vem no `treeChanged` (§6.1).
+- **Herdr indisponível**: o `SessionHub` continua servindo a última árvore conhecida e responde `herdrUnavailable` a `sendPrompt` e `interrupt`. `helloOk.host.herdrConnected` reflete o estado no momento do `hello`.
 
 ### §4.2 CLI
 
@@ -432,15 +568,15 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `mochad run` | Roda em primeiro plano (é o que o LaunchAgent chama) |
 | `mochad install` | Copia o binário para `~/.local/bin/mochad`, escreve `~/Library/LaunchAgents/com.joaoalves.mochad.plist` (`RunAtLoad`, `KeepAlive`, logs em `~/Library/Logs/Mocha/`) e roda `launchctl bootstrap gui/$UID …` |
 | `mochad uninstall` | `launchctl bootout` e remove o plist. Não apaga dados |
-| `mochad pair` | Gera um token de pareamento de uso único (válido por 10 min) e imprime o QR no terminal (§4.5) |
-| `mochad devices` | Lista e remove aparelhos pareados (`--remove <id>`) |
+| `mochad pair` | Pede ao daemon em execução um código de pareamento pelo canal local (§4.8) e imprime o QR no terminal (§4.5). Sem daemon, falha com "o mochad não está rodando" e mostra `mochad install` ou `scripts/run-daemon.sh` |
+| `mochad devices` | Lista os aparelhos pareados lendo `devices.json`. `--remove <id>` pede ao daemon (§4.8), que fecha as conexões do aparelho e o remove; só edita o arquivo direto se o socket recusar a conexão (`ECONNREFUSED` ou socket inexistente) |
 | `mochad install-hooks` / `uninstall-hooks` | §3.3 |
 | `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
 | `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
 | `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity (1b), com `--working`, `--waiting`, `--title`, `--priority`, `--stale-in` e `--dismiss-in` |
-| `mochad status` | Estado do daemon, do Herdr e do Serve, clientes conectados |
-| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados |
+| `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
+| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados e Transcript. **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
 
 ### §4.3 Caminhos e configuração
 
@@ -448,9 +584,12 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 |---|---|
 | `~/Library/Application Support/Mocha/config.json` | `hookPort` (47420), `gatewayPort` (47421), `apns{teamId, keyId, bundleId}`, `hookSecret` |
 | `~/Library/Application Support/Mocha/devices.json` | Aparelhos (§4.6). Permissão 0600 |
+| `~/Library/Application Support/Mocha/mochad.sock` | Canal local (§4.8). Permissão 0600 |
 | `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (1b). Apagadas depois de 7 dias |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
 | Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` (senha genérica). O ACL confia no binário que criou o item pelo requisito de assinatura, e a lista de partição recebe `teamid:<TEAM>` |
+
+**`config.json`**: todo gravador lê o arquivo, altera só as próprias chaves e preserva as desconhecidas. A gravação é atômica (arquivo temporário + rename), com 0600. O `hookSecret` (32 bytes aleatórios, base64url) é gerado por `mochad install`, `mochad run` ou `mochad install-hooks` quando falta; os demais comandos nunca o geram. O daemon relê o `config.json` quando um hook chega com um segredo diferente do que ele tem em memória.
 
 O `mochad` é assinado com a identidade "Apple Development" do time e o identificador fixo `com.joaoalves.mochad` (`codesign --force --sign <identidade> --identifier com.joaoalves.mochad --options runtime`, no `build-daemon.sh` e no `install`). Assim, qualquer build novo lê a chave sem diálogo. Um binário sem assinatura de equipe (padrão do `swift build`) abre o diálogo "Permitir sempre" do Keychain a cada recompilação, e o LaunchAgent travaria esperando um clique.
 
@@ -458,7 +597,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 
 ### §4.4 HttpServer
 
-- `NWListener` TCP em `127.0.0.1`: os hooks em 47420 (§3.3) e o gateway em 47421 (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket. O binding `.unixSocket(path:)` continua no `HttpServer`, mas o gateway não o usa (S5).
+- `NWListener` TCP em `127.0.0.1`: os hooks em 47420 (§3.3) e o gateway em 47421 (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket. O binding `.unixSocket(path:)` é usado pelo canal local (§4.8), não pelo gateway (S5).
 - Suporta: linha de requisição, headers, corpo com `Content-Length` (limite de 1 MB; 20 MB só em `/v1/upload`; acima disso, 413), resposta com `Content-Length`, `Connection: close`. Sem chunked, sem keep-alive, sem HTTP/2.
 - Handlers são `async` e podem segurar a resposta por até 600 s (necessário para o `PermissionRequest`, §8.1). A conexão fechada pelo cliente cancela a `Task` do handler.
 - **WebSocket**: o upgrade (`Sec-WebSocket-Accept` com SHA-1 + base64) e o framing RFC 6455 são implementados no próprio `HttpServer`: frames de texto e binário, fragmentação de entrada, ping/pong automático, close, e máscara obrigatória nos frames do cliente. Sem extensões (sem `permessage-deflate`). O `NWProtocolWebSocket` fica de fora porque, no stack do listener, ele não atende HTTP comum na mesma porta.
@@ -484,12 +623,14 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
     - transforma corpo sem tamanho conhecido em chunked, que o daemon recusa com 411 (§4.4);
     - responde 502 quando o gateway não está escutando.
 - **Pareamento**:
-  1. `mochad pair` gera um código de pareamento aleatório de 32 bytes (base64url) e imprime um QR (CoreImage `CIQRCodeGenerator` renderizado com meio-blocos Unicode) com `mocha://pair?url=<wss url>&code=<código>`.
+  1. `mochad pair` pede ao daemon um código de pareamento (§4.8). O daemon gera o código (32 bytes aleatórios, base64url) e o guarda em memória, de uso único, por 10 min. O `Pairing` emite o código e a URL; a CLI renderiza o QR (CoreImage `CIQRCodeGenerator` com meio-blocos Unicode).
+     - O link é `mocha://pair?url=<URL do WS, percent-encoded>&code=<código>`, montado e lido pelo tipo `PairingLink` de `MochaProtocol` (o mesmo no daemon e no app).
+     - O QR sai com cores ANSI explícitas (módulos pretos em fundo branco) e margem de 4 módulos, para ser lido também em terminal escuro.
   2. O app lê o QR (câmera, `DataScannerViewController`) ou recebe o link colado.
   3. Ele conecta e envia `hello{pairingCode}`.
   4. O daemon troca o código por um **token de aparelho** (32 bytes aleatórios), devolvido uma única vez em `helloOk.deviceToken`.
   5. O app guarda o token no Keychain (`kSecAttrAccessibleAfterFirstUnlock`, necessário para ações de notificação em background).
-- **Autenticação**: toda conexão WS envia `hello{deviceToken}` como **primeira mensagem**. A URL do WS nunca carrega token, porque o proxy do Serve pode descartar a query string. Requisições HTTP do app levam `Authorization: Bearer <deviceToken>`. O daemon guarda só o SHA-256 do token e compara em tempo constante. Três falhas seguidas numa conexão encerram a conexão.
+- **Autenticação**: toda conexão WS envia `hello{deviceToken}` como **primeira mensagem**. A URL do WS nunca carrega token, porque a URL entra em logs e históricos (o Serve repassa a query intacta). Requisições HTTP do app levam `Authorization: Bearer <deviceToken>`. O daemon guarda só o SHA-256 do token e compara em tempo constante. Três falhas seguidas numa conexão encerram a conexão, e um `hello` recusado conta nessas três (§5.3.1).
 
 ### §4.6 DeviceStore
 
@@ -516,6 +657,18 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 - Nenhum polling abaixo de 2 s. Tudo é orientado a eventos (socket do Herdr e DispatchSource).
 - Referência medida (S2): o Herdr entrega `pane.agent_status_changed` 30–100 ms depois da mudança de estado, e o `working` chega 0,5–0,7 s depois do envio do prompt (o `agent.prompt` leva ~300 ms).
 
+### §4.8 Canal local (CLI → daemon)
+
+- HTTP/1.1 do próprio `HttpServer` (§4.4) no socket Unix `~/Library/Application Support/Mocha/mochad.sock` (0600), sem token nem segredo: o acesso é controlado pela permissão do arquivo. Não passa pelo Serve.
+- O cliente da CLI fala HTTP sobre `NWConnection` com `NWEndpoint.unix(path:)`, porque o `URLSession` não abre socket Unix. Timeout de 5 s.
+- O `DeviceStore` relê `devices.json` antes de cada gravação.
+
+| Rota | Resposta |
+|---|---|
+| `POST /local/pairing-code` | `{"code","url","expiresAt"}` (§4.5) |
+| `GET /local/status` | JSON com `version`, `startedAt`, `herdr{available, version?, protocol?}`, `clients[{deviceId, name, connectedAt}]` e `sessions[{sessionId, agentId, claudeVersion?, dropped, orphanResults, unknown}]` |
+| `DELETE /local/devices/<id>` | 200 com `{}` depois de fechar as conexões do aparelho (`error{unauthorized}` e close 1008) e removê-lo de `devices.json`; 404 se o aparelho não existe |
+
 ---
 
 ## §5 Protocolo v1 (`MochaProtocol`)
@@ -529,7 +682,7 @@ Mensagens WebSocket de texto, JSON UTF-8. Datas em ISO-8601 com milissegundos. C
 ```
 
 - `v`: versão do protocolo. Um cliente com `v` diferente recebe `error{code:"protocolMismatch"}` e é desconectado.
-- `id`: obrigatório em toda mensagem do cliente (string única por conexão). Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
+- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
 - Tipo desconhecido vindo do cliente: o daemon responde `error{code:"unknownType"}` e segue. Tipo desconhecido vindo do servidor: o app ignora a mensagem.
 - `payload` ausente equivale a `{}`.
 
@@ -700,7 +853,7 @@ Envelope completo:
 
 ```json
 {"v":1,"id":"c-7","type":"openChat","payload":{"agentId":"w17:p1","limit":60}}
-{"v":1,"id":"c-7","type":"chatPage","payload":{"agentId":"w17:p1","meta":{"title":"herdr-sidebar abre arquivos em nova tab","workspaceLabel":"Core","model":"claude-opus-5-5","branch":"development","status":"idle"},"items":[…],"before":"b:120394","hasMore":true}}
+{"v":1,"id":"c-7","type":"chatPage","payload":{"agentId":"w17:p1","meta":{"title":"herdr-sidebar abre arquivos em nova tab","workspaceLabel":"Core","model":"claude-opus-5-5","branch":"development","status":"idle"},"items":[…],"before":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64:120394","hasMore":true}}
 {"v":1,"type":"agentStatus","payload":{"agentId":"w17:p1","status":"working"}}
 {"v":1,"id":"c-9","type":"ack","payload":{}}
 {"v":1,"id":"c-9","type":"error","payload":{"code":"agentBlocked","message":"O agente está esperando uma resposta no terminal."}}
@@ -747,6 +900,34 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `pong` | `{}` | Resposta a `ping` |
 | `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `internal` |
 
+#### §5.3.1 Regras do servidor
+
+- **`hello`**:
+  - a checagem de `v` vem antes de tudo: `v` diferente de 1 recebe `protocolMismatch`, mesmo na primeira mensagem;
+  - a primeira mensagem precisa ser `hello`; outra coisa recebe `error{unauthorized}` e close 1008;
+  - `hello` repetido na mesma conexão recebe `invalidPayload`;
+  - `hello` recusado (token errado, código inválido ou vencido) conta nas três falhas da §4.5, e a terceira fecha com 1008. Código vencido, já usado ou nunca emitido → `pairingExpired`.
+- **Fim da conexão**:
+  - `protocolMismatch` → `error` e close 1002;
+  - `unpair` → `ack`, close 1000, e o aparelho sai de `devices.json`;
+  - aparelho removido pela CLI (§4.8) → `error{unauthorized}` e close 1008.
+- **`openChat`**:
+  - `limit` ausente = 60; fora de 1…200, é cortado para o intervalo;
+  - cursor inválido ou de outra sessão → `invalidPayload`;
+  - agente com `kind != "claude"` → `invalidPayload` ("Chat disponível só para Claude Code");
+  - agente sem sessão → `chatPage` com `items: []`, `before: nil` e `hasMore: false`, e o chat passa a ser acompanhado (o arquivo pode nascer depois, §3.2.1);
+  - agente desconhecido, depois de `resolve` (§4.1.1) → `agentNotFound`.
+- **Erros do Herdr** (§3.1.1):
+
+| Herdr | Protocolo |
+|---|---|
+| `agent_blocked` | `agentBlocked` |
+| `agent_not_found`, `pane_not_found` | `agentNotFound` |
+| Herdr indisponível | `herdrUnavailable` |
+| `agent_not_ready`, `agent_prompt_stalled`, `timeout` e os demais | `internal`, com mensagem em português |
+
+- **No app**: o app decide pelo `error.code` que chega antes do close. `unauthorized` e `pairingExpired` levam à tela de pareamento. O token só é apagado quando um pareamento novo dá certo ou no `unpair`.
+
 ### §5.4 Paginação
 
 - `openChat` sem `before` devolve os últimos `limit` itens.
@@ -772,11 +953,65 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 ### §6.1 Estrutura
 
 - SwiftUI, iOS 26+, só iPhone, só retrato na 1a.
-- Estado de UI em classes `@Observable @MainActor`. A conexão fica num `actor ConnectionManager` que expõe `AsyncStream` de mensagens do servidor.
+- Estado de UI em classes `@Observable @MainActor`.
 - Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug).
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
-- **Deep links**: `mocha://agent/<paneId>` abre o chat e `mocha://pair?url=…&code=…` inicia o pareamento. O `paneId` vai percent-encoded, porque contém `:`.
+- **Deep links**: `mocha://agent/<paneId>` abre o chat e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`.
+- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2) e `-probe push|gateway` (só em Debug). O `-probe` é lido só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
+
+**Conexão**: esboço normativo em `MochaProtocol`, como a §5.2.
+
+```swift
+public enum ConnectionProblem: String, Sendable, Equatable {
+    case unreachable        // timeout ou erro de rede: "Sem conexão com o Mac"
+    case daemonNotRunning   // 502 no handshake: "O Mac respondeu, mas o mochad não está rodando"
+    case unauthorized       // token recusado (aparelho removido ou token inválido)
+    case pairingExpired     // código de pareamento vencido ou já usado
+    case protocolMismatch
+}
+
+public enum ConnectionState: Sendable, Equatable {
+    case idle                                   // antes de start(), depois de stop() ou em background
+    case connecting                             // abrindo o WebSocket ou esperando o helloOk
+    case connected                              // helloOk recebido; tree chega em messages
+    case waitingToRetry(ConnectionProblem)      // backoff (§2.3)
+    case pairingRequired(ConnectionProblem?)    // sem token, token recusado, código vencido ou depois de unpair
+    case failed(ConnectionProblem)              // não se resolve sozinho (protocolMismatch); só tenta de novo no próximo start()
+}
+
+public struct PairingLink: Sendable, Equatable {
+    public var url: URL         // wss://<host>/v1
+    public var code: String     // base64url
+    public init?(_ link: URL)   // mocha://pair?url=<percent-encoded>&code=<código>
+    public var link: URL
+}
+
+public enum ServerConnectionError: Error, Sendable, Equatable { case notConnected }
+
+public protocol ServerConnection: Sendable {
+    var messages: AsyncStream<ServerEnvelope> { get }
+    var states: AsyncStream<ConnectionState> { get }
+    func start() async
+    func stop() async
+    func pair(_ link: PairingLink) async
+    func send(_ message: ClientMessage, id: String) async throws
+}
+```
+
+- `messages` e `states` têm um consumidor só (o `AppSession`) e atravessam reconexões. `states` começa pelo estado atual.
+- A conexão faz o `hello` sozinha a cada abertura, com o token do `TokenStore` ou com o código recebido em `pair`. `helloOk` e `tree` chegam em `messages` com o id `hello-<n>`; o app trata os dois como atualização de estado, sem correlação.
+- `send` exige `.connected`; fora dele, lança `notConnected`. O id vem do app (`c-<n>`), que o registra antes de chamar `send`, para a resposta nunca chegar antes do registro.
+- `unpair`: depois do `ack`, a conexão apaga o token e vai para `pairingRequired(nil)`.
+- `start()` é idempotente. `stop()` fecha com 1001 e vai para `.idle`.
+- `DemoServerConnection` e `ConnectionManager` implementam o mesmo contrato.
+
+**`AppSession`** (`App/Sources/AppShell/`, `@MainActor @Observable`):
+- é o único consumidor de `messages` e `states`;
+- guarda o host, as preferências, a árvore, o estado da conexão, o chat visível e a navegação (inclusive se Ajustes e Pareamento estão abertos);
+- correlaciona as respostas pelo id;
+- ao voltar para `.connected`, reabre o chat visível com `openChat` e substitui a lista;
+- num `tree` ou `treeChanged`, se o `agentId` do chat visível sumiu e outro agente tem o mesmo `sessionId`, passa a usar o id novo.
 
 ### §6.2 Design system
 
@@ -808,6 +1043,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
   - Chat, header e composer usam fonte **monoespaçada**. O WP de design system identifica a fonte do print comparando o SF Mono do sistema (`.monospaced`) com JetBrains Mono e Geist Mono (licença OFL, empacotável).
   - O corpo do chat mede ~17 pt, com entrelinha folgada (ver prints), e respeita o Dynamic Type.
   - A gaveta usa a fonte do sistema (SF Pro), como no print `gaveta-workspaces.png`.
+- **Ponto de status do header**: `idle` e `done` em `statusOk` (disco com o glifo `−`), `working` em `statusOk` pulsando, `blocked` em `dirty`, `unknown` e sem conexão em `textSecondary`.
 - **Vidro**: `glassEffect` do iOS 26 no header, no composer e nos botões redondos flutuantes, sempre escuro (o app força `.preferredColorScheme(.dark)`).
 - **Ícones**: SF Symbols. O asterisco do Claude é um símbolo desenhado (asset vetorial) na cor `claude`.
 
@@ -816,11 +1052,16 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 **Pareamento** (primeira execução ou token inválido)
 - Tela escura com o logo, "Parear com o Mac" e as instruções `mochad pair`.
 - Botão de ler QR (câmera) e campo para colar o link.
-- Estados: lendo, conectando, pareado, erro (com a mensagem).
+- Estados: lendo, conectando, pareado e erro. Mensagens de erro:
+  - "O Mac respondeu, mas o mochad não está rodando" (502 no handshake);
+  - "Sem conexão com o Mac" (timeout ou erro de rede);
+  - "Código vencido; gere outro com `mochad pair`" (`pairingExpired`);
+  - "Este iPhone não está mais pareado" (`unauthorized`).
 
 **Gaveta** (`gaveta-workspaces.png`)
 - Abre pela borda esquerda (arrasto) ou pelo botão do header, e ocupa ~90 % da largura com `scrim` no restante.
 - Topo: campo de busca ("Buscar workspaces, agentes…") filtrando por workspace, tab e título do agente, e o controle segmentado **Recentes** (relógio: agentes por `lastActivityAt`) | **Árvore** (lista).
+- Botão de engrenagem no canto superior direito, ao lado da busca, que abre Ajustes.
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados.
 - Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador, como no print. Em `working` o asterisco pulsa; em `blocked` aparece um ponto `dirty` à direita.
 - A linha do chat atual fica com `selectedRow`. Tocar numa tab com agente abre o chat; tocar numa tab de shell mostra "Terminal chega na fase 2".
@@ -847,6 +1088,10 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 - **Rolagem**: gruda no fim quando o usuário já está no fim. Se ele rolou pra cima, aparece o botão redondo "↓" (canto inferior direito, acima do composer) e itens novos não mexem na posição.
 - **Paginação**: ao chegar no topo, carrega `before` com um indicador; a posição de leitura se mantém.
 - **Troca de sessão**: quando o `sessionId` do agente do chat aberto muda num `tree`/`treeChanged` (depois de `/clear`), o app reabre o chat com `openChat` e substitui a lista; a sessão nova começa com o chip `/clear`.
+- **Bolha "enviando"**: cada `sendPrompt` cria uma bolha pendente.
+  - As bolhas são casadas em ordem (FIFO), com o texto aparado, com o próximo `userPrompt` ou `slashCommand` que chegar (`slashCommand` para texto `/x …` ou `!cmd`).
+  - A bolha também some quando chega um `chatPage`, porque a lista é substituída.
+  - Depois de 60 s sem par, ela fica marcada "sem confirmação", e o toque a descarta.
 
 **Composer** (flutuante sobre o fim da lista)
 - Campo multilinha "Chat via Mocha…" (até 6 linhas, depois rola).
@@ -866,7 +1111,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 - Pergunta: cada `PendingQuestion` com as opções (seleção única ou múltipla), campo "Outro" e botão "Responder".
 - Tocar no nome do agente abre o chat.
 
-**Ajustes**: host pareado e estado da conexão, desparear (`unpair` e limpeza do Keychain), notificações de turno concluído (`setPreferences`, 1a-final), versão do app e do daemon.
+**Ajustes**: host pareado, estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe), desparear (`unpair` e limpeza do Keychain), notificações de turno concluído (`setPreferences`, 1a-final), versão do app e do daemon.
 
 ### §6.4 Voz (1b)
 
@@ -1060,6 +1305,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 ## §10 Segurança
 
 - O daemon só escuta em `127.0.0.1` (hooks em 47420, gateway em 47421). A exposição ao iPhone é só pelo `tailscale serve` (tailnet privada, TLS). Os headers `Tailscale-User-*` e `X-Forwarded-*` que o Serve acrescenta não autenticam nada, porque um processo local pode conectar direto na porta e forjá-los: a autenticação é sempre o token do aparelho (§4.5).
+- O canal local (§4.8) fica num socket Unix 0600, sem segredo e fora do Serve. O `hookSecret` serve só aos hooks.
 - O token de aparelho fica no Keychain do iPhone. O daemon guarda só o SHA-256 dele.
 - O código de pareamento é de uso único e expira em 10 min.
 - O `HookServer` exige `X-Mocha-Hook-Secret` e escuta só em `127.0.0.1`.
