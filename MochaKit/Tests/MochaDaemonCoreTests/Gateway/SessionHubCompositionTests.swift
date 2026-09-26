@@ -211,7 +211,7 @@ struct SessionHubCompositionTests {
             harness.herdr.emit(.sessionChanged("w1:p1", sessionId: Sample.sessionB))
             await harness.transcripts.waitForSubscribers(1, forSession: Sample.sessionB)
             await harness.transcripts.waitForSubscribers(0, forSession: Sample.sessionA)
-            guard case .chatMeta(let target, let meta) = try await socket.nextMessage() else {
+            guard case .chatMeta(let target, let meta) = try await socket.nextMessageSkippingArchived() else {
                 Issue.record("expected chatMeta")
                 return
             }
@@ -219,7 +219,7 @@ struct SessionHubCompositionTests {
             #expect(meta.title == "sessao-nova")
 
             try await harness.advanceTreeDebounce()
-            guard case .treeChanged(let tree) = try await socket.nextMessage() else {
+            guard case .treeChanged(let tree) = try await socket.nextMessageSkippingArchived() else {
                 Issue.record("expected treeChanged")
                 return
             }
@@ -230,7 +230,7 @@ struct SessionHubCompositionTests {
 
             let item = Sample.item("n1", text: "depois do /clear")
             await harness.transcripts.emit(.append([item]), toSession: Sample.sessionB)
-            #expect(try await socket.nextMessage() == .chatAppend(target: .agent("w1:p1"), items: [item]))
+            #expect(try await socket.nextMessageSkippingArchived() == .chatAppend(target: .agent("w1:p1"), items: [item]))
         }
     }
 

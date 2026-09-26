@@ -17,6 +17,7 @@ struct HubError: Error, Sendable, Equatable {
     static let invalidSessionId = HubError(code: .invalidPayload, message: "O sessionId precisa ser um UUID.")
     static let agentNotFound = HubError(code: .agentNotFound, message: "Agente não encontrado.")
     static let sessionNotFound = HubError(code: .sessionNotFound, message: "Sessão não encontrada no Mac.")
+    static let sessionNotCurrent = HubError(code: .sessionNotFound, message: "A sessão não é a atual de nenhum agente.")
     static let agentBlocked = HubError(code: .agentBlocked, message: "O agente está esperando uma resposta no terminal.")
     static let herdrUnavailable = HubError(code: .herdrUnavailable, message: "O Herdr não está disponível no Mac.")
     static let deviceStoreFailed = HubError(code: .internal, message: "Não foi possível gravar o aparelho no Mac.")

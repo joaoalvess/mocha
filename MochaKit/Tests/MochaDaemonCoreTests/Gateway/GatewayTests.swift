@@ -48,6 +48,7 @@ struct GatewayTests {
                 guard case .helloOk(let helloOk) = paired.message else { throw UnexpectedMessage(message: paired.message) }
                 let token = try #require(helloOk.deviceToken)
                 #expect(try await Self.receive(pairing).message == .tree(workspaces: Sample.defaultTree))
+                #expect(try await Self.receive(pairing).message == .archived(sessions: []))
                 try await pairing.send(RawFrameBuilder.close(code: 1000))
                 #expect(try await Self.nextFrame(pairing).closeCode == 1000)
                 pairing.cancel()
@@ -61,6 +62,7 @@ struct GatewayTests {
                 let tree = try await Self.receive(client)
                 #expect(tree.id == "hello-2")
                 #expect(tree.message == .tree(workspaces: Sample.defaultTree))
+                #expect(try await Self.receive(client).message == .archived(sessions: []))
 
                 try await Self.send(.openChat(target: .agent("w1:p1")), id: "c-1", to: client)
                 let page = try await Self.receive(client)
@@ -123,6 +125,7 @@ struct GatewayTests {
                 try await Self.send(.hello(HelloPayload(pairingCode: code.code, deviceName: "iPhone", appVersion: "1.0")), id: "hello-1", to: client)
                 _ = try await Self.receive(client)
                 _ = try await Self.receive(client)
+                #expect(try await Self.receive(client).message == .archived(sessions: []))
 
                 await gateway.shutdown()
                 let close = try await Self.nextFrame(client)

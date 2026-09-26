@@ -1,0 +1,56 @@
+{
+  "source": "claude-statusline",
+  "provider": "claude",
+  "model": "Opus 5.5 (1M context)",
+  "fetched_at_unix": 1790392863,
+  "windows": [
+    {
+      "kind": "five_hour",
+      "used_percent": 12.0,
+      "remaining_percent": 88.0,
+      "resets_at": 1790406000
+    },
+    {
+      "kind": "weekly",
+      "used_percent": 71.0,
+      "remaining_percent": 29.0,
+      "resets_at": 1790604000
+    }
+  ],
+  "session_contexts": {
+    "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64": {
+      "used_percent": 36.0,
+      "cache": {
+        "fresh_input_tokens": 2,
+        "read_tokens": 358120,
+        "creation_tokens": 1024,
+        "hit_percent": 99.7,
+        "ttl_seconds": 3600,
+        "last_activity_unix": 1790392800,
+        "expires_at_unix": 1790396400,
+        "session_totals": null,
+        "session_id": "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64",
+        "transcript_offset": 0
+      }
+    },
+    "5c1e9a7b-4d2f-4b8a-9e3c-6f0a2d8b1c47": {
+      "used_percent": 81.5,
+      "cache": {
+        "fresh_input_tokens": 4,
+        "read_tokens": 161000,
+        "creation_tokens": 512,
+        "hit_percent": 98.9,
+        "ttl_seconds": 3600,
+        "last_activity_unix": 1790391000,
+        "expires_at_unix": 1790394600,
+        "session_totals": null,
+        "session_id": "5c1e9a7b-4d2f-4b8a-9e3c-6f0a2d8b1c47",
+        "transcript_offset": 0
+      }
+    }
+  },
+  "session_models": {
+    "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64": "Opus 5.5 (1M context)",
+    "5c1e9a7b-4d2f-4b8a-9e3c-6f0a2d8b1c47": "Sonnet 4.5"
+  }
+}

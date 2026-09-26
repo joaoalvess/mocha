@@ -182,6 +182,15 @@ final class TestClientSocket: GatewaySocket {
         }
     }
 
+    func nextMessageSkippingArchived() async throws -> ServerMessage {
+        try await nextMessage { message in
+            if case .archived = message {
+                return false
+            }
+            return true
+        }
+    }
+
     var pendingCount: Int {
         state.withLock { $0.received.count - $0.cursor }
     }
@@ -290,6 +299,8 @@ enum Sample {
 struct HubHarness {
     let herdr: FakeHerdrBridge
     let transcripts: FakeTranscriptProvider
+    let usage: FakeUsageProvider
+    let archive: FakeSessionArchive
     let clock: ManualClock
     let devices: DeviceStore
     let pairing: Pairing
@@ -316,6 +327,7 @@ struct HubHarness {
         let tree = try await socket.next()
         #expect(tree.id == "hello-1")
         guard case .tree = tree.message else { throw UnexpectedMessage(message: tree.message) }
+        try await skipSessionState(socket)
         return (socket, helloOk)
     }
 
@@ -324,7 +336,17 @@ struct HubHarness {
         let reply = try await socket.reply(to: .hello(HelloPayload(deviceToken: token, deviceName: "iPhone", appVersion: "1.0")), id: "hello-1")
         guard case .helloOk = reply else { throw UnexpectedMessage(message: reply) }
         _ = try await socket.next()
+        try await skipSessionState(socket)
         return socket
+    }
+
+    func skipSessionState(_ socket: TestClientSocket) async throws {
+        let archived = try await socket.nextMessage()
+        guard case .archived = archived else { throw UnexpectedMessage(message: archived) }
+        if usage.currentSnapshot != nil {
+            let usage = try await socket.nextMessage()
+            guard case .usage = usage else { throw UnexpectedMessage(message: usage) }
+        }
     }
 
     func advanceTreeDebounce(expectingSleepers count: Int = 1) async throws {
@@ -337,6 +359,8 @@ func withHub(
     tree: [WorkspaceNode] = Sample.defaultTree,
     agents: [HerdrAgent]? = nil,
     available: Bool = true,
+    usage: FakeUsageProvider = FakeUsageProvider(),
+    archive: FakeSessionArchive = FakeSessionArchive(),
     configure: (FakeTranscriptProvider) async -> Void = { _ in },
     _ body: (HubHarness) async throws -> Void
 ) async throws {
@@ -352,6 +376,8 @@ func withHub(
         transcripts: transcripts,
         devices: devices,
         pairing: pairing,
+        usage: usage,
+        archive: archive,
         clock: clock,
         configuration: SessionHubConfiguration(hostName: "Mac de Teste", daemonVersion: "9.9.9")
     )
@@ -359,6 +385,8 @@ func withHub(
     let harness = HubHarness(
         herdr: herdr,
         transcripts: transcripts,
+        usage: usage,
+        archive: archive,
         clock: clock,
         devices: devices,
         pairing: pairing,
