@@ -5,15 +5,22 @@ public struct HerdrClientConfiguration: Sendable {
     public var socketPath: String
     public var requestTimeout: Duration
     public var promptTimeout: Duration
+    public var waitMargin: Duration
 
     public init(
         socketPath: String = HerdrSocketPath.resolve(),
         requestTimeout: Duration = .seconds(5),
-        promptTimeout: Duration = .seconds(10)
+        promptTimeout: Duration = .seconds(10),
+        waitMargin: Duration = .seconds(2)
     ) {
         self.socketPath = socketPath
         self.requestTimeout = requestTimeout
         self.promptTimeout = promptTimeout
+        self.waitMargin = waitMargin
+    }
+
+    public func waitTimeout(for timeout: Duration) -> Duration {
+        timeout + waitMargin
     }
 }
 
@@ -67,6 +74,35 @@ public struct HerdrClient: Sendable {
 
     public func agentSendKeys(target: String, keys: [String]) async throws {
         _ = try await perform(.agentSendKeys(target: target, keys: keys), expecting: "ok", as: HerdrResponse.Empty.self)
+    }
+
+    public func tabCreate(workspaceId: String, cwd: String?) async throws -> HerdrTabCreated {
+        try await perform(.tabCreate(workspaceId: workspaceId, cwd: cwd), expecting: "tab_created", as: HerdrTabCreated.self)
+    }
+
+    @discardableResult
+    public func agentStart(
+        name: String,
+        kind: String,
+        paneId: String,
+        args: [String],
+        timeout: Duration? = nil
+    ) async throws -> HerdrAgentStarted {
+        try await perform(
+            .agentStart(name: name, kind: kind, paneId: paneId, args: args, timeoutMs: timeout?.herdrMilliseconds),
+            expecting: "agent_started",
+            as: HerdrAgentStarted.self,
+            timeout: timeout.map(configuration.waitTimeout(for:))
+        )
+    }
+
+    public func agentWait(target: String, until statuses: [HerdrAgentStatus], timeout: Duration) async throws -> HerdrPane {
+        try await perform(
+            .agentWait(target: target, until: statuses, timeoutMs: timeout.herdrMilliseconds),
+            expecting: "agent_info",
+            as: HerdrResponse.Agent.self,
+            timeout: configuration.waitTimeout(for: timeout)
+        ).agent
     }
 
     public func subscribe(_ subscriptions: [HerdrSubscription]) async throws -> HerdrEventSubscription {
@@ -131,6 +167,13 @@ public struct HerdrClient: Sendable {
             }
             return value
         }
+    }
+}
+
+extension Duration {
+    var herdrMilliseconds: Int {
+        let (seconds, attoseconds) = components
+        return Int(seconds) * 1000 + Int(attoseconds / 1_000_000_000_000_000)
     }
 }
 

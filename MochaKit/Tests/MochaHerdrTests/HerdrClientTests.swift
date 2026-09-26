@@ -80,6 +80,91 @@ struct HerdrClientTests {
         }
     }
 
+    @Test func waitCallsUseTheirTimeoutPlusTwoSeconds() {
+        let configuration = HerdrClientConfiguration(socketPath: "/tmp/unused.sock")
+        #expect(configuration.waitMargin == .seconds(2))
+        #expect(configuration.waitTimeout(for: .milliseconds(30000)) == .milliseconds(32000))
+        #expect(configuration.waitTimeout(for: .seconds(3)) == .seconds(5))
+    }
+
+    @Test func agentWaitIsCutAtItsTimeoutPlusTheMargin() async throws {
+        try await withFakeHerdr { server, _ in
+            let client = HerdrClient(
+                configuration: HerdrClientConfiguration(socketPath: server.socketPath, requestTimeout: .milliseconds(100), waitMargin: .milliseconds(600))
+            )
+            await server.override("agent.wait", with: .noReply)
+            let start = ContinuousClock.now
+            await #expect(throws: HerdrClientError.timeout(method: "agent.wait")) {
+                _ = try await client.agentWait(target: "w1A:p1", until: [.idle, .blocked], timeout: .milliseconds(400))
+            }
+            let elapsed = start.duration(to: .now)
+            #expect(elapsed >= .milliseconds(990))
+            #expect(elapsed < .seconds(5))
+            let request = try #require(await server.requests(method: "agent.wait").first)
+            #expect(request.intParam("timeout_ms") == 400)
+            #expect(request.stringArrayParam("until") == ["idle", "blocked"])
+        }
+    }
+
+    @Test func agentStartWaitsLongerOnlyWhenItCarriesATimeout() async throws {
+        try await withFakeHerdr { server, _ in
+            let client = HerdrClient(
+                configuration: HerdrClientConfiguration(socketPath: server.socketPath, requestTimeout: .milliseconds(100), waitMargin: .milliseconds(600))
+            )
+            await server.override("agent.start", with: .noReply)
+            let withTimeout = ContinuousClock.now
+            await #expect(throws: HerdrClientError.timeout(method: "agent.start")) {
+                try await client.agentStart(name: "mocha-1", kind: "claude", paneId: "w1A:p1", args: [], timeout: .milliseconds(400))
+            }
+            #expect(withTimeout.duration(to: .now) >= .milliseconds(990))
+            let withoutTimeout = ContinuousClock.now
+            await #expect(throws: HerdrClientError.timeout(method: "agent.start")) {
+                try await client.agentStart(name: "mocha-1", kind: "claude", paneId: "w1A:p1", args: [])
+            }
+            #expect(withoutTimeout.duration(to: .now) < .milliseconds(990))
+            let requests = await server.requests(method: "agent.start")
+            #expect(requests.map { $0.intParam("timeout_ms") } == [400, nil])
+            #expect(requests.map(\.paramKeys) == [["name", "kind", "pane_id", "args", "timeout_ms"], ["name", "kind", "pane_id", "args"]])
+        }
+    }
+
+    @Test func agentWaitAnswersWhenTheStatusArrives() async throws {
+        try await withFakeHerdr { server, client in
+            async let waited = client.agentWait(target: "w1A:p1", until: [.idle, .blocked], timeout: .seconds(5))
+            #expect(await HerdrWait.until { await server.pendingWaitCount == 1 })
+            await server.setAgentStatus(paneId: "w1A:p1", status: "blocked")
+            let pane = try await waited
+            #expect(pane.paneId == "w1A:p1")
+            #expect(pane.agentStatus == .blocked)
+            #expect(await server.pendingWaitCount == 0)
+        }
+    }
+
+    @Test func agentWaitTimeoutComesBackAsTheHerdrError() async throws {
+        try await withFakeHerdr { server, client in
+            let error = await expectServerError(.timeout) {
+                _ = try await client.agentWait(target: "w1A:p1", until: [.working], timeout: .milliseconds(150))
+            }
+            #expect(error?.message == FakeHerdrServer.waitTimeoutMessage)
+            #expect(await server.pendingWaitCount == 0)
+        }
+    }
+
+    @Test func newTabAndAgentStartDecode() async throws {
+        try await withFakeHerdr { server, client in
+            let created = try await client.tabCreate(workspaceId: "w1A", cwd: "/Users/dev/projects/demo-app")
+            #expect(created.tab.workspaceId == "w1A")
+            #expect(created.rootPane.tabId == created.tab.tabId)
+            #expect(created.rootPane.cwd == "/Users/dev/projects/demo-app")
+            let started = try await client.agentStart(name: "mocha-1", kind: "claude", paneId: created.rootPane.paneId, args: [])
+            #expect(started.agent.paneId == created.rootPane.paneId)
+            #expect(started.agent.name == "mocha-1")
+            #expect(started.argv == ["claude"])
+            #expect(try await client.agentList().contains { $0.name == "mocha-1" })
+            #expect(await server.requests(method: "tab.create").first?.boolParam("focus") == false)
+        }
+    }
+
     @Test func missingSocketFailsToConnect() async throws {
         let client = HerdrClient(configuration: HerdrClientConfiguration(socketPath: FakeHerdrServer.temporarySocketPath(), requestTimeout: .seconds(2)))
         do {

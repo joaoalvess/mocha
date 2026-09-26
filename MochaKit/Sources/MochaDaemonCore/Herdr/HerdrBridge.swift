@@ -7,6 +7,9 @@ let herdrLogger = Logger(subsystem: "com.joaoalves.mocha", category: "herdr")
 
 public actor HerdrBridge: HerdrBridging {
     public static let interruptKeys = ["Escape"]
+    public static let newAgentKind = "claude"
+    public static let newAgentNamePrefix = "mocha-"
+    public static let readyStatuses: [HerdrAgentStatus] = [.idle, .blocked]
 
     private struct PaneSubscription {
         let token: UUID
@@ -42,6 +45,7 @@ public actor HerdrBridge: HerdrBridging {
     private var sessionProbes: [String: ScheduledTask] = [:]
     private var treeDerivations = 0
     private var publishedDerivation = 0
+    private var reservedAgentNames: Set<String> = []
 
     public init(
         client: HerdrClient = HerdrClient(),
@@ -156,10 +160,72 @@ public actor HerdrBridge: HerdrBridging {
         scheduleTreeRefresh()
     }
 
-    private func command(_ operation: @Sendable (HerdrClient) async throws -> Void) async throws {
+    public func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID {
+        guard available else { throw HerdrBridgeError.unavailable }
+        guard let workspace = state.workspace(workspaceId) else { throw HerdrBridgeError.workspaceNotFound }
+        let directory = HerdrTreeBuilder.workspaceDirectory(workspace, in: state)
+        let created = try await command { client in
+            try await client.tabCreate(workspaceId: workspaceId, cwd: directory)
+        }
+        let paneId = created.rootPane.paneId
+        let statusEvents = try? await client.subscribe([.agentStatusChanged(paneId: paneId)])
+        defer { statusEvents?.cancel() }
+        let namesInUse = try await command { client in
+            try await client.agentList().compactMap(\.name)
+        }
+        let name = Self.newAgentName(excluding: reservedAgentNames.union(namesInUse))
+        reservedAgentNames.insert(name)
+        defer { reservedAgentNames.remove(name) }
+        _ = try await command { client in
+            try await client.agentStart(name: name, kind: Self.newAgentKind, paneId: paneId, args: [])
+        }
+        await waitUntilReady(paneId, statusEvents: statusEvents)
+        if available {
+            await refreshSnapshotNow(cycle: generation)
+        }
+        return paneId
+    }
+
+    static func newAgentName(excluding namesInUse: Set<String>) -> String {
+        var number = 1
+        while namesInUse.contains("\(newAgentNamePrefix)\(number)") {
+            number += 1
+        }
+        return "\(newAgentNamePrefix)\(number)"
+    }
+
+    private func waitUntilReady(_ paneId: String, statusEvents: HerdrEventSubscription?) async {
+        let client = self.client
+        let timeout = configuration.newAgentReadyTimeout
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return true
+            }
+            group.addTask {
+                (try? await client.agentWait(target: paneId, until: Self.readyStatuses, timeout: timeout)) != nil
+            }
+            if let statusEvents {
+                group.addTask {
+                    for await event in statusEvents.events {
+                        if case .agentStatusChanged(_, _, let status, _) = event, Self.readyStatuses.contains(status) {
+                            return true
+                        }
+                    }
+                    return false
+                }
+            }
+            for await isReady in group where isReady {
+                group.cancelAll()
+                return
+            }
+        }
+    }
+
+    private func command<Value: Sendable>(_ operation: @Sendable (HerdrClient) async throws -> Value) async throws -> Value {
         guard available else { throw HerdrBridgeError.unavailable }
         do {
-            try await operation(client)
+            return try await operation(client)
         } catch let error as HerdrClientError {
             throw bridgeError(for: error)
         } catch is CancellationError {
@@ -547,6 +613,10 @@ public actor HerdrBridge: HerdrBridging {
     private func refreshSnapshot(token: UUID, cycle: Int) async {
         guard snapshotRefresh?.token == token else { return }
         snapshotRefresh = nil
+        await refreshSnapshotNow(cycle: cycle)
+    }
+
+    private func refreshSnapshotNow(cycle: Int) async {
         guard cycle == generation else { return }
         do {
             let snapshot = try await client.sessionSnapshot()

@@ -18,6 +18,7 @@ struct HubError: Error, Sendable, Equatable {
     static let agentNotFound = HubError(code: .agentNotFound, message: "Agente não encontrado.")
     static let sessionNotFound = HubError(code: .sessionNotFound, message: "Sessão não encontrada no Mac.")
     static let sessionNotCurrent = HubError(code: .sessionNotFound, message: "A sessão não é a atual de nenhum agente.")
+    static let workspaceNotFound = HubError(code: .invalidPayload, message: "Workspace não encontrado")
     static let agentBlocked = HubError(code: .agentBlocked, message: "O agente está esperando uma resposta no terminal.")
     static let herdrUnavailable = HubError(code: .herdrUnavailable, message: "O Herdr não está disponível no Mac.")
     static let deviceStoreFailed = HubError(code: .internal, message: "Não foi possível gravar o aparelho no Mac.")
@@ -36,6 +37,8 @@ struct HubError: Error, Sendable, Equatable {
             return .agentNotFound
         case .agentBlocked:
             return .agentBlocked
+        case .workspaceNotFound:
+            return .workspaceNotFound
         case .herdr(let code, _):
             switch code {
             case "agent_blocked":

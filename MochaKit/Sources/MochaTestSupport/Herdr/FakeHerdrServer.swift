@@ -15,6 +15,14 @@ public struct FakeHerdrRequest: Sendable {
         paramsObject?[key] as? [String]
     }
 
+    public func intParam(_ key: String) -> Int? {
+        paramsObject?[key] as? Int
+    }
+
+    public func boolParam(_ key: String) -> Bool? {
+        paramsObject?[key] as? Bool
+    }
+
     public var paramKeys: Set<String> {
         Set(paramsObject?.keys.map { $0 } ?? [])
     }
@@ -46,12 +54,21 @@ public actor FakeHerdrServer {
         let paneId: String?
     }
 
+    private struct StatusWaiter: Sendable {
+        let requestId: String
+        let target: String
+        let until: Set<String>
+    }
+
+    public static let waitTimeoutMessage = "timed out waiting for agent status"
+
     public nonisolated let socketPath: String
 
     private let queue = DispatchQueue(label: "com.joaoalves.mocha.tests.fake-herdr")
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
     private var subscriptions: [UUID: [SubscriptionItem]] = [:]
+    private var waiters: [UUID: StatusWaiter] = [:]
     private var schema: HerdrSchemaValidator?
     private var knownMethods: Set<String> = []
     private var knownSubscriptionTypes: Set<String> = []
@@ -121,6 +138,7 @@ public actor FakeHerdrServer {
         }
         connections.removeAll()
         subscriptions.removeAll()
+        waiters.removeAll()
         unlink(socketPath)
     }
 
@@ -153,6 +171,7 @@ public actor FakeHerdrServer {
 
     public func setAgentStatus(paneId: String, status: String) {
         mutateEntries(withPaneId: paneId) { $0["agent_status"] = status }
+        resolveWaiters()
     }
 
     public func setTerminalTitle(paneId: String, title: String) {
@@ -176,6 +195,7 @@ public actor FakeHerdrServer {
             agents.append(panes[index])
         }
         snapshot["agents"] = agents
+        resolveWaiters()
     }
 
     public func removeTab(_ tabId: String) {
@@ -255,6 +275,10 @@ public actor FakeHerdrServer {
         subscriptions.isEmpty
     }
 
+    public var pendingWaitCount: Int {
+        waiters.count
+    }
+
     public var globalSubscriptionCount: Int {
         subscriptions.values.filter { items in items.contains { !Self.perPaneSubscriptionTypes.contains($0.type) } }.count
     }
@@ -327,6 +351,17 @@ public actor FakeHerdrServer {
             await subscribe(request, items: params["subscriptions"], rest: rest, id: id, connection: connection)
             return
         }
+        if method == "agent.wait", handlers[method] == nil, overrides[method] == nil, let waiter = statusWaiter(for: request) {
+            waiters[id] = waiter
+            if let timeoutMs = request.intParam("timeout_ms") {
+                Task { [weak self] in
+                    try? await Task.sleep(for: .milliseconds(timeoutMs))
+                    await self?.expireWaiter(id)
+                }
+            }
+            await waitForClose(id, connection: connection, countsWrites: false)
+            return
+        }
         let reply = reply(for: request)
         if case .noReply = reply {
             await waitForClose(id, connection: connection, countsWrites: false)
@@ -389,9 +424,32 @@ public actor FakeHerdrServer {
         }
     }
 
+    private func statusWaiter(for request: FakeHerdrRequest) -> StatusWaiter? {
+        guard let target = request.stringParam("target"), let agent = agent(target) else { return nil }
+        let until = Set(request.stringArrayParam("until") ?? [])
+        guard let status = agent["agent_status"] as? String, !until.contains(status) else { return nil }
+        return StatusWaiter(requestId: request.id, target: target, until: until)
+    }
+
+    private func resolveWaiters() {
+        for (id, waiter) in waiters {
+            guard let agent = agent(waiter.target), let status = agent["agent_status"] as? String, waiter.until.contains(status) else {
+                continue
+            }
+            waiters[id] = nil
+            respond(id, requestId: waiter.requestId, reply: result(["type": "agent_info", "agent": agent]))
+        }
+    }
+
+    private func expireWaiter(_ id: UUID) {
+        guard let waiter = waiters.removeValue(forKey: id) else { return }
+        respond(id, requestId: waiter.requestId, reply: .error(code: "timeout", message: Self.waitTimeoutMessage))
+    }
+
     private func respond(_ id: UUID, requestId: String, reply: FakeHerdrReply) {
         guard let connection = connections.removeValue(forKey: id) else { return }
         subscriptions[id] = nil
+        waiters[id] = nil
         let body: String
         switch reply {
         case .result(let result):
@@ -415,6 +473,7 @@ public actor FakeHerdrServer {
     private func close(_ id: UUID) {
         connections.removeValue(forKey: id)?.cancel()
         subscriptions[id] = nil
+        waiters[id] = nil
     }
 
     private func reply(for request: FakeHerdrRequest) -> FakeHerdrReply {
@@ -464,9 +523,69 @@ public actor FakeHerdrServer {
                 return .error(code: "pane_not_found", message: "pane \(paneId) not found")
             }
             return result(["type": "pane_info", "pane": pane])
+        case "tab.create":
+            return createTab(request)
+        case "agent.start":
+            return startAgent(request)
+        case "agent.wait":
+            guard let agent = agent(request.stringParam("target")) else { return agentNotFound(request) }
+            return result(["type": "agent_info", "agent": agent])
         default:
             return .error(code: "fake_unconfigured", message: "fake Herdr has no reply for \(request.method)")
         }
+    }
+
+    private func createTab(_ request: FakeHerdrRequest) -> FakeHerdrReply {
+        let workspaceId = request.stringParam("workspace_id") ?? ""
+        guard entries("workspaces").contains(where: { $0["workspace_id"] as? String == workspaceId }) else {
+            return .error(code: "not_found", message: "workspace \(workspaceId) not found")
+        }
+        let tabIds = Set(entries("tabs").compactMap { $0["tab_id"] as? String })
+        let paneIds = Set(entries("panes").compactMap { $0["pane_id"] as? String })
+        let number = (entries("tabs").filter { $0["workspace_id"] as? String == workspaceId }.compactMap { $0["number"] as? Int }.max() ?? 0) + 1
+        var tabSuffix = number
+        while tabIds.contains("\(workspaceId):t\(tabSuffix)") {
+            tabSuffix += 1
+        }
+        var paneSuffix = 1
+        while paneIds.contains("\(workspaceId):p\(paneSuffix)") {
+            paneSuffix += 1
+        }
+        let tabId = "\(workspaceId):t\(tabSuffix)"
+        let paneId = "\(workspaceId):p\(paneSuffix)"
+        let cwd = request.stringParam("cwd") ?? "/Users/dev"
+        let tab: [String: Any] = [
+            "tab_id": tabId, "workspace_id": workspaceId, "number": number, "label": request.stringParam("label") ?? "\(number)",
+            "focused": false, "pane_count": 1, "agent_status": "unknown",
+        ]
+        let pane: [String: Any] = [
+            "pane_id": paneId, "terminal_id": "term_\(workspaceId)_\(paneSuffix)", "workspace_id": workspaceId, "tab_id": tabId,
+            "focused": false, "cwd": cwd, "foreground_cwd": cwd, "agent_status": "unknown",
+            "scroll": ["offset_from_bottom": 0, "max_offset_from_bottom": 0, "viewport_rows": 41], "revision": 0,
+        ]
+        snapshot["tabs"] = entries("tabs") + [tab]
+        snapshot["panes"] = entries("panes") + [pane]
+        return result(["type": "tab_created", "tab": tab, "root_pane": pane])
+    }
+
+    private func startAgent(_ request: FakeHerdrRequest) -> FakeHerdrReply {
+        let paneId = request.stringParam("pane_id") ?? ""
+        let name = request.stringParam("name") ?? ""
+        guard var pane = entries("panes").first(where: { $0["pane_id"] as? String == paneId }) else {
+            return .error(code: "pane_not_found", message: "pane \(paneId) not found")
+        }
+        guard !entries("agents").contains(where: { $0["name"] as? String == name }) else {
+            return .error(code: "invalid_params", message: "agent name \(name) is already in use")
+        }
+        pane["name"] = name
+        pane["launch_pending"] = true
+        pane["state_change_seq"] = 0
+        pane["scroll"] = nil
+        mutateEntries(withPaneId: paneId) { entry in
+            entry["name"] = name
+        }
+        snapshot["agents"] = entries("agents").filter { $0["pane_id"] as? String != paneId } + [pane]
+        return result(["type": "agent_started", "agent": pane, "argv": ["claude"] + (request.stringArrayParam("args") ?? [])])
     }
 
     private func agent(_ target: String?) -> [String: Any]? {

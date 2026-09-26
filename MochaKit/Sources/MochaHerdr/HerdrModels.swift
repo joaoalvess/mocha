@@ -230,3 +230,28 @@ public struct HerdrPong: Sendable, Hashable, Decodable {
         case protocolVersion = "protocol"
     }
 }
+
+public struct HerdrTabCreated: Sendable, Hashable, Decodable {
+    public var tab: HerdrTab
+    public var rootPane: HerdrPane
+
+    public init(tab: HerdrTab, rootPane: HerdrPane) {
+        self.tab = tab
+        self.rootPane = rootPane
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case tab
+        case rootPane = "root_pane"
+    }
+}
+
+public struct HerdrAgentStarted: Sendable, Hashable, Decodable {
+    public var agent: HerdrPane
+    public var argv: [String]
+
+    public init(agent: HerdrPane, argv: [String]) {
+        self.agent = agent
+        self.argv = argv
+    }
+}

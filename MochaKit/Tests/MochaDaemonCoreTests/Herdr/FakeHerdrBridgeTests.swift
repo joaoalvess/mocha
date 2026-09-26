@@ -104,6 +104,23 @@ struct FakeHerdrBridgeTests {
         #expect(await bridge.agent("w1:p1") == nil)
     }
 
+    @Test func newAgentTabsAreCountedHeldAndFailedByTheTest() async throws {
+        let bridge = FakeHerdrBridge(tree: tree, agents: [agent])
+        #expect(try await bridge.newAgentTab(in: "w1") == "w1:p2")
+        #expect(await bridge.agent("w1:p2")?.kind == "claude")
+        bridge.holdNewAgentTabs()
+        let held = Task { try await bridge.newAgentTab(in: "w1") }
+        #expect(await HerdrWait.until { bridge.heldNewAgentTabCount == 1 })
+        bridge.releaseNewAgentTabs()
+        #expect(try await held.value == "w1:p3")
+        bridge.setNewAgentTabError(.herdr(code: "agent_not_ready", message: "not ready"))
+        await expectHerdrBridgeError(.herdr(code: "agent_not_ready", message: "not ready")) { _ = try await bridge.newAgentTab(in: "w1") }
+        bridge.setNewAgentTabError(nil)
+        bridge.setAvailable(false)
+        await expectHerdrBridgeError(.unavailable) { _ = try await bridge.newAgentTab(in: "w1") }
+        #expect(bridge.newAgentTabCalls == ["w1", "w1", "w1", "w1"])
+    }
+
     @Test func agentsAndServerInfoAreControlledByTheTest() async throws {
         let bridge = FakeHerdrBridge()
         #expect(await bridge.serverInfo == FakeHerdrBridge.defaultServerInfo)

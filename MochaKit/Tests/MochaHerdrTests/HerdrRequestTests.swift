@@ -26,6 +26,32 @@ import Testing
         )
     }
 
+    @Test func newTabRequestsUseTheSchemaNames() throws {
+        #expect(
+            try line(.tabCreate(workspaceId: "w1A", cwd: "/Users/dev/projects/demo-app"))
+                == #"{"id":"r1","method":"tab.create","params":{"cwd":"/Users/dev/projects/demo-app","focus":false,"workspace_id":"w1A"}}"# + "\n"
+        )
+        #expect(try line(.tabCreate(workspaceId: "w1A", cwd: nil)) == #"{"id":"r1","method":"tab.create","params":{"focus":false,"workspace_id":"w1A"}}"# + "\n")
+        #expect(
+            try line(.agentStart(name: "mocha-1", kind: "claude", paneId: "w1A:p3", args: [], timeoutMs: nil))
+                == #"{"id":"r1","method":"agent.start","params":{"args":[],"kind":"claude","name":"mocha-1","pane_id":"w1A:p3"}}"# + "\n"
+        )
+        #expect(
+            try line(.agentStart(name: "mocha-1", kind: "claude", paneId: "w1A:p3", args: ["--model", "haiku"], timeoutMs: 60000))
+                == #"{"id":"r1","method":"agent.start","params":{"args":["--model","haiku"],"kind":"claude","name":"mocha-1","pane_id":"w1A:p3","timeout_ms":60000}}"# + "\n"
+        )
+        #expect(
+            try line(.agentWait(target: "w1A:p3", until: [.idle, .blocked], timeoutMs: 30000))
+                == #"{"id":"r1","method":"agent.wait","params":{"target":"w1A:p3","timeout_ms":30000,"until":["idle","blocked"]}}"# + "\n"
+        )
+    }
+
+    @Test func durationsBecomeWholeMilliseconds() {
+        #expect(Duration.seconds(30).herdrMilliseconds == 30000)
+        #expect(Duration.milliseconds(250).herdrMilliseconds == 250)
+        #expect(Duration.microseconds(1500).herdrMilliseconds == 1)
+    }
+
     @Test func subscriptionRequestMatchesTheFixture() throws {
         let request = HerdrRequest.eventsSubscribe(HerdrSubscription.globalLifecycle + [.agentStatusChanged(paneId: "w1A:p1")])
         let encoded = try jsonObject(request.encodedLine(id: "sub1"))

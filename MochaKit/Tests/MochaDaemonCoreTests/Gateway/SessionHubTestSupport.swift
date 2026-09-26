@@ -359,6 +359,7 @@ func withHub(
     tree: [WorkspaceNode] = Sample.defaultTree,
     agents: [HerdrAgent]? = nil,
     available: Bool = true,
+    bridge: (any HerdrBridging)? = nil,
     usage: FakeUsageProvider = FakeUsageProvider(),
     archive: FakeSessionArchive = FakeSessionArchive(),
     configure: (FakeTranscriptProvider) async -> Void = { _ in },
@@ -372,7 +373,7 @@ func withHub(
     let devices = DeviceStore(fileURL: directory.appending(path: "devices.json"))
     let pairing = Pairing(clock: clock)
     let hub = SessionHub(
-        herdr: herdr,
+        herdr: bridge ?? herdr,
         transcripts: transcripts,
         devices: devices,
         pairing: pairing,
