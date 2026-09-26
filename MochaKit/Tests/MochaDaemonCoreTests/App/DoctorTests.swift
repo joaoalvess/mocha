@@ -50,7 +50,7 @@ struct DoctorTests {
             #expect(items.map(\.title) == ["mochad", "Herdr", "agent.list", "Hooks", "moshi-hook", "Serve", "APNs", "Dados", "Transcript"])
             #expect(items[0] == DoctorItem("mochad", .failure, "mochad parado: rode mochad install ou scripts/run-daemon.sh"))
             #expect(items[1] == DoctorItem("Herdr", .failure, "o socket não existe em \(missingHerdr)"))
-            #expect(items[3].summary == "chegam na 1a-final (mochad install-hooks)")
+            #expect(items[3] == DoctorItem("Hooks", .warning, "não instalados: sem ~/.claude/settings.json (mochad install-hooks)"))
             #expect(items[5].status == .failure)
             #expect(items[5].details == ["rode mochad serve-setup --apply (tailscale serve --bg --https=443 http://127.0.0.1:47421)"])
             #expect(items[8] == DoctorItem("Transcript", .warning, "precisa do daemon (mochad parado)"))
