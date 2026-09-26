@@ -11,11 +11,25 @@ public struct ApnsClient: Sendable {
 
     public func send(_ request: ApnsRequest) async throws -> ApnsResponse {
         try request.validate()
-        let urlRequest = try request.urlRequest(authorizationToken: try await tokens.token())
-        let response = try await transport.send(urlRequest)
-        if response.reason == "ExpiredProviderToken" {
-            await tokens.invalidate()
-        }
-        return response
+        let response = try await attempt(request)
+        guard response.reason == ApnsReason.expiredProviderToken else { return response }
+        await tokens.invalidate()
+        return try await attempt(request)
     }
+
+    private func attempt(_ request: ApnsRequest) async throws -> ApnsResponse {
+        let urlRequest = try request.urlRequest(authorizationToken: try await tokens.token())
+        return try await transport.send(urlRequest)
+    }
+}
+
+public enum ApnsReason {
+    public static let expiredProviderToken = "ExpiredProviderToken"
+    public static let badDeviceToken = "BadDeviceToken"
+    public static let configuration: Set<String> = [
+        "BadEnvironmentKeyInToken",
+        "BadEnvironmentKeyIdInToken",
+        "InvalidProviderToken",
+        "TopicDisallowed",
+    ]
 }

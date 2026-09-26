@@ -27,6 +27,27 @@ struct ApnsKeyImporterTests {
         #expect(loaded.key.keyId == PushTestData.keyId)
     }
 
+    @Test func configStoreReplacesAnOpenConfigAtomicallyWithPrivatePermissions() throws {
+        let directory = try PushTestData.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let configURL = directory.appending(path: "config.json")
+        try Data(#"{"hookSecret":"segredo"}"#.utf8).write(to: configURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: configURL.path(percentEncoded: false))
+        let before = inode(configURL)
+
+        try ApnsConfigStore(url: configURL).write(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId))
+
+        #expect(fileMode(configURL) == 0o600)
+        #expect(inode(configURL) != before)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path(percentEncoded: false)) == ["config.json"])
+        #expect(try PushTestData.jsonObject(try Data(contentsOf: configURL))["hookSecret"] as? String == "segredo")
+
+        let nested = directory.appending(path: "Nova/config.json")
+        try ApnsConfigStore(url: nested).write(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId))
+        #expect(fileMode(nested) == 0o600)
+        #expect(fileMode(nested.deletingLastPathComponent()) == 0o700)
+    }
+
     @Test func importPreservesOtherConfigKeys() throws {
         let directory = try PushTestData.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

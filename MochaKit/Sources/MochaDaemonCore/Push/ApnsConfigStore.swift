@@ -49,8 +49,7 @@ public struct ApnsConfigStore: Sendable {
             )
         }
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-        try data.write(to: url, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path(percentEncoded: false))
+        try AtomicFile.write(data, to: url, permissions: 0o600)
     }
 
     private func readObject() throws -> [String: Any]? {
