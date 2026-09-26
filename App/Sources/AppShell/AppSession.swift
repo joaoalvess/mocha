@@ -78,6 +78,7 @@ final class AppSession {
     @ObservationIgnored private let pairingDates: any PairingDateStore
     @ObservationIgnored private var lifecycleTask: Task<Void, Never>?
     @ObservationIgnored private var isSceneActive = false
+    @ObservationIgnored private var foreground = ForegroundReporter()
 
     init(connection: any ServerConnection, uploader: any ImageUploading, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
         self.connection = connection
@@ -126,6 +127,9 @@ final class AppSession {
                 }
             },
         ]
+        AppNotifications.taps.attach { [weak self] link in
+            self?.handle(link)
+        }
         enqueueLifecycle { await $0.start() }
     }
 
@@ -146,21 +150,26 @@ final class AppSession {
     }
 
     func sendForeground() {
-        guard connectionState == .connected else { return }
+        guard
+            connectionState == .connected,
+            let message = foreground.message(agentId: foregroundAgentId, isActive: isSceneActive)
+        else { return }
         nextRequestNumber += 1
         let id = "c-\(nextRequestNumber)"
-        let message = ClientMessage.setForeground(agentId: foregroundAgentId, isActive: isSceneActive)
         enqueueLifecycle { try? await $0.send(message, id: id) }
     }
 
     func handle(_ url: URL) {
-        switch DeepLink(url) {
+        guard let link = DeepLink(url) else { return }
+        handle(link)
+    }
+
+    func handle(_ link: DeepLink) {
+        switch link {
         case .agent(let agentId):
             openChat(.agent(agentId))
-        case .pair(let link):
-            pair(link)
-        case nil:
-            break
+        case .pair(let pairingLink):
+            pair(pairingLink)
         }
     }
 
@@ -183,18 +192,19 @@ final class AppSession {
     func openChat(_ target: ChatTarget) {
         isDrawerOpen = false
         sheet = nil
-        if let current = visibleChat, current.route == target || current.target == target {
-            if current.failure != nil {
+        switch ChatNavigation.open(target, visibleRoute: visibleChat?.route, visibleTarget: visibleChat?.target) {
+        case .stay:
+            if visibleChat?.failure != nil {
                 loadLatestPage()
             }
-            return
+        case .show(let path, let closing):
+            if let closing {
+                sendWithoutReply(.closeChat(target: closing))
+            }
+            chat = ChatState(route: target, target: target, sessionId: sessionId(for: target))
+            chatPath = path
+            loadLatestPage()
         }
-        if let previous = visibleChat?.target {
-            sendWithoutReply(.closeChat(target: previous))
-        }
-        chat = ChatState(route: target, target: target, sessionId: sessionId(for: target))
-        chatPath = [target]
-        loadLatestPage()
     }
 
     func closeChat() {
@@ -237,6 +247,19 @@ final class AppSession {
 
     func dismissSheet() {
         sheet = nil
+    }
+
+    func setTurnDoneAlerts(_ isOn: Bool) async throws {
+        let previous = preferences
+        var updated = preferences ?? DevicePreferences()
+        updated.turnDoneAlerts = isOn
+        preferences = updated
+        do {
+            try await request(.setPreferences(updated))
+        } catch {
+            preferences = previous
+            throw error
+        }
     }
 
     func archive(sessionId: String) async throws {
@@ -342,12 +365,17 @@ final class AppSession {
             coverWithPairing()
         }
         guard state == .connected else {
+            foreground.connectionClosed()
             failAllReplies(with: .notConnected)
+            if !isOpeningConnection {
+                failChatWaitingForConnection()
+            }
             return
         }
         if !wasConnected {
             reopenVisibleChat()
             sendForeground()
+            AppNotifications.connectionOpened()
         }
     }
 
@@ -460,12 +488,26 @@ final class AppSession {
         loadLatestPage()
     }
 
+    private var isOpeningConnection: Bool {
+        switch connectionState {
+        case .idle, .connecting: true
+        case .connected, .waitingToRetry, .pairingRequired, .failed: false
+        }
+    }
+
+    private func failChatWaitingForConnection() {
+        guard visibleChat?.isLoading == true else { return }
+        chat?.isLoading = false
+        chat?.failure = .notConnected
+    }
+
     private func loadLatestPage() {
         guard let current = visibleChat else { return }
         chatGeneration += 1
         let generation = chatGeneration
         chat?.isLoading = true
         chat?.failure = nil
+        guard !isOpeningConnection else { return }
         Task {
             do {
                 let reply = try await request(.openChat(target: current.target, limit: Self.pageSize))

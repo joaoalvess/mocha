@@ -15,12 +15,18 @@ struct ConnectionManagerTests {
         let states: Recorder<ConnectionState>
         let messages: Recorder<ServerEnvelope>
 
-        init(credential: DeviceCredential? = nil, answersPings: Bool = true, jitter: @escaping @Sendable () -> Double = { 1 }) {
+        init(
+            credential: DeviceCredential? = nil,
+            apnsRegistration: any ApnsRegistrationSource = NoApnsRegistration(),
+            answersPings: Bool = true,
+            jitter: @escaping @Sendable () -> Double = { 1 }
+        ) {
             transport = FakeTransport(clock: clock, answersPings: answersPings)
             store = FakeTokenStore(credential: credential)
             manager = ConnectionManager(
                 configuration: ConnectionFixtures.configuration,
                 tokenStore: store,
+                apnsRegistration: apnsRegistration,
                 transport: transport,
                 clock: clock,
                 pathMonitor: path,
@@ -69,6 +75,47 @@ struct ConnectionManagerTests {
         #expect(channel.hello?.deviceName == "iPhone")
         #expect(channel.hello?.appVersion == "0.1.0")
         #expect(harness.states.last == .connecting)
+    }
+
+    @Test func helloWithoutApnsTokenOmitsTheRegistration() async throws {
+        let harness = Harness(credential: ConnectionFixtures.credential)
+        await harness.manager.start()
+        let channel = try await harness.transport.channel(0)
+        try await waitUntil { channel.hello != nil }
+        #expect(channel.hello?.apns == nil)
+    }
+
+    @Test func helloCarriesTheApnsTokenAndEnvironment() async throws {
+        let registration = ApnsRegistration(token: "a1b2c3d4", env: .sandbox)
+        let harness = Harness(credential: ConnectionFixtures.credential, apnsRegistration: ApnsRegistrationBox(registration))
+        await harness.manager.start()
+        let channel = try await harness.transport.channel(0)
+        try await waitUntil { channel.hello != nil }
+        #expect(channel.hello?.apns == registration)
+    }
+
+    @Test func pairingHelloCarriesTheApnsToken() async throws {
+        let registration = ApnsRegistration(token: "a1b2c3d4", env: .production)
+        let harness = Harness(apnsRegistration: ApnsRegistrationBox(registration))
+        await harness.manager.pair(ConnectionFixtures.link)
+        let channel = try await harness.transport.channel(0)
+        try await waitUntil { channel.hello != nil }
+        #expect(channel.hello?.pairingCode == ConnectionFixtures.link.code)
+        #expect(channel.hello?.apns == registration)
+    }
+
+    @Test func tokenThatArrivesLaterGoesInTheNextHello() async throws {
+        let box = ApnsRegistrationBox()
+        let harness = Harness(credential: ConnectionFixtures.credential, apnsRegistration: box)
+        await harness.manager.start()
+        let first = try await harness.connect()
+        #expect(first.hello?.apns == nil)
+        let registration = ApnsRegistration(token: "0f0e0d0c", env: .sandbox)
+        box.update(registration)
+        await harness.manager.stop()
+        await harness.manager.start()
+        let second = try await harness.connect(channel: 1)
+        #expect(second.hello?.apns == registration)
     }
 
     @Test func startIsIdempotent() async throws {
