@@ -613,7 +613,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S5 | feito | 2fe94d0, 42ebb0f, 5c65255 |
 | WP-D1 | feito | 393ec96, 0ecf4d2, f1045ef |
 | WP-M1 | feito | a95f3c7, c54fabd, 146201b, 1303675 |
-| WP-M2 | todo | |
+| WP-M2 | feito | b34bf17, 7f55ad2, 0ea19a6, 52dbc30 |
 | WP-M3 | todo | |
 | WP-M4 | todo | |
 | WP-I1 | todo | |
