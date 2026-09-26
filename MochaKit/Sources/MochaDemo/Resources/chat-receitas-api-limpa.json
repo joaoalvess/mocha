@@ -1,0 +1,20 @@
+{
+ "agentId": "w3:p2",
+ "meta": {
+  "title": "Sessão limpa",
+  "workspaceLabel": "receitas-api",
+  "model": "claude-opus-5-5",
+  "branch": "development",
+  "status": "idle",
+  "permissionMode": "default"
+ },
+ "items": [
+  {
+   "id": "5cbd900f-9d77-5ad1-8d9a-c9c243c367d3",
+   "at": "2026-09-25T11:52:40.000Z",
+   "type": "slashCommand",
+   "name": "/clear",
+   "args": ""
+  }
+ ]
+}

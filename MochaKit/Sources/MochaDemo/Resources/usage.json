@@ -1,0 +1,36 @@
+{
+ "populated": {
+  "plan": "Max 20x",
+  "account": "d•••@e•••.com",
+  "windows": [
+   {
+    "kind": "fiveHour",
+    "usedPercent": 12,
+    "resetsAt": "2026-09-25T15:35:30.000Z"
+   },
+   {
+    "kind": "weekly",
+    "usedPercent": 71,
+    "resetsAt": "2026-09-27T22:30:00.000Z"
+   }
+  ],
+  "fetchedAt": "2026-09-25T11:55:40.000Z"
+ },
+ "empty": {
+  "plan": "Max 20x",
+  "account": "d•••@e•••.com",
+  "windows": [
+   {
+    "kind": "fiveHour",
+    "usedPercent": 3,
+    "resetsAt": "2026-09-25T15:35:30.000Z"
+   },
+   {
+    "kind": "weekly",
+    "usedPercent": 64,
+    "resetsAt": "2026-09-27T22:30:00.000Z"
+   }
+  ],
+  "fetchedAt": "2026-09-25T11:55:40.000Z"
+ }
+}
