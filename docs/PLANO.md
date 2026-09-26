@@ -249,13 +249,14 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/mochad/`, `MochaKit/Sources/MochaDaemonCore/App/`.
 - **Depende de**: WP-M1, WP-M2, WP-M3.
 - **SPEC**: §4.2, §4.3, §4.7.
-- **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`. remove o subcomando temporário `spike-gateway` (`mochad/SpikeGatewayCommand.swift`, `mochad/SpikeGatewayLog.swift` e o caso no `main.swift`). O `serve-setup` mostra `tailscale serve --bg --https=443 http://127.0.0.1:47421`. `--apply` executa, confere `tailscale serve status --json` (handler `"/"` em `"<host>:443"` com `"Proxy": "http://127.0.0.1:47421"`) e aquece com `GET https://<host>/v1/health` (limite de 90 s). `--remove` executa `tailscale serve --https=443 off`. O Tailscale é chamado pelo caminho absoluto `/Applications/Tailscale.app/Contents/MacOS/tailscale` (o `/usr/local/bin/tailscale` é só um wrapper), sem depender do `PATH` do LaunchAgent. O host vem de `tailscale status --json` → `.Self.DNSName` sem o ponto final, e também monta a URL do `mochad pair`. `doctor`, item Serve: ✅ com o handler certo e o health 200 pela URL `https://<host>`; ❌ sem handler (mostra o comando), com alvo `unix:` ("a extensão do Tailscale não abre socket Unix") ou com 502 ("Serve ativo, gateway sem escutar"); ⚠️ com timeout no TLS ("certificado sendo emitido; tente de novo em 1 min").
+- **Faz**: liga os componentes reais e implementa os comandos da 1a-core: `run`, `install`, `uninstall`, `pair` (QR no terminal), `devices`, `serve-setup`, `status` e `doctor`. remove o subcomando temporário `spike-gateway` (`mochad/SpikeGatewayCommand.swift`, `mochad/SpikeGatewayLog.swift` e o caso no `main.swift`). O `serve-setup` mostra `tailscale serve --bg --https=443 http://127.0.0.1:47421`. `--apply` executa, confere `tailscale serve status --json` (handler `"/"` em `"<host>:443"` com `"Proxy": "http://127.0.0.1:47421"`) e aquece com `GET https://<host>/v1/health` (limite de 90 s). `--remove` executa `tailscale serve --https=443 off`. O Tailscale é chamado pelo caminho absoluto `/Applications/Tailscale.app/Contents/MacOS/tailscale` (o `/usr/local/bin/tailscale` é só um wrapper), sem depender do `PATH` do LaunchAgent. O host vem de `tailscale status --json` → `.Self.DNSName` sem o ponto final, e também monta a URL do `mochad pair`. `doctor`, item Serve: ✅ com o handler certo e o health 200 pela URL `https://<host>`; ❌ sem handler (mostra o comando), com alvo `unix:` ("a extensão do Tailscale não abre socket Unix") ou com 502 ("Serve ativo, gateway sem escutar"); ⚠️ com timeout no TLS ("certificado sendo emitido; tente de novo em 1 min"). S4: `scripts/build-daemon.sh` e `mochad install` assinam o binário com a identidade "Apple Development" do time: `codesign --force --sign <identidade> --identifier com.joaoalves.mochad --options runtime`. A identidade vem de `security find-identity -v -p codesigning`, filtrada pelo certificado cujo OU é o `DEVELOPMENT_TEAM` de `Config/Signing.xcconfig`; sem ela, avisa que o Keychain vai pedir autorização. `doctor`, item APNs: config presente; binário assinado pelo time (`codesign -dr -` com `identifier "com.joaoalves.mochad"`); item do Keychain presente (`SecItemCopyMatching` sem `kSecReturnData`, sem ler o segredo).
 - **Aceite**:
   - [ ] `mochad install` sobe o LaunchAgent, e `launchctl print gui/$UID/com.joaoalves.mochad` mostra o serviço rodando.
   - [ ] `mochad doctor` lista os itens de §4.2 com o estado real, incluindo a versão e o protocolo do `ping` do Herdr (❌ se o socket não existir, ⚠️ se protocolo ≠ 22).
   - [ ] Parado por 10 min: RSS < 30 MB (medido com `footprint` ou `ps`).
   - [ ] `mochad pair` exibe um QR legível pela câmera do iPhone.
   - [ ] `doctor` distingue sem handler, alvo `unix:`, 502 e timeout de TLS.
+  - [ ] Depois de reinstalar um build novo, `mochad apns test` não abre diálogo do Keychain.
 
 ### WP-I1: design system, shell do app e modo demo
 
@@ -359,20 +360,22 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Push/`, o comando `apns` em `mochad`, e o tratamento de `setPreferences` em `Gateway/`/`Devices/` (único WP da onda).
 - **Depende de**: S4, WP-M5.
 - **SPEC**: §7.1, §4.6.
-- **Faz**: JWT com cache e renovação, cliente HTTP/2, escolha de ambiente por aparelho, os dois tipos de alerta, supressão por primeiro plano e por preferência, deduplicação e limpeza de token inválido.
+- **Faz**: JWT com cache e renovação, cliente HTTP/2, escolha de ambiente por aparelho, os dois tipos de alerta, supressão por primeiro plano e por preferência, deduplicação e limpeza de token inválido. S4: parte do protótipo `MochaDaemonCore/Push/` do S4, que já tem `ApnsJWT`, `ApnsTokenProvider` (40 min, invalidação em `ExpiredProviderToken`), `ApnsRequest` (headers e validações de 4 KB e 64 bytes), `ApnsResponse`, `ApnsClient`, `URLSessionApnsTransport` (métrica h2), `ApnsAlertPush`, `KeychainApnsKeyStore`, `ApnsConfigStore` e `ApnsKeyImporter`, com 26 testes em `Tests/MochaDaemonCoreTests/Push/`. Evolui o `ApnsClient` para uma `URLSession` única reaproveitada entre envios. Política de headers da §7.1 (`apns-expiration` por tipo, `apns-collapse-id` = `agentId`, `apns-id` no log). Respostas: 410 e `BadDeviceToken` removem o token; `ExpiredProviderToken` renova e repete uma vez; `BadEnvironmentKeyInToken`, `BadEnvironmentKeyIdInToken` e `InvalidProviderToken` viram erro de configuração no log e no `doctor`, sem retry; 429 e 5xx com backoff. O `mochad apns test` passa a aceitar `--device <id>` (de `devices.json`), e o `--token <hex> --env` fica como diagnóstico. O `apns liveactivity start|update|end` fica como diagnóstico até o WP-M8.
 - **Aceite**:
   - [ ] Testes do JWT (formato e assinatura verificável com a chave pública), da montagem de payloads e das regras de supressão e deduplicação, com cliente APNs falso.
   - [ ] `mochad apns test` entrega no iPhone.
+  - [ ] Teste: `403 BadEnvironmentKeyInToken` não é repetido e aparece no `doctor`.
 
 ### WP-I6: notificações no app
 
 - **Dono**: `App/Sources/Notifications/`, o campo `apns` do `hello` em `App/Sources/Connection/` e `MochaKit/Sources/MochaClient/` (único WP da onda que mexe ali), e o item de notificações em `App/Sources/Settings/`.
 - **Depende de**: S4, WP-I2.
 - **SPEC**: §7.1, §6.1 (deep links), §6.3 (Ajustes).
-- **Faz**: pedido de permissão (`.alert`, `.sound`, `.badge`; o time-sensitive vem do entitlement do WP0.1 e do `interruption-level` do payload), registro do token com `env` no `hello`, `setForeground`, categorias `TURN_DONE`/`NEEDS_INPUT`, o toque abrindo o chat certo (com o app encerrado, em background ou aberto em outro chat), e o controle "Avisar quando o Claude terminar" em Ajustes (`setPreferences`).
+- **Faz**: pedido de permissão (`.alert`, `.sound`, `.badge`; o time-sensitive vem do entitlement do WP0.1 e do `interruption-level` do payload), registro do token com `env` no `hello`, `setForeground`, categorias `TURN_DONE`/`NEEDS_INPUT`, o toque abrindo o chat certo (com o app encerrado, em background ou aberto em outro chat), e o controle "Avisar quando o Claude terminar" em Ajustes (`setPreferences`). S4: parte de `App/Sources/Notifications/` do S4: `PushRegistration` (permissão e registro) e `ApnsEnvironmentDetector` (`env` pelo `embedded.mobileprovision`). `registerForRemoteNotifications` a cada launch; o token chega em ~0,2 s. O delegate do `UNUserNotificationCenter` é definido no `didFinishLaunchingWithOptions`, `nonisolated`, com a variante de completion handler, porque os tipos de UserNotifications não são `Sendable` (como no `PushProbeNotificationDelegate` do S4). Alertas só testáveis no iPhone, porque o simulador não entrega o token de alerta.
 - **Aceite**:
   - [ ] Os três estados de abertura testados no device (checklist no relatório).
   - [ ] Nada de alerta do agente que está aberto na tela.
+  - [ ] Dois alertas com o mesmo `agentId`: o segundo substitui o primeiro na Central (`apns-collapse-id`), que o S4 não verificou em detalhe.
 
 ### WP-I7: menu de slash
 
@@ -421,8 +424,10 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, o envio `liveactivity` em `Push/`, a extensão do `HerdrBridge` para `newAgentTab`, e o tratamento das mensagens WS `registerLiveActivity`/`newAgentTab` no `SessionHub`. Não mexe em rotas HTTP (são do WP-M9 nesta onda).
 - **Depende de**: S4, WP-M6.
 - **SPEC**: §7.3, §5.3 (`registerLiveActivity`, `newAgentTab`), §3.1.2.
+- **Faz**: usa `LiveActivityPush` e `LiveActivityContentState` de `Push/` (datas em segundos desde 2001, testado). Regras de prioridade da §7.3 nova. Push-to-start com `alert` + `input-push-token: 1`. `stale-date` = agora + 15 min a cada update. No máximo 10 push-to-starts por hora (a renovação de 7 h 50 min usa um). O token de update de uma atividade iniciada por push chega por `registerLiveActivity` 2–40 s depois do start. Antes disso, o daemon só guarda o estado. A rota HTTP `POST /v1/live-activity` é do WP-M9; o WP-M8 expõe a interface que ela chama.
 - **Aceite**:
-  - [ ] Testes da máquina de estados: início, atualização com o limite de 10 s, prioridade 10 só na transição para bloqueado, fim depois de 60 s ocioso, renovação às 7 h 50 min.
+  - [ ] Testes da máquina de estados: início, atualização com o limite de 10 s, prioridade 10 em mudança de contagem, destaque ou fim e 5 só em mudança de título, fim depois de 60 s ocioso, renovação às 7 h 50 min.
+  - [ ] Teste: o `content-state` codifica datas em segundos desde 2001.
   - [ ] `newAgentTab` cria a tab no workspace e responde com o `agentId`: `tab.create {workspace_id, cwd, focus:false}` → `agent.start {name:"mocha-<n>", kind:"claude", pane_id:root_pane, args:[]}` → espera `idle` por evento (timeout de 30 s). Se vier `blocked` (diálogo de confiança numa pasta nova), avisa o app em vez de responder sozinho (S2).
 
 ### S6: voz em pt-BR
@@ -446,6 +451,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: `Widgets/`, `App/Sources/LiveActivity/`.
 - **Depende de**: WP-M8.
 - **SPEC**: §7.3.
+- **Faz**: parte do protótipo `App/Sources/LiveActivity/` (`AgentsActivityController`, `LiveActivityTokenStore`) e de `Widgets/Sources/AgentsLiveActivity.swift`. O gancho no `AppDelegate` já existe. Quando o app é acordado em background por push-to-start, manda o token com `POST /v1/live-activity` (Bearer), porque não há WebSocket aberto. Em primeiro plano, manda `registerLiveActivity` pelo WS. O visual segue a §7.3 e os prints (a linha "atualizado às … há …" é só da sonda). No fim do WP, apaga `App/Sources/Debug/PushProbe*` e o caso `push` do `DebugProbe` em `AppShell/RootView.swift`. Push-to-start e token de update só testáveis no iPhone. Dynamic Island capturada no simulador com `simctl io … screenshot --mask=black`
 - **Aceite**:
   - [ ] Tela bloqueada capturada no device, e Dynamic Island (compacta, mínima e expandida) capturada no simulador (iPhone 18 Pro), porque o iPhone 14 do João não tem Dynamic Island.
   - [ ] Início por push-to-start com o app encerrado.
@@ -463,7 +469,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **Dono**: a rota HTTP `/v1/upload` em `Gateway/` e a limpeza de `uploads/`. Não mexe no tratamento de mensagens WS (é do WP-M8 nesta onda).
 - **Depende de**: WP-M3.
 - **SPEC**: §5.5, §10.
-- **Faz**: rota `/v1/upload`; o app manda o upload com `URLSession.upload(for:from: Data)`, porque corpo em stream vira chunked no Serve e recebe 411 (§5.5).
+- **Faz**: rota `/v1/upload`; o app manda o upload com `URLSession.upload(for:from: Data)`, porque corpo em stream vira chunked no Serve e recebe 411 (§5.5). Também a rota `POST /v1/live-activity` (§5.5, Bearer), que repassa o `LiveActivityRegistration` para a mesma interface que o WP-M8 usa no `registerLiveActivity` (fake nos testes).
 - **Aceite**:
   - [ ] Testes de tipo aceito, limite de 20 MB, nome gerado pelo daemon e limpeza depois de 7 dias.
 
@@ -519,7 +525,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S1 | feito | ce6ff4f |
 | S2 | feito | 4648a76 |
 | S3 | feito | 0c0c24c |
-| S4 | todo | |
+| S4 | feito | 51ef5f9, 86de9d4, bd5db4e |
 | S5 | feito | 2fe94d0, 42ebb0f, 5c65255 |
 | WP-M1 | todo | |
 | WP-M2 | todo | |
