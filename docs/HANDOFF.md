@@ -36,6 +36,8 @@ Opção mais simples e fiel ao mock e ao Moshi, conforme o mandato da noite. Con
 - **Demo (D2)**: host "MacBook"; o chat `login-social` alimenta as telas 5/5b/6; `receitas` é o chat longo (2000 itens); a sessão arquivada tem `ChatMeta.status` `idle`; `-demo-empty` troca as tabs por "zsh" e usa uso de 3%/64%.
 - **Ferramentas**: simuladores iPhone 17e (390×844 pt, igual ao mock), um por WP de UI.
 
+**Confirmadas pelo João (2026-09-26, de manhã)**: o `mochad` instalado no WP-X1 lê o plano e a conta do `~/.claude.json`; o critério de 16 ms do markdown vale só para os blocos visíveis no chat; a folha de Uso flutuante do iOS 26 (8 pt de margem, ~96% da escala do mock) fica como está.
+
 ## Decisões do João (2026-09-26)
 
 - Visual: o mock aprovado vale; o Moshi é a base.

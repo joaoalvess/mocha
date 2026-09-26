@@ -406,7 +406,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Faz**: AST do `swift-markdown` → views SwiftUI em JetBrains Mono, com seleção de texto nos parágrafos, código inline em `link`, blocos de código com rolagem horizontal (borda esmaecida e barrinha indicando que há mais à direita), listas aninhadas, títulos, citações, links e tabelas com borda `tableBorder` e rolagem horizontal, como na tela `05b-chat-fim-turno`.
 - **Aceite**:
   - [ ] `MarkdownPreviewScreen` (só em Debug) com um documento de teste cobrindo todos os elementos, capturada no simulador; o trecho do turno da tela 5b reproduzido nela e comparado com `05b-chat-fim-turno`.
-  - [ ] Parse + layout de uma mensagem de 20 KB abaixo de 16 ms no simulador, medido com `signpost` numa janela sem build.
+  - [ ] Layout só dos blocos visíveis de uma mensagem de 20 KB, na lista preguiçosa do chat (WP-I5, cada bloco de nível superior é uma linha), abaixo de 16 ms no simulador, medido com `signpost` numa janela sem build. A mensagem inteira de uma vez mede ~131 ms em Debug e não é o critério (decisão do João, 2026-09-26).
 
 ### WP-I3: gaveta
 
@@ -714,7 +714,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M2b | feito (medição de 50 MB pendente numa janela sem build) | d8ab1b4, f13a3e4, 739718f, merge 97e13b4 |
 | WP-M3 | feito (os READMEs de `Fixtures/` citam `docs/spikes/` e ficam como exceção do critério do `spike`) | 1b379f5, 7c9d306, f1bf707, merge 3f52771 |
 | WP-I12 | feito (gestos no checklist do WP-X1) | 70ce184, a2713c0, 3508650, caa6aa4, 02b7c4f, merge 03a8201 |
-| WP-I4 | feito, menos o critério de 16 ms: 131 ms em Debug no simulador, critério a redefinir pelo João | e93e84e, 2d28456, merge 4716495 |
+| WP-I4 | feito; o critério de 16 ms passou a ser só dos blocos visíveis (medir com o WP-I5 numa janela sem build) | e93e84e, 2d28456, merge 4716495 |
 | WP-M4 | feito (RSS de 10 min pendente numa janela sem build) | b17f5fc, a35700c, d044872, a4ae669, merge 953aa1f |
 | WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | 49d329d, d44971b, 6b51ad2, merge 63d873a |
 | WP-I5 | em andamento | |
