@@ -626,7 +626,10 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Checklist do João**:
   - [ ] Com o app fechado, um turno longo termina e chega o push "Claude terminou · <workspace>" com a prévia sem markdown, como na tela `14-tela-bloqueada`.
   - [ ] Com o app aberto em outro chat, o alerta chega como banner (`14b-banner`).
-  - [ ] Tocar no push abre o chat certo.
+  - [ ] Tocar no push abre o chat certo, com o app encerrado, em background e aberto em outro chat.
+  - [ ] Na primeira conexão aparece o pedido de permissão, e o `devices.json` passa a ter o `apns` com `env: sandbox`.
+  - [ ] Dois alertas do mesmo agente: o segundo substitui o primeiro na Central.
+  - [ ] Com "Turno concluído" desligado em Ajustes, só chegam os alertas de "precisa de você", que chegam como time-sensitive.
   - [ ] Um pedido de permissão no Mac gera o push "precisa de você" em menos de 5 s.
   - [ ] Com o chat do agente aberto, nenhum push desse agente.
   - [ ] `/compact` e `/clear` pelo menu funcionam.
