@@ -2,98 +2,149 @@
 
 ## Estado
 
-- Fase: **1a-core**, branch `fase/1a-core` (a partir de `main` em `ed3f2f0`). Sem remoto.
-- **Onda 1.0 concluída.** A próxima é a **Onda 1.A**: WP-M1 · WP-M2 · WP-I1, em paralelo, um worktree do Herdr por WP (PLANO, "Como o orquestrador trabalha" e "Fase 1a-core"; AGENTS, Orquestrador item 7).
-- Nenhum WP em andamento. Nenhum worktree aberto (`git worktree list` só mostra o principal). A branch `wp/D1` ficou, já mergeada.
+- Fase **1a-core**, branch `fase/1a-core`. Sem remoto.
+- **Onda 1.A**: WP-M1 e WP-M2 feitos e mergeados. O WP-I1 está parado no fim da Fase A: o João reprovou o visual no iPhone e pediu o desenho completo do app antes de qualquer UI.
+- **Desenho aprovado**: `docs/design/mock.html` (25 telas; commit `9ed758e`). Referências novas do Moshi em `docs/referencias/moshi/` (`home-agentes`, `uso-plano`, `detalhe-agente`, `chat-ferramentas`, `chat-saida-expandida`, `chat-tabela`; commit `b31ed5e`).
+- **Próximo passo**: aprovar o replanejamento abaixo (há uma decisão de escopo pendente) e executar o Passo 1 (contratos). Nenhum subagente rodando.
 
-## Onda 1.0: commits
+## Commits desta sessão (`fase/1a-core`)
 
 | O quê | Commit |
 |---|---|
-| `.gitignore` com `.claude/worktrees/` | `abdf5ed` |
-| SPEC: §4.1.1 (interfaces internas), §4.1.2 (composição), §4.8 (canal local), §5.3.1 (regras do servidor), contrato de conexão e `AppSession` na §6.1 | `d798eee`, `901bba8`, `3563f7f` |
-| Fixtures de cursor `<sessionId>:<offset>` | `964ddc4`, `0cc471b` |
-| `Package.swift`: `MochaTestSupport` compartilhado | `f1521c5` |
-| Trava do `xcodebuild` (`scripts/lib/xcode-lock.sh`) e `SourcePackages` compartilhado | `2c38ec6` |
-| Esquema `Mocha Demo`, `mocha://` e `NSCameraUsageDescription` | `816e2d1` |
-| PLANO e AGENTS da 1a-core (worktree por WP, blocos dos WPs revisados) | `536866f` |
-| WP-D1 (merge `e13bd0e`) | `393ec96`, `0ecf4d2`, `f1045ef` |
+| WP-M1 (merge `f749a7c`) | `a95f3c7`, `c54fabd`, `146201b`, `1303675` |
+| SPEC e PLANO do M1 (reconexão no bridge, HEAD destacado, follow-ups no M6/M8) | `261b262`, `78fdbb5`, `4444852` |
+| SPEC do I1 (JetBrains Mono na §11, medidas do print, flags `-demo-unpaired`/`-preview`) | `9c91cfe`, `776845f` |
+| WP-M2 (merge `6163f61`) | `b34bf17`, `7f55ad2`, `0ea19a6`, `52dbc30` |
+| `Package.swift` (deps dos testes do daemon) e remoção do `MochaTestSupport/Placeholder.swift` | `d039870`, `e96efce` |
+| SPEC e PLANO do M2 (Claude Code 2.1.283, paginação, meta; constante no M4) | `c0fba01`, `e81c283`, `cdadb31` |
+| Referências novas e mock aprovado | `b31ed5e`, `9ed758e` |
 
-Validação no fim da onda: `scripts/test.sh` passou (protocolo 33 testes, demo 36, daemon 90) e `scripts/build-app.sh` compilou.
+Validação: `scripts/test.sh` verde na `fase/1a-core` depois do M2 (protocolo 33, transcript 40, Herdr 44, demo 36, daemon 164, client 1). Medição do M2 em release, sem build: primeira página de 50 MB em 32,5 ms (frio) e ~10 ms.
 
-## Autorizações do João para esta fase
+## WP-I1 (em andamento, sem commit)
 
-- **B4**: `mochad serve-setup --apply` no WP-X1 (registrado no PLANO).
-- **WP-M4**:
-  - LaunchAgent de teste (install → `launchctl print` → uninstall);
-  - `mochad run` por ~10 min numa tab do Herdr lendo o Herdr real, para medir o RSS;
-  - `mochad apns test` com token falso.
-- **WP-M2**: ler os transcripts reais de `~/.claude/projects`, só para contar tipos e ver a versão do Claude.
-- **WP-I1**: empacotar JetBrains Mono ou Geist Mono (OFL) e registrar na §11 se a comparação com o print apontar uma delas.
-- **Pendentes do WP-X1**:
-  - B8 (checklist no iPhone);
-  - iPhone 14 pareado com o Xcode, no mesmo Wi-Fi ou no cabo.
+- Worktree `.claude/worktrees/I1` (branch `wp/I1`, base `91e0545`, workspace do Herdr `w1J`, tab `build` = `w1J:p2`).
+- Fase A pronta e não commitada: `AppSession`, `DeepLink`, `LaunchConfiguration` (flags `-demo`, `-demo-script`, `-demo-unpaired`, `-probe` e `-preview` só do domínio de argumentos), JetBrains Mono em `App/Resources/Fonts/` com `OFL.txt`, tokens e componentes da primeira versão, e as telas de encaixe. O diff do `App/Info.plist` (`UIAppFonts`, `UILaunchScreen` com `LaunchBackground` e `UIUserInterfaceStyle` Dark) já está aplicado no worktree.
+- Antes de relançar:
+  1. commitar a Fase A em `wp/I1` (o `Info.plist` num commit separado);
+  2. `git merge fase/1a-core` em `wp/I1` depois do Passo 1;
+  3. descartar a navegação gaveta-sobre-chat da Fase A (`MainShellView`, `WorkspaceTree`).
+- O app de demo da Fase A está instalado no iPhone do João (`<udid-do-iphone>`).
 
-## Dados para os briefs da Onda 1.A em diante
+## Decisões do João (2026-09-26)
 
-**Worktree**
-- Criar com `herdr worktree create --cwd /Users/joaoalves/Developer/mocha --branch wp/<id> --base fase/1a-core --path /Users/joaoalves/Developer/mocha/.claude/worktrees/<id> --label "mocha <id>" --no-focus`. O JSON devolve `result.workspace.workspace_id`.
-- Remover com `herdr worktree remove --workspace <workspace_id>`.
-- Copiar `Config/Signing.xcconfig` para o worktree.
-- No M2, criar `MochaKit/Fixtures/transcripts/generated` como symlink para o do repositório principal (o `big-50mb.jsonl` já existe lá).
+- Visual: o mock aprovado vale; o Moshi é a base.
+- Home (central de agentes) é a tela inicial. O chat abre por cima (push). Voltar: arrastar da borda ou tocar no disco de status. A gaveta abre pela bússola do chat e pelo botão esquerdo da Home, sem gesto de borda.
+- Seções da Home (regra do Moshi):
+  - PRECISA DE VOCÊ: `blocked`;
+  - TRABALHANDO: `working`;
+  - CONCLUÍDOS: turno terminado há menos de 10 min;
+  - ARQUIVADOS: mais de 10 min, sessão com mais de 6 h, sessão substituída por /clear, pane fechado ou card arrastado.
+- Card:
+  - anel = % de contexto restante, com o arco girando enquanto trabalha;
+  - 2ª linha = última ferramenta, ou "Precisa de você · <ferramenta>".
+- Uso do plano:
+  - só 5h e 7d, do cache local do plugin `herdr-agent-usage`, sem token e sem a linha Fable;
+  - mostra "atualizado há X";
+  - ritmo = usado − decorrido, com tolerância de 5 pontos.
+- Composer:
+  - uma linha quando recolhido; ao focar, até 6 linhas mais a linha de botões;
+  - o teclado fecha ao rolar, tocar fora, abrir a gaveta ou enviar.
+- Parar fica na linha de status "Trabalhando… (Xm Ys)" no fim da lista; enviar continua enviando durante o turno.
+- O detalhe do agente é uma folha: abre tocando no título do header ou segurando o card. O sino da Inbox (1b) fica na Home.
 
-**Simuladores** (um por WP de app numa onda):
+## Pesquisa (fontes dos dados novos)
 
-| Simulador | UDID | Uso |
-|---|---|---|
-| iPhone 17 | `D45EF07B-BB8E-4290-9234-50AF2EF2BCD7` | I1, depois I2 |
-| iPhone 17e | `54DC817A-9A00-4E27-B845-EE9B89DB6F30` | I4 |
-| iPhone 18 Pro | `6F9B436B-962D-4762-A5E1-5F70F7B1885C` | I3, depois I5 |
+- **Contexto restante**: `100 − session_contexts.<sessionId>.used_percent` em `~/.local/state/herdr/plugins/herdr-agent-usage/claude-statusline.json` (a janela de cada sessão está em `session_models.<sessionId>`).
+  - Reserva: a última linha `assistant` do transcript, somando `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` (sem `output_tokens`, sem sidechain e sem `<synthetic>`).
+  - A janela do modelo vem da doc do Claude Code: Opus 4.7+, Fable e Sonnet 5 têm 1M.
+- **Cota 5h/7d**: o mesmo cache, com `windows[]` (`kind` `five_hour`/`weekly`, `used_percent`, `resets_at`) e `fetched_at_unix`. O plugin grava a partir do stdin do statusLine do Claude Code.
+  - O plano ("Max 20x") estaria em `~/.claude.json`, mas o classificador de permissões bloqueia a leitura desse arquivo como "Credential Exploration". Por isso ele precisa de um bloqueio novo, com fixtures fornecidas ou autorizadas pelo João.
+- **Moshi**: o arquivamento é por tempo (10 min depois do fim do turno, ou 6 h). Os textos "Session started", "Claude resumed" e "Session cleared" vêm do `SessionStart`.
 
-**Demo do WP-D1** (`MochaKit/Sources/MochaDemo/`), para o I1, o I3 e o I5:
-- `try DemoServerConnection(options: DemoOptions(...))` com:
+## Replanejamento da 1a-core (proposto, revisado por subagente; aguarda aprovação)
 
-  | Opção | Padrão | Efeito |
-  |---|---|---|
-  | `startsPaired` | `true` | `false` abre em `pairingRequired(nil)` |
-  | `runsScript` | `false` | liga o roteiro |
-  | `connectDelay` | 400 ms | espera até o handshake |
-  | `echoDelay` | 1 s | espera até o eco do prompt |
-  | `replyDelay` | 2 s | espera até a resposta |
-  | `scriptTimeScale` | 1 | multiplica os tempos do roteiro |
+### Decisão pendente do João: escopo
 
-- Mapeamento: `-demo` → `DemoOptions()`; `-demo-script` → `runsScript: true`. O I1 decide uma flag para as telas de pareamento, por exemplo `-demo-unpaired` → `startsPaired: false`.
-- Chat de 2.000 itens: agente `w3:p3` ("Refatoração da API de receitas"), tab `w3:t3`.
-- Roteiro, com os tempos contados a partir do primeiro `.connected`:
+- **A (recomendada pela revisão)**:
+  - na 1a-core, a Home mostra só os agentes vivos, com ARQUIVADOS = ocioso há mais de 10 min, calculado no app;
+  - vão para a 1a-final: o Uso do plano, as sessões encerradas persistentes (clear, pane fechado, 6 h, arrastar), a mensagem `archive` e o chat só de leitura (`openChat` por sessão).
+- **B**: tudo na 1a-core, com um WP de daemon novo (`MochaDaemonCore/Sessions/` e `Usage/`) e o bloqueio B9 (fixtures redigidas de `~/.claude.json` e do cache do plugin).
 
-  | Tempo | Evento |
-  |---|---|
-  | 3 s | worktree `w6` "feed-rss" aninhado sob `w2`, com o agente `w6:p1` |
-  | 5–13 s | turno em `w1:p1`: `chatAppend` contínuo; o Bash `script-turn-bash` vai de `running` a `succeeded` por `chatUpdate` aos 11 s; `chatMeta` com título novo aos 12 s |
-  | 17 s | `/clear` em `w6:p1` (`sessionId` novo) |
-  | 21 s | `pane_moved`: `w5:p1` → `w5:p2`; `openChat` com o id antigo devolve `agentId` `w5:p2` |
-  | 25–27,5 s | queda e volta da conexão, com `hello-2` |
+### Passo 1: contratos (orquestrador, em `fase/1a-core`)
 
-  `chatAppend`, `chatUpdate` e `chatMeta` só saem para chats abertos. Os chats abertos são esquecidos a cada handshake.
+**SPEC**
+- **Produto e fluxos:**
+  - §1.1: a Home é a tela principal;
+  - §1.3: acrescentar a Home (e o Uso, conforme o escopo);
+  - §2.3: "Abrir o app" leva à Home, e "Abrir um chat" usa o alvo novo.
+- **Dados do transcript (§3.2 e §4.1.1):** o `TranscriptMeta` ganha:
+  - `preview`: a última mensagem com o autor, com um corte fixo na §5.2;
+  - `activity`: `{toolName, summary}?` do último `toolCall` `running` (ou do último);
+  - o contexto usado, com a janela da sessão;
+  - `turnStartedAt`: a hora do último `userPrompt` que não veio de `queued_command`;
+  - `turnEndedAt`: o último `turn_duration`.
+- **Deltas (§4.1.1):** o `.meta` passa a incluir os campos novos, e o `chatMeta` só sai quando muda um campo do `ChatMeta`.
+- **Composição (§4.1.2):**
+  - o `SessionHub` sobrescreve também `preview`, `activity`, `contextLeftPercent`, `turnStartedAt` e `turnEndedAt`;
+  - o hub assina o transcript de todo agente `working`/`blocked`, mesmo sem chat aberto, para a Home se atualizar;
+  - o contexto vem primeiro do cache do plugin.
+- **Protocolo (§5.2 e §5.3):**
+  - campos novos no `AgentSummary`;
+  - se o escopo for B: o evento `archived{sessions}`, separado do `tree`; o evento `usage`; a mensagem `archive`; e um `ChatTarget` (agente ou sessão) em `openChat`/`chatPage`/`chatAppend`/`chatUpdate`/`chatMeta`/`closeChat`/`setForeground`, com as regras da §5.3.1;
+  - `herdrConnected` passa a vir num evento, porque hoje só chega no `hello`.
+- **Seções da Home:**
+  - o daemon manda `turnEndedAt` (e `archivedReason`, no escopo B);
+  - o app aplica o corte de 10 min com o relógio local, com a precedência blocked > working > arquivado > concluído;
+  - a Home filtra `kind == "claude"`.
+- **Uso (se entrar):** o app calcula o decorrido a partir de `resetsAt` e do tipo da janela. O daemon observa o diretório do cache, que é gravado por rename, e reabre o arquivo.
+- **App:**
+  - §6.1: Home como raiz, os módulos `Home/`, `AgentDetail/` e `Usage/`;
+  - §6.2: os tokens novos do mock, inclusive os de vidro (`gl-home`, `gl-pill`, `gl-hero`, `gl-black`) e os gradientes de brilho;
+  - o mock passa a valer sobre os prints quando os dois divergem;
+  - §6.3: todas as telas, com o sino da Inbox na Home.
+- **Riscos:** §12 ganha a dependência do cache privado de um plugin.
 
-**§§ extras nos briefs** (além das citadas no bloco do WP):
-- M1 e M2: §4.1.1;
-- M3: §3.1.3, §3.1.4, §4.4, §5.5, §10;
-- M4: §3.1.1, §3.2.2, §3.3, §4.3, §4.5, §4.6, §7.1, §10;
-- I1: §2.2 e §6.1 (`AppSession`);
-- I2: §5.1, §5.3;
-- I3 e I5: §6.2, §5.3;
-- I5: §2.3.
+**AGENTS e PLANO**
+- AGENTS (linhas 7 e 79): a referência visual passa a ser o mock, com PNGs em `docs/design/mock/<n>.png`, gerados pelo orquestrador (ferramenta WKWebView em `/private/tmp/claude-501/-Users-joaoalves-Developer/7c200af0-61d3-43c2-a663-14488d6c135b/scratchpad/design/`: `build.py` e `snap`).
+- PLANO:
+  - "Visão das fases";
+  - os blocos do I1, I3, I4, I5, M3, M4 e X1;
+  - os WPs novos (D2, M2b, I12, e o de Sessions/Usage no escopo B) na tabela de status e no "Depende de" do X1.
+
+**Código e fixtures:** `MochaProtocol` e as fixtures com os tipos novos, e `scripts/test.sh` verde.
+
+### Ondas (revisadas)
+
+- **1.A'**:
+  - **WP-D2**: o demo com os campos novos, e `archive`/`openChat` por sessão se o escopo for B.
+  - **WP-M2b**: o `TranscriptMeta` novo. Dono: `MochaTranscript/`, `MochaDaemonCore/Transcript/`, `MochaTestSupport/Transcript/` e `Fixtures/transcripts/expected/`.
+  - **WP-I1, Fase B refeita pelo mock:**
+    - o I1 entrega **todo** o `AppSession`, a navegação, o design system e os encaixes `HomeScreen`, `AgentDetailSheet`, `UsageSheet`, `SettingsScreen`, `DrawerScreen`, `ChatScreen(target:)` e `MarkdownView(markdown:)`;
+    - aceite: arrastar da borda volta à Home, conferido no aparelho.
+- **1.B**:
+  - **WP-M3**: com a composição nova, assinando os transcripts dos agentes `working`/`blocked`.
+  - **WP-I12**: dono de `App/Sources/Home/`, `AgentDetail/` e `Usage/`, sem tocar em `AppShell/` nem `DesignSystem/`.
+  - **WP-I4**: markdown pelo mock. Veio para a 1.B porque o I5 depende dele.
+- **1.C**:
+  - **WP-M4**: com o bloco atualizado.
+  - **WP-I3**: gaveta pelo mock, sem gesto de borda, sem tocar em `AppShell/`.
+  - **WP-I5**: telas 5 a 8 do mock. A tela 10 é da 1b.
+- **1.D**: WP-I2 (conexão, pareamento e ajustes; a data do pareamento fica guardada no app), mais o WP de Sessions/Usage no escopo B.
+- **1.E**: WP-X1, com o checklist novo (Home, seções, anel, teclado, composer e, no escopo B, uso e arquivados).
 
 ## Cuidados
 
-- O Bash do orquestrador guarda o `cd`. Use caminhos absolutos ou `git -C`, para não ficar dentro de um worktree ao fazer merge ou remover.
-- Mudar o contrato de um arquivo do orquestrador quebra testes que dependem dele (o cursor novo quebrou `FixtureRoundTripTests`, e o agregado `unknown` quebrou `tree.json`). Rode `scripts/test.sh` depois de cada mudança nos seus arquivos.
-- Os WPs de UI: antes da verificação visual pesada, ofereça ao João testar no iPhone.
-
-## Próximo passo
-
-Abrir a Onda 1.A:
-1. Criar os worktrees `M1`, `M2` e `I1`.
-2. Delegar os três em paralelo, com o bloco do WP no PLANO, as §§, os dados acima e o caminho do worktree.
-3. Revisar, commitar em `wp/<id>`, fazer `merge --no-ff` na `fase/1a-core`, validar e mandar o resumo da onda ao João.
+- O Bash do orquestrador guarda o `cd`. Use caminhos absolutos ou `git -C`.
+- Um `index.lock` passageiro aparece nos worktrees (o `herdr-reviewr` lê o git). Se um commit falhar por lock, confira `git log` e repita.
+- Para remover um worktree:
+  1. saia do `herdr-reviewr` com `q` no pane raiz do workspace do worktree;
+  2. feche as tabs;
+  3. rode `herdr worktree remove --workspace <id>`.
+- Symlink da fixture grande num worktree: `MochaKit/Fixtures/transcripts/generated` está no `.git/info/exclude`.
+- Tab `tests` aberta no workspace Mocha (`w1E:t2`), para validar a fase.
+- Na UI, antes da verificação visual pesada, ofereça ao João testar no iPhone:
+  1. `scripts/build-device.sh` numa tab do worktree;
+  2. `xcrun devicectl device install app --device <udid-do-iphone> <app>`;
+  3. `xcrun devicectl device process launch --device … --terminate-existing com.example.mocha -demo`.
+- No Xcode 27, o primeiro `simctl openurl` com esquema próprio abre o aviso "Open in Mocha?" e trava até alguém tocar.
