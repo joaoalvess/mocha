@@ -227,8 +227,8 @@ public actor DemoServerConnection: ServerConnection {
             reply(id, .ack())
         case .respond:
             fail(id, .requestNotFound, "Pedido não encontrado.")
-        case .newAgentTab:
-            fail(id, .internal, "Nova tab não está disponível no modo demo.")
+        case .newAgentTab(let workspaceId):
+            newAgentTab(in: workspaceId, id: id)
         case .unknown(let type):
             fail(id, .unknownType, "Tipo de mensagem desconhecido: \(type).")
         }
@@ -380,6 +380,45 @@ public actor DemoServerConnection: ServerConnection {
         turns.removeValue(forKey: chat.agentId)?.cancel()
         guard chat.meta.status == .working else { return }
         setStatus(.idle, for: chat.agentId)
+    }
+
+    private func newAgentTab(in workspaceId: WorkspaceID, id: String) {
+        guard workspaces.workspace(withId: workspaceId) != nil else {
+            return fail(id, .invalidPayload, DemoNewAgentTab.workspaceNotFoundMessage)
+        }
+        let handshake = handshakeCount
+        Task { [weak self, delay = options.newAgentTabDelay] in
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            await self?.openAgentTab(in: workspaceId, id: id, handshake: handshake)
+        }
+    }
+
+    private func openAgentTab(in workspaceId: WorkspaceID, id: String, handshake: Int) {
+        let isSameConnection = state == .connected && handshakeCount == handshake
+        guard let workspace = workspaces.workspace(withId: workspaceId) else {
+            if isSameConnection {
+                fail(id, .invalidPayload, DemoNewAgentTab.workspaceNotFoundMessage)
+            }
+            return
+        }
+        let takenAgentIds = Set(workspaces.allAgents.map(\.id))
+            .union(movedAgents.keys)
+            .union(movedAgents.values)
+            .union(DemoScript.reservedAgentIds)
+        let newTab = DemoNewAgentTab(in: workspace, takenAgentIds: takenAgentIds, now: Date())
+        chats[newTab.agentId] = newTab.chat
+        workspaces.updateWorkspace(withId: workspaceId) { workspace in
+            workspace.tabs.append(newTab.tab)
+            workspace.agentStatus = workspace.aggregatedAgentStatus
+        }
+        emitTree()
+        if isSameConnection {
+            reply(id, .ack(agentId: newTab.agentId))
+        }
     }
 
     private func runSlash(agentId: AgentID, command: String, id: String) {

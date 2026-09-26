@@ -59,6 +59,7 @@ enum DemoScript {
     static let movedAgentNewId: AgentID = "w5:p2"
     static let finishingAgentId: AgentID = "w5:p1"
     static let worktreeContextLeftPercent = 88
+    static let reservedAgentIds: Set<AgentID> = [worktreeAgentId, movedAgentNewId]
 
     private static let worktreeLabel = "feed-rss"
     private static let worktreeBranch = "feat/feed-rss"
