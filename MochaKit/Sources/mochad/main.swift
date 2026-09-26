@@ -10,6 +10,8 @@ let usage = """
       uninstall                           descarrega o LaunchAgent e remove o plist (mantém os dados)
       pair                                pede ao daemon um código e mostra o QR de pareamento
       devices [--remove <id>]             lista ou remove aparelhos pareados
+      install-hooks                       instala os hooks do Mocha em ~/.claude/settings.json
+      uninstall-hooks                     remove só os hooks do Mocha de ~/.claude/settings.json
       serve-setup [--apply | --remove]    mostra, aplica ou desfaz o tailscale serve
       status [--herdr-socket <caminho>]   daemon, Herdr, clientes e Serve
       doctor [--herdr-socket <caminho>]   diagnóstico com ✅/⚠️/❌
@@ -33,6 +35,10 @@ case "pair":
     exit(await PairCommand.run(rest))
 case "devices":
     exit(await DevicesCommand.run(rest))
+case "install-hooks":
+    exit(HooksCommand.install(rest))
+case "uninstall-hooks":
+    exit(HooksCommand.uninstall(rest))
 case "serve-setup":
     exit(await ServeSetupCommand.run(rest))
 case "status":
