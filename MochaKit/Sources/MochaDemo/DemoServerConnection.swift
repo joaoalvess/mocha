@@ -352,7 +352,8 @@ public actor DemoServerConnection: ServerConnection {
         guard !Task.isCancelled else { return nil }
         let current = currentId(for: agentId)
         let now = Date()
-        append([ChatItem(id: Self.newItemId(), at: now, kind: .userPrompt(text: text, imageCount: 0))], to: current)
+        let prompt = DemoImageMarkers.split(text)
+        append([ChatItem(id: Self.newItemId(), at: now, kind: .userPrompt(text: prompt.text, imageCount: prompt.imageCount))], to: current)
         setStatus(.working, for: current)
         return now
     }
