@@ -1,0 +1,314 @@
+{
+  "id": "r1",
+  "result": {
+    "type": "session_snapshot",
+    "snapshot": {
+      "version": "0.9.1",
+      "protocol": 22,
+      "focused_workspace_id": "w5",
+      "focused_tab_id": "w5:t1",
+      "focused_pane_id": "w5:p1",
+      "workspaces": [
+        {
+          "workspace_id": "w5",
+          "number": 1,
+          "label": "demo-app",
+          "focused": true,
+          "pane_count": 2,
+          "tab_count": 2,
+          "active_tab_id": "w5:t1",
+          "agent_status": "idle",
+          "worktree": {
+            "repo_key": "/Users/dev/projects/demo-app/.git",
+            "repo_name": "demo-app",
+            "repo_root": "/Users/dev/projects/demo-app",
+            "checkout_path": "/Users/dev/projects/demo-app",
+            "is_linked_worktree": false
+          }
+        },
+        {
+          "workspace_id": "w6",
+          "number": 2,
+          "label": "feature-x",
+          "focused": false,
+          "pane_count": 1,
+          "tab_count": 1,
+          "active_tab_id": "w6:t1",
+          "agent_status": "working",
+          "worktree": {
+            "repo_key": "/Users/dev/projects/demo-app/.git",
+            "repo_name": "demo-app",
+            "repo_root": "/Users/dev/projects/demo-app",
+            "checkout_path": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+            "is_linked_worktree": true
+          }
+        },
+        {
+          "workspace_id": "w7",
+          "number": 3,
+          "label": "notes",
+          "focused": false,
+          "pane_count": 1,
+          "tab_count": 1,
+          "active_tab_id": "w7:t1",
+          "agent_status": "unknown"
+        },
+        {
+          "workspace_id": "w8",
+          "number": 4,
+          "label": "hotfix",
+          "focused": false,
+          "pane_count": 1,
+          "tab_count": 1,
+          "active_tab_id": "w8:t1",
+          "agent_status": "blocked",
+          "worktree": {
+            "repo_key": "/Users/dev/projects/demo-web/.git",
+            "repo_name": "demo-web",
+            "repo_root": "/Users/dev/projects/demo-web",
+            "checkout_path": "/Users/dev/projects/demo-web-hotfix",
+            "is_linked_worktree": true
+          }
+        }
+      ],
+      "tabs": [
+        {
+          "tab_id": "w5:t1",
+          "workspace_id": "w5",
+          "number": 1,
+          "label": "Claude: tarefa principal",
+          "focused": true,
+          "pane_count": 1,
+          "agent_status": "idle"
+        },
+        {
+          "tab_id": "w5:t2",
+          "workspace_id": "w5",
+          "number": 2,
+          "label": "claude",
+          "focused": false,
+          "pane_count": 1,
+          "agent_status": "idle"
+        },
+        {
+          "tab_id": "w6:t1",
+          "workspace_id": "w6",
+          "number": 1,
+          "label": "Claude: feature",
+          "focused": false,
+          "pane_count": 1,
+          "agent_status": "working"
+        },
+        {
+          "tab_id": "w7:t1",
+          "workspace_id": "w7",
+          "number": 1,
+          "label": "fish",
+          "focused": false,
+          "pane_count": 1,
+          "agent_status": "unknown"
+        },
+        {
+          "tab_id": "w8:t1",
+          "workspace_id": "w8",
+          "number": 1,
+          "label": "Codex: hotfix",
+          "focused": false,
+          "pane_count": 1,
+          "agent_status": "blocked"
+        }
+      ],
+      "panes": [
+        {
+          "pane_id": "w5:p1",
+          "terminal_id": "term_0000000000000b1",
+          "workspace_id": "w5",
+          "tab_id": "w5:t1",
+          "focused": true,
+          "cwd": "/Users/dev/projects/demo-app",
+          "foreground_cwd": "/Users/dev/projects/demo-app",
+          "agent": "claude",
+          "terminal_title": "✳ tarefa principal",
+          "terminal_title_stripped": "tarefa principal",
+          "agent_status": "idle",
+          "agent_session": {
+            "source": "herdr:claude",
+            "agent": "claude",
+            "kind": "id",
+            "value": "44444444-4444-4444-8444-444444444444"
+          },
+          "scroll": {
+            "offset_from_bottom": 0,
+            "max_offset_from_bottom": 0,
+            "viewport_rows": 41
+          },
+          "revision": 12
+        },
+        {
+          "pane_id": "w5:p3",
+          "terminal_id": "term_0000000000000a1",
+          "workspace_id": "w5",
+          "tab_id": "w5:t2",
+          "focused": false,
+          "cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "foreground_cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "agent": "claude",
+          "agent_status": "idle",
+          "agent_session": {
+            "source": "herdr:claude",
+            "agent": "claude",
+            "kind": "id",
+            "value": "33333333-3333-4333-8333-333333333333"
+          },
+          "scroll": {
+            "offset_from_bottom": 0,
+            "max_offset_from_bottom": 0,
+            "viewport_rows": 41
+          },
+          "revision": 14
+        },
+        {
+          "pane_id": "w6:p1",
+          "terminal_id": "term_0000000000000c1",
+          "workspace_id": "w6",
+          "tab_id": "w6:t1",
+          "focused": false,
+          "cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "foreground_cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "agent": "claude",
+          "terminal_title": "✳ feature x",
+          "terminal_title_stripped": "feature x",
+          "agent_status": "working",
+          "agent_session": {
+            "source": "herdr:claude",
+            "agent": "claude",
+            "kind": "id",
+            "value": "55555555-5555-4555-8555-555555555555"
+          },
+          "scroll": {
+            "offset_from_bottom": 0,
+            "max_offset_from_bottom": 0,
+            "viewport_rows": 41
+          },
+          "revision": 30
+        },
+        {
+          "pane_id": "w7:p1",
+          "terminal_id": "term_0000000000000d1",
+          "workspace_id": "w7",
+          "tab_id": "w7:t1",
+          "focused": false,
+          "cwd": "/Users/dev/projects/notes",
+          "foreground_cwd": "/Users/dev/projects/notes",
+          "terminal_title": "✳ ~/p/notes",
+          "terminal_title_stripped": "~/p/notes",
+          "agent_status": "unknown",
+          "scroll": {
+            "offset_from_bottom": 0,
+            "max_offset_from_bottom": 0,
+            "viewport_rows": 41
+          },
+          "revision": 3
+        },
+        {
+          "pane_id": "w8:p1",
+          "terminal_id": "term_0000000000000e1",
+          "workspace_id": "w8",
+          "tab_id": "w8:t1",
+          "focused": false,
+          "cwd": "/Users/dev/projects/demo-web-hotfix",
+          "foreground_cwd": "/Users/dev/projects/demo-web-hotfix",
+          "agent": "codex",
+          "terminal_title": "✳ hotfix",
+          "terminal_title_stripped": "hotfix",
+          "agent_status": "blocked",
+          "scroll": {
+            "offset_from_bottom": 0,
+            "max_offset_from_bottom": 0,
+            "viewport_rows": 41
+          },
+          "revision": 9
+        }
+      ],
+      "layouts": [],
+      "agents": [
+        {
+          "terminal_id": "term_0000000000000b1",
+          "agent": "claude",
+          "terminal_title": "✳ tarefa principal",
+          "terminal_title_stripped": "tarefa principal",
+          "agent_status": "idle",
+          "agent_session": {
+            "source": "herdr:claude",
+            "agent": "claude",
+            "kind": "id",
+            "value": "44444444-4444-4444-8444-444444444444"
+          },
+          "workspace_id": "w5",
+          "tab_id": "w5:t1",
+          "pane_id": "w5:p1",
+          "focused": true,
+          "state_change_seq": 100,
+          "cwd": "/Users/dev/projects/demo-app",
+          "foreground_cwd": "/Users/dev/projects/demo-app",
+          "revision": 12
+        },
+        {
+          "terminal_id": "term_0000000000000a1",
+          "agent": "claude",
+          "agent_status": "idle",
+          "agent_session": {
+            "source": "herdr:claude",
+            "agent": "claude",
+            "kind": "id",
+            "value": "33333333-3333-4333-8333-333333333333"
+          },
+          "workspace_id": "w5",
+          "tab_id": "w5:t2",
+          "pane_id": "w5:p3",
+          "focused": false,
+          "state_change_seq": 107,
+          "cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "foreground_cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "revision": 14
+        },
+        {
+          "terminal_id": "term_0000000000000c1",
+          "agent": "claude",
+          "terminal_title": "✳ feature x",
+          "terminal_title_stripped": "feature x",
+          "agent_status": "working",
+          "agent_session": {
+            "source": "herdr:claude",
+            "agent": "claude",
+            "kind": "id",
+            "value": "55555555-5555-4555-8555-555555555555"
+          },
+          "workspace_id": "w6",
+          "tab_id": "w6:t1",
+          "pane_id": "w6:p1",
+          "focused": false,
+          "state_change_seq": 114,
+          "cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "foreground_cwd": "/Users/dev/projects/demo-app/.claude/worktrees/feature-x",
+          "revision": 30
+        },
+        {
+          "terminal_id": "term_0000000000000e1",
+          "agent": "codex",
+          "terminal_title": "✳ hotfix",
+          "terminal_title_stripped": "hotfix",
+          "agent_status": "blocked",
+          "workspace_id": "w8",
+          "tab_id": "w8:t1",
+          "pane_id": "w8:p1",
+          "focused": false,
+          "state_change_seq": 121,
+          "cwd": "/Users/dev/projects/demo-web-hotfix",
+          "foreground_cwd": "/Users/dev/projects/demo-web-hotfix",
+          "revision": 9
+        }
+      ]
+    }
+  }
+}

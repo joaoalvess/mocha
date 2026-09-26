@@ -41,6 +41,7 @@ Capturadas em 2026-09-25 no Herdr 0.9.1 (protocolo 22), pelo socket `~/.config/h
 | `event.pane.agent_status_changed.no-agent.json` | status depois que o Claude saiu do pane (sem `agent`) |
 | `event.pane_agent_detected.released.json` | saída do agente (`released: true`, `final_status`) |
 | `event.*.synthetic.json`, `workspace.list.linked-worktree.synthetic.json` | **sintéticos**, montados a partir do schema (sem worktree ligado no estado real; `workspace.move` e `worktree.create` não foram rodados) |
+| `session.snapshot.linked-worktree.synthetic.json` | **sintético** (WP-M1): `w5` principal de `demo-app`, `w6` worktree ligado do mesmo `repo_key` (aninhado), `w8` worktree ligado sem pai aberto (`demo-web`, agente `codex` `blocked`), `w7` sem worktree e sem agente; `w5:p3` na `w5:t2` casa com `event.pane_moved.synthetic.json` |
 | `stream.status.*.jsonl` | fluxo real de uma conexão de `pane.agent_status_changed` (ack + eventos, uma linha por mensagem) |
 | `stream.global.lab-lifecycle.jsonl` | todos os eventos globais do laboratório, em ordem, do `workspace_created` ao `workspace_closed` |
 
