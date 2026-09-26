@@ -247,7 +247,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - Um workspace com `worktree.is_linked_worktree == true` fica **aninhado** sob o workspace não-ligado de mesmo `repo_key`. Sem pai aberto, ele fica na raiz.
 - Um worktree criado pelo agente dentro do próprio pane (ex.: `.claude/worktrees/<nome>`) não vira workspace: aparece só no `foreground_cwd` do pane. Só os worktrees do Herdr são aninhados na gaveta.
 - **Branch do agente**: `AgentSummary.branch` é a branch do `foreground_cwd` do pane (`HEAD` lido direto, como acima). A gaveta a mostra na linha do agente só quando ela difere da branch do workspace (ex.: agente num worktree criado dentro do pane).
-- **Branch**: ler `HEAD` do git do diretório do workspace direto do arquivo, sem subprocesso. Para worktree ligado, `.git` é um arquivo `gitdir: …`; seguir esse caminho.
+- **Branch**: ler `HEAD` do git do diretório do workspace direto do arquivo, sem subprocesso. Para worktree ligado, `.git` é um arquivo `gitdir: …`; seguir esse caminho. Com `HEAD` destacado, a branch mostrada são os 7 primeiros caracteres do SHA.
 - **`isDirty`**: `git --no-optional-locks -C <diretório> status --porcelain=v1 --untracked-files=normal`, saída não vazia. Sem `--no-optional-locks`, o `status` pega o `index.lock` e pode fazer falhar um `git commit` que um agente esteja rodando no mesmo repositório. Roda no máximo a cada 15 s por workspace, com cache, e é recalculado depois de cada `Stop` do agente desse workspace.
 - Tabs sem agente aparecem como shell (ícone `>_`, `label` da tab).
 - Uma tab pode ter mais de um agente (panes divididos). Cada agente vira uma linha própria sob a tab.
@@ -416,8 +416,8 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 
 | Componente | Responsabilidade |
 |---|---|
-| `HerdrClient` (`MochaHerdr`) | Conexões com o socket, requisições com id, stream de eventos (`AsyncStream`), reconexão |
-| `HerdrBridge` | Snapshot inicial, inscrições (§3.1.3), árvore derivada (§3.1.4), comandos (prompt, Esc, teclas, nova tab) |
+| `HerdrClient` (`MochaHerdr`) | Conexões com o socket, requisições com id, stream de eventos (`AsyncStream`) que termina no EOF |
+| `HerdrBridge` | Snapshot inicial, inscrições e reconexão (§3.1.3), árvore derivada (§3.1.4), comandos (prompt, Esc, teclas, nova tab) |
 | `TranscriptStore` | Resolução de arquivo, índice de offsets, páginas, acompanhamento, deltas por sessão |
 | `SessionHub` | Clientes conectados, chats abertos por cliente, primeiro plano por cliente, broadcast |
 | `HttpServer` | HTTP/1.1 mínimo sobre `NWListener` (§4.4) |
