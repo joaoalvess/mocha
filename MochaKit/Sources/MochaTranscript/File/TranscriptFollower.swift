@@ -23,6 +23,7 @@ public final class TranscriptFollower {
 
     private let file: TranscriptFile
     private var reducer = TranscriptReducer()
+    private var home = TranscriptHomeTracker()
     private var seedCache = ParsedLineCache()
     public private(set) var header: TranscriptHeader
 
@@ -33,9 +34,12 @@ public final class TranscriptFollower {
         try file.indexToEnd()
         let seedStart = max(0, file.lineCount - Self.seedLines)
         for index in seedStart..<file.lineCount {
-            _ = reducer.apply(try seedCache.line(index, in: file))
+            home.absorb(reducer.apply(try seedCache.line(index, in: file)))
         }
-        header = try TranscriptHeaderScanner.scan(file, end: file.indexedEnd)
+        let scanned = try TranscriptHeaderScanner.scan(file, end: file.indexedEnd)
+        header = scanned.header
+        home.seed(olderActivity: scanned.activity)
+        home.apply(to: &header)
     }
 
     public var path: String {
@@ -74,10 +78,13 @@ public final class TranscriptFollower {
         for line in try file.readAppendedLines() {
             let parsed = TranscriptLineParser.parse(line.bytes, offset: line.offset)
             header.absorb(parsed)
-            update.changes.append(contentsOf: reducer.apply(parsed))
+            let changes = reducer.apply(parsed)
+            home.absorb(changes)
+            update.changes.append(contentsOf: changes)
             update.unknownNames.formUnion(parsed.unknownNames)
             update.lineCount += 1
         }
+        home.apply(to: &header)
         return update
     }
 }

@@ -57,6 +57,7 @@ public struct TranscriptDocument: Sendable, Equatable {
         let keepingItems: Bool
         var reducer = TranscriptReducer()
         var header = TranscriptHeader()
+        var home = TranscriptHomeTracker()
         var list = ChatItemList()
         var changes: [TranscriptChange] = []
 
@@ -67,6 +68,7 @@ public struct TranscriptDocument: Sendable, Equatable {
         mutating func consume(_ line: ParsedLine) {
             header.absorb(line)
             let lineChanges = reducer.apply(line)
+            home.absorb(lineChanges)
             guard keepingItems else { return }
             for change in lineChanges {
                 list.apply(change)
@@ -74,8 +76,9 @@ public struct TranscriptDocument: Sendable, Equatable {
             changes.append(contentsOf: lineChanges)
         }
 
-        func document(pendingByteCount: Int) -> TranscriptDocument {
-            TranscriptDocument(
+        mutating func document(pendingByteCount: Int) -> TranscriptDocument {
+            home.apply(to: &header)
+            return TranscriptDocument(
                 items: list.items,
                 header: header,
                 statistics: reducer.statistics,

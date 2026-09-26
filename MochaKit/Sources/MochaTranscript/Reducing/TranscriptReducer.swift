@@ -24,7 +24,7 @@ struct TranscriptReducer {
                 statistics.dropped += 1
             case .unknown(let name):
                 statistics.unknown[name, default: 0] += 1
-            case .title, .permissionMode, .modelAndBranch:
+            case .title, .permissionMode, .modelAndBranch, .contextTokens, .turnStarted, .turnEnded:
                 break
             case .item(let item):
                 if case .toolCall(let call) = item.kind {

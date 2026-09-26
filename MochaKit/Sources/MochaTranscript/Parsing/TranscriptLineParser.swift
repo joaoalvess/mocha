@@ -32,7 +32,7 @@ enum TranscriptLineParser {
         let line = Line(object: root, offset: offset)
         let version = root["version"]?.stringValue
         guard !root["isSidechain"].isTrue else { return ParsedLine(version: version, effects: []) }
-        return ParsedLine(version: version, effects: effects(type: type, line: line))
+        return ParsedLine(version: version, timestamp: root["timestamp"]?.stringValue, effects: effects(type: type, line: line))
     }
 
     private static func isJSONWhitespace(_ byte: UInt8) -> Bool {
@@ -86,14 +86,16 @@ enum TranscriptLineParser {
 
     private static func userEffects(_ line: Line) -> [LineEffect] {
         guard !line["isMeta"].isTrue, !line["isCompactSummary"].isTrue else { return [] }
+        let effects: [LineEffect]
         switch line["message"]?["content"] {
         case .string(let text):
-            return userTextEffects(text, line: line)
+            effects = userTextEffects(text, line: line)
         case .array(let blocks):
-            return userBlockEffects(blocks, line: line)
+            effects = userBlockEffects(blocks, line: line)
         default:
             return [.dropped]
         }
+        return effects.contains(where: \.isUserPrompt) ? effects + [.turnStarted] : effects
     }
 
     private static func userTextEffects(_ text: String, line: Line) -> [LineEffect] {
@@ -179,6 +181,9 @@ enum TranscriptLineParser {
         }
         let branch = line["gitBranch"]?.stringValue.flatMap { $0 == detachedBranch || $0.isEmpty ? nil : $0 }
         var effects: [LineEffect] = [.modelAndBranch(model: model, branch: branch)]
+        if let tokens = contextTokens(in: message["usage"]) {
+            effects.append(.contextTokens(tokens))
+        }
         let usesBlockIndex = blocks.count > 1
         for (index, block) in blocks.enumerated() {
             let blockIndex = usesBlockIndex ? index : nil
@@ -200,6 +205,12 @@ enum TranscriptLineParser {
         return effects
     }
 
+    private static func contextTokens(in usage: JSONValue?) -> Int? {
+        guard let usage = usage?.objectValue else { return nil }
+        let counts = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"].compactMap { usage[$0]?.intValue }
+        return counts.isEmpty ? nil : counts.reduce(0, +)
+    }
+
     private static func toolCall(from block: JSONValue, cwd: String?) -> ToolCall {
         let name = block["name"]?.stringValue ?? ""
         let input = block["input"]
@@ -217,8 +228,8 @@ enum TranscriptLineParser {
         let content = line["content"]?.stringValue
         switch subtype {
         case "turn_duration":
-            guard let duration = line["durationMs"]?.intValue else { return [] }
-            return [.item(line.item(.turnFooter(durationMs: duration)))]
+            guard let duration = line["durationMs"]?.intValue else { return [.turnEnded] }
+            return [.item(line.item(.turnFooter(durationMs: duration))), .turnEnded]
         case "away_summary":
             guard let content else { return [] }
             return [.item(line.item(.recap(text: content)))]
