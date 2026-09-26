@@ -45,7 +45,7 @@ enum StatusCommand {
             keyPresence: KeychainApnsKeyPresence(),
             executable: CurrentExecutable.url
         )
-        let items = await doctor.run()
+        let items = await doctor.run() + [DoctorChecks.usage(paths, now: Date())]
         Console.line(DoctorReport.render(items))
         return DoctorReport.exitCode(items)
     }

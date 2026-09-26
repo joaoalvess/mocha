@@ -41,6 +41,7 @@ public actor DaemonRuntime {
     private let options: DaemonOptions
     private let events: Gateway.EventSink
     private var herdr: HerdrBridge?
+    private var usage: UsageMonitor?
     private var gateway: Gateway?
     private var gatewayServer: HttpServer?
     private var controlServer: LocalControlServer?
@@ -59,7 +60,9 @@ public actor DaemonRuntime {
         let transcripts = TranscriptStore(projectsRoot: options.projectsRoot)
         let devices = DeviceStore(fileURL: paths.devicesFile)
         let pairing = Pairing()
-        let hub = SessionHub(herdr: herdr, transcripts: transcripts, devices: devices, pairing: pairing)
+        let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
+        let archive = SessionArchive(fileURL: paths.sessionsFile)
+        let hub = SessionHub(herdr: herdr, transcripts: transcripts, devices: devices, pairing: pairing, usage: usage, archive: archive)
         let gateway = Gateway(herdr: herdr, hub: hub, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let controlServer = LocalControlServer(
@@ -74,7 +77,9 @@ public actor DaemonRuntime {
             )
         )
         self.herdr = herdr
+        self.usage = usage
         self.gateway = gateway
+        await usage.start()
         await herdr.start()
         await hub.start()
         do {
@@ -109,6 +114,8 @@ public actor DaemonRuntime {
         gatewayServer = nil
         await herdr?.stop()
         herdr = nil
+        await usage?.stop()
+        usage = nil
     }
 
     private static func gatewayError(_ error: any Error, port: UInt16) -> DaemonStartError {
