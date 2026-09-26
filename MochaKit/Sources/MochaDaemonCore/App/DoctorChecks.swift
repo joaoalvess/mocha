@@ -40,15 +40,22 @@ public enum DoctorChecks {
     }
 
     public static func hooks(_ inspection: ClaudeSettingsInspection) -> DoctorItem {
-        guard case .hooks(let summary) = inspection, !summary.mochaEvents.isEmpty else {
-            return DoctorItem("Hooks", .warning, "chegam na 1a-final (mochad install-hooks)")
+        let expected = HookEventName.allCases.map(\.rawValue)
+        switch inspection {
+        case .missing:
+            return DoctorItem("Hooks", .warning, "não instalados: sem ~/.claude/settings.json (mochad install-hooks)")
+        case .unreadable:
+            return DoctorItem("Hooks", .warning, "não consegui ler ~/.claude/settings.json")
+        case .hooks(let summary):
+            let missing = expected.filter { !summary.mochaEvents.contains($0) }
+            if missing.isEmpty {
+                return DoctorItem("Hooks", .ok, "instalados em \(expected.joined(separator: ", "))")
+            }
+            if missing.count == expected.count {
+                return DoctorItem("Hooks", .warning, "não instalados (mochad install-hooks)")
+            }
+            return DoctorItem("Hooks", .warning, "incompletos: faltam \(missing.joined(separator: ", ")) (mochad install-hooks)")
         }
-        return DoctorItem(
-            "Hooks",
-            .warning,
-            "chegam na 1a-final; o HookServer ainda não escuta",
-            details: ["entradas do Mocha em ~/.claude/settings.json: \(summary.mochaEvents.joined(separator: ", "))"]
-        )
     }
 
     public static func moshiHook(_ inspection: ClaudeSettingsInspection) -> DoctorItem {

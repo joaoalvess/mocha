@@ -8,6 +8,7 @@ let daemonLogger = Logger(subsystem: "com.joaoalves.mocha", category: "daemon")
 public enum DaemonStartError: Error, Sendable, Equatable {
     case portInUse(UInt16)
     case gatewayFailed(String)
+    case hookServerFailed(String)
     case controlFailed(String)
 }
 
@@ -16,27 +17,33 @@ public struct DaemonOptions: Sendable {
     public var herdrSocketPath: String
     public var projectsRoot: String
     public var pairingURL: LocalControl.PairingURLProvider
+    public var hookPort: UInt16?
 
     public init(
         paths: DaemonPaths = DaemonPaths(),
         herdrSocketPath: String = HerdrSocketPath.resolve(),
         projectsRoot: String = TranscriptStore.defaultProjectsRoot,
-        pairingURL: @escaping LocalControl.PairingURLProvider = { try await TailscaleCLI().webSocketURL() }
+        pairingURL: @escaping LocalControl.PairingURLProvider = { try await TailscaleCLI().webSocketURL() },
+        hookPort: UInt16? = nil
     ) {
         self.paths = paths
         self.herdrSocketPath = herdrSocketPath
         self.projectsRoot = projectsRoot
         self.pairingURL = pairingURL
+        self.hookPort = hookPort
     }
 }
 
 public actor DaemonRuntime {
     public struct Started: Sendable, Equatable {
         public let gatewayPort: UInt16
+        public let hookPort: UInt16
         public let controlSocket: String
         public let herdrSocket: String
         public let generatedHookSecret: Bool
     }
+
+    public nonisolated let hookEvents = HookEventHub()
 
     private let options: DaemonOptions
     private let events: Gateway.EventSink
@@ -44,6 +51,7 @@ public actor DaemonRuntime {
     private var usage: UsageMonitor?
     private var gateway: Gateway?
     private var gatewayServer: HttpServer?
+    private var hookServer: HttpServer?
     private var controlServer: LocalControlServer?
     private var uploadCleanup: Task<Void, Never>?
 
@@ -67,6 +75,17 @@ public actor DaemonRuntime {
         let uploads = UploadStore(directory: paths.uploadsDirectory)
         let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
+        let configFile = paths.configFile
+        let hookPort = options.hookPort ?? preparation.config.hookPort
+        let hooks = HookServer(
+            secrets: HookSecretVerifier(
+                secret: preparation.config.hookSecret,
+                reload: { (try? DaemonConfigStore(url: configFile).read())?.hookSecret }
+            ),
+            events: hookEvents,
+            resolveAgent: { await herdr.resolve($0) }
+        )
+        let hookServer = HttpServer(binding: .loopback(port: hookPort), router: hooks.makeRouter())
         let controlServer = LocalControlServer(
             socketPath: paths.controlSocket.fileSystemPath,
             control: LocalControl(
@@ -97,15 +116,24 @@ public actor DaemonRuntime {
         }
         self.gatewayServer = gatewayServer
         do {
+            try await hookServer.start()
+        } catch {
+            await stop()
+            throw Self.hookServerError(error, port: hookPort)
+        }
+        self.hookServer = hookServer
+        let boundHookPort = await hookServer.port ?? hookPort
+        do {
             try await controlServer.start()
         } catch {
             await stop()
             throw DaemonStartError.controlFailed(String(describing: error))
         }
         self.controlServer = controlServer
-        daemonLogger.info("mochad \(DaemonVersion.current, privacy: .public) up on 127.0.0.1:\(port, privacy: .public)")
+        daemonLogger.info("mochad \(DaemonVersion.current, privacy: .public) up on 127.0.0.1:\(port, privacy: .public), hooks on 127.0.0.1:\(boundHookPort, privacy: .public)")
         return Started(
             gatewayPort: port,
+            hookPort: boundHookPort,
             controlSocket: controlServer.socketPath,
             herdrSocket: options.herdrSocketPath,
             generatedHookSecret: preparation.generatedHookSecret
@@ -115,6 +143,9 @@ public actor DaemonRuntime {
     public func stop() async {
         await controlServer?.stop()
         controlServer = nil
+        await hookServer?.stop()
+        hookServer = nil
+        hookEvents.finish()
         await gateway?.shutdown()
         gateway = nil
         await gatewayServer?.stop()
@@ -132,5 +163,12 @@ public actor DaemonRuntime {
             return .portInUse(port)
         }
         return .gatewayFailed(String(describing: error))
+    }
+
+    private static func hookServerError(_ error: any Error, port: UInt16) -> DaemonStartError {
+        if case HttpServerError.listenerFailed(.posix(.EADDRINUSE)) = error {
+            return .portInUse(port)
+        }
+        return .hookServerFailed(String(describing: error))
     }
 }
