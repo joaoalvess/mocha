@@ -37,11 +37,23 @@
 	<string>O Mocha usa a câmera para ler o QR de pareamento do Mac.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>JetBrainsMono-Regular.ttf</string>
+		<string>JetBrainsMono-Italic.ttf</string>
+		<string>JetBrainsMono-Bold.ttf</string>
+		<string>JetBrainsMono-BoldItalic.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 </dict>
 </plist>
