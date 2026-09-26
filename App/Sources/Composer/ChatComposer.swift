@@ -8,7 +8,9 @@ struct ChatComposer: View {
     var isFocused: FocusState<Bool>.Binding
     let attachments: ComposerAttachments
     let onSend: () -> Void
+    let onSlashAction: (SlashMenuAction) -> Void
     @State private var isAttachMenuOpen = false
+    @State private var isSlashMenuOpen = false
     @State private var isPhotoPickerPresented = false
     @State private var isCameraPresented = false
     @State private var pickedPhotos: [PhotosPickerItem] = []
@@ -39,17 +41,24 @@ struct ChatComposer: View {
                 attach(items.map(ComposerImageSources.loader(for:)))
             }
             .onChange(of: isExpanded) { _, expanded in
-                if !expanded { isAttachMenuOpen = false }
+                if !expanded { closeMenus() }
             }
             .onChange(of: draft) {
-                isAttachMenuOpen = false
+                closeMenus()
             }
     }
 
     @ViewBuilder
     private var composer: some View {
         if isExpanded {
-            ExpandedComposer(canSend: canSend, buttons: [.attach], onAttach: toggleAttachMenu, onSend: onSend) {
+            ExpandedComposer(
+                canSend: canSend,
+                buttons: [.attach, .slashMenu],
+                activeButtons: isSlashMenuOpen ? .slashMenu : [],
+                onAttach: toggleAttachMenu,
+                onSlashMenu: toggleSlashMenu,
+                onSend: onSend
+            ) {
                 VStack(alignment: .leading, spacing: AttachmentLayout.stripBottomSpacing) {
                     if !attachments.isEmpty {
                         AttachmentStrip(attachments: attachments.items) { attachments.remove($0) }
@@ -59,10 +68,12 @@ struct ChatComposer: View {
                 }
             }
             .overlay(alignment: .topLeading) { attachMenu }
+            .overlay(alignment: .topLeading) { slashMenu }
             .animation(.smooth(duration: 0.2), value: isAttachMenuOpen)
+            .animation(.smooth(duration: 0.2), value: isSlashMenuOpen)
             .onAppear {
                 isFocused.wrappedValue = true
-                openAttachMenuForDebugLaunch()
+                openMenusForDebugLaunch()
             }
         } else {
             CollapsedComposer(draft: collapsedDraft, onExpand: { isExpanded = true }, onSend: onSend)
@@ -96,6 +107,20 @@ struct ChatComposer: View {
         }
     }
 
+    @ViewBuilder
+    private var slashMenu: some View {
+        if isSlashMenuOpen {
+            SlashMenu { action in
+                isSlashMenuOpen = false
+                onSlashAction(action)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(height: 0, alignment: .bottomLeading)
+            .offset(y: -AttachmentLayout.menuGap)
+            .transition(.scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
+        }
+    }
+
     private var canSend: Bool {
         !attachments.isProcessing && (!ComposerDraft.trimmed(draft).isEmpty || !attachments.isEmpty)
     }
@@ -109,7 +134,18 @@ struct ChatComposer: View {
         if !isAttachMenuOpen {
             pasteboardHasImages = ComposerImageSources.pasteboardHasImages
         }
+        isSlashMenuOpen = false
         isAttachMenuOpen.toggle()
+    }
+
+    private func toggleSlashMenu() {
+        isAttachMenuOpen = false
+        isSlashMenuOpen.toggle()
+    }
+
+    private func closeMenus() {
+        isAttachMenuOpen = false
+        isSlashMenuOpen = false
     }
 
     private func attach(_ loaders: [ComposerImageLoader]) {
@@ -118,10 +154,14 @@ struct ChatComposer: View {
         isExpanded = true
     }
 
-    private func openAttachMenuForDebugLaunch() {
+    private func openMenusForDebugLaunch() {
         #if DEBUG
-        if ChatDebugOptions.current().opensAttachMenu, ChatDebugLaunch.consume(ChatDebugOptions.attachMenuKey) {
+        let options = ChatDebugOptions.current()
+        if options.opensAttachMenu, ChatDebugLaunch.consume(ChatDebugOptions.attachMenuKey) {
             toggleAttachMenu()
+        }
+        if options.opensSlashMenu, ChatDebugLaunch.consume(ChatDebugOptions.slashMenuKey) {
+            toggleSlashMenu()
         }
         #endif
     }
