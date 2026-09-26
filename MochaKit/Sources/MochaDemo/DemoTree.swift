@@ -26,6 +26,22 @@ extension WorkspaceNode {
         }
         return children.updateAgent(withId: id, update)
     }
+
+    func withoutClaude() -> WorkspaceNode {
+        var workspace = self
+        workspace.tabs = tabs.map { tab in
+            let others = tab.agents.filter { $0.kind != "claude" }
+            guard others.count != tab.agents.count else { return tab }
+            return TabNode(id: tab.id, title: others.first?.title ?? DemoTree.shellTitle, agents: others)
+        }
+        workspace.children = children.map { $0.withoutClaude() }
+        workspace.agentStatus = workspace.aggregatedAgentStatus
+        return workspace
+    }
+}
+
+enum DemoTree {
+    static let shellTitle = "zsh"
 }
 
 extension [WorkspaceNode] {
@@ -39,6 +55,14 @@ extension [WorkspaceNode] {
             }
         }
         return nil
+    }
+
+    func agent(withSessionId sessionId: String) -> AgentSummary? {
+        allAgents.first { $0.sessionId == sessionId }
+    }
+
+    var allAgents: [AgentSummary] {
+        flatMap { $0.tabs.flatMap(\.agents) + $0.children.allAgents }
     }
 
     @discardableResult

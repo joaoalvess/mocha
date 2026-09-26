@@ -23,26 +23,56 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
         dataset = try DemoDataset.bundled()
     }
 
-    @Test func treeHasFourWorkspacesAndOneNestedWorktree() {
-        #expect(dataset.workspaces.count == 4)
-        let parents = dataset.workspaces.filter { !$0.children.isEmpty }
-        #expect(parents.count == 1)
-        #expect(parents.first?.children.first?.repoName == parents.first?.repoName)
+    @Test func treeFollowsTheDrawerOfTheMock() throws {
+        #expect(dataset.workspaces.map(\.label) == ["demo-app", "site-pessoal", "receitas-api", "anotacoes"])
         #expect(dataset.workspaces.map(\.number) == dataset.workspaces.map(\.number).sorted())
+        let parents = dataset.workspaces.filter { !$0.children.isEmpty }
+        #expect(parents.map(\.label) == ["demo-app"])
+        let worktree = try #require(parents.first?.children.first)
+        #expect(worktree.label == "login-social")
+        #expect(worktree.repoName == parents.first?.repoName)
+        #expect(worktree.branch == "feat/login-social")
+        let rows = { (workspace: WorkspaceNode) in
+            workspace.tabs.map { $0.agents.first?.title ?? $0.title }
+        }
+        let workspaces = allNodes(dataset.workspaces)
+        let byLabel = Dictionary(uniqueKeysWithValues: workspaces.map { ($0.label, $0) })
+        #expect(rows(try #require(byLabel["demo-app"])) == ["Testes e tela de ajustes", "zsh"])
+        #expect(rows(try #require(byLabel["login-social"])) == ["Login com a Apple"])
+        #expect(rows(try #require(byLabel["site-pessoal"])) == ["Modo escuro e RSS", "npm run dev"])
+        #expect(rows(try #require(byLabel["receitas-api"])) == [
+            "Paginação com cursor em /receitas", "Sessão limpa", "go run ./cmd/api", "psql",
+        ])
+        #expect(workspaces.map(\.branch) == ["main", "feat/login-social", "main", "development", nil])
+        #expect(workspaces.map(\.isDirty) == [true, true, false, false, false])
     }
 
-    @Test func thereAreThreeBundledLongChatsCoveringEveryKind() {
+    @Test func bundledChatsTogetherCoverEveryKind() {
         let everyKind: Set<String> = [
             "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
             "unsupported",
         ]
         let bundled = dataset.chats.filter { $0.agentId != DemoLongChat.agentId }
-        #expect(bundled.count == 3)
+        #expect(bundled.count == 5)
+        #expect(Set(bundled.flatMap { $0.items.map { kindName($0.kind) } }) == everyKind)
         for chat in bundled {
-            #expect(chat.items.count >= 100, "\(chat.agentId) tem \(chat.items.count) itens")
-            #expect(Set(chat.items.map { kindName($0.kind) }) == everyKind, "\(chat.agentId)")
             #expect(Set(chat.items.map(\.id)).count == chat.items.count, "\(chat.agentId) repete ids")
             #expect(chat.items.map(\.at) == chat.items.map(\.at).sorted(), "\(chat.agentId) fora de ordem")
+        }
+        for agentId in ["w1:p1", "w2:p1"] {
+            #expect((bundled.first { $0.agentId == agentId }?.items.count ?? 0) >= 100, "\(agentId)")
+        }
+    }
+
+    @Test func archivedChatsHaveUniqueIdsInOrder() {
+        #expect(dataset.sessionChats.count == 2)
+        for chat in dataset.sessionChats {
+            #expect(UUID(uuidString: chat.session.id) != nil)
+            #expect(!chat.items.isEmpty)
+            #expect(Set(chat.items.map(\.id)).count == chat.items.count)
+            #expect(chat.items.map(\.at) == chat.items.map(\.at).sorted())
+            #expect(chat.session.lastActivityAt == chat.items.last?.at)
+            #expect(chat.session.sessionStartedAt == chat.items.first?.at)
         }
     }
 
@@ -73,12 +103,29 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
         #expect(items.contains { if case .thinking(.some) = $0.kind { true } else { false } })
     }
 
+    @Test func generatedChatEndsWithTheWorkingTurnOfTheMock() throws {
+        let items = DemoLongChat.items()
+        let prompt = try #require(items.last { if case .userPrompt = $0.kind { true } else { false } })
+        #expect(prompt.kind == .userPrompt(text: "troca a paginação de /receitas para cursor. mantém o formato da resposta", imageCount: 0))
+        #expect(prompt.at == DemoDataset.anchor.addingTimeInterval(DemoLongChat.turnStartOffset))
+        let turn = items.drop { $0.id != prompt.id }
+        #expect(turn.map(\.kind.type) == [
+            "userPrompt", "thinking", "assistantText", "toolCall", "toolCall", "toolCall", "assistantText", "toolCall", "toolCall",
+            "toolCall", "toolCall", "toolCall", "assistantText", "toolCall",
+        ])
+        let running = try #require(turn.last?.toolCall)
+        #expect(running.name == "Bash")
+        #expect(running.summary == "go test ./internal/... -run Pagination -count=1")
+        #expect(running.status == .running)
+        #expect(items[items.count - turn.count - 1].at < prompt.at)
+    }
+
     @Test func generatedChatIsDeterministic() {
         #expect(DemoLongChat.items() == DemoLongChat.items())
     }
 
     @Test func everyClaudeAgentInTheTreeHasAChatWithTheSameStatus() throws {
-        let agents = allNodes(dataset.workspaces).flatMap(\.tabs).flatMap(\.agents)
+        let agents = dataset.workspaces.allAgents
         let claudeAgents = agents.filter { $0.kind == "claude" }
         #expect(claudeAgents.count == dataset.chats.count)
         #expect(agents.contains { $0.kind != "claude" })
@@ -88,6 +135,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
             #expect(chat.meta.title == agent.title)
             #expect(chat.meta.workspaceLabel == agent.workspaceLabel)
             #expect(agent.lastActivityAt == chat.items.last?.at)
+            #expect(agent.sessionStartedAt == chat.items.first?.at, "\(agent.id)")
         }
     }
 
@@ -102,7 +150,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
             .deletingLastPathComponent()
             .appending(path: "Sources/MochaDemo/Resources", directoryHint: .isDirectory)
         let files = try FileManager.default.contentsOfDirectory(at: resources, includingPropertiesForKeys: nil)
-        #expect(files.count == 4)
+        #expect(files.count == 8)
         var texts = try files.map { ($0.lastPathComponent, try String(contentsOf: $0, encoding: .utf8)) }
         let generated = try JSONEncoder().encode(DemoLongChat.chat())
         texts.append(("chat gerado", String(decoding: generated, as: UTF8.self)))

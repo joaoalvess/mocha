@@ -8,28 +8,54 @@ public actor DemoServerConnection: ServerConnection {
     static let defaultPageSize = 60
     static let maximumPageSize = 200
     static let cursorPrefix = "demo:"
-    static let host = HostInfo(hostName: "Mac de demonstração", daemonVersion: "0.1.0-demo", herdrConnected: true)
+    static let host = HostInfo(hostName: "MacBook", daemonVersion: "0.1.0-demo", herdrConnected: true)
     static let deviceId: DeviceID = "D3E0D3E0-0000-4000-8000-000000000001"
     static let deviceToken = "demo-device-token"
+    static let freshContextLeftPercent = 100
     static let claudeOnlyMessage = "Chat disponível só para Claude Code."
     static let agentNotFoundMessage = "Agente não encontrado."
     static let repeatedHelloMessage = "O hello já foi feito nesta conexão."
-    static let sessionsUnavailableMessage = "Sessões arquivadas ainda não estão disponíveis no modo demo."
+    static let invalidSessionMessage = "Id de sessão inválido."
+    static let sessionNotFoundMessage = "Sessão não encontrada."
     static let replyMarkdown = """
     Isto é o **modo demo** do Mocha: nenhuma mensagem saiu do iPhone.
 
     No uso real, o prompt vai para o Claude Code no Mac pelo `mochad`, e a resposta aparece aqui assim que o Claude a grava no transcript.
     """
 
+    private enum SessionSource {
+        case live(DemoChat)
+        case archived(DemoSessionChat)
+
+        var items: [ChatItem] {
+            switch self {
+            case .live(let chat): chat.items
+            case .archived(let chat): chat.items
+            }
+        }
+
+        var meta: ChatMeta {
+            switch self {
+            case .live(let chat): chat.meta
+            case .archived(let chat): chat.meta
+            }
+        }
+    }
+
     private let messageContinuation: AsyncStream<ServerEnvelope>.Continuation
     private let stateContinuation: AsyncStream<ConnectionState>.Continuation
     private let options: DemoOptions
+    private let usage: UsageSnapshot
     private var state: ConnectionState = .idle
     private var isPaired: Bool
+    private var herdrConnected = true
     private var workspaces: [WorkspaceNode]
     private var chats: [AgentID: DemoChat]
+    private var sessionChats: [String: DemoSessionChat]
+    private var archived: [ArchivedSession]
     private var movedAgents: [AgentID: AgentID] = [:]
     private var openChats: Set<AgentID> = []
+    private var openSessions: Set<String> = []
     private var preferences = DevicePreferences()
     private var handshakeCount = 0
     private var connectionTask: Task<Void, Never>?
@@ -38,8 +64,8 @@ public actor DemoServerConnection: ServerConnection {
     private var nextScriptStep = 0
     private var scriptTurnStartedAt: Date?
 
-    public init(options: DemoOptions = DemoOptions()) throws {
-        self.init(dataset: try DemoDataset.bundled(), options: options)
+    public init(options: DemoOptions = DemoOptions(), now: Date = Date()) throws {
+        self.init(dataset: try DemoDataset.bundled(now: now, isEmpty: options.isEmpty), options: options)
     }
 
     init(dataset: DemoDataset, options: DemoOptions) {
@@ -51,9 +77,12 @@ public actor DemoServerConnection: ServerConnection {
         self.states = states
         self.stateContinuation = stateContinuation
         self.options = options
+        self.usage = dataset.usage
         self.isPaired = options.startsPaired
         self.workspaces = dataset.workspaces
         self.chats = Dictionary(dataset.chats.map { ($0.agentId, $0) }, uniquingKeysWith: { first, _ in first })
+        self.sessionChats = Dictionary(dataset.sessionChats.map { ($0.session.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.archived = dataset.archived
     }
 
     deinit {
@@ -118,9 +147,11 @@ public actor DemoServerConnection: ServerConnection {
         if pairing {
             isPaired = true
         }
-        openChats = []
+        closeAllChats()
+        var host = Self.host
+        host.herdrConnected = herdrConnected
         let helloOk = HelloOkPayload(
-            host: Self.host,
+            host: host,
             deviceId: Self.deviceId,
             deviceToken: pairing ? Self.deviceToken : nil,
             preferences: preferences
@@ -128,6 +159,8 @@ public actor DemoServerConnection: ServerConnection {
         messageContinuation.yield(ServerEnvelope(id: id, message: .helloOk(helloOk)))
         setState(.connected)
         messageContinuation.yield(ServerEnvelope(id: id, message: .tree(workspaces: workspaces)))
+        emit(.archived(sessions: archived))
+        emit(.usage(usage))
         resumeScript()
     }
 
@@ -136,7 +169,12 @@ public actor DemoServerConnection: ServerConnection {
         connectionTask = nil
         scriptTask?.cancel()
         scriptTask = nil
+        closeAllChats()
+    }
+
+    private func closeAllChats() {
         openChats = []
+        openSessions = []
     }
 
     private func setState(_ newState: ConnectionState) {
@@ -151,11 +189,17 @@ public actor DemoServerConnection: ServerConnection {
             fail(id, .invalidPayload, Self.repeatedHelloMessage)
         case .openChat(.agent(let agentId), let before, let limit):
             openChat(agentId: agentId, before: before, limit: limit, id: id)
+        case .openChat(.session(let sessionId), let before, let limit):
+            openSessionChat(sessionId: sessionId, before: before, limit: limit, id: id)
         case .closeChat(.agent(let agentId)):
             openChats.remove(currentId(for: agentId))
             reply(id, .ack())
-        case .openChat(.session, _, _), .closeChat(.session), .archive:
-            fail(id, .unknownType, Self.sessionsUnavailableMessage)
+        case .closeChat(.session(let sessionId)):
+            guard sessionSource(sessionId, replyingTo: id) != nil else { return }
+            openSessions.remove(sessionId)
+            reply(id, .ack())
+        case .archive(let sessionId):
+            archive(sessionId: sessionId, id: id)
         case .sendPrompt(let agentId, let text):
             sendPrompt(agentId: agentId, text: text, id: id)
         case .interrupt(let agentId):
@@ -201,6 +245,21 @@ public actor DemoServerConnection: ServerConnection {
         return chat
     }
 
+    private func sessionSource(_ sessionId: String, replyingTo id: String) -> SessionSource? {
+        guard UUID(uuidString: sessionId) != nil else {
+            fail(id, .invalidPayload, Self.invalidSessionMessage)
+            return nil
+        }
+        if let agent = workspaces.agent(withSessionId: sessionId), let chat = chats[agent.id] {
+            return .live(chat)
+        }
+        if let chat = sessionChats[sessionId] {
+            return .archived(chat)
+        }
+        fail(id, .sessionNotFound, Self.sessionNotFoundMessage)
+        return nil
+    }
+
     private func currentId(for agentId: AgentID) -> AgentID {
         var current = agentId
         for _ in 0...movedAgents.count {
@@ -212,25 +271,52 @@ public actor DemoServerConnection: ServerConnection {
 
     private func openChat(agentId: AgentID, before: String?, limit: Int?, id: String) {
         guard let chat = claudeChat(agentId, replyingTo: id) else { return }
-        var end = chat.items.count
+        guard let page = page(of: chat.items, target: .agent(chat.agentId), meta: chat.meta, before: before, limit: limit, id: id) else {
+            return
+        }
+        openChats.insert(chat.agentId)
+        reply(id, .chatPage(page))
+    }
+
+    private func openSessionChat(sessionId: String, before: String?, limit: Int?, id: String) {
+        guard let source = sessionSource(sessionId, replyingTo: id) else { return }
+        let target = ChatTarget.session(sessionId)
+        guard let page = page(of: source.items, target: target, meta: source.meta, before: before, limit: limit, id: id) else {
+            return
+        }
+        openSessions.insert(sessionId)
+        reply(id, .chatPage(page))
+    }
+
+    private func page(of items: [ChatItem], target: ChatTarget, meta: ChatMeta, before: String?, limit: Int?, id: String) -> ChatPage? {
+        var end = items.count
         if let before {
-            guard let index = Self.index(fromCursor: before), (0...chat.items.count).contains(index) else {
-                return fail(id, .invalidPayload, "Cursor de paginação inválido.")
+            guard let index = Self.index(fromCursor: before), (0...items.count).contains(index) else {
+                fail(id, .invalidPayload, "Cursor de paginação inválido.")
+                return nil
             }
             end = index
         }
         let pageSize = min(max(limit ?? Self.defaultPageSize, 1), Self.maximumPageSize)
         let start = max(0, end - pageSize)
         let hasMore = start > 0
-        openChats.insert(chat.agentId)
-        let page = ChatPage(
-            target: .agent(chat.agentId),
-            meta: chat.meta,
-            items: Array(chat.items[start..<end]),
+        return ChatPage(
+            target: target,
+            meta: meta,
+            items: Array(items[start..<end]),
             before: hasMore ? Self.cursor(forIndex: start) : nil,
             hasMore: hasMore
         )
-        reply(id, .chatPage(page))
+    }
+
+    private func archive(sessionId: String, id: String) {
+        guard let agent = workspaces.agent(withSessionId: sessionId) else {
+            return fail(id, .sessionNotFound, Self.sessionNotFoundMessage)
+        }
+        let now = Date()
+        workspaces.updateAgent(withId: agent.id) { $0.archivedAt = now }
+        reply(id, .ack())
+        emitTree()
     }
 
     private func sendPrompt(agentId: AgentID, text: String, id: String) {
@@ -290,18 +376,31 @@ public actor DemoServerConnection: ServerConnection {
     }
 
     private func append(_ newItems: [ChatItem], to agentId: AgentID) {
-        guard chats[agentId] != nil, let lastItem = newItems.last else { return }
+        guard chats[agentId] != nil, !newItems.isEmpty else { return }
         chats[agentId]?.items.append(contentsOf: newItems)
-        workspaces.updateAgent(withId: agentId) { $0.lastActivityAt = lastItem.at }
-        guard openChats.contains(agentId) else { return }
-        emit(.chatAppend(target: .agent(agentId), items: newItems))
+        refreshHomeFields(of: agentId)
+        emitChatEvent(for: agentId) { .chatAppend(target: $0, items: newItems) }
     }
 
     private func replace(_ item: ChatItem, in agentId: AgentID) {
         guard let index = chats[agentId]?.items.firstIndex(where: { $0.id == item.id }) else { return }
         chats[agentId]?.items[index] = item
-        guard openChats.contains(agentId) else { return }
-        emit(.chatUpdate(target: .agent(agentId), items: [item]))
+        refreshHomeFields(of: agentId)
+        emitChatEvent(for: agentId) { .chatUpdate(target: $0, items: [item]) }
+    }
+
+    private func refreshHomeFields(of agentId: AgentID) {
+        guard let items = chats[agentId]?.items else { return }
+        workspaces.updateAgent(withId: agentId) { $0.refreshHomeFields(from: items) }
+    }
+
+    private func emitChatEvent(for agentId: AgentID, _ message: (ChatTarget) -> ServerMessage) {
+        if openChats.contains(agentId) {
+            emit(message(.agent(agentId)))
+        }
+        if let sessionId = workspaces.agent(withId: agentId)?.sessionId, openSessions.contains(sessionId) {
+            emit(message(.session(sessionId)))
+        }
     }
 
     private func setStatus(_ status: AgentStatus, for agentId: AgentID) {
@@ -367,6 +466,7 @@ public actor DemoServerConnection: ServerConnection {
             workspaces.updateWorkspace(withId: DemoScript.worktreeParentId) { parent in
                 parent.children.append(DemoScript.worktree(at: now))
             }
+            refreshHomeFields(of: DemoScript.worktreeAgentId)
             emitTree()
         case .startTurn:
             scriptTurnStartedAt = now
@@ -374,15 +474,20 @@ public actor DemoServerConnection: ServerConnection {
             setStatus(.working, for: turnAgent)
         case .appendThinking:
             append([DemoScript.thinking(at: now)], to: turnAgent)
+            emitTree()
         case .appendPlan:
             append([DemoScript.plan(at: now)], to: turnAgent)
+            emitTree()
         case .appendRead:
             append([DemoScript.read(at: now)], to: turnAgent)
+            emitTree()
         case .appendRunningTool:
             append([DemoScript.testRun(at: now, status: .running)], to: turnAgent)
+            emitTree()
         case .finishRunningTool:
             let startedAt = chats[turnAgent]?.items.first { $0.id == DemoScript.runningToolItemId }?.at ?? now
             replace(DemoScript.testRun(at: startedAt, status: .succeeded), in: turnAgent)
+            emitTree()
         case .renameChat:
             rename(turnAgent, to: DemoScript.renamedTitle)
         case .finishTurn:
@@ -393,8 +498,14 @@ public actor DemoServerConnection: ServerConnection {
             switchSession(of: currentId(for: DemoScript.worktreeAgentId), to: DemoScript.clearedSessionId, at: now)
         case .moveAgent:
             moveAgent(from: currentId(for: DemoScript.movedAgentId), to: DemoScript.movedAgentNewId)
+        case .finishWorkingAgent:
+            finishWorkingAgent(currentId(for: DemoScript.finishingAgentId), at: now)
+        case .disconnectHerdr:
+            setHerdrConnected(false)
+        case .reconnectHerdr:
+            setHerdrConnected(true)
         case .dropConnection:
-            openChats = []
+            closeAllChats()
             setState(.waitingToRetry(.unreachable))
         case .retryConnection:
             guard state == .waitingToRetry(.unreachable) else { return }
@@ -410,20 +521,40 @@ public actor DemoServerConnection: ServerConnection {
         meta.title = title
         chats[agentId]?.meta = meta
         workspaces.updateAgent(withId: agentId) { $0.title = title }
-        if openChats.contains(agentId) {
-            emit(.chatMeta(target: .agent(agentId), meta: meta))
-        }
+        emitChatEvent(for: agentId) { .chatMeta(target: $0, meta: meta) }
         emitTree()
     }
 
     private func switchSession(of agentId: AgentID, to sessionId: String, at date: Date) {
-        guard chats[agentId] != nil else { return }
-        chats[agentId]?.items = [DemoScript.clearCommand(at: date)]
+        guard let chat = chats[agentId], let agent = workspaces.agent(withId: agentId), let previousSessionId = agent.sessionId else {
+            return
+        }
+        let session = ArchivedSession(
+            id: previousSessionId,
+            agentId: agentId,
+            title: agent.title,
+            workspaceLabel: agent.workspaceLabel,
+            model: agent.model,
+            branch: agent.branch,
+            preview: agent.preview,
+            contextLeftPercent: agent.contextLeftPercent,
+            reason: .cleared,
+            endedAt: date,
+            sessionStartedAt: agent.sessionStartedAt,
+            lastActivityAt: agent.lastActivityAt
+        )
+        sessionChats[previousSessionId] = DemoSessionChat(session: session, items: chat.items)
+        archived = (archived.filter { $0.id != previousSessionId } + [session]).sortedByRecency()
+        let items = [DemoScript.clearCommand(at: date)]
+        chats[agentId]?.items = items
         workspaces.updateAgent(withId: agentId) { agent in
             agent.sessionId = sessionId
-            agent.lastActivityAt = date
+            agent.contextLeftPercent = Self.freshContextLeftPercent
+            agent.archivedAt = nil
+            agent.refreshHomeFields(from: items)
         }
         emitTree()
+        emit(.archived(sessions: archived))
     }
 
     private func moveAgent(from oldId: AgentID, to newId: AgentID) {
@@ -440,6 +571,19 @@ public actor DemoServerConnection: ServerConnection {
             turns[newId] = turn
         }
         emitTree()
+    }
+
+    private func finishWorkingAgent(_ agentId: AgentID, at date: Date) {
+        guard let agent = workspaces.agent(withId: agentId), agent.status == .working else { return }
+        let durationMs = Self.milliseconds(from: agent.turnStartedAt ?? date, to: date)
+        append(DemoScript.workingAgentAnswer(at: date, durationMs: durationMs), to: agentId)
+        setStatus(.idle, for: agentId)
+    }
+
+    private func setHerdrConnected(_ connected: Bool) {
+        guard herdrConnected != connected else { return }
+        herdrConnected = connected
+        emit(.herdrStatus(connected: connected))
     }
 
     static func cursor(forIndex index: Int) -> String {

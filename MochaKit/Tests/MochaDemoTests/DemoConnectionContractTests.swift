@@ -25,7 +25,13 @@ struct DemoConnectionContractTests {
         #expect(payload.preferences == DevicePreferences(turnDoneAlerts: true))
         let tree = try await harness.messages.next()
         #expect(tree.id == "hello-1")
-        #expect(tree.message == .tree(workspaces: try DemoDataset.bundled().workspaces))
+        #expect(tree.message == .tree(workspaces: harness.dataset.workspaces))
+        let archived = try await harness.messages.next()
+        #expect(archived.id == nil)
+        #expect(archived.message == .archived(sessions: harness.dataset.archived))
+        let usage = try await harness.messages.next()
+        #expect(usage.id == nil)
+        #expect(usage.message == .usage(harness.dataset.usage))
         #expect(await harness.messages.unread().isEmpty)
     }
 
@@ -84,7 +90,7 @@ struct DemoConnectionContractTests {
         await harness.connection.start()
         #expect(try await harness.states.next() == .connecting)
         #expect(try await harness.states.next() == .connected)
-        let helloOk = try await harness.messages.next()
+        let helloOk = try await harness.messages.next { $0.id != nil }
         #expect(helloOk.id == "hello-2")
         guard case .helloOk = helloOk.message else { throw UnexpectedMessage(envelope: helloOk) }
     }

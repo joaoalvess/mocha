@@ -5,15 +5,9 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DemoServerConnectionTests {
-    let dataset: DemoDataset
-
-    init() throws {
-        dataset = try DemoDataset.bundled()
-    }
-
     @Test func openChatReturnsTheLastPageAndPaginatesBackwardsWithBefore() async throws {
-        let chat = try #require(dataset.chats.first { $0.agentId == "w1:p1" })
         let harness = try DemoHarness()
+        let chat = try #require(harness.dataset.chats.first { $0.agentId == "w1:p1" })
         try await harness.connect()
 
         let first = try await harness.page(chat.agentId, limit: 60)
@@ -62,9 +56,9 @@ struct DemoServerConnectionTests {
     }
 
     @Test func openChatRejectsAgentsThatAreNotClaude() async throws {
-        let codex = try #require(dataset.workspaces.agent(withId: "w2:p2"))
-        #expect(codex.kind != "claude")
         let harness = try DemoHarness()
+        let codex = try #require(harness.dataset.workspaces.agent(withId: "w4:p3"))
+        #expect(codex.kind != "claude")
         try await harness.connect()
 
         let error = try await harness.error(for: .openChat(target: .agent(codex.id)))
@@ -83,9 +77,9 @@ struct DemoServerConnectionTests {
     }
 
     @Test func longChatPaginatesToTheBeginningWithoutRepeatingOrSkippingItems() async throws {
-        let chat = try #require(dataset.chats.first { $0.agentId == DemoLongChat.agentId })
-        #expect(chat.items.count == 2_000)
         let harness = try DemoHarness()
+        let chat = try #require(harness.dataset.chats.first { $0.agentId == DemoLongChat.agentId })
+        #expect(chat.items.count == 2_000)
         try await harness.connect()
 
         var page = try await harness.page(chat.agentId)
@@ -197,12 +191,9 @@ struct DemoServerConnectionTests {
             (.newAgentTab(workspaceId: "w1"), .internal),
             (.unknown(type: "teleport"), .unknownType),
             (.slash(agentId: "w99:p1", command: "/clear"), .agentNotFound),
-            (.slash(agentId: "w2:p2", command: "/clear"), .invalidPayload),
+            (.slash(agentId: "w4:p3", command: "/clear"), .invalidPayload),
             (.sendPrompt(agentId: "w99:p1", text: "oi"), .agentNotFound),
             (.interrupt(agentId: "w99:p1"), .agentNotFound),
-            (.openChat(target: .session("0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64")), .unknownType),
-            (.closeChat(target: .session("0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64")), .unknownType),
-            (.archive(sessionId: "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64"), .unknownType),
         ]
         for (request, code) in errors {
             let error = try await harness.error(for: request)

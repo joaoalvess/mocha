@@ -13,6 +13,9 @@ enum DemoScriptEvent: Sendable, Equatable {
     case finishTurn
     case switchSession
     case moveAgent
+    case finishWorkingAgent
+    case disconnectHerdr
+    case reconnectHerdr
     case dropConnection
     case retryConnection
     case completeReconnection
@@ -36,6 +39,9 @@ enum DemoScript {
         DemoScriptStep(delay: .seconds(1), event: .finishTurn),
         DemoScriptStep(delay: .seconds(4), event: .switchSession),
         DemoScriptStep(delay: .seconds(4), event: .moveAgent),
+        DemoScriptStep(delay: .seconds(3), event: .finishWorkingAgent),
+        DemoScriptStep(delay: .seconds(3), event: .disconnectHerdr),
+        DemoScriptStep(delay: .seconds(3), event: .reconnectHerdr),
         DemoScriptStep(delay: .seconds(4), event: .dropConnection),
         DemoScriptStep(delay: .seconds(2), event: .retryConnection),
         DemoScriptStep(delay: .milliseconds(500), event: .completeReconnection),
@@ -51,6 +57,8 @@ enum DemoScript {
     static let runningToolItemId = "script-turn-bash"
     static let movedAgentId: AgentID = "w5:p1"
     static let movedAgentNewId: AgentID = "w5:p2"
+    static let finishingAgentId: AgentID = "w5:p1"
+    static let worktreeContextLeftPercent = 88
 
     private static let worktreeLabel = "feed-rss"
     private static let worktreeBranch = "feat/feed-rss"
@@ -80,7 +88,8 @@ enum DemoScript {
                             model: model,
                             branch: worktreeBranch,
                             sessionId: worktreeSessionId,
-                            lastActivityAt: date
+                            lastActivityAt: date,
+                            contextLeftPercent: worktreeContextLeftPercent
                         ),
                     ]
                 ),
@@ -184,6 +193,17 @@ enum DemoScript {
                 )
             )
         )
+    }
+
+    static func workingAgentAnswer(at date: Date, durationMs: Int) -> [ChatItem] {
+        [
+            ChatItem(
+                id: "script-working-answer",
+                at: date,
+                kind: .assistantText(markdown: "Conferi o entitlement no target e rodei a suíte de novo: **tudo verde**. Pode abrir o PR.")
+            ),
+            ChatItem(id: "script-working-footer", at: date, kind: .turnFooter(durationMs: durationMs)),
+        ]
     }
 
     static func finalAnswer(at date: Date, durationMs: Int) -> [ChatItem] {

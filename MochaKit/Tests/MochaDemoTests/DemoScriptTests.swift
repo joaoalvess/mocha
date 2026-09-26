@@ -5,14 +5,9 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DemoScriptTests {
-    let dataset: DemoDataset
-
-    init() throws {
-        dataset = try DemoDataset.bundled()
-    }
-
     @Test func worktreeAppearsNestedUnderAnExistingWorkspace() async throws {
         let harness = try DemoHarness(.script)
+        let dataset = harness.dataset
         try await harness.connect()
 
         let changed = try await harness.messages.next { $0.message.changedWorkspaces != nil }
@@ -35,8 +30,8 @@ struct DemoScriptTests {
 
     @Test func scriptedTurnStreamsItemsUpdatesTheToolAndRenamesTheChat() async throws {
         let agentId = DemoScript.turnAgentId
-        let original = try #require(dataset.chats.first { $0.agentId == agentId })
         let harness = try DemoHarness(.script)
+        let original = try #require(harness.dataset.chats.first { $0.agentId == agentId })
         try await harness.connect()
         let opened = try await harness.page(agentId, limit: 200)
         #expect(opened.items == Array(original.items.suffix(200)))
@@ -120,8 +115,8 @@ struct DemoScriptTests {
     @Test func movedAgentKeepsItsSessionAndTheOldIdStillOpensTheChat() async throws {
         let oldId = DemoScript.movedAgentId
         let newId = DemoScript.movedAgentNewId
-        let original = try #require(dataset.workspaces.agent(withId: oldId))
         let harness = try DemoHarness(.script)
+        let original = try #require(harness.dataset.workspaces.agent(withId: oldId))
         try await harness.connect()
         let before = try await harness.page(oldId)
 
