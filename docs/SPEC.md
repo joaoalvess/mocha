@@ -52,7 +52,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Live Activity agregada / Dynamic Island | 1b |
 | Ditado por voz on-device | 1b |
 | Anexar imagem ao prompt | 1a-core |
-| Abrir nova tab com Claude num workspace existente | 1b |
+| Abrir nova tab com Claude num workspace existente | 1a-final |
 | Terminal SSH (`herdr agent attach`) | 2 |
 | Transporte Mosh no terminal | 3 |
 
@@ -235,9 +235,9 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 | `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
 | `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
 | `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
-| `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1b |
-| `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1b |
-| `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1b |
+| `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1a-final |
+| `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1a-final |
+| `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1a-final |
 | `agent.read` | `{target, source: "recent_unwrapped", lines}` | `pane_read` (`read.text`) | Diagnóstico (`doctor`) | 1b |
 
 #### §3.1.3 Eventos
@@ -1036,7 +1036,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}` | 1a-final |
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
-| `newAgentTab` | `{workspaceId}` | `ack{agentId}` | 1b |
+| `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
 | `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
 
 **Servidor → cliente**
@@ -1084,6 +1084,14 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - `sendPrompt`, `interrupt` e `slash` só aceitam `agentId`: o app não oferece envio num chat de sessão.
 - **`archive`**: `sessionId` que não é a sessão atual de nenhum agente da árvore → `sessionNotFound`. Aceito, o daemon responde `ack`, grava o arquivamento (§4.9) e manda `treeChanged` com o `archivedAt`.
 - **`sendPrompt`, `interrupt` e `slash`**: agente com `kind != "claude"` → `invalidPayload`, com a mesma mensagem do `openChat`.
+- **`newAgentTab`**:
+  - `workspaceId` fora da árvore → `invalidPayload` ("Workspace não encontrado");
+  - o daemon chama `tab.create {workspace_id, cwd: <diretório do workspace (§3.1.4)>, focus: false}` e depois `agent.start {name: "mocha-<n>", kind: "claude", pane_id: <root_pane.pane_id>, args: []}`, com `<n>` o menor inteiro a partir de 1 cujo nome não está em uso entre os agentes do Herdr;
+  - espera o agente ficar `idle` ou `blocked` pelo `pane.agent_status_changed` do pane novo, ou por `agent.wait {target: <pane>, until: ["idle", "blocked"], timeout_ms: 30000}`, e responde `ack{agentId}` com o id do pane novo;
+  - `blocked` é o diálogo de confiança de uma pasta nova (S2). O daemon não responde a esse diálogo: responde `ack{agentId}`, o agente aparece em PRECISA DE VOCÊ e o João responde no Mac;
+  - passados os 30 s sem `idle` nem `blocked`, responde `ack{agentId}` do mesmo jeito, e o agente segue na árvore com o status que tiver;
+  - a espera não segura as outras mensagens da conexão, que seguem sendo respondidas;
+  - erros do `tab.create` e do `agent.start` seguem a tabela abaixo. Se o `agent.start` falhar, a tab criada continua aberta: o daemon não fecha tabs.
 - **Erros do Herdr** (§3.1.1):
 
 | Herdr | Protocolo |
@@ -1332,7 +1340,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados sob o repositório.
 - Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador. Em `working` o asterisco pulsa com brilho; em `blocked` aparece um ponto `dirty` à direita.
 - A linha do chat aberto fica com `selectedRow`. Tocar numa tab com agente fecha a gaveta e abre o chat (por push sobre a Home, substituindo o chat aberto); tocar numa tab de shell mostra "Terminal chega na fase 2" (na fase 2, abre o terminal).
-- 1b: botão `+` por workspace → "Nova tab com Claude".
+- 1a-final: botão `+` na linha de cada workspace (visual no mock, `11-gaveta-arvore`) → "Nova tab com Claude": manda `newAgentTab` e, enquanto espera (até ~30 s), troca o `+` por um indicador de progresso. No `ack{agentId}`, fecha a gaveta e abre o chat do agente novo por push sobre a Home. Um `error` aparece com a `message` no mesmo aviso da gaveta que mostra "Terminal chega na fase 2".
 
 **Ajustes** (`12-ajustes`)
 - Folha aberta pela engrenagem da Home ou da gaveta.

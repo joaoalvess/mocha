@@ -618,6 +618,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Aceite**:
   - [ ] Teste com o Herdr falso: `newAgentTab` faz `tab.create` → `agent.start` → espera `idle` e responde `ack{agentId}`; com `blocked`, responde `ack{agentId}` do mesmo jeito; os erros seguem a §5.3.1.
   - [ ] Teste: a chamada com espera usa o timeout de `timeout_ms` + 2 s.
+  - [ ] Teste: durante a espera do `newAgentTab`, outra mensagem da mesma conexão (ex.: `ping`) é respondida.
   - [ ] O `unknownType` de `newAgentTab` sai do `SessionHubConnection`, e o teste de regras do hub cobre a mensagem.
 
 ### WP-X2: integração da 1a-final
