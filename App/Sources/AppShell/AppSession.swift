@@ -34,6 +34,7 @@ enum AppSessionError: Error, Equatable {
     case readOnlyChat
     case server(code: ProtocolErrorCode, message: String)
     case unexpectedReply(type: String)
+    case uploadFailed(ImageUploadError)
 
     var message: String {
         switch self {
@@ -41,6 +42,7 @@ enum AppSessionError: Error, Equatable {
         case .readOnlyChat: "Sessão encerrada · só leitura"
         case .server(_, let message): message
         case .unexpectedReply(let type): "Resposta inesperada do Mac: \(type)."
+        case .uploadFailed: "Não foi possível enviar a imagem ao Mac"
         }
     }
 }
@@ -67,6 +69,7 @@ final class AppSession {
     var sheet: AppSheet?
 
     @ObservationIgnored private let connection: any ServerConnection
+    @ObservationIgnored private let uploader: any ImageUploading
     @ObservationIgnored private var replyContinuations: [String: CheckedContinuation<ServerMessage, any Error>] = [:]
     @ObservationIgnored private var nextRequestNumber = 0
     @ObservationIgnored private var consumerTasks: [Task<Void, Never>] = []
@@ -76,8 +79,9 @@ final class AppSession {
     @ObservationIgnored private var lifecycleTask: Task<Void, Never>?
     @ObservationIgnored private var isSceneActive = false
 
-    init(connection: any ServerConnection, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
+    init(connection: any ServerConnection, uploader: any ImageUploading, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
         self.connection = connection
+        self.uploader = uploader
         self.pairingDates = pairingDates
         pairedAt = pairingDates.pairedAt
     }
@@ -241,6 +245,19 @@ final class AppSession {
 
     func sendPrompt(_ text: String) async throws {
         try await request(.sendPrompt(agentId: try visibleAgentId(), text: text))
+    }
+
+    func sendPrompt(_ text: String, images: [PromptImage]) async throws {
+        guard !images.isEmpty else { return try await sendPrompt(text) }
+        let agentId = try visibleAgentId()
+        guard connectionState == .connected else { throw AppSessionError.notConnected }
+        do {
+            try await ImagePromptSender.send(text: text, images: images, uploader: uploader) { prompt in
+                _ = try await self.request(.sendPrompt(agentId: agentId, text: prompt))
+            }
+        } catch let failure as ImagePromptUploadFailure {
+            throw AppSessionError.uploadFailed(failure.error)
+        }
     }
 
     func interrupt() async throws {

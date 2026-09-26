@@ -9,6 +9,8 @@ struct ChatDebugOptions {
     var focusComposer = false
     var draft: String?
     var sendText: String?
+    var attachSampleCount: Int?
+    var opensAttachMenu = false
     var olderPageDelay: Duration?
     var performanceSweep = false
 
@@ -19,6 +21,8 @@ struct ChatDebugOptions {
     static let focusComposerKey = "chat-focus-composer"
     static let draftKey = "chat-draft"
     static let sendKey = "chat-send"
+    static let attachSamplesKey = "chat-attach-samples"
+    static let attachMenuKey = "chat-attach-menu"
     static let olderPageDelayKey = "chat-older-delay"
     static let performanceSweepKey = "chat-perf-sweep"
 
@@ -31,6 +35,8 @@ struct ChatDebugOptions {
         options.focusComposer = flag(argumentDomain[focusComposerKey])
         options.draft = argumentDomain[draftKey] as? String
         options.sendText = argumentDomain[sendKey] as? String
+        options.attachSampleCount = (argumentDomain[attachSamplesKey] as? String).flatMap(Int.init)
+        options.opensAttachMenu = flag(argumentDomain[attachMenuKey])
         options.olderPageDelay = (argumentDomain[olderPageDelayKey] as? String).flatMap(Double.init).map { .milliseconds(Int($0 * 1_000)) }
         options.performanceSweep = flag(argumentDomain[performanceSweepKey])
         return options

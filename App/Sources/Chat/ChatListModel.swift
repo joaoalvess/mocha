@@ -41,8 +41,8 @@ final class ChatListModel {
         pending.removeAll()
     }
 
-    func addPending(_ text: String) -> PendingBubble? {
-        pending.add(text, at: Date())
+    func addPending(_ text: String, imageCount: Int) -> PendingBubble? {
+        pending.add(text, imageCount: imageCount, at: Date())
     }
 
     func rejectPending(_ id: PendingBubble.ID) {

@@ -1,4 +1,5 @@
 import Foundation
+import MochaClient
 import MochaDemo
 import MochaProtocol
 import SwiftUI
@@ -32,11 +33,19 @@ enum AppStartup {
     @MainActor
     static func make(for launch: LaunchConfiguration) -> AppStartup {
         guard let options = launch.demoOptions else {
-            return .session(AppSession(connection: debugConnection(LiveConnection.make(), launch: launch), pairingDates: UserDefaultsPairingDateStore()))
+            return .session(AppSession(
+                connection: debugConnection(LiveConnection.make(), launch: launch),
+                uploader: GatewayImageUploader(tokenStore: KeychainTokenStore()),
+                pairingDates: UserDefaultsPairingDateStore()
+            ))
         }
         guard let demo = try? DemoServerConnection(options: options) else { return .demoUnavailable }
         let pairedAt = options.startsPaired ? Date().addingTimeInterval(-demoPairingAge) : nil
-        return .session(AppSession(connection: debugConnection(demo, launch: launch), pairingDates: InMemoryPairingDateStore(pairedAt: pairedAt)))
+        return .session(AppSession(
+            connection: debugConnection(demo, launch: launch),
+            uploader: SimulatedImageUploader(),
+            pairingDates: InMemoryPairingDateStore(pairedAt: pairedAt)
+        ))
     }
 
     private static func debugConnection(_ connection: any ServerConnection, launch: LaunchConfiguration) -> any ServerConnection {

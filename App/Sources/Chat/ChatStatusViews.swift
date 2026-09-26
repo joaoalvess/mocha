@@ -84,7 +84,7 @@ struct PendingBubbleRow: View {
 
     var body: some View {
         let isUnconfirmed = bubble.isUnconfirmed(at: now)
-        UserBubble(text: bubble.text, delivery: isUnconfirmed ? .unconfirmed : .sending)
+        UserBubble(text: bubble.displayText, delivery: isUnconfirmed ? .unconfirmed : .sending)
             .contentShape(Rectangle())
             .onTapGesture {
                 if isUnconfirmed { onDiscard() }

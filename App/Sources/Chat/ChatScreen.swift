@@ -22,6 +22,7 @@ struct ChatConversation: View {
     @State private var isUserScrolling = false
     @State private var viewport = ChatViewportTracker()
     @State private var draft = ""
+    @State private var attachments = ComposerAttachments()
     @State private var isComposing = false
     @FocusState private var isFieldFocused: Bool
 
@@ -135,7 +136,7 @@ struct ChatConversation: View {
         if isReadOnly {
             ReadOnlyComposerPill()
         } else {
-            ChatComposer(draft: $draft, isExpanded: $isComposing, isFocused: $isFieldFocused, onSend: send)
+            ChatComposer(draft: $draft, isExpanded: $isComposing, isFocused: $isFieldFocused, attachments: attachments, onSend: send)
         }
     }
 
@@ -289,22 +290,31 @@ struct ChatConversation: View {
 
     private func send() {
         let text = ComposerDraft.trimmed(draft)
-        guard !text.isEmpty else { return }
+        guard !attachments.isProcessing, !text.isEmpty || !attachments.isEmpty else { return }
+        let sent = attachments.takeAll()
         draft = ""
         dismissComposer()
-        submit(text)
+        submit(text, attachments: sent)
     }
 
-    private func submit(_ text: String) {
-        guard let bubble = list.addPending(text) else { return }
+    private func submit(_ text: String, attachments sent: [ComposerAttachment]) {
+        guard let bubble = list.addPending(text, imageCount: sent.count) else { return }
         pinToBottom()
         Task {
             do {
-                try await session.sendPrompt(text)
+                try await session.sendPrompt(text, images: sent.compactMap(\.image))
+            } catch AppSessionError.uploadFailed {
+                list.rejectPending(bubble.id)
+                restoreComposer(text, attachments: sent)
             } catch {
                 list.rejectPending(bubble.id)
             }
         }
+    }
+
+    private func restoreComposer(_ text: String, attachments restored: [ComposerAttachment]) {
+        attachments.restore(restored)
+        draft = [text, draft].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func stop() {
@@ -335,6 +345,12 @@ struct ChatConversation: View {
         if let text = options.draft, ChatDebugLaunch.consume(ChatDebugOptions.draftKey) {
             draft = text
         }
+        if let count = options.attachSampleCount, ChatDebugLaunch.consume(ChatDebugOptions.attachSamplesKey) {
+            attachments.add(ComposerSampleImages.loaders(count: count))
+            while attachments.isProcessing, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
         if options.focusComposer, ChatDebugLaunch.consume(ChatDebugOptions.focusComposerKey) {
             isComposing = true
         }
@@ -347,7 +363,7 @@ struct ChatConversation: View {
             await walkUp(to: rowId, anchor: options.scrollAnchor)
         }
         if let text = options.sendText, ChatDebugLaunch.consume(ChatDebugOptions.sendKey) {
-            submit(text)
+            submit(text, attachments: attachments.takeAll())
         }
         if options.performanceSweep, ChatDebugLaunch.consume(ChatDebugOptions.performanceSweepKey) {
             await runPerformanceSweep()

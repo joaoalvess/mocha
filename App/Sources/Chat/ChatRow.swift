@@ -77,7 +77,7 @@ final class ChatRowBuilder {
     private func append(_ item: ChatItem, to rows: inout [ChatRow]) {
         switch item.kind {
         case .userPrompt(let text, let imageCount):
-            rows.append(ChatRow(id: item.id, content: .userPrompt(Self.promptText(text, imageCount: imageCount)), spacingBelow: ChatRowSpacing.standard))
+            rows.append(ChatRow(id: item.id, content: .userPrompt(PromptImages.bubbleText(text, imageCount: imageCount)), spacingBelow: ChatRowSpacing.standard))
         case .slashCommand(let name, let args, let output):
             let label = Self.commandLabel(name: name, args: args)
             rows.append(ChatRow(id: item.id, content: .slashCommand(label: label, output: output), spacingBelow: ChatRowSpacing.standard))
@@ -112,11 +112,6 @@ final class ChatRowBuilder {
     static func commandLabel(name: String, args: String) -> String {
         let args = args.trimmingCharacters(in: .whitespacesAndNewlines)
         return args.isEmpty ? name : name + " " + args
-    }
-
-    private static func promptText(_ text: String, imageCount: Int) -> String {
-        guard text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, imageCount > 0 else { return text }
-        return imageCount == 1 ? "[imagem]" : "[\(imageCount) imagens]"
     }
 
     private static let clearCommand = "/clear"

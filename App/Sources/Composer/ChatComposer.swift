@@ -1,25 +1,129 @@
+import MochaClient
+import PhotosUI
 import SwiftUI
 
 struct ChatComposer: View {
     @Binding var draft: String
     @Binding var isExpanded: Bool
     var isFocused: FocusState<Bool>.Binding
+    let attachments: ComposerAttachments
     let onSend: () -> Void
+    @State private var isAttachMenuOpen = false
+    @State private var isPhotoPickerPresented = false
+    @State private var isCameraPresented = false
+    @State private var pickedPhotos: [PhotosPickerItem] = []
+    @State private var pasteboardHasImages = false
 
     var body: some View {
-        if isExpanded {
-            ExpandedComposer(canSend: canSend, onSend: onSend) {
-                ComposerTextField(text: $draft)
-                    .focused(isFocused)
+        composer
+            .photosPicker(
+                isPresented: $isPhotoPickerPresented,
+                selection: $pickedPhotos,
+                maxSelectionCount: max(1, attachments.remainingSlots),
+                selectionBehavior: .ordered,
+                matching: .images
+            )
+            .fullScreenCover(isPresented: $isCameraPresented) {
+                CameraCapture(
+                    onCapture: { image in
+                        isCameraPresented = false
+                        attach([ComposerImageSources.loader(for: image)])
+                    },
+                    onCancel: { isCameraPresented = false }
+                )
+                .ignoresSafeArea()
             }
-            .onAppear { isFocused.wrappedValue = true }
+            .onChange(of: pickedPhotos) { _, items in
+                guard !items.isEmpty else { return }
+                pickedPhotos = []
+                attach(items.map(ComposerImageSources.loader(for:)))
+            }
+            .onChange(of: isExpanded) { _, expanded in
+                if !expanded { isAttachMenuOpen = false }
+            }
+            .onChange(of: draft) {
+                isAttachMenuOpen = false
+            }
+    }
+
+    @ViewBuilder
+    private var composer: some View {
+        if isExpanded {
+            ExpandedComposer(canSend: canSend, buttons: [.attach], onAttach: toggleAttachMenu, onSend: onSend) {
+                VStack(alignment: .leading, spacing: AttachmentLayout.stripBottomSpacing) {
+                    if !attachments.isEmpty {
+                        AttachmentStrip(attachments: attachments.items) { attachments.remove($0) }
+                    }
+                    ComposerTextField(text: $draft)
+                        .focused(isFocused)
+                }
+            }
+            .overlay(alignment: .topLeading) { attachMenu }
+            .animation(.smooth(duration: 0.2), value: isAttachMenuOpen)
+            .onAppear {
+                isFocused.wrappedValue = true
+                openAttachMenuForDebugLaunch()
+            }
         } else {
-            CollapsedComposer(draft: draft, onExpand: { isExpanded = true }, onSend: onSend)
+            CollapsedComposer(draft: collapsedDraft, onExpand: { isExpanded = true }, onSend: onSend)
+        }
+    }
+
+    @ViewBuilder
+    private var attachMenu: some View {
+        if isAttachMenuOpen {
+            AttachMenu(
+                showsCamera: ComposerImageSources.isCameraAvailable,
+                isFull: attachments.isFull,
+                canPaste: pasteboardHasImages,
+                onPhotos: {
+                    isAttachMenuOpen = false
+                    isPhotoPickerPresented = true
+                },
+                onCamera: {
+                    isAttachMenuOpen = false
+                    isCameraPresented = true
+                },
+                onPaste: {
+                    isAttachMenuOpen = false
+                    attach(ComposerImageSources.pastedImages(limit: attachments.remainingSlots).map(ComposerImageSources.loader(for:)))
+                }
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(height: 0, alignment: .bottomLeading)
+            .offset(y: -AttachmentLayout.menuGap)
+            .transition(.scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
         }
     }
 
     private var canSend: Bool {
-        !ComposerDraft.trimmed(draft).isEmpty
+        !attachments.isProcessing && (!ComposerDraft.trimmed(draft).isEmpty || !attachments.isEmpty)
+    }
+
+    private var collapsedDraft: String {
+        guard ComposerDraft.trimmed(draft).isEmpty, !attachments.isEmpty else { return draft }
+        return PromptImages.attachmentLabel(imageCount: attachments.items.count)
+    }
+
+    private func toggleAttachMenu() {
+        if !isAttachMenuOpen {
+            pasteboardHasImages = ComposerImageSources.pasteboardHasImages
+        }
+        isAttachMenuOpen.toggle()
+    }
+
+    private func attach(_ loaders: [ComposerImageLoader]) {
+        guard !loaders.isEmpty else { return }
+        attachments.add(loaders)
+        isExpanded = true
+    }
+
+    private func openAttachMenuForDebugLaunch() {
+        #if DEBUG
+        if ChatDebugOptions.current().opensAttachMenu, ChatDebugLaunch.consume(ChatDebugOptions.attachMenuKey) {
+            toggleAttachMenu()
+        }
+        #endif
     }
 }
 
