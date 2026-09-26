@@ -11,6 +11,10 @@ struct ChatDebugOptions {
     var sendText: String?
     var attachSampleCount: Int?
     var opensAttachMenu = false
+    var opensSlashMenu = false
+    var confirmsClear = false
+    var slashCommand: String?
+    var closeChatAfter: Duration?
     var olderPageDelay: Duration?
     var performanceSweep = false
 
@@ -23,6 +27,10 @@ struct ChatDebugOptions {
     static let sendKey = "chat-send"
     static let attachSamplesKey = "chat-attach-samples"
     static let attachMenuKey = "chat-attach-menu"
+    static let slashMenuKey = "chat-slash-menu"
+    static let confirmClearKey = "chat-confirm-clear"
+    static let slashCommandKey = "chat-slash"
+    static let closeChatAfterKey = "chat-close-after"
     static let olderPageDelayKey = "chat-older-delay"
     static let performanceSweepKey = "chat-perf-sweep"
 
@@ -37,6 +45,10 @@ struct ChatDebugOptions {
         options.sendText = argumentDomain[sendKey] as? String
         options.attachSampleCount = (argumentDomain[attachSamplesKey] as? String).flatMap(Int.init)
         options.opensAttachMenu = flag(argumentDomain[attachMenuKey])
+        options.opensSlashMenu = flag(argumentDomain[slashMenuKey])
+        options.confirmsClear = flag(argumentDomain[confirmClearKey])
+        options.slashCommand = argumentDomain[slashCommandKey] as? String
+        options.closeChatAfter = (argumentDomain[closeChatAfterKey] as? String).flatMap(Double.init).map { .milliseconds(Int($0 * 1_000)) }
         options.olderPageDelay = (argumentDomain[olderPageDelayKey] as? String).flatMap(Double.init).map { .milliseconds(Int($0 * 1_000)) }
         options.performanceSweep = flag(argumentDomain[performanceSweepKey])
         return options
