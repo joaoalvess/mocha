@@ -97,6 +97,43 @@ struct FakeHerdrServerTests {
         }
     }
 
+    @Test func newTabRepliesMatchTheSchema() async throws {
+        let schema = try HerdrSchemaValidator.load()
+        try await withFakeHerdr { server, _ in
+            func exchange(_ line: String) async throws -> Data {
+                let connection = try await open(server)
+                try await connection.write(Data((line + "\n").utf8))
+                let answer = try #require(await connection.readLine())
+                connection.close()
+                return answer
+            }
+            let created = try await exchange(#"{"id":"n1","method":"tab.create","params":{"workspace_id":"w1A","cwd":"/Users/dev/projects/demo-app","focus":false}}"#)
+            #expect(schema.violations(of: created, section: .successResponse) == [])
+            let rootPane = try #require(((try response(created)["result"] as? NSDictionary)?["root_pane"] as? NSDictionary)?["pane_id"] as? String)
+            #expect(await server.requests(method: "tab.create").count == 1)
+            let started = try await exchange(#"{"id":"n2","method":"agent.start","params":{"name":"mocha-1","kind":"claude","pane_id":"\#(rootPane)","args":[]}}"#)
+            #expect(schema.violations(of: started, section: .successResponse) == [])
+            let duplicate = try await exchange(#"{"id":"n3","method":"agent.start","params":{"name":"mocha-1","kind":"claude","pane_id":"w1A:p1","args":[]}}"#)
+            #expect(schema.violations(of: duplicate, section: .errorResponse) == [])
+            let ready = try await exchange(#"{"id":"n4","method":"agent.wait","params":{"target":"w1A:p1","until":["done"],"timeout_ms":1000}}"#)
+            #expect(schema.violations(of: ready, section: .successResponse) == [])
+            let expired = try await exchange(#"{"id":"n5","method":"agent.wait","params":{"target":"\#(rootPane)","until":["idle"],"timeout_ms":50}}"#)
+            #expect(schema.violations(of: expired, section: .errorResponse) == [])
+            #expect(((try response(expired)["error"] as? NSDictionary)?["code"] as? String) == "timeout")
+            #expect(try response(expired)["id"] as? String == "n5")
+        }
+    }
+
+    @Test func abandonedWaitIsForgotten() async throws {
+        try await withFakeHerdr { server, _ in
+            let connection = try await open(server)
+            try await connection.write(Data((#"{"id":"n1","method":"agent.wait","params":{"target":"w1A:p1","until":["idle"]}}"# + "\n").utf8))
+            #expect(await HerdrWait.until { await server.pendingWaitCount == 1 })
+            connection.close()
+            #expect(await HerdrWait.until { await server.pendingWaitCount == 0 })
+        }
+    }
+
     @Test func playsTheRecordedStreams() async throws {
         try await withFakeHerdr { server, client in
             await server.movePane(from: "w1A:p2", to: "w1A:p3", tabId: "w1A:t2", workspaceId: "w1A", tabLabel: "start")

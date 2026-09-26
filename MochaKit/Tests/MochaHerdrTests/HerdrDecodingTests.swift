@@ -78,6 +78,26 @@ import Testing
         _ = try decode("agent.send_keys.response.json", method: "agent.send_keys", type: "ok", as: HerdrResponse.Empty.self)
     }
 
+    @Test func newTabResponsesDecode() throws {
+        let created = try decode("tab.create.response.json", method: "tab.create", type: "tab_created", as: HerdrTabCreated.self)
+        #expect(created.tab == HerdrTab(tabId: "w1A:t2", workspaceId: "w1A", number: 2, label: "start"))
+        #expect(created.rootPane.paneId == "w1A:p3")
+        #expect(created.rootPane.tabId == "w1A:t2")
+        #expect(created.rootPane.cwd == "/Users/dev/projects/demo-app")
+        #expect(created.rootPane.agent == nil)
+        let started = try decode("agent.start.response.json", method: "agent.start", type: "agent_started", as: HerdrAgentStarted.self)
+        #expect(started.agent.paneId == "w1A:p3")
+        #expect(started.agent.name == "labstart")
+        #expect(started.agent.agent == nil)
+        #expect(started.agent.agentStatus == .unknown)
+        #expect(started.argv.first == "claude")
+        let waited = try decode("agent.wait.response.json", method: "agent.wait", type: "agent_info", as: HerdrResponse.Agent.self).agent
+        #expect(waited.paneId == "w1A:p3")
+        #expect(waited.agent == "claude")
+        #expect(waited.agentStatus == .done)
+        #expect(waited.sessionId == "124fc87d-586a-4f66-b3c0-dbf3f088791b")
+    }
+
     @Test func diagnosticResponsesDecode() throws {
         let workspaces = try decode("workspace.list.response.json", method: "workspace.list", type: "workspace_list", as: HerdrResponse.WorkspaceList.self).workspaces
         #expect(workspaces.contains { $0.worktree != nil })

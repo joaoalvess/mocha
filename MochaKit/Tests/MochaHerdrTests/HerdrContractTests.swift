@@ -16,6 +16,11 @@ struct HerdrContractTests {
         .paneGet(paneId: "w1A:p2"),
         .agentPrompt(target: "w1A:p1", text: "Responda apenas com a palavra: pronto"),
         .agentSendKeys(target: "w1A:p1", keys: ["Escape"]),
+        .tabCreate(workspaceId: "w1A", cwd: "/Users/dev/projects/demo-app"),
+        .tabCreate(workspaceId: "w1A", cwd: nil),
+        .agentStart(name: "mocha-1", kind: "claude", paneId: "w1A:p1", args: [], timeoutMs: nil),
+        .agentStart(name: "mocha-2", kind: "claude", paneId: "w1A:p2", args: ["--model", "haiku"], timeoutMs: 30000),
+        .agentWait(target: "w1A:p1", until: [.idle, .done], timeoutMs: 30000),
         .eventsSubscribe(HerdrSubscription.globalLifecycle),
         .eventsSubscribe([.agentStatusChanged(paneId: "w1A:p1")]),
     ]
@@ -40,6 +45,12 @@ struct HerdrContractTests {
             _ = try await client.agentPrompt(target: target, text: text)
         case .agentSendKeys(let target, let keys):
             try await client.agentSendKeys(target: target, keys: keys)
+        case .tabCreate(let workspaceId, let cwd):
+            _ = try await client.tabCreate(workspaceId: workspaceId, cwd: cwd)
+        case .agentStart(let name, let kind, let paneId, let args, let timeoutMs):
+            try await client.agentStart(name: name, kind: kind, paneId: paneId, args: args, timeout: timeoutMs.map { .milliseconds($0) })
+        case .agentWait(let target, let until, let timeoutMs):
+            _ = try await client.agentWait(target: target, until: until, timeout: .milliseconds(timeoutMs))
         case .eventsSubscribe(let subscriptions):
             try await client.subscribe(subscriptions).cancel()
         }
