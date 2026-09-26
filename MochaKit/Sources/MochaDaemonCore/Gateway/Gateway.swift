@@ -3,12 +3,14 @@ public struct Gateway: Sendable {
 
     public static let healthPath = "/v1/health"
     public static let webSocketPath = "/v1"
+    public static let uploadPath = "/v1/upload"
     public static let port: UInt16 = 47421
     public static let binding = HttpBinding.loopback(port: port)
 
     let version: String
     let herdr: any HerdrBridging
     let hub: SessionHub
+    let uploads: UploadStore?
     let events: EventSink
     private let connectionNumbers = GatewayConnectionNumbers()
 
@@ -16,11 +18,13 @@ public struct Gateway: Sendable {
         version: String = DaemonVersion.current,
         herdr: any HerdrBridging,
         hub: SessionHub,
+        uploads: UploadStore? = nil,
         events: @escaping EventSink = { _ in }
     ) {
         self.version = version
         self.herdr = herdr
         self.hub = hub
+        self.uploads = uploads
         self.events = events
     }
 
@@ -32,6 +36,13 @@ public struct Gateway: Sendable {
         }
         router.webSocket(Self.webSocketPath) { request, socket in
             await serve(request, socket)
+        }
+        if let uploads {
+            let upload = UploadRoute(store: uploads, authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
+            router.route(.post, Self.uploadPath, maxBodySize: UploadStore.maxBodySize) { request in
+                events(.httpRequest(request))
+                return await upload.respond(to: request)
+            }
         }
         return router
     }
