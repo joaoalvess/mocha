@@ -1,0 +1,80 @@
+import MochaHerdr
+import MochaProtocol
+
+public protocol HerdrBridging: Sendable {
+    func events() -> AsyncStream<HerdrBridgeEvent>
+    var isAvailable: Bool { get async }
+    func tree() async -> [WorkspaceNode]
+    func agent(_ id: AgentID) async -> HerdrAgent?
+    func resolve(_ id: AgentID) async -> AgentID
+    func prompt(_ id: AgentID, text: String) async throws
+    func interrupt(_ id: AgentID) async throws
+    func setOpenChats(_ ids: Set<AgentID>) async
+    var serverInfo: HerdrServerInfo? { get async }
+}
+
+public struct HerdrServerInfo: Sendable, Equatable {
+    public var version: String
+    public var protocolVersion: Int
+
+    public init(version: String, protocolVersion: Int) {
+        self.version = version
+        self.protocolVersion = protocolVersion
+    }
+
+    public var isSupportedProtocol: Bool {
+        protocolVersion == HerdrProtocol.supportedVersion
+    }
+
+    public var protocolWarning: String? {
+        guard !isSupportedProtocol else { return nil }
+        return "Herdr \(version) usa o protocolo \(protocolVersion); o Mocha espera o \(HerdrProtocol.supportedVersion). Funcionando em melhor esforço."
+    }
+}
+
+public enum HerdrBridgeEvent: Sendable, Equatable {
+    case snapshot(tree: [WorkspaceNode], available: Bool)
+    case treeChanged([WorkspaceNode])
+    case agentStatus(AgentID, AgentStatus, title: String?)
+    case sessionChanged(AgentID, sessionId: String?)
+    case availability(Bool)
+    case paneMoved(from: AgentID, to: AgentID)
+}
+
+public struct HerdrAgent: Sendable, Equatable {
+    public var paneId: AgentID
+    public var workspaceId: WorkspaceID
+    public var kind: String
+    public var status: AgentStatus
+    public var sessionId: String?
+    public var cwd: String?
+    public var foregroundCwd: String?
+    public var terminalTitle: String?
+
+    public init(
+        paneId: AgentID,
+        workspaceId: WorkspaceID,
+        kind: String,
+        status: AgentStatus,
+        sessionId: String? = nil,
+        cwd: String? = nil,
+        foregroundCwd: String? = nil,
+        terminalTitle: String? = nil
+    ) {
+        self.paneId = paneId
+        self.workspaceId = workspaceId
+        self.kind = kind
+        self.status = status
+        self.sessionId = sessionId
+        self.cwd = cwd
+        self.foregroundCwd = foregroundCwd
+        self.terminalTitle = terminalTitle
+    }
+}
+
+public enum HerdrBridgeError: Error, Sendable, Equatable {
+    case unavailable
+    case agentNotFound
+    case agentBlocked
+    case herdr(code: String, message: String)
+}
