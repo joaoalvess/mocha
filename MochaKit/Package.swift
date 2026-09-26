@@ -19,12 +19,12 @@ let package = Package(
         .target(name: "MochaHerdr"),
         .target(name: "MochaDaemonCore", dependencies: ["MochaProtocol", "MochaTranscript", "MochaHerdr"]),
         .executableTarget(name: "mochad", dependencies: ["MochaDaemonCore"]),
-        .target(name: "MochaTestSupport", dependencies: ["MochaProtocol", "MochaDaemonCore"]),
+        .target(name: "MochaTestSupport", dependencies: ["MochaProtocol", "MochaHerdr", "MochaTranscript", "MochaDaemonCore"]),
         .testTarget(name: "MochaProtocolTests", dependencies: ["MochaProtocol"]),
         .testTarget(name: "MochaDemoTests", dependencies: ["MochaDemo", "MochaProtocol"]),
-        .testTarget(name: "MochaClientTests", dependencies: ["MochaClient", "MochaDaemonCore"]),
-        .testTarget(name: "MochaTranscriptTests", dependencies: ["MochaTranscript"]),
-        .testTarget(name: "MochaHerdrTests", dependencies: ["MochaHerdr"]),
+        .testTarget(name: "MochaClientTests", dependencies: ["MochaClient", "MochaDaemonCore", "MochaTestSupport"]),
+        .testTarget(name: "MochaTranscriptTests", dependencies: ["MochaTranscript", "MochaTestSupport"]),
+        .testTarget(name: "MochaHerdrTests", dependencies: ["MochaHerdr", "MochaTestSupport"]),
         .testTarget(name: "MochaDaemonCoreTests", dependencies: ["MochaDaemonCore", "MochaTestSupport"]),
     ]
 )
