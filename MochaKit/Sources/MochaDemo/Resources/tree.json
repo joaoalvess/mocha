@@ -136,7 +136,7 @@
    "label": "anotacoes",
    "number": 4,
    "isDirty": false,
-   "agentStatus": "idle",
+   "agentStatus": "unknown",
    "tabs": [
     {
      "id": "w4:t1",
