@@ -265,7 +265,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - **Identidade**: vale `sessionId`. O campo `session_id` (snake_case), presente em parte das linhas, pode trazer a sessão anterior ao `/clear` e é ignorado.
 - **Subagentes**: ficam em `<session_id>/subagents/agent-<agentId>.jsonl` (todas as linhas com `isSidechain: true` e `agentId`), com `agent-<agentId>.meta.json` (`agentType`, `description`, `toolUseId` do `Agent` que o criou). Não são exibidos. No arquivo principal, o subagente aparece só como o `toolCall` `Agent` e, se rodou em background, como a notificação de tarefa. Linhas com `isSidechain: true` no arquivo principal são ignoradas por garantia.
 
-#### §3.2.2 Formato e mapeamento (Claude Code 2.1.282)
+#### §3.2.2 Formato e mapeamento (Claude Code 2.1.283)
 
 Uma entrada JSON por linha, com o campo `type`. O formato não é documentado pela Anthropic. As fixtures de `MochaKit/Fixtures/transcripts/` cobrem cada caso, e o README delas traz a sequência esperada. O parser ignora campos desconhecidos, trata tipos desconhecidos pela política abaixo e nunca falha a sessão inteira por causa de uma linha ruim: a linha é descartada e contada.
 
@@ -316,7 +316,7 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 | Ferramenta | `summary` |
 |---|---|
 | `Bash` | primeira linha de `command` |
-| `Read`, `Write`, `Edit`, `NotebookEdit` | `file_path`, relativo ao `cwd` da linha quando está dentro dele |
+| `Read`, `Write`, `Edit`, `NotebookEdit` | `file_path` (no `NotebookEdit`, `notebook_path`), relativo ao `cwd` da linha quando está dentro dele |
 | `Grep`, `Glob` | `pattern` |
 | `WebFetch` | `url` |
 | `WebSearch`, `ToolSearch` | `query` |
@@ -337,7 +337,7 @@ Regras:
 
 - **Ordem**: a do arquivo. `timestamp` não é monotônico (no `/compact`, linhas gravadas depois têm hora anterior) e só alimenta `ChatItem.at`.
 - **Ids**:
-  - O id do item é `<uuid da linha>`, ou `<uuid>#<índice do bloco>` se uma linha trouxer mais de um bloco (não observado na 2.1.282). Um `userPrompt` de `queued_command` usa o `uuid` da linha `attachment`.
+  - O id do item é `<uuid da linha>`, ou `<uuid>#<índice do bloco>` se uma linha trouxer mais de um bloco (não observado até a 2.1.283). Um `userPrompt` de `queued_command` usa o `uuid` da linha `attachment`.
   - Linhas que só atualizam outro item não geram id: saída de comando, `tool_result` e eco do `/compact`.
 - **`tool_result`**: vem sempre depois do `tool_use`, em até 50 linhas no corpus (99 % em até 3). Um `tool_use` sem resultado fica `running` (AskUserQuestion esperando resposta ou sessão encerrada).
 - **Header**:
@@ -351,9 +351,9 @@ Regras:
 
 Política para tipos novos:
 
-1. `type`, `subtype`, tipo de bloco ou `attachment.type` desconhecido: a linha (ou o bloco) é ignorada e contada por nome, com um aviso no log por nome e por arquivo, não por linha.
+1. `type`, `subtype` ou tipo de bloco desconhecido: a linha (ou o bloco) é ignorada e contada por nome (`type:<x>`, `subtype:<x>`, `block:<x>`), com um aviso no log por nome e por arquivo, não por linha. Anexos que não são `queued_command` são ignorados sem contagem (o corpus tem dezenas de tipos de `attachment`).
 2. Campos desconhecidos são sempre ignorados. Campos esperados ausentes usam o padrão: `is_error` ausente é sucesso, `thinking` ausente é vazio.
-3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada: 2.1.282 no S1, atualizada pelo WP-M2 para a versão instalada depois de rodar as fixtures e os transcripts reais.
+3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada: 2.1.283, conferida pelo WP-M2 com as fixtures e 149 transcripts reais (2.1.263 a 2.1.283), sem linhas descartadas nem tipos desconhecidos.
 4. Um tipo novo que precise aparecer no chat entra nesta tabela junto com uma fixture e o snapshot esperado.
 
 #### §3.2.3 Leitura e desempenho
@@ -362,11 +362,11 @@ Política para tipos novos:
 - **Primeira abertura**:
   - Varredura única do arquivo, montando um índice de offsets de linha; a última linha sem `\n` fica fora do índice.
   - Página inicial = últimos `limit` itens, lidos a partir do fim.
-  - Ao montar qualquer página, os `tool_result` das até 64 linhas seguintes ao fim dela são aplicados aos `toolCall` da página.
+  - Ao montar qualquer página, as até 64 linhas anteriores servem de contexto (eco do `/compact`), e os `tool_result` e as saídas de comando das até 64 linhas seguintes ao fim dela são aplicados aos itens da página.
   - Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1 (fixture de `scripts/gen-big-transcript.swift`).
 - **Acompanhamento**: `DispatchSource.makeFileSystemObjectSource` (`.extend`, `.write`, `.rename`, `.delete`), lendo de `lastOffset` até o fim. Linha incompleta (sem `\n`) fica em buffer até completar.
 - **Arquivo que ainda não existe** (sessão nova sem mensagem): observar o diretório do projeto, ou `~/.claude/projects/` se ele também não existir, até o arquivo aparecer.
-- **Cursor de paginação**: opaco para o app. Internamente é `<sessionId>:<offset>`, com o offset da primeira linha da página, que precisa ser o início de uma linha do índice. Cursor de outra sessão ou fora do índice é inválido (§5.3.1).
+- **Cursor de paginação**: opaco para o app. Internamente é `<sessionId>:<offset>`, com o offset da primeira linha da página que gera item, que precisa ser o início de uma linha do índice. Linhas sem item entre duas páginas (resultados, saídas) ficam na página mais antiga. `hasMore` é `true` quando existe uma linha com item antes da página; sem ele, `before` vem `nil`. Cursor de outra sessão ou fora do índice é inválido (§5.3.1).
 - O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para push e Live Activity). Fora disso, fecha o descritor.
 
 ### §3.3 Hooks do Claude Code
@@ -548,7 +548,9 @@ public enum TranscriptError: Error, Sendable, Equatable {
 - Contagem de referência por assinante: o arquivo é acompanhado enquanto houver ao menos uma inscrição viva. Cancelar uma inscrição (`cancel()` ou fim da `Task` consumidora) não afeta as outras.
 - `page`: cursor inválido ou de outra sessão lança `TranscriptError.invalidCursor`.
 - `meta(forSession:)` é lido do fim do arquivo, sem índice completo, com cache por tamanho e mtime. Devolve `nil` se o arquivo não existe.
-- `stats(forSession:)` alimenta o `doctor` (§4.2) pelo `/local/status` (§4.8).
+- `stats(forSession:)` alimenta o `doctor` (§4.2) pelo `/local/status` (§4.8). Ele varre o arquivo inteiro, com cache por tamanho e mtime.
+- O delta `.meta` sai só quando `title`, `model`, `branch`, `permissionMode` ou `claudeVersion` mudam, e leva o `lastModified` do momento. O `SessionHub` repassa cada `.meta` como `chatMeta`.
+- Erro de E/S no `open` vira log e sessão vazia, sem lançar.
 
 **Fakes**: `FakeHerdrBridge` (`MochaTestSupport/Herdr/`) e `FakeTranscriptProvider` (`MochaTestSupport/Transcript/`) implementam os dois protocolos e são controlados pelo teste: emitem eventos, fixam a árvore e as páginas e contam as chamadas.
 
