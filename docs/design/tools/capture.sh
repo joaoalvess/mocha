@@ -38,4 +38,10 @@ s-inbox 13-inbox
 s-lock 14-tela-bloqueada
 s-banner 14b-banner
 s-term 15-terminal
+s-chat-sub 16-chat-subagente
+s-sub-run 16b-transcript-subagente
+s-sub-done 16c-transcript-concluido
+s-home-sub 17-home-subagentes
+s-det-sub 18-detalhe-subagentes
+s-chat-wf 19-chat-workflow
 MAP
