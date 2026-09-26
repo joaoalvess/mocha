@@ -796,7 +796,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | e4e6cdf, 1d31ff8, 082bf8c, d368311, merge 80ed3a9 |
 | WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 4697966, ce21252, merge 3c11fdb |
 | WP-M12 | feito (o `+` real, contra o Herdr, no checklist do WP-X2) | bd8cecf, 1dacb64, merge d97c1da |
-| WP-X2 | todo | |
+| WP-X2 | feito (aprovado pelo João no iPhone em 2026-09-26) | 0c5e708 |
 | Mock dos subagentes | todo | |
 | WP-X6 | todo | |
 | WP-M7 | todo | |

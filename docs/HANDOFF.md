@@ -13,13 +13,13 @@
   3. Abre o Mocha no iPhone. O app da fase já foi instalado por cima do anterior, e o pareamento continua.
   4. Aceita a permissão de notificação na primeira conexão. Depois, `mochad devices` e `mochad apns test --device <id>`.
   5. Percorre o checklist do bloco "### WP-X2" do `docs/PLANO.md`. Os agentes novos do `+` abrem sessões novas do Claude, que já nascem com os hooks do passo 1.
-- **Depois do X2**: com o ok do João, `fase/1a-final` entra em `main`. O B7 (remover o moshi-hook) fica a critério dele, antes da 1b.
+- **Aprovado** pelo João no iPhone em 2026-09-26, com o checklist completo; `fase/1a-final` mergeada em `main`. O B7 (remover o moshi-hook) fica a critério dele, antes da 1b.
 
 ## Estado
 
 - Fase **1a-final**, branch `fase/1a-final` (criada da `fase/1a-core`; `main` em `fb22739`). Sem remoto. WPs de código feitos e mergeados: M5, I6, I7, M6, I11, M6-fix e M12 (commits na tabela de status do `docs/PLANO.md`). `scripts/test.sh`, `build-daemon.sh` e `build-app.sh` verdes em `926af42`. Worktree aberto: `mock-subagentes` (fase subagentes, sem commit, esperando o ok do João no mock). Simuladores desligados.
 - Ledger: `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`.
-- **Próximo passo**: o checklist do WP-X2 no iPhone (seção acima). Com o ok do João, merge em `main`; depois, a fase subagentes, a partir do ok no mock.
+- **1a-final concluída**: WP-X2 aprovado pelo João no iPhone e `fase/1a-final` mergeada em `main`. **Próximo passo**: a fase subagentes (`fase/subagentes` a partir de `fase/1a-final`), começando pelo ok do João no mock (worktree `mock-subagentes`, perguntas abertas no ledger) e depois a SPEC.
 - **Medições pendentes** (numa janela sem build, sem nenhum agente rodando):
   - M2b: `BigTranscriptMetaPerformanceTests` < 50 ms e `BigTranscriptPerformanceTests` < 300 ms;
   - I4 e I5: signpost do chat de 2.000 itens (comandos no relatório do I5, com `-chat-perf-sweep`), incluindo os blocos visíveis de uma mensagem de 20 KB;
