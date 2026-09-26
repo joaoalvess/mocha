@@ -133,6 +133,7 @@ Princípios:
     build-app.sh                  xcodebuild do app para o simulador
     build-device.sh               xcodebuild assinado do app para o iPhone (-allowProvisioningUpdates)
     build-daemon.sh               swift build -c release --product mochad
+    lib/xcode-lock.sh             trava que build-app.sh e build-device.sh pegam antes do xcodebuild (um por vez na máquina)
     run-daemon.sh                 roda o mochad em primeiro plano com log no stdout
   docs/  prompts/
 ```
@@ -444,6 +445,12 @@ public protocol HerdrBridging: Sendable {
     func prompt(_ id: AgentID, text: String) async throws
     func interrupt(_ id: AgentID) async throws
     func setOpenChats(_ ids: Set<AgentID>) async
+    var serverInfo: HerdrServerInfo? { get async }
+}
+
+public struct HerdrServerInfo: Sendable, Equatable {
+    public var version: String             // do último ping
+    public var protocolVersion: Int
 }
 
 public enum HerdrBridgeEvent: Sendable {
@@ -480,6 +487,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
 - `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
 - `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
+- `serverInfo` é a versão e o protocolo do último `ping` (§3.1.1), `nil` antes do primeiro. Alimenta o `status`, o `doctor` e o `/local/status`.
 
 **`TranscriptProviding`**: declarado em `MochaDaemonCore/Transcript/` e implementado pelo `TranscriptStore`.
 
