@@ -34,6 +34,7 @@ public struct ProtocolErrorCode: RawRepresentable, Codable, Sendable, Hashable {
     public static let unknownType = ProtocolErrorCode(rawValue: "unknownType")
     public static let invalidPayload = ProtocolErrorCode(rawValue: "invalidPayload")
     public static let agentNotFound = ProtocolErrorCode(rawValue: "agentNotFound")
+    public static let sessionNotFound = ProtocolErrorCode(rawValue: "sessionNotFound")
     public static let agentBlocked = ProtocolErrorCode(rawValue: "agentBlocked")
     public static let requestNotFound = ProtocolErrorCode(rawValue: "requestNotFound")
     public static let herdrUnavailable = ProtocolErrorCode(rawValue: "herdrUnavailable")
@@ -43,12 +44,15 @@ public struct ProtocolErrorCode: RawRepresentable, Codable, Sendable, Hashable {
 public enum ServerMessage: Sendable, Hashable {
     case helloOk(HelloOkPayload)
     case tree(workspaces: [WorkspaceNode])
+    case archived(sessions: [ArchivedSession])
+    case usage(UsageSnapshot)
+    case herdrStatus(connected: Bool)
     case treeChanged(workspaces: [WorkspaceNode])
     case agentStatus(agentId: AgentID, status: AgentStatus, title: String? = nil)
     case chatPage(ChatPage)
-    case chatAppend(agentId: AgentID, items: [ChatItem])
-    case chatUpdate(agentId: AgentID, items: [ChatItem])
-    case chatMeta(agentId: AgentID, meta: ChatMeta)
+    case chatAppend(target: ChatTarget, items: [ChatItem])
+    case chatUpdate(target: ChatTarget, items: [ChatItem])
+    case chatMeta(target: ChatTarget, meta: ChatMeta)
     case pending(requests: [PendingRequest])
     case ack(agentId: AgentID? = nil)
     case pong
@@ -59,6 +63,9 @@ public enum ServerMessage: Sendable, Hashable {
         switch self {
         case .helloOk: "helloOk"
         case .tree: "tree"
+        case .archived: "archived"
+        case .usage: "usage"
+        case .herdrStatus: "herdrStatus"
         case .treeChanged: "treeChanged"
         case .agentStatus: "agentStatus"
         case .chatPage: "chatPage"
@@ -76,7 +83,7 @@ public enum ServerMessage: Sendable, Hashable {
 
 extension ServerMessage {
     private enum PayloadKey: String, CodingKey {
-        case workspaces, agentId, status, title, items, meta, requests, code, message
+        case workspaces, sessions, connected, agentId, sessionId, status, title, items, meta, requests, code, message
     }
 
     init(type: String, envelope: KeyedDecodingContainer<EnvelopeCodingKey>) throws {
@@ -86,6 +93,14 @@ extension ServerMessage {
         case "tree":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .tree(workspaces: try payload.decode([WorkspaceNode].self, forKey: .workspaces))
+        case "archived":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .archived(sessions: try payload.decodeLossyArray(of: ArchivedSession.self, forKey: .sessions))
+        case "usage":
+            self = .usage(try envelope.decode(UsageSnapshot.self, forKey: .payload))
+        case "herdrStatus":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .herdrStatus(connected: try payload.decode(Bool.self, forKey: .connected))
         case "treeChanged":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .treeChanged(workspaces: try payload.decode([WorkspaceNode].self, forKey: .workspaces))
@@ -101,19 +116,19 @@ extension ServerMessage {
         case "chatAppend":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .chatAppend(
-                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId),
                 items: try payload.decodeLossyArray(of: ChatItem.self, forKey: .items)
             )
         case "chatUpdate":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .chatUpdate(
-                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId),
                 items: try payload.decodeLossyArray(of: ChatItem.self, forKey: .items)
             )
         case "chatMeta":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .chatMeta(
-                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId),
                 meta: try payload.decode(ChatMeta.self, forKey: .meta)
             )
         case "pending":
@@ -142,6 +157,14 @@ extension ServerMessage {
         case .tree(let workspaces), .treeChanged(let workspaces):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(workspaces, forKey: .workspaces)
+        case .archived(let sessions):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(sessions, forKey: .sessions)
+        case .usage(let snapshot):
+            try envelope.encode(snapshot, forKey: .payload)
+        case .herdrStatus(let connected):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(connected, forKey: .connected)
         case .agentStatus(let agentId, let status, let title):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
@@ -149,13 +172,13 @@ extension ServerMessage {
             try payload.encodeIfPresent(title, forKey: .title)
         case .chatPage(let page):
             try envelope.encode(page, forKey: .payload)
-        case .chatAppend(let agentId, let items), .chatUpdate(let agentId, let items):
+        case .chatAppend(let target, let items), .chatUpdate(let target, let items):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
-            try payload.encode(agentId, forKey: .agentId)
+            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId)
             try payload.encode(items, forKey: .items)
-        case .chatMeta(let agentId, let meta):
+        case .chatMeta(let target, let meta):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
-            try payload.encode(agentId, forKey: .agentId)
+            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId)
             try payload.encode(meta, forKey: .meta)
         case .pending(let requests):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)

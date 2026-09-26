@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "id": "c-12",
+  "type": "closeChat",
+  "payload": {
+    "sessionId": "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64"
+  }
+}

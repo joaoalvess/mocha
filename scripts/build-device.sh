@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="${DERIVED_DATA_PATH:-$ROOT/build/DerivedData}"
 
+source "$ROOT/scripts/lib/xcode-lock.sh"
+
 "$ROOT/scripts/bootstrap.sh"
 
 if ! grep -Eq '^DEVELOPMENT_TEAM *= *[A-Z0-9]{10}' "$ROOT/Config/Signing.xcconfig"; then
@@ -11,11 +13,14 @@ if ! grep -Eq '^DEVELOPMENT_TEAM *= *[A-Z0-9]{10}' "$ROOT/Config/Signing.xcconfi
   exit 1
 fi
 
+xcode_lock_acquire
+
 /usr/bin/xcodebuild \
   -project "$ROOT/Mocha.xcodeproj" \
   -scheme Mocha \
   -destination 'generic/platform=iOS' \
   -derivedDataPath "$DERIVED_DATA" \
+  -clonedSourcePackagesDirPath "$HOME/Library/Caches/com.joaoalves.mocha/SourcePackages" \
   -allowProvisioningUpdates \
   "$@" \
   build

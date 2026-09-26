@@ -1,0 +1,132 @@
+{
+ "chats": [
+  {
+   "session": {
+    "id": "4f7c2a91-8e3b-4d6a-b2c5-9a1e7f3d0b68",
+    "agentId": "w5:p1",
+    "title": "Worktree login-social",
+    "workspaceLabel": "login-social",
+    "model": "claude-opus-5-5",
+    "branch": "feat/login-social",
+    "preview": {
+     "author": "user",
+     "text": "cria o worktree login-social a partir da main"
+    },
+    "contextLeftPercent": 47,
+    "reason": "cleared",
+    "endedAt": "2026-09-25T11:56:50.000Z",
+    "sessionStartedAt": "2026-09-24T11:52:00.000Z",
+    "lastActivityAt": "2026-09-24T11:55:00.000Z"
+   },
+   "items": [
+    {
+     "id": "f1419d1d-8e01-574f-b8b9-fa82a327f80b",
+     "at": "2026-09-24T11:52:00.000Z",
+     "type": "userPrompt",
+     "text": "cria o worktree login-social a partir da main",
+     "imageCount": 0
+    },
+    {
+     "id": "aa39f5e5-2bcf-5d5f-895c-50c32ff81842",
+     "at": "2026-09-24T11:52:40.000Z",
+     "type": "toolCall",
+     "toolUseId": "toolu_demo_db2dc0015b715d318b66a8bd",
+     "name": "Bash",
+     "summary": "git worktree add ../login-social -b feat/login-social main",
+     "inputJSON": "{\"command\":\"git worktree add ../login-social -b feat/login-social main\"}",
+     "status": "succeeded",
+     "resultPreview": "Preparing worktree (new branch 'feat/login-social')\nHEAD is now at 1c2d3e4 chore: release 1.4.0"
+    },
+    {
+     "id": "204684eb-8614-5704-a623-c0192c8e85ed",
+     "at": "2026-09-24T11:54:30.000Z",
+     "type": "toolCall",
+     "toolUseId": "toolu_demo_6605cff2dc4d512b8e7f2d24",
+     "name": "Bash",
+     "summary": "git -C ../login-social status --short --branch",
+     "inputJSON": "{\"command\":\"git -C ../login-social status --short --branch\"}",
+     "status": "succeeded",
+     "resultPreview": "## feat/login-social"
+    },
+    {
+     "id": "2a77db33-0263-57ed-998e-abd7a01a3837",
+     "at": "2026-09-24T11:55:00.000Z",
+     "type": "turnFooter",
+     "durationMs": 180000
+    }
+   ]
+  },
+  {
+   "session": {
+    "id": "a92d5e17-3c4b-4f80-9e6a-1b7c8d2f4e35",
+    "agentId": "w1:p3",
+    "title": "Revisão do README antes do release",
+    "workspaceLabel": "demo-app",
+    "model": "claude-opus-5-5",
+    "branch": "main",
+    "preview": {
+     "author": "user",
+     "text": "revisa o README antes do release"
+    },
+    "contextLeftPercent": 90,
+    "reason": "ended",
+    "endedAt": "2026-09-24T11:20:00.000Z",
+    "sessionStartedAt": "2026-09-24T11:10:00.000Z",
+    "lastActivityAt": "2026-09-24T11:15:00.000Z"
+   },
+   "items": [
+    {
+     "id": "d5bff40c-4aa5-5e5d-b214-dc00974b3b92",
+     "at": "2026-09-24T11:10:00.000Z",
+     "type": "userPrompt",
+     "text": "revisa o README antes do release",
+     "imageCount": 0
+    },
+    {
+     "id": "fbff4032-ad6c-5b18-97be-b32e1bd63e58",
+     "at": "2026-09-24T11:10:05.000Z",
+     "type": "thinking"
+    },
+    {
+     "id": "29304f50-53d5-5747-af71-0c7abd7e31f0",
+     "at": "2026-09-24T11:10:10.000Z",
+     "type": "toolCall",
+     "toolUseId": "toolu_demo_9dc6e9affff9579385a5fbb4",
+     "name": "Read",
+     "summary": "README.md",
+     "inputJSON": "{\"file_path\":\"/Users/dev/projects/demo-app/README.md\"}",
+     "status": "succeeded",
+     "resultPreview": "# DemoApp\n\nLista de tarefas com widget e sincronização."
+    },
+    {
+     "id": "72d68722-bdf1-5310-9e68-5525e186e08b",
+     "at": "2026-09-24T11:10:40.000Z",
+     "type": "toolCall",
+     "toolUseId": "toolu_demo_a2f4d57d5b7553fcbd0ea676",
+     "name": "Edit",
+     "summary": "README.md",
+     "inputJSON": "{\"file_path\":\"/Users/dev/projects/demo-app/README.md\",\"old_string\":\"iOS 17\",\"new_string\":\"iOS 26\"}",
+     "status": "succeeded",
+     "resultPreview": "Arquivo atualizado."
+    },
+    {
+     "id": "64e93850-64ac-5271-a092-8037a0d720de",
+     "at": "2026-09-24T11:14:30.000Z",
+     "type": "toolCall",
+     "toolUseId": "toolu_demo_479b8180aaf55e0c9a791498",
+     "name": "Bash",
+     "summary": "npx markdownlint-cli2 README.md",
+     "inputJSON": "{\"command\":\"npx markdownlint-cli2 README.md\"}",
+     "status": "succeeded",
+     "resultPreview": "Summary: 0 error(s)"
+    },
+    {
+     "id": "a466bc43-8392-5fb7-bdc6-a9cb3396323c",
+     "at": "2026-09-24T11:15:00.000Z",
+     "type": "turnFooter",
+     "durationMs": 300000
+    }
+   ]
+  }
+ ]
+}

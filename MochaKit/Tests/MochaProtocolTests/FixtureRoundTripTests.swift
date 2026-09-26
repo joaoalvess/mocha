@@ -67,6 +67,9 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
         case "pendingResponse":
             let response = try assertRoundTrip(PendingResponse.self, from: data)
             #expect(response.type == type)
+        case "http":
+            #expect(type == "uploadResponse")
+            try assertRoundTrip(UploadResponse.self, from: data)
         default:
             Issue.record("Fixture sem decodificador conhecido: \(name)")
         }
@@ -75,11 +78,11 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
     @Test func everyMessageAndDomainCaseHasAFixture() {
         let clientTypes = [
             "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "setForeground", "unpair", "ping",
-            "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity",
+            "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity",
         ]
         let serverTypes = [
-            "helloOk", "tree", "treeChanged", "agentStatus", "chatPage", "chatAppend", "chatUpdate", "chatMeta",
-            "pending", "ack", "pong", "error",
+            "helloOk", "tree", "archived", "usage", "herdrStatus", "treeChanged", "agentStatus", "chatPage",
+            "chatAppend", "chatUpdate", "chatMeta", "pending", "ack", "pong", "error",
         ]
         let chatItemTypes = [
             "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
@@ -90,6 +93,8 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
             + chatItemTypes.map { "chatItem.\($0).json" }
             + ["permission", "question"].map { "pendingRequest.\($0).json" }
             + ["allow", "deny", "answers"].map { "pendingResponse.\($0).json" }
+            + ["client.openChat", "client.closeChat", "server.chatPage", "server.chatAppend"].map { "\($0).session.json" }
+            + ["server.usage.noPlan.json", "server.tree.home.json"]
 
         for name in expected {
             #expect(ProtocolFixtures.names.contains(name), "Falta a fixture \(name)")
@@ -148,13 +153,21 @@ enum CanonicalExamples {
             fixture: "server.chatPage.json",
             json: #"{"v":1,"id":"c-7","type":"chatPage","payload":{"agentId":"w17:p1","meta":{"title":"herdr-sidebar abre arquivos em nova tab","workspaceLabel":"Core","model":"claude-opus-5-5","branch":"development","status":"idle"},"items":["#
                 + chatPageItems.joined(separator: ",")
-                + #"],"before":"b:120394","hasMore":true}}"#
+                + #"],"before":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64:120394","hasMore":true}}"#
         ),
         CanonicalExample(
             fixture: "server.agentStatus.json",
             json: #"{"v":1,"type":"agentStatus","payload":{"agentId":"w17:p1","status":"working"}}"#
         ),
         CanonicalExample(fixture: "server.ack.json", json: #"{"v":1,"id":"c-9","type":"ack","payload":{}}"#),
+        CanonicalExample(
+            fixture: "client.openChat.session.json",
+            json: #"{"v":1,"id":"c-11","type":"openChat","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","limit":60}}"#
+        ),
+        CanonicalExample(
+            fixture: "server.usage.json",
+            json: #"{"v":1,"type":"usage","payload":{"plan":"Max 20x","account":"d•••@e•••.com","windows":[{"kind":"fiveHour","usedPercent":12,"resetsAt":"2026-09-26T07:00:00.000Z"},{"kind":"weekly","usedPercent":71,"resetsAt":"2026-09-28T14:00:00.000Z"}],"fetchedAt":"2026-09-26T03:21:03.000Z"}}"#
+        ),
         CanonicalExample(
             fixture: "server.error.json",
             json: #"{"v":1,"id":"c-9","type":"error","payload":{"code":"agentBlocked","message":"O agente está esperando uma resposta no terminal."}}"#

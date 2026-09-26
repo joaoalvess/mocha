@@ -1,0 +1,95 @@
+{
+  "items" : [
+    {
+      "args" : "",
+      "at" : "2026-09-25T15:00:00.392Z",
+      "id" : "8860ae63-91b5-57bf-be2c-a45175cb3e3d",
+      "name" : "/clear",
+      "type" : "slashCommand"
+    },
+    {
+      "at" : "2026-09-25T15:00:38.462Z",
+      "id" : "7c959cee-b9f7-50f6-82c2-1eeb83cf89cf",
+      "imageCount" : 0,
+      "text" : "Responda apenas: novo",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:39.364Z",
+      "id" : "a4d73fca-0e98-57d1-9ac9-4b274acdcb8b",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:40.264Z",
+      "id" : "ad7b4dab-8ea3-564d-b5f6-00202f7d2d7f",
+      "markdown" : "novo",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:40.274Z",
+      "durationMs" : 1900,
+      "id" : "95b26511-b637-5fb6-8834-1882924506cb",
+      "type" : "turnFooter"
+    },
+    {
+      "args" : "",
+      "at" : "2026-09-25T15:00:55.275Z",
+      "id" : "11116d62-934b-54dc-9e40-aa54f2390361",
+      "name" : "/compact",
+      "output" : "Compacted (ctrl+o to see full summary)",
+      "type" : "slashCommand"
+    },
+    {
+      "at" : "2026-09-25T15:01:19.380Z",
+      "id" : "790923b0-baac-5901-ada0-cf9d954169fa",
+      "text" : "Conversa compactada",
+      "type" : "notice"
+    },
+    {
+      "at" : "2026-09-25T15:01:39.478Z",
+      "id" : "6a0edc7d-2fe9-54fe-8e80-05d0e7ada7a6",
+      "imageCount" : 0,
+      "text" : "Continua de onde paramos.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:01:40.380Z",
+      "id" : "1340e086-06d1-58df-980c-96e848b7bae4",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:01:41.280Z",
+      "id" : "8be0fe74-8aba-54d1-a106-4ed2b6d0ac7b",
+      "markdown" : "Seguindo: nenhum arquivo foi alterado até agora.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:01:41.290Z",
+      "durationMs" : 2100,
+      "id" : "c7c1ba64-9660-56ee-bd2b-89070b8e6c93",
+      "type" : "turnFooter"
+    }
+  ],
+  "meta" : {
+    "activity" : null,
+    "branch" : null,
+    "contextTokens" : 19212,
+    "model" : "claude-haiku-4-5-20251001",
+    "permissionMode" : "default",
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Seguindo: nenhum arquivo foi alterado até agora."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:00.453Z",
+    "title" : "Novo",
+    "turnEndedAt" : "2026-09-25T15:01:41.290Z",
+    "turnStartedAt" : "2026-09-25T15:01:39.478Z"
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

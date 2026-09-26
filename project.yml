@@ -68,3 +68,13 @@ targets:
         product: MochaProtocol
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
+
+schemes:
+  Mocha Demo:
+    build:
+      targets:
+        Mocha: all
+    run:
+      config: Debug
+      commandLineArguments:
+        "-demo": true

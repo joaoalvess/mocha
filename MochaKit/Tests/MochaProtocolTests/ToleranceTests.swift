@@ -204,7 +204,7 @@ private func encodedJSON<Value: Encodable>(_ value: Value) throws -> JSONValue {
             #expect(agentJSON[key] == nil)
         }
 
-        let open = ClientEnvelope(id: "c-1", message: .openChat(agentId: "w1:p1"))
+        let open = ClientEnvelope(id: "c-1", message: .openChat(target: .agent("w1:p1")))
         #expect(try encodedJSON(open)["payload"] == .object(["agentId": .string("w1:p1")]))
     }
 

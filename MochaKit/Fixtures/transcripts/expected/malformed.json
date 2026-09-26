@@ -1,0 +1,91 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-25T15:00:04.001Z",
+      "id" : "c2d6be56-29b1-5975-a47d-39aab79fb8e7",
+      "imageCount" : 0,
+      "text" : "Primeiro prompt, antes das linhas ruins.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:04.901Z",
+      "id" : "705b3efd-84fc-5422-9430-888a4a51703c",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:05.801Z",
+      "id" : "df07538d-f78f-58b8-a2f6-b68e6f8d0727",
+      "markdown" : "Resposta normal.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:05.811Z",
+      "durationMs" : 1000,
+      "id" : "0c4a9e87-6d06-5258-8d62-91d3a7d373d4",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-25T15:00:10.822Z",
+      "id" : "9ec236b2-932d-55fa-8d22-c8dcdea76226",
+      "imageCount" : 0,
+      "text" : "Segundo prompt.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:11.722Z",
+      "id" : "dc45f907-b6d8-5ff2-a598-a653c62c6ce5",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:14.422Z",
+      "id" : "3c9feb98-6092-5ee0-a27a-bbe8ba26ba58",
+      "markdown" : "Resposta depois de blocos desconhecidos.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:14.427Z",
+      "id" : "d2734eb2-652a-56dc-a976-33405b66a5a7",
+      "imageCount" : 0,
+      "text" : "Prompt com um documento anexado.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:15.537Z",
+      "durationMs" : 2000,
+      "id" : "d7c3232e-73a3-5084-8a99-8dd12c1a3488",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-25T15:00:20.538Z",
+      "id" : "ac0de76d-5615-5475-85d2-4af03c3ad8b3",
+      "imageCount" : 0,
+      "text" : "Terceiro prompt; a próxima linha está incompleta, sem \\n no fim.",
+      "type" : "userPrompt"
+    }
+  ],
+  "meta" : {
+    "activity" : null,
+    "branch" : "main",
+    "contextTokens" : 19212,
+    "model" : "claude-opus-5-5",
+    "permissionMode" : "default",
+    "preview" : {
+      "author" : "user",
+      "text" : "Terceiro prompt; a próxima linha está incompleta, sem \\n no fim."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : null,
+    "turnEndedAt" : "2026-09-25T15:00:15.537Z",
+    "turnStartedAt" : "2026-09-25T15:00:20.538Z"
+  },
+  "stats" : {
+    "dropped" : 2,
+    "orphanResults" : 1,
+    "unknown" : {
+      "block:document" : 1,
+      "block:server_tool_use" : 1,
+      "subtype:future_notice" : 1,
+      "type:future-thing" : 1
+    }
+  }
+}

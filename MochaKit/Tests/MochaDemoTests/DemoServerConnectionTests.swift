@@ -3,224 +3,177 @@ import MochaProtocol
 import Testing
 @testable import MochaDemo
 
-private let hello = ClientMessage.hello(HelloPayload(deviceToken: "token", deviceName: "iPhone de teste", appVersion: "0.1.0"))
-
-private func nextEnvelope(_ iterator: inout AsyncStream<ServerEnvelope>.Iterator) async throws -> ServerEnvelope {
-    try #require(await iterator.next())
-}
-
-private func openPage(
-    _ connection: DemoServerConnection,
-    _ iterator: inout AsyncStream<ServerEnvelope>.Iterator,
-    agentId: AgentID,
-    before: String? = nil,
-    limit: Int? = nil
-) async throws -> ChatPage {
-    let id = try await connection.send(.openChat(agentId: agentId, before: before, limit: limit))
-    let envelope = try await nextEnvelope(&iterator)
-    #expect(envelope.id == id)
-    guard case .chatPage(let page) = envelope.message else {
-        throw UnexpectedMessage(envelope: envelope)
-    }
-    return page
-}
-
-private struct UnexpectedMessage: Error, CustomStringConvertible {
-    let envelope: ServerEnvelope
-    var description: String { "Mensagem inesperada: \(envelope)" }
-}
-
-private func errorCode(of envelope: ServerEnvelope) -> ProtocolErrorCode? {
-    guard case .error(let code, _) = envelope.message else { return nil }
-    return code
-}
-
 @Suite(.timeLimit(.minutes(1)))
 struct DemoServerConnectionTests {
-    let dataset: DemoDataset
-
-    init() throws {
-        dataset = try DemoDataset.bundled()
-    }
-
-    @Test func helloRepliesWithHelloOkThenTreeWithTheSameId() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
-
-        let id = try await connection.send(hello)
-
-        let first = try await nextEnvelope(&iterator)
-        #expect(first.id == id)
-        guard case .helloOk(let helloOk) = first.message else {
-            throw UnexpectedMessage(envelope: first)
-        }
-        #expect(helloOk.deviceToken == nil)
-        #expect(helloOk.preferences == DevicePreferences(turnDoneAlerts: true))
-
-        let second = try await nextEnvelope(&iterator)
-        #expect(second.id == id)
-        guard case .tree(let workspaces) = second.message else {
-            throw UnexpectedMessage(envelope: second)
-        }
-        #expect(workspaces == dataset.workspaces)
-        #expect(workspaces.count == 4)
-        #expect(workspaces.filter { !$0.children.isEmpty }.count == 1)
-    }
-
-    @Test func helloWithPairingCodeReturnsADeviceToken() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
-
-        _ = try await connection.send(.hello(HelloPayload(pairingCode: "codigo", deviceName: "iPhone", appVersion: "0.1.0")))
-
-        let envelope = try await nextEnvelope(&iterator)
-        guard case .helloOk(let helloOk) = envelope.message else {
-            throw UnexpectedMessage(envelope: envelope)
-        }
-        #expect(helloOk.deviceToken != nil)
-    }
-
-    @Test func requestIdsAreUniquePerConnection() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var ids: Set<String> = []
-        for _ in 0..<5 {
-            ids.insert(try await connection.send(.ping))
-        }
-        #expect(ids.count == 5)
-    }
-
     @Test func openChatReturnsTheLastPageAndPaginatesBackwardsWithBefore() async throws {
-        let chat = try #require(dataset.chats.first { $0.agentId == "w1:p1" })
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
+        let harness = try DemoHarness()
+        let chat = try #require(harness.dataset.chats.first { $0.agentId == "w1:p1" })
+        try await harness.connect()
 
-        let first = try await openPage(connection, &iterator, agentId: chat.agentId, limit: 60)
-        #expect(first.agentId == chat.agentId)
+        let first = try await harness.page(chat.agentId, limit: 60)
+        #expect(first.target == .agent(chat.agentId))
         #expect(first.meta == chat.meta)
         #expect(first.items == Array(chat.items.suffix(60)))
         #expect(first.hasMore)
-        let cursor = try #require(first.before)
 
-        let second = try await openPage(connection, &iterator, agentId: chat.agentId, before: cursor, limit: 60)
-        let expectedSecond = Array(chat.items.dropLast(60).suffix(60))
-        #expect(second.items == expectedSecond)
-        #expect(second.hasMore == (chat.items.count > 120))
-
-        var collected = second.items + first.items
-        var page = second
+        var collected = first.items
+        var page = first
         while page.hasMore {
-            let previousCursor: String = try #require(page.before)
-            page = try await openPage(connection, &iterator, agentId: chat.agentId, before: previousCursor, limit: 60)
+            let cursor: String = try #require(page.before)
+            page = try await harness.page(chat.agentId, before: cursor, limit: 60)
             collected = page.items + collected
         }
         #expect(page.before == nil)
         #expect(collected == chat.items)
     }
 
-    @Test func openChatUsesTheDefaultLimitAndCapsLargeLimits() async throws {
-        let chat = try #require(dataset.chats.first)
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
+    @Test(arguments: [
+        (nil, 60),
+        (0, 1),
+        (-5, 1),
+        (1, 1),
+        (200, 200),
+        (500, 200),
+    ] as [(Int?, Int)])
+    func openChatClampsTheLimit(limit: Int?, expectedCount: Int) async throws {
+        let harness = try DemoHarness()
+        try await harness.connect()
 
-        let defaultPage = try await openPage(connection, &iterator, agentId: chat.agentId)
-        #expect(defaultPage.items.count == DemoServerConnection.defaultPageSize)
+        let page = try await harness.page(DemoLongChat.agentId, limit: limit)
 
-        let everything = try await openPage(connection, &iterator, agentId: chat.agentId, limit: 1_000)
-        #expect(everything.items.count == min(chat.items.count, DemoServerConnection.maximumPageSize))
+        #expect(page.items.count == expectedCount)
+        #expect(page.hasMore)
     }
 
-    @Test func openChatRejectsUnknownAgentsAndInvalidCursors() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
+    @Test(arguments: ["b:120394", "demo:", "demo:abc", "demo:-1", "demo:5000"])
+    func openChatRejectsInvalidCursors(_ cursor: String) async throws {
+        let harness = try DemoHarness()
+        try await harness.connect()
 
-        let unknownId = try await connection.send(.openChat(agentId: "w99:p1"))
-        let unknown = try await nextEnvelope(&iterator)
-        #expect(unknown.id == unknownId)
-        #expect(errorCode(of: unknown) == .agentNotFound)
+        let error = try await harness.error(for: .openChat(target: .agent("w1:p1"), before: cursor))
 
-        let cursorId = try await connection.send(.openChat(agentId: "w1:p1", before: "b:120394"))
-        let invalidCursor = try await nextEnvelope(&iterator)
-        #expect(invalidCursor.id == cursorId)
-        #expect(errorCode(of: invalidCursor) == .invalidPayload)
+        #expect(error.code == .invalidPayload)
     }
 
-    @Test func sendPromptAcksEchoesThePromptAndRepliesAfterTheDelay() async throws {
-        let connection = try DemoServerConnection(replyDelay: .milliseconds(20))
-        var iterator = connection.messages.makeAsyncIterator()
-        _ = try await openPage(connection, &iterator, agentId: "w1:p1")
+    @Test func openChatRejectsAgentsThatAreNotClaude() async throws {
+        let harness = try DemoHarness()
+        let codex = try #require(harness.dataset.workspaces.agent(withId: "w4:p3"))
+        #expect(codex.kind != "claude")
+        try await harness.connect()
 
-        let id = try await connection.send(.sendPrompt(agentId: "w1:p1", text: "oi, modo demo"))
+        let error = try await harness.error(for: .openChat(target: .agent(codex.id)))
 
-        let ack = try await nextEnvelope(&iterator)
-        #expect(ack.id == id)
+        #expect(error.code == .invalidPayload)
+        #expect(error.message == "Chat disponível só para Claude Code.")
+    }
+
+    @Test func openChatRejectsUnknownAgents() async throws {
+        let harness = try DemoHarness()
+        try await harness.connect()
+
+        let error = try await harness.error(for: .openChat(target: .agent("w99:p1")))
+
+        #expect(error.code == .agentNotFound)
+    }
+
+    @Test func longChatPaginatesToTheBeginningWithoutRepeatingOrSkippingItems() async throws {
+        let harness = try DemoHarness()
+        let chat = try #require(harness.dataset.chats.first { $0.agentId == DemoLongChat.agentId })
+        #expect(chat.items.count == 2_000)
+        try await harness.connect()
+
+        var page = try await harness.page(chat.agentId)
+        var collected = page.items
+        var pageCount = 1
+        while page.hasMore {
+            let cursor: String = try #require(page.before)
+            page = try await harness.page(chat.agentId, before: cursor)
+            collected = page.items + collected
+            pageCount += 1
+        }
+
+        #expect(pageCount == 34)
+        #expect(page.before == nil)
+        #expect(collected.count == 2_000)
+        #expect(Set(collected.map(\.id)).count == 2_000)
+        #expect(collected == chat.items)
+    }
+
+    @Test func promptEchoArrivesAfterTheDelayAndTheTreeFollowsTheStatus() async throws {
+        let harness = try DemoHarness(
+            DemoOptions(connectDelay: .milliseconds(5), echoDelay: .milliseconds(400), replyDelay: .milliseconds(50))
+        )
+        try await harness.connect()
+        _ = try await harness.page("w1:p1")
+
+        let ack = try await harness.request(.sendPrompt(agentId: "w1:p1", text: "oi, modo demo"))
+
         #expect(ack.message == .ack())
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(await harness.messages.unread().isEmpty)
 
-        let echo = try await nextEnvelope(&iterator)
+        let echo = try await harness.messages.next()
         #expect(echo.id == nil)
-        guard case .chatAppend("w1:p1", let echoed) = echo.message else {
-            throw UnexpectedMessage(envelope: echo)
-        }
+        guard case .chatAppend(.agent("w1:p1"), let echoed) = echo.message else { throw UnexpectedMessage(envelope: echo) }
         #expect(echoed.map(\.kind) == [.userPrompt(text: "oi, modo demo", imageCount: 0)])
+        #expect(try await harness.messages.next().message == .agentStatus(agentId: "w1:p1", status: .working))
+        let working = try #require(try await harness.messages.next().message.changedWorkspaces)
+        #expect(working.agent(withId: "w1:p1")?.status == .working)
+        #expect(working.agent(withId: "w1:p1")?.lastActivityAt == echoed.last?.at)
+        #expect(working.first { $0.id == "w1" }?.agentStatus == .working)
+        #expect(working.first { $0.id == "w1" }?.children.first?.agentStatus == .working)
+        #expect(working.first { $0.id == "w2" }?.agentStatus == .blocked)
 
-        let working = try await nextEnvelope(&iterator)
-        #expect(working.message == .agentStatus(agentId: "w1:p1", status: .working))
-
-        let reply = try await nextEnvelope(&iterator)
-        guard case .chatAppend("w1:p1", let replied) = reply.message else {
-            throw UnexpectedMessage(envelope: reply)
-        }
+        let reply = try await harness.messages.next()
+        guard case .chatAppend(.agent("w1:p1"), let replied) = reply.message else { throw UnexpectedMessage(envelope: reply) }
         #expect(replied.first?.kind == .assistantText(markdown: DemoServerConnection.replyMarkdown))
-        guard case .turnFooter = replied.last?.kind else {
-            throw UnexpectedMessage(envelope: reply)
-        }
+        guard case .turnFooter = replied.last?.kind else { throw UnexpectedMessage(envelope: reply) }
+        #expect(try await harness.messages.next().message == .agentStatus(agentId: "w1:p1", status: .idle))
+        let idle = try #require(try await harness.messages.next().message.changedWorkspaces)
+        #expect(idle.agent(withId: "w1:p1")?.status == .idle)
+        #expect(idle.first { $0.id == "w1" }?.agentStatus == .idle)
 
-        let idle = try await nextEnvelope(&iterator)
-        #expect(idle.message == .agentStatus(agentId: "w1:p1", status: .idle))
-
-        let reopened = try await openPage(connection, &iterator, agentId: "w1:p1", limit: 3)
+        let reopened = try await harness.page("w1:p1", limit: 3)
         #expect(reopened.items.map(\.id) == (echoed + replied).map(\.id))
         #expect(reopened.meta.status == .idle)
     }
 
     @Test func sendPromptToABlockedAgentFails() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
+        let harness = try DemoHarness()
+        try await harness.connect()
 
-        let id = try await connection.send(.sendPrompt(agentId: "w2:p1", text: "continua"))
+        let error = try await harness.error(for: .sendPrompt(agentId: "w2:p1", text: "continua"))
 
-        let envelope = try await nextEnvelope(&iterator)
-        #expect(envelope.id == id)
-        #expect(errorCode(of: envelope) == .agentBlocked)
+        #expect(error.code == .agentBlocked)
     }
 
-    @Test func interruptAcksAndCancelsThePendingReply() async throws {
-        let connection = try DemoServerConnection(replyDelay: .seconds(30))
-        var iterator = connection.messages.makeAsyncIterator()
-        _ = try await openPage(connection, &iterator, agentId: "w1:p1")
-        _ = try await connection.send(.sendPrompt(agentId: "w1:p1", text: "faz algo demorado"))
-        for _ in 0..<3 {
-            _ = try await nextEnvelope(&iterator)
-        }
+    @Test func interruptAcksCancelsThePendingReplyAndUpdatesTheTree() async throws {
+        let harness = try DemoHarness(
+            DemoOptions(connectDelay: .milliseconds(5), echoDelay: .milliseconds(5), replyDelay: .seconds(30))
+        )
+        try await harness.connect()
+        _ = try await harness.page("w1:p1")
+        _ = try await harness.request(.sendPrompt(agentId: "w1:p1", text: "faz algo demorado"))
+        _ = try await harness.messages.next { $0.message == .agentStatus(agentId: "w1:p1", status: .working) }
+        _ = try await harness.messages.next { $0.message.changedWorkspaces != nil }
 
-        let id = try await connection.send(.interrupt(agentId: "w1:p1"))
+        let ack = try await harness.request(.interrupt(agentId: "w1:p1"))
 
-        let ack = try await nextEnvelope(&iterator)
-        #expect(ack.id == id)
         #expect(ack.message == .ack())
-        let idle = try await nextEnvelope(&iterator)
-        #expect(idle.message == .agentStatus(agentId: "w1:p1", status: .idle))
-
-        let pingId = try await connection.send(.ping)
-        let pong = try await nextEnvelope(&iterator)
-        #expect(pong.id == pingId)
+        #expect(try await harness.messages.next().message == .agentStatus(agentId: "w1:p1", status: .idle))
+        let tree = try #require(try await harness.messages.next().message.changedWorkspaces)
+        #expect(tree.agent(withId: "w1:p1")?.status == .idle)
+        #expect(tree.first { $0.id == "w1" }?.agentStatus == .idle)
+        let pong = try await harness.request(.ping)
         #expect(pong.message == .pong)
+        #expect(await harness.messages.unread().isEmpty)
     }
 
     @Test func remainingMessagesGetTheirDirectResponse() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
+        let harness = try DemoHarness()
+        try await harness.connect()
         let cases: [(ClientMessage, ServerMessage)] = [
-            (.closeChat(agentId: "w1:p1"), .ack()),
+            (.closeChat(target: .agent("w1:p1")), .ack()),
             (.setForeground(agentId: "w1:p1", isActive: true), .ack()),
             (.setForeground(agentId: nil, isActive: false), .ack()),
             (.ping, .pong),
@@ -229,9 +182,7 @@ struct DemoServerConnectionTests {
             (.registerLiveActivity(LiveActivityRegistration(pushToStartToken: "abc", env: .sandbox)), .ack()),
         ]
         for (request, expected) in cases {
-            let id = try await connection.send(request)
-            let envelope = try await nextEnvelope(&iterator)
-            #expect(envelope.id == id)
+            let envelope = try await harness.request(request)
             #expect(envelope.message == expected, "Resposta a \(request.type)")
         }
 
@@ -240,34 +191,42 @@ struct DemoServerConnectionTests {
             (.newAgentTab(workspaceId: "w1"), .internal),
             (.unknown(type: "teleport"), .unknownType),
             (.slash(agentId: "w99:p1", command: "/clear"), .agentNotFound),
+            (.slash(agentId: "w4:p3", command: "/clear"), .invalidPayload),
+            (.sendPrompt(agentId: "w99:p1", text: "oi"), .agentNotFound),
+            (.interrupt(agentId: "w99:p1"), .agentNotFound),
         ]
         for (request, code) in errors {
-            let id = try await connection.send(request)
-            let envelope = try await nextEnvelope(&iterator)
-            #expect(envelope.id == id)
-            #expect(errorCode(of: envelope) == code, "Erro para \(request.type)")
+            let error = try await harness.error(for: request)
+            #expect(error.code == code, "Erro para \(request.type)")
         }
+        #expect(await harness.messages.unread().isEmpty)
+    }
 
-        _ = try await connection.send(hello)
-        let helloOk = try await nextEnvelope(&iterator)
-        guard case .helloOk(let payload) = helloOk.message else {
-            throw UnexpectedMessage(envelope: helloOk)
-        }
+    @Test func preferencesAreReturnedInTheNextHelloOk() async throws {
+        let harness = try DemoHarness()
+        try await harness.connect()
+        _ = try await harness.request(.setPreferences(DevicePreferences(turnDoneAlerts: false)))
+
+        await harness.connection.stop()
+        await harness.connection.start()
+
+        let helloOk = try await harness.messages.next()
+        guard case .helloOk(let payload) = helloOk.message else { throw UnexpectedMessage(envelope: helloOk) }
         #expect(payload.preferences == DevicePreferences(turnDoneAlerts: false))
     }
 
-    @Test func unpairAcksAndClosesTheConnection() async throws {
-        let connection = try DemoServerConnection(replyDelay: .zero)
-        var iterator = connection.messages.makeAsyncIterator()
+    @Test func chatEventsStopAfterAReconnectionUntilTheChatIsOpenedAgain() async throws {
+        let harness = try DemoHarness()
+        try await harness.connect()
+        _ = try await harness.page("w1:p1")
+        await harness.connection.stop()
+        await harness.connection.start()
+        _ = try await harness.messages.next { $0.message.workspaces != nil }
 
-        let id = try await connection.send(.unpair)
+        _ = try await harness.request(.sendPrompt(agentId: "w1:p1", text: "oi"))
+        _ = try await harness.messages.next { $0.message == .agentStatus(agentId: "w1:p1", status: .idle) }
+        _ = try await harness.messages.next { $0.message.changedWorkspaces != nil }
 
-        let ack = try await nextEnvelope(&iterator)
-        #expect(ack.id == id)
-        #expect(ack.message == .ack())
-        #expect(await iterator.next() == nil)
-        await #expect(throws: DemoError.connectionClosed) {
-            try await connection.send(.ping)
-        }
+        #expect(await harness.messages.all().allSatisfy { $0.message.type != "chatAppend" })
     }
 }

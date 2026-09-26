@@ -3,19 +3,28 @@ public struct Gateway: Sendable {
 
     public static let healthPath = "/v1/health"
     public static let webSocketPath = "/v1"
+    public static let uploadPath = "/v1/upload"
+    public static let port: UInt16 = 47421
+    public static let binding = HttpBinding.loopback(port: port)
 
     let version: String
-    let herdrAvailable: @Sendable () async -> Bool
+    let herdr: any HerdrBridging
+    let hub: SessionHub
+    let uploads: UploadStore?
     let events: EventSink
     private let connectionNumbers = GatewayConnectionNumbers()
 
     public init(
         version: String = DaemonVersion.current,
-        herdrAvailable: @escaping @Sendable () async -> Bool = { false },
+        herdr: any HerdrBridging,
+        hub: SessionHub,
+        uploads: UploadStore? = nil,
         events: @escaping EventSink = { _ in }
     ) {
         self.version = version
-        self.herdrAvailable = herdrAvailable
+        self.herdr = herdr
+        self.hub = hub
+        self.uploads = uploads
         self.events = events
     }
 
@@ -23,35 +32,35 @@ public struct Gateway: Sendable {
         var router = HttpRouter()
         router.route(.get, Self.healthPath) { request in
             events(.httpRequest(request))
-            return try .json(GatewayHealth(ok: true, version: version, herdr: await herdrAvailable()))
+            return try .json(GatewayHealth(ok: true, version: version, herdr: await herdr.isAvailable))
         }
         router.webSocket(Self.webSocketPath) { request, socket in
-            await echo(request, socket)
+            await serve(request, socket)
+        }
+        if let uploads {
+            let upload = UploadRoute(store: uploads, authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
+            router.route(.post, Self.uploadPath, maxBodySize: UploadStore.maxBodySize) { request in
+                events(.httpRequest(request))
+                return await upload.respond(to: request)
+            }
         }
         return router
     }
 
-    private func echo(_ request: HttpRequest, _ socket: WebSocketConnection) async {
+    public func shutdown() async {
+        await hub.shutdown()
+    }
+
+    private func serve(_ request: HttpRequest, _ socket: WebSocketConnection) async {
         let connection = await connectionNumbers.next()
         let clock = ContinuousClock()
         let openedAt = clock.now
         events(.webSocketOpened(connection: connection, request: request))
-        var count = 0
-        for await message in socket.messages {
-            count += 1
-            events(.webSocketMessage(connection: connection, message: message))
-            switch message {
-            case .text(let text):
-                try? await socket.send(text: text)
-            case .binary(let data):
-                try? await socket.send(binary: data)
-            }
-        }
+        await hub.serve(socket, messages: socket.messages)
         events(.webSocketClosed(
             connection: connection,
             code: await socket.closeCode,
             reason: await socket.closeReason,
-            messages: count,
             duration: clock.now - openedAt
         ))
     }
