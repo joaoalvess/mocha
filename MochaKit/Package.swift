@@ -25,6 +25,6 @@ let package = Package(
         .testTarget(name: "MochaClientTests", dependencies: ["MochaClient", "MochaDaemonCore", "MochaTestSupport"]),
         .testTarget(name: "MochaTranscriptTests", dependencies: ["MochaTranscript", "MochaTestSupport"]),
         .testTarget(name: "MochaHerdrTests", dependencies: ["MochaHerdr", "MochaTestSupport"]),
-        .testTarget(name: "MochaDaemonCoreTests", dependencies: ["MochaDaemonCore", "MochaTestSupport"]),
+        .testTarget(name: "MochaDaemonCoreTests", dependencies: ["MochaDaemonCore", "MochaHerdr", "MochaTranscript", "MochaTestSupport"]),
     ]
 )

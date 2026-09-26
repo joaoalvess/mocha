@@ -1,0 +1,132 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-25T15:00:04.001Z",
+      "id" : "2b4bc6c8-82bd-5d47-bcd9-decfa6e168fb",
+      "imageCount" : 0,
+      "text" : "Me pergunta qual banco de dados usar antes de começar.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:04.903Z",
+      "id" : "49dd2592-aabe-5e80-8553-9bd73ffd3035",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:05.803Z",
+      "id" : "ac13b84c-d0e4-54ec-8429-0031fba7e5b7",
+      "inputJSON" : "{\"questions\":[{\"question\":\"Qual banco de dados o demo-app deve usar?\",\"header\":\"Banco\",\"options\":[{\"label\":\"SQLite\",\"description\":\"Arquivo local, zero configuração\"},{\"label\":\"Postgres\",\"description\":\"Servidor, mais recursos\"}],\"multiSelect\":false}]}",
+      "name" : "AskUserQuestion",
+      "resultPreview" : "Qual banco de dados o demo-app deve usar? → SQLite",
+      "status" : "succeeded",
+      "summary" : "Qual banco de dados o demo-app deve usar?",
+      "toolUseId" : "toolu_01PHZsvx8TdsQc9fFLH1ntaK",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:00:15.705Z",
+      "id" : "6a76c16c-46d5-5bec-b56b-57b59969d1bb",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:16.605Z",
+      "id" : "ae31c9c6-6250-5c77-b087-e0dfab2b95bf",
+      "markdown" : "Fechado: **SQLite**.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:16.615Z",
+      "durationMs" : 12000,
+      "id" : "edcfcd7d-4649-575d-ba32-f38292e639f3",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-25T15:00:36.616Z",
+      "id" : "86548566-9afd-54e6-8706-f27468749bcd",
+      "imageCount" : 0,
+      "text" : "Agora pergunta sobre testes e CI, pode marcar mais de uma opção.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:37.518Z",
+      "id" : "554fbf30-a028-53c4-8527-4c4c35748fbc",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:38.418Z",
+      "id" : "11f1ae82-79cb-5568-aeaf-88652382278f",
+      "inputJSON" : "{\"questions\":[{\"question\":\"Quais tipos de teste?\",\"header\":\"Testes\",\"options\":[{\"label\":\"Unitários\",\"description\":\"Rápidos\"},{\"label\":\"Integração\",\"description\":\"Com banco\"},{\"label\":\"E2E\",\"description\":\"Navegador\"}],\"multiSelect\":true},{\"question\":\"Onde roda a CI?\",\"header\":\"CI\",\"options\":[{\"label\":\"GitHub Actions\",\"description\":\"Padrão\"},{\"label\":\"Local\",\"description\":\"Script\"}],\"multiSelect\":false}]}",
+      "name" : "AskUserQuestion",
+      "resultPreview" : "Quais tipos de teste? → Unitários, Integração\nOnde roda a CI? → Rodar só no pre-push",
+      "status" : "succeeded",
+      "summary" : "Quais tipos de teste?",
+      "toolUseId" : "toolu_01Ffkx4TBprua6ttx4v6PsbV",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:00:54.318Z",
+      "id" : "074f5d06-3cc7-5498-8c7e-87fa61896245",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:55.218Z",
+      "id" : "87c39483-d7a0-52bb-acef-a65a093fd760",
+      "markdown" : "Anotado: unitários e integração, rodando no pre-push.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:55.228Z",
+      "durationMs" : 20000,
+      "id" : "800e02c1-5d0c-50a6-a50e-6230491ad4de",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-25T15:01:15.229Z",
+      "id" : "8f6a2ba6-21b2-57ae-b817-1125626e2c4e",
+      "imageCount" : 0,
+      "text" : "Pergunta se prefiro chá ou café.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:01:16.131Z",
+      "id" : "f6cb6170-8d77-597d-870c-eb9ebae40087",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:01:17.031Z",
+      "id" : "29142246-e993-52ce-bef9-63b356a5e7b8",
+      "inputJSON" : "{\"questions\":[{\"question\":\"Chá ou café?\",\"header\":\"Bebida\",\"options\":[{\"label\":\"Chá\",\"description\":\"Leve\"},{\"label\":\"Café\",\"description\":\"Forte\"}],\"multiSelect\":false}]}",
+      "name" : "AskUserQuestion",
+      "resultPreview" : "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+      "status" : "failed",
+      "summary" : "Chá ou café?",
+      "toolUseId" : "toolu_01n8qChL29Wd6ZyG5ovLUbYV",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:01:23.036Z",
+      "id" : "c63aec36-8ed0-57d6-a557-88dd5b7f77da",
+      "text" : "Interrompido pelo usuário",
+      "type" : "notice"
+    },
+    {
+      "at" : "2026-09-25T15:01:23.046Z",
+      "durationMs" : 7000,
+      "id" : "a4a6c62f-6bba-500f-99ab-6c4f3cdcd976",
+      "type" : "turnFooter"
+    }
+  ],
+  "meta" : {
+    "branch" : "main",
+    "model" : "claude-opus-5-5",
+    "permissionMode" : "default",
+    "title" : "Escolher banco de dados"
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

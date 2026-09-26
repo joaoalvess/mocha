@@ -4,7 +4,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 
 - `docs/SPEC.md`: fonte da verdade (o quê e como).
 - `docs/PLANO.md`: fases, ondas, WPs, critérios de aceite, bloqueios e status.
-- `docs/referencias/moshi/`: referência visual obrigatória para toda UI.
+- `docs/design/mock.html` e as capturas 3x em `docs/design/mock/NN-nome.png`: referência visual obrigatória para toda UI (SPEC §6.2). Os prints do Moshi em `docs/referencias/moshi/` são a base do mock; quando divergem, vale o mock.
 
 ## Orquestrador
 
@@ -76,7 +76,8 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 - Medições de desempenho (tempo de página, `signpost`, RSS) só rodam quando o orquestrador libera a janela sem nenhum build na máquina.
 - **UI**:
   - simulador: use o UDID que o orquestrador der, sempre com `xcrun simctl … <udid>`, nunca `booted`;
-  - compare capturas do simulador (`xcrun simctl io <udid> screenshot <arquivo>`) com os prints de `docs/referencias/moshi/` e liste as diferenças no relatório;
+  - compare capturas do simulador (`xcrun simctl io <udid> screenshot <arquivo>`) com as capturas do mock em `docs/design/mock/` (mesma resolução: 1170 × 2532 no iPhone 17e, que tem os 390 × 844 pt do iPhone 14 do João) e liste as diferenças no relatório; as medidas estão no CSS de `docs/design/mock.html` (1 px = 1 pt);
+  - deep links se testam pelo argumento de launch `-open-url <url>` e por teste unitário; nunca rode `xcrun simctl openurl` com o esquema `mocha://` (o aviso "Open in Mocha?" trava o simulador);
   - cores exatamente as da SPEC §6.2;
   - antes de rodar verificação pesada de UI, o orquestrador oferece ao João testar no iPhone.
 

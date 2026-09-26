@@ -1,0 +1,190 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-25T15:00:04.001Z",
+      "id" : "85e21604-51d7-536b-8151-eec84d8dc78e",
+      "imageCount" : 0,
+      "text" : "Cria o arquivo notas.txt com o texto oi.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:04.903Z",
+      "id" : "987bf6d4-3265-5c56-a8b7-ca9bb3a33291",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:05.803Z",
+      "id" : "f3334743-6225-53bf-9b11-bf3d3b12ccbc",
+      "inputJSON" : "{\"file_path\":\"/Users/dev/projects/demo-app/notas.txt\",\"content\":\"oi\"}",
+      "name" : "Write",
+      "resultPreview" : "File created successfully at: /Users/dev/projects/demo-app/notas.txt",
+      "status" : "succeeded",
+      "summary" : "notas.txt",
+      "toolUseId" : "toolu_01j4M8VMTXvNKBDV18M8sHzX",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:00:14.305Z",
+      "id" : "6be01882-c11c-542c-a816-79b69a884217",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:15.210Z",
+      "id" : "6cce1916-2b30-5b06-9550-7525d5a5dd91",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:16.110Z",
+      "id" : "d9fb9f08-fe19-5257-9877-32a342bb7f27",
+      "markdown" : "Criei o `notas.txt`.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:16.120Z",
+      "durationMs" : 5900,
+      "id" : "9e52ea98-8205-5fb6-837e-84882b34569d",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-25T15:00:31.121Z",
+      "id" : "0f2b95ae-3993-5a05-809f-c67d6b258440",
+      "imageCount" : 0,
+      "text" : "Agora cria rascunho.txt com tchau.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:32.023Z",
+      "id" : "b46283e8-73cd-5aba-a131-bf7543232352",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:32.923Z",
+      "id" : "eb7a99de-9e72-569d-911e-ea8061c05a4f",
+      "inputJSON" : "{\"file_path\":\"/Users/dev/projects/demo-app/rascunho.txt\",\"content\":\"tchau\"}",
+      "name" : "Write",
+      "resultPreview" : "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+      "status" : "failed",
+      "summary" : "rascunho.txt",
+      "toolUseId" : "toolu_01z2djEUqQ6FhgR7koMVj1ZS",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:00:36.928Z",
+      "id" : "7ba750da-ab5a-5081-94fc-10f494082e8a",
+      "text" : "Interrompido pelo usuário",
+      "type" : "notice"
+    },
+    {
+      "at" : "2026-09-25T15:00:36.938Z",
+      "durationMs" : 1500,
+      "id" : "76dbb5b4-21bc-5ff3-8c8a-37288d5afaa9",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-25T15:00:56.939Z",
+      "id" : "9a530362-7927-54c2-8a57-ae3baa816f33",
+      "imageCount" : 0,
+      "text" : "Escreve um texto longo sobre café.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:00:57.841Z",
+      "id" : "5d4c97f2-79c6-577e-a1d5-17831c2794f0",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:00:58.741Z",
+      "id" : "6e0a9d0c-61f1-58fa-ae3a-ce3b09116954",
+      "markdown" : "# Café\n\nO café chegou ao Brasil no século XVIII e",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:00:58.746Z",
+      "id" : "2bab51e4-1183-5317-b281-59c178971889",
+      "text" : "Interrompido pelo usuário",
+      "type" : "notice"
+    },
+    {
+      "at" : "2026-09-25T15:01:28.747Z",
+      "id" : "4356ebc3-564d-5c60-a07f-a8afa3aac177",
+      "imageCount" : 0,
+      "text" : "Roda ping -c 25 127.0.0.1",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:01:29.649Z",
+      "id" : "5bfbfb4f-66d1-565f-9502-aff9449bc582",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:01:30.549Z",
+      "id" : "29fef903-378e-53a4-be37-9fe6fb2dd20f",
+      "inputJSON" : "{\"command\":\"ping -c 25 127.0.0.1\",\"description\":\"Ping local por 25 s\"}",
+      "name" : "Bash",
+      "resultPreview" : "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+      "status" : "failed",
+      "summary" : "ping -c 25 127.0.0.1",
+      "toolUseId" : "toolu_01Zq3caupHGQCfefjq4iWYKS",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:01:42.554Z",
+      "id" : "dd94d7b7-d678-54f5-8749-26bdaab59d3b",
+      "text" : "Interrompido pelo usuário",
+      "type" : "notice"
+    },
+    {
+      "at" : "2026-09-25T15:02:22.555Z",
+      "id" : "dfb0ed3f-7415-5585-af41-18a926319694",
+      "imageCount" : 0,
+      "text" : "Apaga a pasta build.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-25T15:02:23.457Z",
+      "id" : "0e282c29-9fd7-5a9a-acc4-0a8274527b4c",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:02:24.357Z",
+      "id" : "d3730183-980c-5c4d-8afc-c08a08cdd334",
+      "inputJSON" : "{\"command\":\"rm -rf build\",\"description\":\"Apaga build\"}",
+      "name" : "Bash",
+      "resultPreview" : "Permission for this action was denied by the Claude Code auto mode classifier. Reason: comando destrutivo fora do escopo pedido.",
+      "status" : "failed",
+      "summary" : "rm -rf build",
+      "toolUseId" : "toolu_01szmaL3imoeTb5b7yLbtKzf",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-25T15:02:26.357Z",
+      "id" : "d4c62ff4-0c8e-511b-8f94-afab33a69640",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-25T15:02:27.257Z",
+      "id" : "1eb0de69-4e87-52cb-b00c-c931291f62f8",
+      "markdown" : "O modo automático bloqueou o `rm -rf build`. Quer que eu apague manualmente só os arquivos gerados?",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-25T15:02:27.267Z",
+      "durationMs" : 3300,
+      "id" : "cb937764-0b35-52e5-b061-3d440ec6648f",
+      "type" : "turnFooter"
+    }
+  ],
+  "meta" : {
+    "branch" : "main",
+    "model" : "claude-haiku-4-5-20251001",
+    "permissionMode" : "auto",
+    "title" : "Criar notas.txt"
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

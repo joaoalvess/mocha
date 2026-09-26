@@ -22,13 +22,14 @@ public struct HelloPayload: Codable, Sendable, Hashable {
 
 public enum ClientMessage: Sendable, Hashable {
     case hello(HelloPayload)
-    case openChat(agentId: AgentID, before: String? = nil, limit: Int? = nil)
-    case closeChat(agentId: AgentID)
+    case openChat(target: ChatTarget, before: String? = nil, limit: Int? = nil)
+    case closeChat(target: ChatTarget)
     case sendPrompt(agentId: AgentID, text: String)
     case interrupt(agentId: AgentID)
     case setForeground(agentId: AgentID?, isActive: Bool)
     case unpair
     case ping
+    case archive(sessionId: String)
     case slash(agentId: AgentID, command: String)
     case setPreferences(DevicePreferences)
     case respond(requestId: RequestID, response: PendingResponse)
@@ -46,6 +47,7 @@ public enum ClientMessage: Sendable, Hashable {
         case .setForeground: "setForeground"
         case .unpair: "unpair"
         case .ping: "ping"
+        case .archive: "archive"
         case .slash: "slash"
         case .setPreferences: "setPreferences"
         case .respond: "respond"
@@ -58,7 +60,7 @@ public enum ClientMessage: Sendable, Hashable {
 
 extension ClientMessage {
     private enum PayloadKey: String, CodingKey {
-        case agentId, before, limit, text, isActive, command, requestId, response, workspaceId
+        case agentId, sessionId, before, limit, text, isActive, command, requestId, response, workspaceId
     }
 
     init(type: String, envelope: KeyedDecodingContainer<EnvelopeCodingKey>) throws {
@@ -68,13 +70,13 @@ extension ClientMessage {
         case "openChat":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .openChat(
-                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId),
                 before: try payload.decodeIfPresent(String.self, forKey: .before),
                 limit: try payload.decodeIfPresent(Int.self, forKey: .limit)
             )
         case "closeChat":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
-            self = .closeChat(agentId: try payload.decode(AgentID.self, forKey: .agentId))
+            self = .closeChat(target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId))
         case "sendPrompt":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .sendPrompt(
@@ -94,6 +96,9 @@ extension ClientMessage {
             self = .unpair
         case "ping":
             self = .ping
+        case "archive":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .archive(sessionId: try payload.decode(String.self, forKey: .sessionId))
         case "slash":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .slash(
@@ -122,12 +127,15 @@ extension ClientMessage {
         switch self {
         case .hello(let hello):
             try envelope.encode(hello, forKey: .payload)
-        case .openChat(let agentId, let before, let limit):
+        case .openChat(let target, let before, let limit):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
-            try payload.encode(agentId, forKey: .agentId)
+            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId)
             try payload.encodeIfPresent(before, forKey: .before)
             try payload.encodeIfPresent(limit, forKey: .limit)
-        case .closeChat(let agentId), .interrupt(let agentId):
+        case .closeChat(let target):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId)
+        case .interrupt(let agentId):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
         case .sendPrompt(let agentId, let text):
@@ -140,6 +148,9 @@ extension ClientMessage {
             try payload.encode(isActive, forKey: .isActive)
         case .unpair, .ping, .unknown:
             envelope.emptyPayload()
+        case .archive(let sessionId):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(sessionId, forKey: .sessionId)
         case .slash(let agentId, let command):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
