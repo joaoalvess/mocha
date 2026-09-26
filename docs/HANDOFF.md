@@ -2,9 +2,28 @@
 
 ## Estado
 
-- Noite de 2026-09-26: orquestração autônoma com o mandato do João (escopo B). O progresso fica no ledger `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`, e o relatório final vai no topo deste arquivo.
-- Fase **1a-core**, branch `fase/1a-core`. Sem remoto. Ondas 1.A e 1.A' feitas: M1, M2, D2, M2b, I1.
-- **Próxima onda**: 1.B (M3 · I12 · I4).
+- Fase **1a-core**, branch `fase/1a-core`. Sem remoto. Todos os WPs de código estão feitos e mergeados: M1, M2, D2, M2b, I1, M3, I4, I12, I3, M4, M10, I2 e I5 (commits na tabela de status do `docs/PLANO.md`). Nenhum worktree aberto; todos os simuladores desligados.
+- Ledger: `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`.
+- **Próximo passo: preparação do WP-X1** (bloco no PLANO):
+  1. `tailscale serve status` vazio (conferido de manhã: "No serve config");
+  2. `scripts/build-daemon.sh` e `mochad install`, com a leitura do plano no `~/.claude.json` ligada (ok do João);
+  3. `mochad serve-setup --apply` e `mochad doctor`;
+  4. `scripts/build-device.sh`;
+  5. checklist do João, com os comandos `devicectl` do mandato.
+- **Medições pendentes** (numa janela sem build, sem nenhum agente rodando):
+  - M2b: `BigTranscriptMetaPerformanceTests` < 50 ms e `BigTranscriptPerformanceTests` < 300 ms;
+  - I4 e I5: signpost do chat de 2.000 itens (comandos no relatório do I5, com `-chat-perf-sweep`), incluindo os blocos visíveis de uma mensagem de 20 KB;
+  - M4: `mochad run` por 10 min com RSS < 30 MB.
+- **Instável**: `HerdrBridgeTests.bootstrapSubscribesThenPingsThenSnapshots` (e às vezes `TranscriptStoreFollowTests`) falha em execução completa com a máquina carregada e passa isolada. Falta achar a causa raiz.
+- **Regra de máquina**: no máximo 2 simuladores ligados. Cinco estouraram o limite de 1333 processos por usuário e travaram todo fork.
+- **Propostas dos WPs, não aplicadas** (fora de escopo; decidir na 1a-final ou no X1):
+  - deep link por sessão para abrir chat arquivado;
+  - `ChatHeaderBar` truncando no meio;
+  - `login-social` do demo terminando em `idle` para a tela 05b;
+  - ícones da gaveta e do pareamento no `DesignSystem`;
+  - arredondamento do `Typography.mono` (14,67 → 15);
+  - rota por prefixo no `HttpRouter` para o `LocalControl`;
+  - Keychain `AfterFirstUnlockThisDeviceOnly`.
 
 ## Commits desta sessão (`fase/1a-core`)
 
