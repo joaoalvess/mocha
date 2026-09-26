@@ -789,7 +789,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M5 | feito (o `install-hooks` real fica para o WP-X2) | 955b277, 1913d7b, 80fcd6d, f680732, 90ac833, 1b0d0b3, ca1306c, merge 703c834 |
 | WP-M6 | todo | |
 | WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 4edb3b5, 361288d, ee32e67, 19d4f6c, merge 4a19f28 |
-| WP-I7 | todo | |
+| WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | e4e6cdf, 1d31ff8, 082bf8c, d368311, merge 80ed3a9 |
 | WP-I11 | todo | |
 | WP-M12 | todo | |
 | WP-X2 | todo | |
