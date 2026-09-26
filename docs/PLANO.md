@@ -717,7 +717,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I4 | feito; o critério de 16 ms passou a ser só dos blocos visíveis (medir com o WP-I5 numa janela sem build) | e93e84e, 2d28456, merge 4716495 |
 | WP-M4 | feito (RSS de 10 min pendente numa janela sem build) | b17f5fc, a35700c, d044872, a4ae669, merge 953aa1f |
 | WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | 49d329d, d44971b, 6b51ad2, merge 63d873a |
-| WP-I5 | em andamento | |
+| WP-I5 | feito (signpost dos 2.000 itens numa janela sem build; gestos no checklist do WP-X1) | 118affb, f8fd224, f621510, merge b0a067f |
 | WP-I2 | feito (QR pela câmera, Keychain real e pareamento com o `mochad` no checklist do WP-X1) | dd92fce, 1f73158, 06354de, 147a24c, 0690dff, 4090942, merge 7d574b1 |
 | WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | e80cfe8, 78b0bce, bb172cb, 2d7b8c5, merge f8b3aea |
 | WP-X1 | todo | |
