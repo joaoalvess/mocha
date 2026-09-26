@@ -17,6 +17,8 @@ public actor DemoServerConnection: ServerConnection {
     static let repeatedHelloMessage = "O hello já foi feito nesta conexão."
     static let invalidSessionMessage = "Id de sessão inválido."
     static let sessionNotFoundMessage = "Sessão não encontrada."
+    static let agentBlockedMessage = "O agente está esperando uma resposta no terminal."
+    static let clearCommand = "/clear"
     static let replyMarkdown = """
     Isto é o **modo demo** do Mocha: nenhuma mensagem saiu do iPhone.
 
@@ -218,9 +220,8 @@ public actor DemoServerConnection: ServerConnection {
             setState(.pairingRequired(nil))
         case .ping:
             reply(id, .pong)
-        case .slash(let agentId, _):
-            guard claudeChat(agentId, replyingTo: id) != nil else { return }
-            reply(id, .ack())
+        case .slash(let agentId, let command):
+            runSlash(agentId: agentId, command: command, id: id)
         case .setPreferences(let newPreferences):
             preferences = newPreferences
             reply(id, .ack())
@@ -327,7 +328,7 @@ public actor DemoServerConnection: ServerConnection {
     private func sendPrompt(agentId: AgentID, text: String, id: String) {
         guard let chat = claudeChat(agentId, replyingTo: id) else { return }
         guard chat.meta.status != .blocked else {
-            return fail(id, .agentBlocked, "O agente está esperando uma resposta no terminal.")
+            return fail(id, .agentBlocked, Self.agentBlockedMessage)
         }
         reply(id, .ack())
         let target = chat.agentId
@@ -379,6 +380,26 @@ public actor DemoServerConnection: ServerConnection {
         turns.removeValue(forKey: chat.agentId)?.cancel()
         guard chat.meta.status == .working else { return }
         setStatus(.idle, for: chat.agentId)
+    }
+
+    private func runSlash(agentId: AgentID, command: String, id: String) {
+        guard let chat = claudeChat(agentId, replyingTo: id) else { return }
+        guard chat.meta.status != .blocked else {
+            return fail(id, .agentBlocked, Self.agentBlockedMessage)
+        }
+        reply(id, .ack())
+        guard Self.isClear(command) else { return }
+        clearSession(of: chat.agentId)
+    }
+
+    private func clearSession(of agentId: AgentID) {
+        turns.removeValue(forKey: agentId)?.cancel()
+        if chats[agentId]?.meta.status == .working {
+            setStatus(.idle, for: agentId)
+        }
+        let now = Date()
+        let clearItem = ChatItem(id: Self.newItemId(), at: now, kind: .slashCommand(name: Self.clearCommand, args: "", output: nil))
+        switchSession(of: agentId, to: UUID().uuidString.lowercased(), startingWith: clearItem, at: now)
     }
 
     private func append(_ newItems: [ChatItem], to agentId: AgentID) {
@@ -501,7 +522,7 @@ public actor DemoServerConnection: ServerConnection {
             append(DemoScript.finalAnswer(at: now, durationMs: durationMs), to: turnAgent)
             setStatus(.idle, for: turnAgent)
         case .switchSession:
-            switchSession(of: currentId(for: DemoScript.worktreeAgentId), to: DemoScript.clearedSessionId, at: now)
+            switchSession(of: currentId(for: DemoScript.worktreeAgentId), to: DemoScript.clearedSessionId, startingWith: DemoScript.clearCommand(at: now), at: now)
         case .moveAgent:
             moveAgent(from: currentId(for: DemoScript.movedAgentId), to: DemoScript.movedAgentNewId)
         case .finishWorkingAgent:
@@ -531,7 +552,7 @@ public actor DemoServerConnection: ServerConnection {
         emitTree()
     }
 
-    private func switchSession(of agentId: AgentID, to sessionId: String, at date: Date) {
+    private func switchSession(of agentId: AgentID, to sessionId: String, startingWith clearItem: ChatItem, at date: Date) {
         guard let chat = chats[agentId], let agent = workspaces.agent(withId: agentId), let previousSessionId = agent.sessionId else {
             return
         }
@@ -551,7 +572,7 @@ public actor DemoServerConnection: ServerConnection {
         )
         sessionChats[previousSessionId] = DemoSessionChat(session: session, items: chat.items)
         archived = (archived.filter { $0.id != previousSessionId } + [session]).sortedByRecency()
-        let items = [DemoScript.clearCommand(at: date)]
+        let items = [clearItem]
         chats[agentId]?.items = items
         workspaces.updateAgent(withId: agentId) { agent in
             agent.sessionId = sessionId
@@ -590,6 +611,10 @@ public actor DemoServerConnection: ServerConnection {
         guard herdrConnected != connected else { return }
         herdrConnected = connected
         emit(.herdrStatus(connected: connected))
+    }
+
+    static func isClear(_ command: String) -> Bool {
+        command.split(whereSeparator: \.isWhitespace).first == Substring(clearCommand)
     }
 
     static func cursor(forIndex index: Int) -> String {
