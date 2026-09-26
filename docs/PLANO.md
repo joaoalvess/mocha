@@ -713,11 +713,11 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-D2 | feito | 83ff272, 6f35dc0, bc10208, merge cb5a698 |
 | WP-M2b | feito (medição de 50 MB pendente numa janela sem build) | d8ab1b4, f13a3e4, 739718f, merge 97e13b4 |
 | WP-M3 | feito (os READMEs de `Fixtures/` citam `docs/spikes/` e ficam como exceção do critério do `spike`) | 1b379f5, 7c9d306, f1bf707, merge 3f52771 |
-| WP-I12 | em andamento | |
+| WP-I12 | feito (gestos no checklist do WP-X1) | 70ce184, a2713c0, 3508650, caa6aa4, 02b7c4f, merge 03a8201 |
 | WP-I4 | feito, menos o critério de 16 ms: 131 ms em Debug no simulador, critério a redefinir pelo João | e93e84e, 2d28456, merge 4716495 |
 | WP-M4 | em andamento | |
 | WP-I3 | em andamento | |
-| WP-I5 | todo | |
+| WP-I5 | em andamento | |
 | WP-I2 | todo | |
 | WP-M10 | todo | |
 | WP-X1 | todo | |
