@@ -34,7 +34,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>O Mocha usa a câmera para ler o QR de pareamento do Mac.</string>
+	<string>O Mocha usa a câmera para ler o QR de pareamento do Mac e para tirar fotos que você anexa aos prompts.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIAppFonts</key>
