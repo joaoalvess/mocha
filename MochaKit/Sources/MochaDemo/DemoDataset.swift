@@ -3,7 +3,6 @@ import MochaProtocol
 
 public enum DemoError: Error, Equatable, Sendable {
     case missingResource(String)
-    case connectionClosed
 }
 
 struct DemoChat: Codable, Sendable {
@@ -33,6 +32,21 @@ struct DemoDataset: Sendable {
             throw DemoError.missingResource("chat-*.json")
         }
         let chats = try chatURLs.map { try decoder.decode(DemoChat.self, from: Data(contentsOf: $0)) }
-        return DemoDataset(workspaces: tree.workspaces, chats: chats)
+        var dataset = DemoDataset(workspaces: tree.workspaces, chats: chats)
+        try dataset.addLongChat()
+        return dataset
+    }
+
+    private mutating func addLongChat() throws {
+        let chat = DemoLongChat.chat()
+        let tab = DemoLongChat.tab(lastActivityAt: chat.items.last?.at)
+        let added = workspaces.updateWorkspace(withId: DemoLongChat.workspaceId) { workspace in
+            workspace.tabs.append(tab)
+            workspace.agentStatus = workspace.aggregatedAgentStatus
+        }
+        guard added else {
+            throw DemoError.missingResource("workspace \(DemoLongChat.workspaceId)")
+        }
+        chats.append(chat)
     }
 }
