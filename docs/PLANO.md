@@ -551,7 +551,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ### WP-M5: `HookServer` e `install-hooks`
 
-- **Dono**: `MochaKit/Sources/MochaDaemonCore/Hooks/`, o comando `install-hooks`/`uninstall-hooks` em `mochad`.
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Hooks/`, o comando `install-hooks`/`uninstall-hooks` em `mochad`, e em `MochaDaemonCore/App/` só a montagem das rotas no listener local e a linha de hooks do `doctor` (único WP da onda no daemon).
 - **Depende de**: WP0.3, WP-M4, S3.
 - **SPEC**: §3.3.
 - **Faz**: rotas `POST /hooks/<Evento>` no listener local, validação do segredo, tradução dos payloads (fixtures do S3) em eventos internos, merge idempotente no `settings.json` com backup do bloco de `Fixtures/hooks/settings.install-hooks.proposed.json` (comando `curl` assíncrono em `SessionStart`/`UserPromptSubmit`/`Stop`/`Notification`, `http` em `PermissionRequest`), entradas do Mocha reconhecidas por `127.0.0.1:47420/hooks/` em `url` ou `command`, e detecção do moshi-hook.
@@ -589,7 +589,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ### WP-I7: menu de slash
 
-- **Dono**: `App/Sources/Composer/SlashMenu*` e o botão `↻` do composer expandido (oculto antes desta fase).
+- **Dono**: `App/Sources/Composer/SlashMenu*`, o botão `↻` do composer expandido (oculto antes desta fase), o `slash` do demo em `MochaKit/Sources/MochaDemo/` (simula o `/clear`: sessão nova e a antiga em ARQUIVADOS) e `App/Sources/Chat/`, se a troca de sessão depois do `/clear` pedir.
 - **Depende de**: WP-I5.
 - **SPEC**: §6.3 (Menu `↻`), §5.3 (`slash`).
 - **Faz**: menu acima do `↻`, por cima do teclado, e a confirmação do `/clear`, pelas telas `09-menu-slash` e `09b-confirma-clear`.
