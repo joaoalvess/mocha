@@ -79,6 +79,16 @@ extension ServerMessage {
         guard case .treeChanged(let workspaces) = self else { return nil }
         return workspaces
     }
+
+    var archivedSessions: [ArchivedSession]? {
+        guard case .archived(let sessions) = self else { return nil }
+        return sessions
+    }
+
+    var herdrConnected: Bool? {
+        guard case .herdrStatus(let connected) = self else { return nil }
+        return connected
+    }
 }
 
 extension ChatItem {
@@ -89,13 +99,16 @@ extension ChatItem {
 }
 
 final class DemoHarness: Sendable {
+    let launch: Date
+    let dataset: DemoDataset
     let connection: DemoServerConnection
     let messages: Recorder<ServerEnvelope>
     let states: Recorder<ConnectionState>
     private let consumers: [Task<Void, Never>]
 
-    init(_ options: DemoOptions = .fast) throws {
-        let connection = try DemoServerConnection(options: options)
+    init(_ options: DemoOptions = .fast, launch: Date = Date()) throws {
+        let dataset = try DemoDataset.bundled(now: launch, isEmpty: options.isEmpty)
+        let connection = DemoServerConnection(dataset: dataset, options: options)
         let messages = Recorder<ServerEnvelope>()
         let states = Recorder<ConnectionState>()
         let messageStream = connection.messages
@@ -112,6 +125,8 @@ final class DemoHarness: Sendable {
                 }
             },
         ]
+        self.launch = launch
+        self.dataset = dataset
         self.connection = connection
         self.messages = messages
         self.states = states
@@ -132,6 +147,10 @@ final class DemoHarness: Sendable {
         guard case .helloOk = helloOk.message else { throw UnexpectedMessage(envelope: helloOk) }
         let tree = try await messages.next()
         guard case .tree = tree.message else { throw UnexpectedMessage(envelope: tree) }
+        let archived = try await messages.next()
+        guard case .archived = archived.message else { throw UnexpectedMessage(envelope: archived) }
+        let usage = try await messages.next()
+        guard case .usage = usage.message else { throw UnexpectedMessage(envelope: usage) }
     }
 
     func request(_ message: ClientMessage) async throws -> ServerEnvelope {
@@ -141,7 +160,11 @@ final class DemoHarness: Sendable {
     }
 
     func page(_ agentId: AgentID, before: String? = nil, limit: Int? = nil) async throws -> ChatPage {
-        let envelope = try await request(.openChat(target: .agent(agentId), before: before, limit: limit))
+        try await page(.agent(agentId), before: before, limit: limit)
+    }
+
+    func page(_ target: ChatTarget, before: String? = nil, limit: Int? = nil) async throws -> ChatPage {
+        let envelope = try await request(.openChat(target: target, before: before, limit: limit))
         guard case .chatPage(let page) = envelope.message else { throw UnexpectedMessage(envelope: envelope) }
         return page
     }
