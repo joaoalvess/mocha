@@ -785,7 +785,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I13 | feito (fotos, câmera e colar no iPhone ficam no checklist do WP-X1) | ba007da, 51dd365, 5b7f1f5, 5635c99, 74488dc, merge 51cbacf |
 | WP-M5 | feito (o `install-hooks` real fica para o WP-X2) | 955b277, 1913d7b, 80fcd6d, f680732, 90ac833, 1b0d0b3, ca1306c, merge 703c834 |
 | WP-M6 | todo | |
-| WP-I6 | todo | |
+| WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 4edb3b5, 361288d, ee32e67, 19d4f6c, merge 4a19f28 |
 | WP-I7 | todo | |
 | WP-I11 | todo | |
 | WP-M12 | todo | |
