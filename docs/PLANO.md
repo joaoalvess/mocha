@@ -30,8 +30,9 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 |---|---|---|
 | 0 | Repositório, contratos, servidor HTTP e todas as incertezas técnicas resolvidas por spikes | — |
 | 1a-core | Parear, Home (central de agentes) com uso do plano e sessões arquivadas, gaveta, ler e mandar mensagem, mandar imagem, interromper. Uso diário possível | WP-X1 |
-| 1a-final | Push de turno concluído e de agente bloqueado; slash commands | WP-X2 |
-| 1b | Inbox e ações na notificação, Live Activity, voz, nova tab | WP-X3 |
+| 1a-final | Push de turno concluído e de agente bloqueado; slash commands; nova tab | WP-X2 |
+| subagentes | Subagentes e workflows no app: card do subagente no chat com o transcript dele, selo na Home, lista no Detalhe e card de workflow | WP-X6 |
+| 1b | Inbox e ações na notificação, Live Activity, voz | WP-X3 |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
@@ -538,13 +539,15 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ---
 
-## Fase 1a-final: push e slash
+## Fase 1a-final: push, slash e nova tab
 
 **Ondas**
 - Branch `fase/1a-final`, criada a partir de `fase/1a-core`.
 - **Onda 2.A**, em paralelo: WP-M5 · WP-I6 · WP-I7.
-- **Onda 2.B**: WP-M6.
-- **Onda 2.C**: WP-X2.
+- Antes da onda 2.B, o orquestrador completa o contrato do `newAgentTab` (SPEC §5.3 e §5.3.1) e desenha o `+` por workspace na gaveta do mock, com o ok do João no print.
+- **Onda 2.B**, em paralelo: WP-M6 · WP-I11.
+- **Onda 2.C**: WP-M12. Vem depois do WP-M6 porque os dois mexem em `Gateway/SessionHubConnection.swift`, no `HerdrBridging` e no `FakeHerdrBridge`.
+- **Onda 2.D**: WP-X2.
 
 ### WP-M5: `HookServer` e `install-hooks`
 
@@ -575,7 +578,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ### WP-I6: notificações no app
 
-- **Dono**: `App/Sources/Notifications/`, o campo `apns` do `hello` em `App/Sources/Connection/` e `MochaKit/Sources/MochaClient/` (único WP da onda que mexe ali), e o item de notificações em `App/Sources/Settings/`.
+- **Dono**: `App/Sources/Notifications/`, o campo `apns` do `hello` em `App/Sources/Connection/` e `MochaKit/Sources/MochaClient/` (único WP da onda que mexe ali), o item de notificações em `App/Sources/Settings/`, e `App/Sources/AppShell/AppDelegate.swift` e `App/Sources/AppShell/AppSession.swift` (delegate das notificações, `setForeground` e navegação pelo toque; único WP da onda que mexe ali).
 - **Depende de**: S4, WP-I2.
 - **SPEC**: §7.1, §6.1 (deep links), §6.3 (Ajustes).
 - **Faz**: pedido de permissão (`.alert`, `.sound`, `.badge`; o time-sensitive vem do entitlement do WP0.1 e do `interruption-level` do payload), registro do token com `env` no `hello`, `setForeground`, categorias `TURN_DONE`/`NEEDS_INPUT`, o toque abrindo o chat certo por cima da Home pela navegação do `AppSession` (com o app encerrado, em background ou aberto em outro chat; telas `14-tela-bloqueada` e `14b-banner`), e o controle "Avisar quando o Claude terminar" em Ajustes (`setPreferences`). Parte de `App/Sources/Notifications/` do S4: `PushRegistration` (permissão e registro) e `ApnsEnvironmentDetector` (`env` pelo `embedded.mobileprovision`). `registerForRemoteNotifications` a cada launch; o token chega em ~0,2 s. O delegate do `UNUserNotificationCenter` é definido no `didFinishLaunchingWithOptions`, `nonisolated`, com a variante de completion handler, porque os tipos de UserNotifications não são `Sendable` (como no `PushProbeNotificationDelegate` do S4). Alertas só testáveis no iPhone, porque o simulador não entrega o token de alerta.
@@ -595,6 +598,28 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Depois de `/clear`, o chat troca para a sessão nova (depende do WP-M2 e do S1), e a antiga aparece em ARQUIVADOS.
   - [ ] Capturas comparadas com `09-menu-slash` e `09b-confirma-clear`.
 
+### WP-I11: nova tab no app
+
+- **Dono**: o `+` por workspace em `App/Sources/Drawer/`, e o `newAgentTab` do demo em `MochaKit/Sources/MochaDemo/` e `MochaKit/Tests/MochaDemoTests/`.
+- **Depende de**: WP-I3, o contrato do `newAgentTab` (SPEC §5.3.1) e o `+` da gaveta no mock.
+- **SPEC**: §6.3 (Gaveta), §5.3 (`newAgentTab`), §5.3.1.
+- **Faz**: o `+` na linha de cada workspace da gaveta manda `newAgentTab` pelo `AppSession.request(_:)` e, no `ack{agentId}`, fecha a gaveta e abre o chat do agente novo pelo `openChat(_:)`. Um `error` vira o aviso da gaveta com a `message`. No demo, o `newAgentTab` cria um agente Claude `idle` numa tab nova do workspace, manda a árvore nova e responde `ack{agentId}` (hoje responde erro, e o teste espera isso). O teste real é no WP-X2, depois do WP-M12.
+- **Aceite**:
+  - [ ] No demo, o `+` de um workspace abre o chat vazio do agente novo, e a gaveta mostra a tab nova.
+  - [ ] Teste do demo: `newAgentTab` responde `ack{agentId}` e a árvore seguinte tem o agente; workspace desconhecido responde o erro da §5.3.1.
+  - [ ] Captura da gaveta comparada com a tela do mock que mostra o `+`.
+
+### WP-M12: nova tab no daemon
+
+- **Dono**: `tab.create`, `agent.start` e `agent.wait` em `MochaKit/Sources/MochaHerdr/` (com `Tests/MochaHerdrTests/`), a extensão do `HerdrBridge`/`HerdrBridging` para `newAgentTab` em `MochaDaemonCore/Herdr/`, o `FakeHerdrBridge` em `MochaTestSupport/Herdr/`, e o tratamento da mensagem WS `newAgentTab` no `SessionHub` (`Gateway/`).
+- **Depende de**: WP-M1, WP-M3, WP-M6 (mesmos arquivos).
+- **SPEC**: §5.3 (`newAgentTab`), §5.3.1, §3.1.1, §3.1.2.
+- **Faz**: `tab.create {workspace_id, cwd, focus:false}` → `agent.start {name:"mocha-<n>", kind:"claude", pane_id:root_pane, args:[]}` → espera `idle` ou `blocked` por evento, com timeout de 30 s, e responde `ack{agentId}`. O `blocked` (diálogo de confiança numa pasta nova, S2) não é respondido pelo daemon: o agente aparece em PRECISA DE VOCÊ e o João responde no Mac. O `HerdrClient` (WP-M1) ainda usa só os timeouts de 5 s e 10 s: o WP-M12 acrescenta o timeout de `timeout_ms` + 2 s das chamadas com espera (`agent.wait`, `agent.start`, §3.1.1). Fixtures em `Fixtures/herdr/`: `tab.create.response.json`, `agent.start.response.json`, `agent.wait.response.json`, `error.timeout.json` e `stream.status.startup-trust-dialog.jsonl`.
+- **Aceite**:
+  - [ ] Teste com o Herdr falso: `newAgentTab` faz `tab.create` → `agent.start` → espera `idle` e responde `ack{agentId}`; com `blocked`, responde `ack{agentId}` do mesmo jeito; os erros seguem a §5.3.1.
+  - [ ] Teste: a chamada com espera usa o timeout de `timeout_ms` + 2 s.
+  - [ ] O `unknownType` de `newAgentTab` sai do `SessionHubConnection`, e o teste de regras do hub cobre a mensagem.
+
 ### WP-X2: integração da 1a-final
 
 - **Checklist do João**:
@@ -604,20 +629,29 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Um pedido de permissão no Mac gera o push "precisa de você" em menos de 5 s.
   - [ ] Com o chat do agente aberto, nenhum push desse agente.
   - [ ] `/compact` e `/clear` pelo menu funcionam.
+  - [ ] O `+` de um workspace na gaveta abre o chat de um Claude novo numa tab nova, e ele responde ao primeiro prompt.
   - [ ] Com o VPN On Demand ligado (B6), o app conecta sem abrir o Tailscale.
 - **Depois do WP-X2**: o João decide quando executar o B7 (remover o moshi-hook). A fase 1b não começa antes disso.
+
+---
+
+## Fase subagentes
+
+- Branch `fase/subagentes`, criada a partir de `fase/1a-final`. Não depende do B7.
+- **Ordem**: mock (um subagente, em paralelo às ondas 2.B e 2.C, só em `docs/design/`) → ok do João no mock → SPEC e contratos (orquestrador) → ondas e WPs, definidos depois da SPEC → WP-X6.
+- **Escopo aprovado pelo João**: card do subagente (`Agent`) vivo no chat, que abre o transcript do subagente só de leitura; selo "N subagentes" no card da Home e lista no Detalhe do agente; card de workflow com as fases.
+- **Fonte dos dados** (conferida no Claude Code 2.1.283): `~/.claude/projects/<proj>/<session>/subagents/agent-<id>.jsonl` com `agent-<id>.meta.json` (`agentType`, `description`, `toolUseId`, `spawnDepth`, `requestShape`), e `<session>/workflows/wf_*.json` (`status`, `phases`, `agentCount`, `totalTokens`, `totalToolCalls`, `workflowProgress`). Hoje a SPEC §3.2 ignora as linhas de sidechain e os subagentes.
 
 ---
 
 ## Fase 1b: completar o MVP
 
 **Ondas**
-- Branch `fase/1b`, criada a partir de `fase/1a-final`.
+- Branch `fase/1b`, criada a partir de `fase/subagentes`.
 - **Onda 3.A**, em paralelo: WP-M7 · S6.
 - **Onda 3.B**, em paralelo: WP-M8 · WP-M9. Antes da onda, o orquestrador cria em `MochaKit/Sources/MochaDaemonCore/LiveActivity/` o protocolo que recebe um `LiveActivityRegistration` (usado pelo `registerLiveActivity` do WP-M8 e pelo `POST /v1/live-activity` do WP-M9).
 - **Onda 3.C**, em paralelo: WP-I8 · WP-I9 · WP-I10.
-- **Onda 3.D**: WP-I11.
-- **Onda 3.E**: WP-X3.
+- **Onda 3.D**: WP-X3.
 
 ### WP-M7: pedidos pendentes
 
@@ -631,16 +665,15 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] `respond` com pergunta sem resposta → `invalidPayload`; `allow` em pergunta e `answers` em permissão → `invalidPayload`.
   - [ ] Push com as categorias certas.
 
-### WP-M8: Live Activity no daemon, e nova tab
+### WP-M8: Live Activity no daemon
 
-- **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, o envio `liveactivity` em `Push/`, a extensão do `HerdrBridge` para `newAgentTab`, e o tratamento das mensagens WS `registerLiveActivity`/`newAgentTab` no `SessionHub`. Não mexe em rotas HTTP (são do WP-M9 nesta onda).
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, o envio `liveactivity` em `Push/` e o tratamento da mensagem WS `registerLiveActivity` no `SessionHub`. Não mexe em rotas HTTP (são do WP-M9 nesta onda). A nova tab saiu para o WP-M12 (1a-final).
 - **Depende de**: S4, WP-M6.
-- **SPEC**: §7.3, §5.3 (`registerLiveActivity`, `newAgentTab`), §3.1.2.
-- **Faz**: usa `LiveActivityPush` e `LiveActivityContentState` de `Push/` (datas em segundos desde 2001, testado). Regras de prioridade da §7.3 nova. Push-to-start com `alert` + `input-push-token: 1`. `stale-date` = agora + 15 min a cada update. No máximo 10 push-to-starts por hora (a renovação de 7 h 50 min usa um). O token de update de uma atividade iniciada por push chega por `registerLiveActivity` 2–40 s depois do start. Antes disso, o daemon só guarda o estado. A rota HTTP `POST /v1/live-activity` é do WP-M9; o WP-M8 expõe a interface que ela chama. O `HerdrClient` (WP-M1) ainda usa só os timeouts de 5 s e 10 s: o WP-M8 acrescenta o timeout de `timeout_ms` + 2 s das chamadas com espera (`agent.wait`, `agent.start`, §3.1.1).
+- **SPEC**: §7.3, §5.3 (`registerLiveActivity`).
+- **Faz**: usa `LiveActivityPush` e `LiveActivityContentState` de `Push/` (datas em segundos desde 2001, testado). Regras de prioridade da §7.3 nova. Push-to-start com `alert` + `input-push-token: 1`. `stale-date` = agora + 15 min a cada update. No máximo 10 push-to-starts por hora (a renovação de 7 h 50 min usa um). O token de update de uma atividade iniciada por push chega por `registerLiveActivity` 2–40 s depois do start. Antes disso, o daemon só guarda o estado. A rota HTTP `POST /v1/live-activity` é do WP-M9; o WP-M8 expõe a interface que ela chama.
 - **Aceite**:
   - [ ] Testes da máquina de estados: início, atualização com o limite de 10 s, prioridade 10 em mudança de contagem, destaque ou fim e 5 só em mudança de título, fim depois de 60 s ocioso, renovação às 7 h 50 min.
   - [ ] Teste: o `content-state` codifica datas em segundos desde 2001.
-  - [ ] `newAgentTab` cria a tab no workspace e responde com o `agentId`: `tab.create {workspace_id, cwd, focus:false}` → `agent.start {name:"mocha-<n>", kind:"claude", pane_id:root_pane, args:[]}` → espera `idle` por evento (timeout de 30 s). Se vier `blocked` (diálogo de confiança numa pasta nova), avisa o app em vez de responder sozinho (S2).
 
 ### S6: voz em pt-BR
 
@@ -687,14 +720,6 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Aceite**:
   - [ ] Testes da rota: 401 sem Bearer, 200 repassando o `LiveActivityRegistration` ao fake.
 
-### WP-I11: nova tab no app
-
-- **Dono**: o `+` por workspace na gaveta. A imagem saiu para o WP-I13 (1a-core).
-- **Depende de**: WP-M8.
-- **SPEC**: §6.3 (Gaveta, 1b).
-- **Aceite**:
-  - [ ] "Nova tab com Claude" abre o chat do agente novo.
-
 ### WP-X3: integração da 1b
 
 - **Checklist do João**:
@@ -702,7 +727,6 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Live Activity com 2 agentes trabalhando e 1 bloqueado.
   - [ ] Ditado em pt-BR.
   - [ ] Imagem.
-  - [ ] Nova tab.
   - [ ] Um dia inteiro de uso sem abrir o Moshi.
 
 ---
@@ -762,7 +786,11 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M6 | todo | |
 | WP-I6 | todo | |
 | WP-I7 | todo | |
+| WP-I11 | todo | |
+| WP-M12 | todo | |
 | WP-X2 | todo | |
+| Mock dos subagentes | todo | |
+| WP-X6 | todo | |
 | WP-M7 | todo | |
 | WP-M8 | todo | |
 | S6 | todo | |
@@ -770,7 +798,6 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I9 | todo | |
 | WP-I10 | todo | |
 | WP-M9 | todo | |
-| WP-I11 | todo | |
 | WP-X3 | todo | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
