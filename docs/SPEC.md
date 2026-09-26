@@ -968,7 +968,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
 - **Deep links**: `mocha://agent/<paneId>` abre o chat e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`.
-- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2) e `-probe push|gateway` (só em Debug). O `-probe` é lido só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
+- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), e, só em Debug, `-probe push|gateway` e `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`). O `-probe` e o `-preview` são lidos só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
 
 **Conexão**: esboço normativo em `MochaProtocol`, como a §5.2.
 
