@@ -637,6 +637,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Com o chat do agente aberto, nenhum push desse agente.
   - [ ] `/compact` e `/clear` pelo menu funcionam.
   - [ ] O `+` de um workspace na gaveta abre o chat de um Claude novo numa tab nova, e ele responde ao primeiro prompt.
+  - [ ] Num workspace cuja pasta o Claude ainda não conhece, o `+` responde em até 30 s e o agente novo aparece em PRECISA DE VOCÊ com o diálogo de confiança; respondido no Mac, o chat segue normal (critério do WP-M12).
   - [ ] Com o VPN On Demand ligado (B6), o app conecta sem abrir o Tailscale.
 - **Depois do WP-X2**: o João decide quando executar o B7 (remover o moshi-hook). A fase 1b não começa antes disso.
 
@@ -794,7 +795,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 4edb3b5, 361288d, ee32e67, 19d4f6c, merge 4a19f28 |
 | WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | e4e6cdf, 1d31ff8, 082bf8c, d368311, merge 80ed3a9 |
 | WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 4697966, ce21252, merge 3c11fdb |
-| WP-M12 | todo | |
+| WP-M12 | feito (o `+` real, contra o Herdr, no checklist do WP-X2) | bd8cecf, 1dacb64, merge d97c1da |
 | WP-X2 | todo | |
 | Mock dos subagentes | todo | |
 | WP-X6 | todo | |

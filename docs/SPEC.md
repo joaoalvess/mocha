@@ -486,6 +486,7 @@ public protocol HerdrBridging: Sendable {
     func setOpenChats(_ ids: Set<AgentID>) async
     func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async
     func refreshDirtyState(ofAgent id: AgentID) async
+    func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID
     var serverInfo: HerdrServerInfo? { get async }
 }
 
@@ -518,6 +519,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
     case unavailable
     case agentNotFound
     case agentBlocked
+    case workspaceNotFound
     case herdr(code: String, message: String)
 }
 ```
@@ -530,6 +532,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
 - `refreshAgent(_:expectingSession:)` é chamado no `SessionStart` do hook (§3.1.3 d): repete o `agent.get` do pane em 0; 0,5; 1,5 e 3,5 s até o Herdr informar a sessão do hook, sem aplicar a sessão do hook direto, para o estado não alternar entre as duas. Não bloqueia quem chama.
 - `refreshDirtyState(ofAgent:)` é chamado no `Stop`: invalida o cache de `isDirty` do workspace do agente (§3.1.4) e reagenda a árvore.
+- `newAgentTab(in:)` segue a §5.3.1 e devolve o `pane_id` do pane novo. Espera pelo `pane.agent_status_changed` do pane novo (inscrição aberta antes do `agent.start`) e pelo `agent.wait` ao mesmo tempo, com prazo de 30 s; o primeiro sinal de pronto vence, e qualquer desfecho da espera devolve o id. Antes de devolver, relê o `session.snapshot` para o agente já estar na árvore. Um nome `mocha-<n>` em uso por outra chamada em andamento fica reservado até ela terminar. `workspaceNotFound` vira `invalidPayload`.
 - `serverInfo` é a versão e o protocolo do último `ping` (§3.1.1), `nil` antes do primeiro. Alimenta o `status`, o `doctor` e o `/local/status`.
 
 **`TranscriptProviding`**: declarado em `MochaDaemonCore/Transcript/` e implementado pelo `TranscriptStore`.
