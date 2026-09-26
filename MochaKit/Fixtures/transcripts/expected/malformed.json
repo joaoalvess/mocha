@@ -64,10 +64,19 @@
     }
   ],
   "meta" : {
+    "activity" : null,
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "default",
-    "title" : null
+    "preview" : {
+      "author" : "user",
+      "text" : "Terceiro prompt; a próxima linha está incompleta, sem \\n no fim."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : null,
+    "turnEndedAt" : "2026-09-25T15:00:15.537Z",
+    "turnStartedAt" : "2026-09-25T15:00:20.538Z"
   },
   "stats" : {
     "dropped" : 2,

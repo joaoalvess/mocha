@@ -107,10 +107,19 @@
     }
   ],
   "meta" : {
+    "activity" : null,
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-sonnet-5",
     "permissionMode" : "default",
-    "title" : "Confirmar modelo"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Lint sem erros."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:00.006Z",
+    "title" : "Confirmar modelo",
+    "turnEndedAt" : "2026-09-25T15:00:57.723Z",
+    "turnStartedAt" : "2026-09-25T15:00:55.913Z"
   },
   "stats" : {
     "dropped" : 0,

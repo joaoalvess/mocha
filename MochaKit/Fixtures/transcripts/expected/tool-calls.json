@@ -162,10 +162,23 @@
     }
   ],
   "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "tests/fixtures.ts",
+      "toolName" : "Write"
+    },
     "branch" : "feature/login",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "default",
-    "title" : "Corrigir testes do login"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Corrigi a validação de senha vazia em src/login.ts; os 24 testes passam agora."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "Corrigir testes do login",
+    "turnEndedAt" : "2026-09-25T15:00:41.721Z",
+    "turnStartedAt" : "2026-09-25T15:00:04.001Z"
   },
   "stats" : {
     "dropped" : 0,

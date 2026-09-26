@@ -57,10 +57,19 @@
     }
   ],
   "meta" : {
+    "activity" : null,
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "default",
-    "title" : "explain-demo-app"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Pelo README, os próximos passos são: Notificações por e-mail Modo offline Exportar para CSV"
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "explain-demo-app",
+    "turnEndedAt" : "2026-09-25T15:01:07.644Z",
+    "turnStartedAt" : "2026-09-25T15:01:05.832Z"
   },
   "stats" : {
     "dropped" : 0,

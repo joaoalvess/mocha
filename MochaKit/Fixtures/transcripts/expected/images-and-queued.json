@@ -134,10 +134,23 @@
     }
   ],
   "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "npm run lint",
+      "toolName" : "Bash"
+    },
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "default",
-    "title" : "Alinhar botão de login"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Commit criado."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "Alinhar botão de login",
+    "turnEndedAt" : "2026-09-25T15:00:56.063Z",
+    "turnStartedAt" : "2026-09-25T15:00:54.253Z"
   },
   "stats" : {
     "dropped" : 0,
