@@ -1,88 +1,183 @@
+import MochaClient
 import MochaProtocol
 import SwiftUI
 
 struct DrawerScreen: View {
     @Bindable var session: AppSession
+    @AppStorage(DrawerPreferences.modeKey) private var mode: DrawerMode = .tree
+    @AppStorage(DrawerPreferences.collapsedKey) private var storedCollapsed = ""
+    @State private var query = ""
+    @State private var hint: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Gaveta")
-                    .systemText(.sheetTitle)
-                    .foregroundStyle(Palette.textPrimary)
-                Spacer()
-                Button {
-                    session.showSettings()
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 17))
-                        .foregroundStyle(Palette.textSecondary)
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(Palette.controlBg))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Ajustes")
+        VStack(spacing: 0) {
+            DrawerTopBar(query: $query, mode: $mode) {
+                session.showSettings()
             }
-            .padding(.horizontal, Metrics.contentMargin)
-            .padding(.top, 8)
+            .padding(.horizontal, DrawerLayout.horizontalMargin)
+            .padding(.top, DrawerLayout.topBarInset)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    SectionHeader(title: "Workspaces")
-                    ForEach(session.workspaces) { workspace in
-                        DrawerPlaceholderWorkspace(workspace: workspace, depth: 0, session: session)
+                    sectionHeader
+                    switch mode {
+                    case .tree:
+                        treeList
+                    case .recent:
+                        recentList
                     }
+                }
+                .padding(.bottom, 24)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.immediately)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background {
+            Palette.drawerBg
+                .ignoresSafeArea()
+                .shadow(color: Palette.glyphOnAccent.opacity(0.45), radius: 20, x: 14)
+        }
+        .overlay(alignment: .bottom) {
+            if let hint {
+                Text(hint)
+                    .drawerText(.hint)
+                    .foregroundStyle(Palette.drawerHint)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 10)
+                    .transition(.opacity)
+                    .accessibilityHidden(true)
+            }
+        }
+        .task(id: hint) {
+            guard hint != nil else { return }
+            do {
+                try await Task.sleep(for: Self.hintDuration)
+                withAnimation(.smooth(duration: 0.3)) { hint = nil }
+            } catch {
+                return
+            }
+        }
+    }
+
+    private static let hintDuration: Duration = .seconds(2.5)
+
+    private var sectionHeader: some View {
+        Text(mode == .tree ? "WORKSPACES" : "RECENTES")
+            .drawerText(.sectionHeader)
+            .foregroundStyle(Palette.textSecondary)
+            .frame(minHeight: DrawerLayout.sectionHeaderHeight)
+            .padding(.leading, DrawerLayout.sectionHeaderLeading)
+            .padding(.top, DrawerLayout.sectionHeaderTop)
+            .padding(.bottom, mode == .tree ? DrawerLayout.treeTopGap : DrawerLayout.recentTopGap)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private var treeList: some View {
+        let rows = DrawerContent.treeRows(for: session.workspaces, query: query, collapsed: collapsed)
+        if rows.isEmpty, session.hasReceivedTree {
+            emptyText(Self.emptyTreeText)
+        }
+        ForEach(rows) { row in
+            treeRow(row)
+                .padding(.leading, DrawerLayout.rowLeading)
+                .padding(.trailing, DrawerLayout.rowTrailing)
+        }
+    }
+
+    @ViewBuilder
+    private func treeRow(_ row: DrawerTreeRow) -> some View {
+        switch row {
+        case .workspace(let workspace):
+            DrawerWorkspaceRowView(row: workspace) {
+                toggle(workspace.id)
+            }
+        case .shell(let shell):
+            DrawerTabRowView(icon: .shell, title: shell.title, level: shell.level) {
+                show(hint: Self.terminalHint)
+            }
+        case .agent(let agentRow):
+            let agent = agentRow.agent
+            DrawerTabRowView(
+                icon: agentRow.isClaude ? .claude(isWorking: agent.status == .working) : .otherAgent(isWorking: agent.status == .working),
+                title: agentRow.title,
+                branch: agentRow.branch,
+                level: agentRow.level,
+                isBlocked: agent.status == .blocked,
+                isSelected: isVisible(agent.id),
+                statusLabel: DrawerContent.stateText(for: agent.status)
+            ) {
+                if agentRow.isClaude {
+                    session.openChat(.agent(agent.id))
+                } else {
+                    show(hint: Self.claudeOnlyHint)
                 }
             }
         }
-        .background(Palette.drawerBg.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private var recentList: some View {
+        let rows = DrawerContent.recentRows(for: session.workspaces, query: query)
+        if rows.isEmpty, session.hasReceivedTree {
+            emptyText(Self.emptyRecentText)
+        }
+        TimelineView(.periodic(from: .now, by: Self.relativeTimeRefresh)) { context in
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { row in
+                    DrawerRecentRowView(row: row, now: context.date, isSelected: isVisible(row.agent.id)) {
+                        session.openChat(.agent(row.agent.id))
+                    }
+                    .padding(.leading, DrawerLayout.rowLeading)
+                    .padding(.trailing, DrawerLayout.rowTrailing)
+                }
+            }
+        }
+    }
+
+    private static let relativeTimeRefresh: TimeInterval = 30
+
+    private func emptyText(_ text: String) -> some View {
+        Text(DrawerContent.searchNeedle(query).map { "Nada encontrado para “\($0)”" } ?? text)
+            .drawerText(.recentSubtitle)
+            .foregroundStyle(Palette.textSecondary)
+            .padding(.leading, DrawerLayout.sectionHeaderLeading)
+            .padding(.trailing, DrawerLayout.horizontalMargin)
+            .padding(.top, 8)
+    }
+
+    private static let emptyTreeText = "Nenhum workspace aberto no Herdr"
+    private static let emptyRecentText = "Nenhum Claude aberto no Herdr"
+    private static let terminalHint = "Terminal chega na fase 2"
+    private static let claudeOnlyHint = "Chat disponível só para Claude Code"
+
+    private var collapsed: Set<WorkspaceID> {
+        DrawerContent.collapsedWorkspaces(from: storedCollapsed)
+    }
+
+    private func toggle(_ workspaceId: WorkspaceID) {
+        guard DrawerContent.searchNeedle(query) == nil else { return }
+        var updated = collapsed
+        if updated.remove(workspaceId) == nil {
+            updated.insert(workspaceId)
+        }
+        withAnimation(.smooth(duration: 0.2)) {
+            storedCollapsed = DrawerContent.storedValue(forCollapsed: updated)
+        }
+    }
+
+    private func isVisible(_ agentId: AgentID) -> Bool {
+        session.visibleChat?.target == .agent(agentId)
+    }
+
+    private func show(hint text: String) {
+        withAnimation(.smooth(duration: 0.2)) { hint = text }
+        AccessibilityNotification.Announcement(text).post()
     }
 }
 
-private struct DrawerPlaceholderWorkspace: View {
-    let workspace: WorkspaceNode
-    let depth: Int
-    let session: AppSession
-
-    var body: some View {
-        Text(workspace.label)
-            .systemText(.body)
-            .fontWeight(.medium)
-            .foregroundStyle(Palette.textPrimary)
-            .padding(.leading, Metrics.contentMargin + CGFloat(depth) * 16)
-            .padding(.vertical, 8)
-        ForEach(workspace.tabs) { tab in
-            if tab.agents.isEmpty {
-                row(title: ">_ " + tab.title, isSelected: false, action: nil)
-            } else {
-                ForEach(tab.agents) { agent in
-                    row(
-                        title: agent.title,
-                        isSelected: session.visibleChat?.target == .agent(agent.id),
-                        action: agent.kind == AgentKind.claude ? { session.openChat(.agent(agent.id)) } : nil
-                    )
-                }
-            }
-        }
-        ForEach(workspace.children) { child in
-            DrawerPlaceholderWorkspace(workspace: child, depth: depth + 1, session: session)
-        }
-    }
-
-    private func row(title: String, isSelected: Bool, action: (() -> Void)?) -> some View {
-        Button {
-            action?()
-        } label: {
-            Text(title)
-                .systemText(.body)
-                .foregroundStyle(action == nil ? Palette.textSecondary : Palette.textPrimary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, Metrics.contentMargin + CGFloat(depth + 1) * 16)
-                .padding(.vertical, 10)
-                .background(isSelected ? Palette.selectedRow : Color.clear)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(action == nil)
-    }
+enum DrawerPreferences {
+    static let modeKey = "drawer.mode"
+    static let collapsedKey = "drawer.collapsedWorkspaces"
 }

@@ -4,6 +4,7 @@ import SwiftUI
 struct AppShellView: View {
     @Bindable var session: AppSession
     var launchURL: URL?
+    var opensDrawerAtLaunch = false
 
     var body: some View {
         ZStack {
@@ -31,6 +32,9 @@ struct AppShellView: View {
             session.start()
             if let launchURL {
                 session.handle(launchURL)
+            }
+            if opensDrawerAtLaunch {
+                session.openDrawer()
             }
         }
     }
