@@ -719,7 +719,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | 49d329d, d44971b, 6b51ad2, merge 63d873a |
 | WP-I5 | em andamento | |
 | WP-I2 | em andamento | |
-| WP-M10 | em andamento | |
+| WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | e80cfe8, 78b0bce, bb172cb, 2d7b8c5, merge f8b3aea |
 | WP-X1 | todo | |
 | WP-M5 | todo | |
 | WP-M6 | todo | |

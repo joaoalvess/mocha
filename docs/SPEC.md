@@ -616,6 +616,7 @@ public protocol SessionArchiving: Sendable {
     func archive(sessionId: String, at date: Date) async
     func archivedAt(sessionId: String) async -> Date?
     func turnStarted(sessionId: String, at date: Date) async
+    func sessionResumed(sessionId: String) async
 }
 ```
 
