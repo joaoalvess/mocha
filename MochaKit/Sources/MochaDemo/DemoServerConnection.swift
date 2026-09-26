@@ -14,6 +14,7 @@ public actor DemoServerConnection: ServerConnection {
     static let claudeOnlyMessage = "Chat disponível só para Claude Code."
     static let agentNotFoundMessage = "Agente não encontrado."
     static let repeatedHelloMessage = "O hello já foi feito nesta conexão."
+    static let sessionsUnavailableMessage = "Sessões arquivadas ainda não estão disponíveis no modo demo."
     static let replyMarkdown = """
     Isto é o **modo demo** do Mocha: nenhuma mensagem saiu do iPhone.
 
@@ -148,11 +149,13 @@ public actor DemoServerConnection: ServerConnection {
         switch message {
         case .hello:
             fail(id, .invalidPayload, Self.repeatedHelloMessage)
-        case .openChat(let agentId, let before, let limit):
+        case .openChat(.agent(let agentId), let before, let limit):
             openChat(agentId: agentId, before: before, limit: limit, id: id)
-        case .closeChat(let agentId):
+        case .closeChat(.agent(let agentId)):
             openChats.remove(currentId(for: agentId))
             reply(id, .ack())
+        case .openChat(.session, _, _), .closeChat(.session), .archive:
+            fail(id, .unknownType, Self.sessionsUnavailableMessage)
         case .sendPrompt(let agentId, let text):
             sendPrompt(agentId: agentId, text: text, id: id)
         case .interrupt(let agentId):
@@ -221,7 +224,7 @@ public actor DemoServerConnection: ServerConnection {
         let hasMore = start > 0
         openChats.insert(chat.agentId)
         let page = ChatPage(
-            agentId: chat.agentId,
+            target: .agent(chat.agentId),
             meta: chat.meta,
             items: Array(chat.items[start..<end]),
             before: hasMore ? Self.cursor(forIndex: start) : nil,
@@ -291,14 +294,14 @@ public actor DemoServerConnection: ServerConnection {
         chats[agentId]?.items.append(contentsOf: newItems)
         workspaces.updateAgent(withId: agentId) { $0.lastActivityAt = lastItem.at }
         guard openChats.contains(agentId) else { return }
-        emit(.chatAppend(agentId: agentId, items: newItems))
+        emit(.chatAppend(target: .agent(agentId), items: newItems))
     }
 
     private func replace(_ item: ChatItem, in agentId: AgentID) {
         guard let index = chats[agentId]?.items.firstIndex(where: { $0.id == item.id }) else { return }
         chats[agentId]?.items[index] = item
         guard openChats.contains(agentId) else { return }
-        emit(.chatUpdate(agentId: agentId, items: [item]))
+        emit(.chatUpdate(target: .agent(agentId), items: [item]))
     }
 
     private func setStatus(_ status: AgentStatus, for agentId: AgentID) {
@@ -408,7 +411,7 @@ public actor DemoServerConnection: ServerConnection {
         chats[agentId]?.meta = meta
         workspaces.updateAgent(withId: agentId) { $0.title = title }
         if openChats.contains(agentId) {
-            emit(.chatMeta(agentId: agentId, meta: meta))
+            emit(.chatMeta(target: .agent(agentId), meta: meta))
         }
         emitTree()
     }

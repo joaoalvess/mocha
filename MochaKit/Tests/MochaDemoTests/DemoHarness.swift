@@ -141,7 +141,7 @@ final class DemoHarness: Sendable {
     }
 
     func page(_ agentId: AgentID, before: String? = nil, limit: Int? = nil) async throws -> ChatPage {
-        let envelope = try await request(.openChat(agentId: agentId, before: before, limit: limit))
+        let envelope = try await request(.openChat(target: .agent(agentId), before: before, limit: limit))
         guard case .chatPage(let page) = envelope.message else { throw UnexpectedMessage(envelope: envelope) }
         return page
     }

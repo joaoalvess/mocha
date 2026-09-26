@@ -49,11 +49,11 @@ struct DemoScriptTests {
         while statuses.last != .idle {
             let envelope = try await harness.messages.next()
             switch envelope.message {
-            case .chatAppend(agentId, let items):
+            case .chatAppend(.agent(agentId), let items):
                 appendEvents.append(items)
-            case .chatUpdate(agentId, let items):
+            case .chatUpdate(.agent(agentId), let items):
                 updates += items
-            case .chatMeta(agentId, let meta):
+            case .chatMeta(.agent(agentId), let meta):
                 metas.append(meta)
             case .agentStatus(agentId, let status, _):
                 statuses.append(status)
@@ -133,7 +133,7 @@ struct DemoScriptTests {
         #expect(agent.sessionId == original.sessionId)
         #expect(agent.title == original.title)
         let throughOldId = try await harness.page(oldId)
-        #expect(throughOldId.agentId == newId)
+        #expect(throughOldId.target == .agent(newId))
         #expect(throughOldId.items == before.items)
         let throughNewId = try await harness.page(newId)
         #expect(throughNewId.items == before.items)

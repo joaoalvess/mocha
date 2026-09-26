@@ -17,7 +17,7 @@ struct DemoServerConnectionTests {
         try await harness.connect()
 
         let first = try await harness.page(chat.agentId, limit: 60)
-        #expect(first.agentId == chat.agentId)
+        #expect(first.target == .agent(chat.agentId))
         #expect(first.meta == chat.meta)
         #expect(first.items == Array(chat.items.suffix(60)))
         #expect(first.hasMore)
@@ -56,7 +56,7 @@ struct DemoServerConnectionTests {
         let harness = try DemoHarness()
         try await harness.connect()
 
-        let error = try await harness.error(for: .openChat(agentId: "w1:p1", before: cursor))
+        let error = try await harness.error(for: .openChat(target: .agent("w1:p1"), before: cursor))
 
         #expect(error.code == .invalidPayload)
     }
@@ -67,7 +67,7 @@ struct DemoServerConnectionTests {
         let harness = try DemoHarness()
         try await harness.connect()
 
-        let error = try await harness.error(for: .openChat(agentId: codex.id))
+        let error = try await harness.error(for: .openChat(target: .agent(codex.id)))
 
         #expect(error.code == .invalidPayload)
         #expect(error.message == "Chat disponível só para Claude Code.")
@@ -77,7 +77,7 @@ struct DemoServerConnectionTests {
         let harness = try DemoHarness()
         try await harness.connect()
 
-        let error = try await harness.error(for: .openChat(agentId: "w99:p1"))
+        let error = try await harness.error(for: .openChat(target: .agent("w99:p1")))
 
         #expect(error.code == .agentNotFound)
     }
@@ -120,7 +120,7 @@ struct DemoServerConnectionTests {
 
         let echo = try await harness.messages.next()
         #expect(echo.id == nil)
-        guard case .chatAppend("w1:p1", let echoed) = echo.message else { throw UnexpectedMessage(envelope: echo) }
+        guard case .chatAppend(.agent("w1:p1"), let echoed) = echo.message else { throw UnexpectedMessage(envelope: echo) }
         #expect(echoed.map(\.kind) == [.userPrompt(text: "oi, modo demo", imageCount: 0)])
         #expect(try await harness.messages.next().message == .agentStatus(agentId: "w1:p1", status: .working))
         let working = try #require(try await harness.messages.next().message.changedWorkspaces)
@@ -131,7 +131,7 @@ struct DemoServerConnectionTests {
         #expect(working.first { $0.id == "w2" }?.agentStatus == .blocked)
 
         let reply = try await harness.messages.next()
-        guard case .chatAppend("w1:p1", let replied) = reply.message else { throw UnexpectedMessage(envelope: reply) }
+        guard case .chatAppend(.agent("w1:p1"), let replied) = reply.message else { throw UnexpectedMessage(envelope: reply) }
         #expect(replied.first?.kind == .assistantText(markdown: DemoServerConnection.replyMarkdown))
         guard case .turnFooter = replied.last?.kind else { throw UnexpectedMessage(envelope: reply) }
         #expect(try await harness.messages.next().message == .agentStatus(agentId: "w1:p1", status: .idle))
@@ -179,7 +179,7 @@ struct DemoServerConnectionTests {
         let harness = try DemoHarness()
         try await harness.connect()
         let cases: [(ClientMessage, ServerMessage)] = [
-            (.closeChat(agentId: "w1:p1"), .ack()),
+            (.closeChat(target: .agent("w1:p1")), .ack()),
             (.setForeground(agentId: "w1:p1", isActive: true), .ack()),
             (.setForeground(agentId: nil, isActive: false), .ack()),
             (.ping, .pong),
@@ -200,6 +200,9 @@ struct DemoServerConnectionTests {
             (.slash(agentId: "w2:p2", command: "/clear"), .invalidPayload),
             (.sendPrompt(agentId: "w99:p1", text: "oi"), .agentNotFound),
             (.interrupt(agentId: "w99:p1"), .agentNotFound),
+            (.openChat(target: .session("0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64")), .unknownType),
+            (.closeChat(target: .session("0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64")), .unknownType),
+            (.archive(sessionId: "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64"), .unknownType),
         ]
         for (request, code) in errors {
             let error = try await harness.error(for: request)
