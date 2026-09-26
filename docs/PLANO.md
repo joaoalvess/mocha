@@ -718,7 +718,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M4 | feito (RSS de 10 min pendente numa janela sem build) | b17f5fc, a35700c, d044872, a4ae669, merge 953aa1f |
 | WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | 49d329d, d44971b, 6b51ad2, merge 63d873a |
 | WP-I5 | em andamento | |
-| WP-I2 | em andamento | |
+| WP-I2 | feito (QR pela câmera, Keychain real e pareamento com o `mochad` no checklist do WP-X1) | dd92fce, 1f73158, 06354de, 147a24c, 0690dff, 4090942, merge 7d574b1 |
 | WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | e80cfe8, 78b0bce, bb172cb, 2d7b8c5, merge f8b3aea |
 | WP-X1 | todo | |
 | WP-M5 | todo | |
