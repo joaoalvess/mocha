@@ -792,7 +792,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M6 | todo | |
 | WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 4edb3b5, 361288d, ee32e67, 19d4f6c, merge 4a19f28 |
 | WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | e4e6cdf, 1d31ff8, 082bf8c, d368311, merge 80ed3a9 |
-| WP-I11 | todo | |
+| WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 4697966, ce21252, merge 3c11fdb |
 | WP-M12 | todo | |
 | WP-X2 | todo | |
 | Mock dos subagentes | todo | |
