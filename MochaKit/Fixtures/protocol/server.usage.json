@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "type": "usage",
+  "payload": {
+    "plan": "Max 20x",
+    "account": "d•••@e•••.com",
+    "windows": [
+      {
+        "kind": "fiveHour",
+        "usedPercent": 12,
+        "resetsAt": "2026-09-26T07:00:00.000Z"
+      },
+      {
+        "kind": "weekly",
+        "usedPercent": 71,
+        "resetsAt": "2026-09-28T14:00:00.000Z"
+      }
+    ],
+    "fetchedAt": "2026-09-26T03:21:03.000Z"
+  }
+}
