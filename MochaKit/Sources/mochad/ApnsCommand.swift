@@ -7,6 +7,7 @@ enum ApnsCommand {
     static let usage = """
         uso:
           mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]
+          mochad apns test --device <id> [envio] [--title <t>] [--body <b>] [--time-sensitive]
           mochad apns test --token <hex> --env sandbox|production [envio] [--title <t>] [--body <b>] [--time-sensitive]
           mochad apns liveactivity start|update|end --token <hex> --env sandbox|production [envio] [estado]
 
@@ -58,7 +59,7 @@ enum ApnsCommand {
     }
 
     private static func runTest(_ options: CommandOptions) async throws -> Int32 {
-        let target = try Target(options)
+        let target = try await Target(options, allowsDevice: true)
         let sentAt = Date()
         let push = ApnsAlertPush(
             title: options.value("--title") ?? "Mocha",
@@ -84,7 +85,7 @@ enum ApnsCommand {
         guard let eventName = options.positional.first, ["start", "update", "end"].contains(eventName) else {
             throw CommandOptions.UsageError("informe start, update ou end")
         }
-        let target = try Target(options)
+        let target = try await Target(options, allowsDevice: false)
         let sentAt = Date()
         let isEnd = eventName == "end"
         let working = try options.integer("--working") ?? (isEnd ? 0 : 1)
@@ -155,7 +156,8 @@ enum ApnsCommand {
         )
         try request.validate()
         let client = ApnsClient(tokens: ApnsTokenProvider(key: target.key))
-        print("enviando \(label) para \(target.token.prefix(8))… (\(target.environment.rawValue)) · \(payload.count) bytes")
+        let recipient = target.deviceName.map { "\($0), " } ?? ""
+        print("enviando \(label) para \(recipient)\(target.token.prefix(8))… (\(target.environment.rawValue)) · \(payload.count) bytes")
         print("headers: " + request.headers.map { "\($0.name)=\($0.value)" }.joined(separator: " "))
         print("payload: " + (String(data: payload, encoding: .utf8) ?? ""))
         print("enviado em \(timestamp(sentAt)) (sentAt \(Int64((sentAt.timeIntervalSince1970 * 1000).rounded())))")
@@ -172,24 +174,48 @@ enum ApnsCommand {
         if let uniqueId = response.uniqueId { line += " · apns-unique-id \(uniqueId)" }
         if let inactiveSince = response.inactiveSince { line += " · inativo desde \(timestamp(inactiveSince))" }
         print(line)
+        if response.deviceTokenIsInvalid {
+            print("o APNs recusou esse token: abra o app no iPhone para registrar um novo")
+        }
         return response.isSuccess ? 0 : 1
     }
 
     private struct Target {
         let token: String
         let environment: ApnsEnvironment
+        let deviceName: String?
         let config: ApnsConfig
         let key: ApnsSigningKey
 
-        init(_ options: CommandOptions) throws {
-            let token = try options.required("--token")
-            guard ApnsRequest.isValidDeviceToken(token) else { throw CommandOptions.UsageError("--token precisa ser hexadecimal") }
-            guard let environment = ApnsEnvironment(rawValue: try options.required("--env")) else {
-                throw CommandOptions.UsageError("--env aceita sandbox ou production")
+        init(_ options: CommandOptions, allowsDevice: Bool) async throws {
+            let registration: ApnsRegistration
+            if allowsDevice, let deviceId = options.value("--device") {
+                guard options.value("--token") == nil, options.value("--env") == nil else {
+                    throw CommandOptions.UsageError("use --device ou --token com --env, não os dois")
+                }
+                let paths = DaemonPaths()
+                guard let record = try await DeviceStore(fileURL: paths.devicesFile).devices().first(where: { $0.id == deviceId }) else {
+                    throw CommandOptions.UsageError("aparelho \(deviceId) não está em \(paths.display(paths.devicesFile)) (mochad devices)")
+                }
+                guard let apns = record.apns else {
+                    throw CommandOptions.UsageError("\(record.name) ainda não mandou o token de push: abra o app no iPhone conectado ao Mac")
+                }
+                registration = apns
+                deviceName = record.name
+            } else {
+                let token = try options.required("--token")
+                guard let environment = ApnsEnvironment(rawValue: try options.required("--env")) else {
+                    throw CommandOptions.UsageError("--env aceita sandbox ou production")
+                }
+                registration = ApnsRegistration(token: token, env: environment)
+                deviceName = nil
+            }
+            guard ApnsRequest.isValidDeviceToken(registration.token) else {
+                throw CommandOptions.UsageError("o token precisa ser hexadecimal")
             }
             let loaded = try ApnsKeyImporter().loadSigningKey()
-            self.token = token.lowercased()
-            self.environment = environment
+            self.token = registration.token.lowercased()
+            self.environment = registration.env
             self.config = loaded.config
             self.key = loaded.key
         }
