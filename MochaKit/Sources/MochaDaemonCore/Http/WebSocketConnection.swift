@@ -3,10 +3,12 @@ import Foundation
 public struct WebSocketOptions: Sendable {
     public var maxMessageSize: Int
     public var closeTimeout: Duration
+    public var automaticPong: Bool
 
-    public init(maxMessageSize: Int = 1 << 20, closeTimeout: Duration = .seconds(5)) {
+    public init(maxMessageSize: Int = 1 << 20, closeTimeout: Duration = .seconds(5), automaticPong: Bool = true) {
         self.maxMessageSize = maxMessageSize
         self.closeTimeout = closeTimeout
+        self.automaticPong = automaticPong
     }
 }
 
@@ -121,7 +123,7 @@ public actor WebSocketConnection {
             fragmentPayload = []
             await deliver(opcode, payload)
         case .ping:
-            guard state == .open else { return }
+            guard state == .open, options.automaticPong else { return }
             _ = await write(WebSocketFrame.encode(.pong, payload: frame.payload))
         case .pong:
             return

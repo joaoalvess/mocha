@@ -1,5 +1,6 @@
 import Foundation
 import MochaDemo
+import MochaProtocol
 
 struct LaunchConfiguration: Equatable {
     var demoOptions: DemoOptions?
@@ -9,6 +10,8 @@ struct LaunchConfiguration: Equatable {
     var preview: DebugPreview?
     var openURL: URL?
     var opensDrawer = false
+    var opensSettings = false
+    var pairingProblem: ConnectionProblem?
     #endif
 
     static let demoFlag = "-demo"
@@ -18,6 +21,7 @@ struct LaunchConfiguration: Equatable {
     static let demoOfflineFlag = "-demo-offline"
     #if DEBUG
     static let openDrawerFlag = "-open-drawer"
+    static let openSettingsFlag = "-open-settings"
     #endif
 
     static func current(
@@ -39,6 +43,8 @@ struct LaunchConfiguration: Equatable {
         configuration.preview = (argumentDomain[DebugPreview.argumentKey] as? String).flatMap(DebugPreview.init(rawValue:))
         configuration.openURL = (argumentDomain[LaunchArguments.openURLKey] as? String).flatMap(URL.init(string:))
         configuration.opensDrawer = arguments.contains(openDrawerFlag)
+        configuration.opensSettings = arguments.contains(openSettingsFlag)
+        configuration.pairingProblem = (argumentDomain[LaunchArguments.pairingErrorKey] as? String).flatMap(ConnectionProblem.init(rawValue:))
         #endif
         return configuration
     }
@@ -46,6 +52,7 @@ struct LaunchConfiguration: Equatable {
 
 enum LaunchArguments {
     static let openURLKey = "open-url"
+    static let pairingErrorKey = "pairing-error"
 
     static func argumentDomain(_ defaults: UserDefaults = .standard) -> [String: Any] {
         defaults.volatileDomain(forName: UserDefaults.argumentDomain)
@@ -55,7 +62,6 @@ enum LaunchArguments {
 #if DEBUG
 enum DebugProbe: String {
     case push
-    case gateway
 
     static let argumentKey = "probe"
 }

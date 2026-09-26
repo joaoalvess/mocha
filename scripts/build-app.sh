@@ -16,6 +16,6 @@ xcode_lock_acquire
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath "$DERIVED_DATA" \
   -clonedSourcePackagesDirPath "$HOME/Library/Caches/com.joaoalves.mocha/SourcePackages" \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY=- \
   "$@" \
   build
