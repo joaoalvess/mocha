@@ -53,7 +53,8 @@ struct AppShellView: View {
                 .presentationCornerRadius(Metrics.sheetCornerRadius)
         case .usage:
             UsageSheet(session: session)
-                .presentationDetents([.fraction(Self.usageSheetFraction)])
+                .presentationDetents([Self.usageSheetDetent])
+                .presentationBackgroundInteraction(.enabled(upThrough: Self.usageSheetDetent))
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Palette.drawerBg)
                 .presentationCornerRadius(Metrics.sheetCornerRadius)
@@ -66,7 +67,7 @@ struct AppShellView: View {
         }
     }
 
-    private static let usageSheetFraction: CGFloat = 472 / 844
+    private static let usageSheetDetent = PresentationDetent.height(450)
 }
 
 private struct DrawerLayer: View {

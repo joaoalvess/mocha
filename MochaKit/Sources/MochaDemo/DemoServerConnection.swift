@@ -161,6 +161,11 @@ public actor DemoServerConnection: ServerConnection {
         messageContinuation.yield(ServerEnvelope(id: id, message: .tree(workspaces: workspaces)))
         emit(.archived(sessions: archived))
         emit(.usage(usage))
+        if options.dropsConnectionAfterTree {
+            closeAllChats()
+            setState(.waitingToRetry(.unreachable))
+            return
+        }
         resumeScript()
     }
 

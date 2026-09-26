@@ -14,6 +14,7 @@ struct LaunchConfiguration: Equatable {
     static let demoScriptFlag = "-demo-script"
     static let demoUnpairedFlag = "-demo-unpaired"
     static let demoEmptyFlag = "-demo-empty"
+    static let demoOfflineFlag = "-demo-offline"
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -24,7 +25,8 @@ struct LaunchConfiguration: Equatable {
             configuration.demoOptions = DemoOptions(
                 startsPaired: !arguments.contains(demoUnpairedFlag),
                 runsScript: arguments.contains(demoScriptFlag),
-                isEmpty: arguments.contains(demoEmptyFlag)
+                isEmpty: arguments.contains(demoEmptyFlag),
+                dropsConnectionAfterTree: arguments.contains(demoOfflineFlag)
             )
             configuration.demoEmpty = arguments.contains(demoEmptyFlag)
         }
