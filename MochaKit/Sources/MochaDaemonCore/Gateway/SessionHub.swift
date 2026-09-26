@@ -113,6 +113,8 @@ public actor SessionHub {
     let transcripts: any TranscriptProviding
     let devices: DeviceStore
     let pairing: Pairing
+    let usage: any UsageProviding
+    let archive: any SessionArchiving
     let clock: any GatewayClock
     let configuration: SessionHubConfiguration
     let encoder = JSONEncoder()
@@ -123,6 +125,13 @@ public actor SessionHub {
     var metas: [String: TranscriptMeta] = [:]
     var clients: [UUID: Client] = [:]
     var isShuttingDown = false
+    var usageSnapshot: UsageSnapshot?
+    var archivedSessions: [ArchivedSession] = []
+    var pluginContexts: [String: Double] = [:]
+    var archivedAts: [String: Date] = [:]
+    var reportedTurnStarts: [String: Date] = [:]
+    var trackedSessions: [String: AgentSummary] = [:]
+    var sessionServiceTasks: [Task<Void, Never>] = []
 
     private var lastSentTree: [WorkspaceNode] = []
     private var liveFollows: [AgentID: LiveFollow] = [:]
@@ -140,6 +149,8 @@ public actor SessionHub {
         transcripts: any TranscriptProviding,
         devices: DeviceStore,
         pairing: Pairing,
+        usage: any UsageProviding,
+        archive: any SessionArchiving,
         clock: any GatewayClock = SystemGatewayClock(),
         configuration: SessionHubConfiguration = SessionHubConfiguration()
     ) {
@@ -147,6 +158,8 @@ public actor SessionHub {
         self.transcripts = transcripts
         self.devices = devices
         self.pairing = pairing
+        self.usage = usage
+        self.archive = archive
         self.clock = clock
         self.configuration = configuration
         let (updates, continuation) = AsyncStream.makeStream(of: Set<AgentID>.self)
@@ -156,6 +169,7 @@ public actor SessionHub {
 
     public func start() async {
         guard eventsTask == nil, !isShuttingDown else { return }
+        await startSessionServices()
         let updates = openChatUpdates
         openChatPublisher = Task { [herdr] in
             for await ids in updates {
@@ -186,6 +200,10 @@ public actor SessionHub {
         eventsTask = nil
         flushTask?.cancel()
         flushTask = nil
+        for task in sessionServiceTasks {
+            task.cancel()
+        }
+        sessionServiceTasks.removeAll()
         for follow in liveFollows.values {
             follow.cancel()
         }
@@ -240,12 +258,22 @@ public actor SessionHub {
     }
 
     func composedTree() -> [WorkspaceNode] {
-        TreeComposer.compose(baseTree, metas: metas)
+        TreeComposer.compose(baseTree, metas: metas, contexts: pluginContexts, archivedAts: archivedAts)
     }
 
     func composedAgent(_ id: AgentID) -> AgentSummary? {
         guard let agent = TreeComposer.agent(id, in: baseTree) else { return nil }
-        return TreeComposer.summary(agent, meta: agent.sessionId.flatMap { metas[$0] })
+        return composedSummary(agent)
+    }
+
+    func composedSummary(_ agent: AgentSummary) -> AgentSummary {
+        guard let sessionId = agent.sessionId else { return agent }
+        return TreeComposer.summary(
+            agent,
+            meta: metas[sessionId],
+            contextUsedPercent: pluginContexts[sessionId],
+            archivedAt: archivedAts[sessionId]
+        )
     }
 
     func remember(_ meta: TranscriptMeta, forSession sessionId: String, source: UUID?) {
@@ -293,6 +321,7 @@ public actor SessionHub {
             baseTree = tree
             setAvailability(available)
             updateLiveFollows()
+            await trackSessions()
             if hasSnapshot {
                 scheduleTreeFlush()
             } else {
@@ -302,6 +331,7 @@ public actor SessionHub {
         case .treeChanged(let tree):
             baseTree = tree
             updateLiveFollows()
+            await trackSessions()
             scheduleTreeFlush()
         case .agentStatus(let agentId, let status, let title):
             baseTree = TreeComposer.updatingAgent(agentId, in: baseTree) { $0.status = status }
@@ -312,12 +342,15 @@ public actor SessionHub {
         case .sessionChanged(let agentId, let sessionId):
             baseTree = TreeComposer.updatingAgent(agentId, in: baseTree) { $0.sessionId = sessionId }
             updateLiveFollows()
+            await trackSessions()
             await switchChats(ofAgent: agentId, toSession: sessionId)
             scheduleTreeFlush()
         case .availability(let available):
             setAvailability(available)
+            await trackSessions()
         case .paneMoved(let from, let to):
             moveAgent(from: from, to: to)
+            await trackSessions()
         }
     }
 
@@ -366,6 +399,7 @@ public actor SessionHub {
     private func flushTree() async {
         await refreshUnfollowedMetas()
         pruneMetas()
+        await refreshSessionState()
         let tree = composedTree()
         if tree != lastSentTree {
             lastSentTree = tree

@@ -192,6 +192,10 @@ extension SessionHub {
             to: clientId
         )
         send(.tree(workspaces: composedTree()), id: id, to: clientId)
+        send(.archived(sessions: archivedSessions), to: clientId)
+        if let usageSnapshot {
+            send(.usage(usageSnapshot), to: clientId)
+        }
     }
 
     private func handle(_ message: ClientMessage, id: String, from clientId: UUID) async {
@@ -217,7 +221,9 @@ extension SessionHub {
             await unpair(clientId, id: id)
         case .ping:
             send(.pong, id: id, to: clientId)
-        case .archive, .slash, .setPreferences, .respond, .newAgentTab, .registerLiveActivity, .unknown:
+        case .archive(let sessionId):
+            await archiveSession(sessionId, id: id, clientId: clientId)
+        case .slash, .setPreferences, .respond, .newAgentTab, .registerLiveActivity, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }

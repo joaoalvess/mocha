@@ -214,7 +214,7 @@ extension SessionHub {
         case .agent(let agentId):
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta)
         case .session:
-            return TreeComposer.sessionChatMeta(meta: meta)
+            return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
         }
     }
 

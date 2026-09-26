@@ -164,7 +164,6 @@ struct SessionHubRulesTests {
             let unknown = try await socket.next()
             #expect(unknown.id == "c-1")
             #expect(unknown.message.errorCode == .unknownType)
-            #expect(try await socket.reply(to: .archive(sessionId: Sample.sessionA), id: "c-2").errorCode == .unknownType)
             #expect(try await socket.reply(to: .slash(agentId: "w1:p1", command: "/compact"), id: "c-3").errorCode == .unknownType)
             #expect(try await socket.reply(to: .ping, id: "c-4") == .pong)
         }

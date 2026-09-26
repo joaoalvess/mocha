@@ -5,35 +5,55 @@ import MochaTranscript
 enum TreeComposer {
     static let claudeKind = "claude"
 
-    static func compose(_ tree: [WorkspaceNode], metas: [String: TranscriptMeta]) -> [WorkspaceNode] {
+    static func compose(
+        _ tree: [WorkspaceNode],
+        metas: [String: TranscriptMeta],
+        contexts: [String: Double] = [:],
+        archivedAts: [String: Date] = [:]
+    ) -> [WorkspaceNode] {
         mapAgents(tree) { agent in
             guard let sessionId = agent.sessionId else { return agent }
-            return summary(agent, meta: metas[sessionId])
+            return summary(agent, meta: metas[sessionId], contextUsedPercent: contexts[sessionId], archivedAt: archivedAts[sessionId])
         }
     }
 
-    static func summary(_ agent: AgentSummary, meta: TranscriptMeta?) -> AgentSummary {
-        guard let meta else { return agent }
+    static func summary(
+        _ agent: AgentSummary,
+        meta: TranscriptMeta?,
+        contextUsedPercent: Double? = nil,
+        archivedAt: Date? = nil
+    ) -> AgentSummary {
         var summary = agent
-        if let title = meta.title, !title.isEmpty {
-            summary.title = title
+        if let meta {
+            if let title = meta.title, !title.isEmpty {
+                summary.title = title
+            }
+            summary.model = meta.model
+            summary.lastActivityAt = meta.lastModified
+            summary.preview = meta.preview
+            summary.activity = meta.activity
+            summary.contextLeftPercent = contextLeftPercent(meta)
+            summary.sessionStartedAt = meta.sessionStartedAt
+            summary.turnStartedAt = meta.turnStartedAt
+            summary.turnEndedAt = meta.turnEndedAt
         }
-        summary.model = meta.model
-        summary.lastActivityAt = meta.lastModified
-        summary.preview = meta.preview
-        summary.activity = meta.activity
-        summary.contextLeftPercent = contextLeftPercent(meta)
-        summary.sessionStartedAt = meta.sessionStartedAt
-        summary.turnStartedAt = meta.turnStartedAt
-        summary.turnEndedAt = meta.turnEndedAt
+        if let contextUsedPercent {
+            summary.contextLeftPercent = contextLeftPercent(used: contextUsedPercent)
+        }
+        if let archivedAt {
+            summary.archivedAt = archivedAt
+        }
         return summary
     }
 
     static func contextLeftPercent(_ meta: TranscriptMeta) -> Int? {
         guard let tokens = meta.contextTokens else { return nil }
         let window = ContextWindow.size(forModel: meta.model ?? "")
-        let left = 100 - Double(tokens) * 100 / Double(window)
-        return Int(min(100, max(0, left.rounded())))
+        return contextLeftPercent(used: Double(tokens) * 100 / Double(window))
+    }
+
+    static func contextLeftPercent(used: Double) -> Int {
+        Int(min(100, max(0, (100 - used).rounded())))
     }
 
     static func agentChatMeta(summary: AgentSummary?, meta: TranscriptMeta?) -> ChatMeta {
@@ -47,10 +67,10 @@ enum TreeComposer {
         )
     }
 
-    static func sessionChatMeta(meta: TranscriptMeta?) -> ChatMeta {
+    static func sessionChatMeta(meta: TranscriptMeta?, workspaceLabel: String) -> ChatMeta {
         ChatMeta(
             title: title(meta) ?? HerdrTreeBuilder.defaultAgentTitle,
-            workspaceLabel: "",
+            workspaceLabel: workspaceLabel,
             model: meta?.model,
             branch: meta?.branch,
             status: .unknown,
