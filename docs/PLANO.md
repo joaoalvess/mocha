@@ -444,7 +444,8 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   3. Decide pelo `error.code` antes do close (§5.3.1): `unauthorized` e `pairingExpired` levam ao pareamento, e o token só é apagado quando um pareamento novo dá certo ou no `unpair`. Estados: 502 no handshake → "O Mac respondeu, mas o mochad não está rodando"; timeout ou erro de conexão → "Sem conexão com o Mac" (§6.3).
   4. `KeychainTokenStore` no app; `scenePhase` com `setForeground`; telas de Pareamento (leitura de QR com `DataScannerViewController`, link colado, estados de erro) e de Ajustes (host e data do pareamento, guardada no app, estado da conexão, validade do perfil de provisionamento, versões e desparear com confirmação) pelo mock (§6.3), substituindo os encaixes `PairingScreen` e `SettingsScreen` do WP-I1.
   5. A opção `automaticPong` no `HttpServer` (ligada por padrão), para o teste do servidor sem pong.
-  6. Parte da sonda `App/Sources/Debug/GatewayProbe*` do S5 (lógica movida para o `ConnectionManager` de `MochaClient`). Com a conexão real pronta, apaga `App/Sources/Debug/GatewayProbe*` e o caso `gateway` do `DebugProbe` em `AppShell/RootView.swift`.
+  6. Pendência do WP-I1: o `PairingScreen` fica atrás das folhas (`.sheet`) quando a conexão cai em `pairingRequired` com uma folha aberta; o Pareamento precisa cobrir tudo (§6.1), fechando a folha ou apresentando por cima dela.
+  7. Parte da sonda `App/Sources/Debug/GatewayProbe*` do S5 (lógica movida para o `ConnectionManager` de `MochaClient`). Com a conexão real pronta, apaga `App/Sources/Debug/GatewayProbe*` e o caso `gateway` do `DebugProbe` em `AppShell/RootView.swift`.
 - **Aceite**:
   - [ ] `MochaClientTests` contra um servidor WS de teste montado com o `HttpServer` (WP0.3) em `MochaTestSupport/Http/`: pareamento por código → token salvo no `TokenStore` → reconexão com token, queda do servidor e sequência de backoff.
   - [ ] Teste da sequência de backoff (limite de 8 s depois do jitter, contagem zerada ao abrir) com relógio e aleatoriedade injetados.
@@ -707,10 +708,10 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-D1 | feito | 393ec96, 0ecf4d2, f1045ef |
 | WP-M1 | feito | a95f3c7, c54fabd, 146201b, 1303675 |
 | WP-M2 | feito | b34bf17, 7f55ad2, 0ea19a6, 52dbc30 |
-| WP-I1 | Fase A feita; Fase B na onda 1.A' | d09483f, fd07098, cab25c6, 1941ba0 |
+| WP-I1 | feito (arrastar da borda fica no checklist do WP-X1) | d09483f, fd07098, cab25c6, 1941ba0, e986b09, 8b040f3, 71bf186, 6dcadf6, cb378a0, merge cec977f, 9e28bea |
 | Passo 1 (escopo B) | feito | 2fba5f9, be6bd8b, 5434975, d59f9d8 e os commits do protocolo |
-| WP-D2 | todo | |
-| WP-M2b | todo | |
+| WP-D2 | feito | 83ff272, 6f35dc0, bc10208, merge cb5a698 |
+| WP-M2b | feito (medição de 50 MB pendente numa janela sem build) | d8ab1b4, f13a3e4, 739718f, merge 97e13b4 |
 | WP-M3 | todo | |
 | WP-I12 | todo | |
 | WP-I4 | todo | |
