@@ -32,7 +32,7 @@ struct RootView: View {
     private var content: some View {
         switch startup {
         case .session(let session):
-            AppShellView(session: session, launchURL: launchURL)
+            AppShellView(session: session, launchURL: launchURL, opensDrawerAtLaunch: opensDrawerAtLaunch)
                 .onOpenURL { session.handle($0) }
         case .demoUnavailable:
             SplashView(message: "Não foi possível abrir o modo demo.")
@@ -46,6 +46,14 @@ struct RootView: View {
         launch.openURL
         #else
         nil
+        #endif
+    }
+
+    private var opensDrawerAtLaunch: Bool {
+        #if DEBUG
+        launch.opensDrawer
+        #else
+        false
         #endif
     }
 }

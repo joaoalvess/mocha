@@ -8,12 +8,16 @@ struct LaunchConfiguration: Equatable {
     var probe: DebugProbe?
     var preview: DebugPreview?
     var openURL: URL?
+    var opensDrawer = false
     #endif
 
     static let demoFlag = "-demo"
     static let demoScriptFlag = "-demo-script"
     static let demoUnpairedFlag = "-demo-unpaired"
     static let demoEmptyFlag = "-demo-empty"
+    #if DEBUG
+    static let openDrawerFlag = "-open-drawer"
+    #endif
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -32,6 +36,7 @@ struct LaunchConfiguration: Equatable {
         configuration.probe = (argumentDomain[DebugProbe.argumentKey] as? String).flatMap(DebugProbe.init(rawValue:))
         configuration.preview = (argumentDomain[DebugPreview.argumentKey] as? String).flatMap(DebugPreview.init(rawValue:))
         configuration.openURL = (argumentDomain[LaunchArguments.openURLKey] as? String).flatMap(URL.init(string:))
+        configuration.opensDrawer = arguments.contains(openDrawerFlag)
         #endif
         return configuration
     }
