@@ -61,6 +61,12 @@ public struct TranscriptMeta: Sendable, Equatable {
     public var permissionMode: String?
     public var claudeVersion: String?
     public var lastModified: Date?
+    public var preview: MessagePreview?
+    public var activity: ToolActivity?
+    public var contextTokens: Int?
+    public var sessionStartedAt: Date?
+    public var turnStartedAt: Date?
+    public var turnEndedAt: Date?
 
     public init(
         title: String? = nil,
@@ -68,7 +74,13 @@ public struct TranscriptMeta: Sendable, Equatable {
         branch: String? = nil,
         permissionMode: String? = nil,
         claudeVersion: String? = nil,
-        lastModified: Date? = nil
+        lastModified: Date? = nil,
+        preview: MessagePreview? = nil,
+        activity: ToolActivity? = nil,
+        contextTokens: Int? = nil,
+        sessionStartedAt: Date? = nil,
+        turnStartedAt: Date? = nil,
+        turnEndedAt: Date? = nil
     ) {
         self.title = title
         self.model = model
@@ -76,6 +88,12 @@ public struct TranscriptMeta: Sendable, Equatable {
         self.permissionMode = permissionMode
         self.claudeVersion = claudeVersion
         self.lastModified = lastModified
+        self.preview = preview
+        self.activity = activity
+        self.contextTokens = contextTokens
+        self.sessionStartedAt = sessionStartedAt
+        self.turnStartedAt = turnStartedAt
+        self.turnEndedAt = turnEndedAt
     }
 }
 

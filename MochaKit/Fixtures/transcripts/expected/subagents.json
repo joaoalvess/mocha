@@ -110,10 +110,23 @@
     }
   ],
   "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "npm run build",
+      "toolName" : "Bash"
+    },
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "default",
-    "title" : "Revisar README e build"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "A revisão achou dois links quebrados na seção Instalação."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "Revisar README e build",
+    "turnEndedAt" : "2026-09-25T15:01:04.753Z",
+    "turnStartedAt" : "2026-09-25T15:00:04.001Z"
   },
   "stats" : {
     "dropped" : 0,

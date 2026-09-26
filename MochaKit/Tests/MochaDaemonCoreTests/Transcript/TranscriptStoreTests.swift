@@ -21,7 +21,7 @@ struct TranscriptStoreTests {
         #expect(!subscription.page.hasMore)
         #expect(subscription.page.before == nil)
         let meta = subscription.page.meta
-        #expect(TranscriptSnapshot.Meta(title: meta.title, model: meta.model, branch: meta.branch, permissionMode: meta.permissionMode) == expected.meta)
+        #expect(TranscriptSnapshot.Meta(meta: meta) == expected.meta)
         #expect(meta.claudeVersion == "2.1.282")
         #expect(meta.lastModified == TranscriptFileStatus.of(path: TranscriptFixtures.path(name))?.modificationDate)
     }
@@ -114,6 +114,13 @@ struct TranscriptStoreTests {
             claudeVersion: "2.1.282"
         ))
         #expect(await store.stats(forSession: TranscriptSession(sessionId: "basic-turn")) == TranscriptStats(claudeVersion: "2.1.282"))
+    }
+
+    @Test(arguments: TranscriptFixtures.names)
+    func metaWithoutFollowingMatchesTheSnapshot(_ name: String) async throws {
+        let meta = try #require(await fixtureStore().meta(forSession: TranscriptSession(sessionId: name)))
+        #expect(TranscriptSnapshot.Meta(meta: meta) == (try TranscriptFixtures.expectedSnapshot(name)).meta)
+        #expect(meta.claudeVersion == "2.1.282")
     }
 
     @Test func missingSessionHasNoMetaNoStatsAndAnEmptyPage() async throws {

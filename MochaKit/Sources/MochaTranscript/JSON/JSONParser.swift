@@ -5,12 +5,12 @@ struct JSONParseError: Error, Sendable, Equatable {
 }
 
 struct JSONParser {
-    private static let maximumDepth = 512
+    static let maximumDepth = 512
 
-    private let bytes: UnsafeRawBufferPointer
-    private var position = 0
+    let bytes: UnsafeRawBufferPointer
+    var position = 0
 
-    private init(bytes: UnsafeRawBufferPointer) {
+    init(bytes: UnsafeRawBufferPointer) {
         self.bytes = bytes
     }
 
@@ -29,11 +29,11 @@ struct JSONParser {
         return try result.get()
     }
 
-    private func failure() -> JSONParseError {
+    func failure() -> JSONParseError {
         JSONParseError(position: position)
     }
 
-    private mutating func skipWhitespace() {
+    mutating func skipWhitespace() {
         while position < bytes.count {
             switch bytes[position] {
             case 0x20, 0x09, 0x0A, 0x0D: position += 1
@@ -66,7 +66,7 @@ struct JSONParser {
         }
     }
 
-    private mutating func expectLiteral(_ literal: StaticString) throws(JSONParseError) {
+    mutating func expectLiteral(_ literal: StaticString) throws(JSONParseError) {
         let count = literal.utf8CodeUnitCount
         guard position + count <= bytes.count else { throw failure() }
         let pointer = literal.utf8Start
@@ -131,7 +131,7 @@ struct JSONParser {
         }
     }
 
-    private mutating func parseString() throws(JSONParseError) -> String {
+    mutating func parseString() throws(JSONParseError) -> String {
         position += 1
         let start = position
         while position < bytes.count {
@@ -208,7 +208,7 @@ struct JSONParser {
         }
     }
 
-    private mutating func parseHexQuad() throws(JSONParseError) -> UInt32 {
+    mutating func parseHexQuad() throws(JSONParseError) -> UInt32 {
         guard position + 4 <= bytes.count else { throw failure() }
         var value: UInt32 = 0
         for _ in 0..<4 {
@@ -230,7 +230,7 @@ struct JSONParser {
         UTF8.encode(scalar) { buffer.append($0) }
     }
 
-    private mutating func parseNumber() throws(JSONParseError) -> String {
+    mutating func parseNumber() throws(JSONParseError) -> String {
         let start = position
         if bytes[position] == UInt8(ascii: "-") { position += 1 }
         guard position < bytes.count else { throw failure() }

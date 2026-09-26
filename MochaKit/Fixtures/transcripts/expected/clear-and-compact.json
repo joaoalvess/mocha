@@ -71,10 +71,19 @@
     }
   ],
   "meta" : {
+    "activity" : null,
     "branch" : null,
+    "contextTokens" : 19212,
     "model" : "claude-haiku-4-5-20251001",
     "permissionMode" : "default",
-    "title" : "Novo"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Seguindo: nenhum arquivo foi alterado até agora."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:00.453Z",
+    "title" : "Novo",
+    "turnEndedAt" : "2026-09-25T15:01:41.290Z",
+    "turnStartedAt" : "2026-09-25T15:01:39.478Z"
   },
   "stats" : {
     "dropped" : 0,

@@ -58,6 +58,9 @@ public actor TranscriptStore: TranscriptProviding {
     }
 
     public func meta(forSession session: TranscriptSession) async -> TranscriptMeta? {
+        if let live = await trackers[session.sessionId]?.followedMeta() {
+            return live
+        }
         guard let path = locator.path(for: session), let status = TranscriptFileStatus.of(path: path) else { return nil }
         let stamp = FileStamp(status)
         if let cached = metaCache[path], cached.stamp == stamp {

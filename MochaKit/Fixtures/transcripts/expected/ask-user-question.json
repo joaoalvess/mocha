@@ -117,10 +117,23 @@
     }
   ],
   "meta" : {
+    "activity" : {
+      "status" : "failed",
+      "summary" : "Chá ou café?",
+      "toolName" : "AskUserQuestion"
+    },
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "default",
-    "title" : "Escolher banco de dados"
+    "preview" : {
+      "author" : "user",
+      "text" : "Pergunta se prefiro chá ou café."
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "Escolher banco de dados",
+    "turnEndedAt" : "2026-09-25T15:01:23.046Z",
+    "turnStartedAt" : "2026-09-25T15:01:15.229Z"
   },
   "stats" : {
     "dropped" : 0,

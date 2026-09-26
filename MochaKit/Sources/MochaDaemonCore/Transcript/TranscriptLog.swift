@@ -12,15 +12,21 @@ extension TranscriptMeta {
             branch: header.branch,
             permissionMode: header.permissionMode,
             claudeVersion: header.claudeVersion,
-            lastModified: lastModified
+            lastModified: lastModified,
+            preview: header.preview,
+            activity: header.activity,
+            contextTokens: header.contextTokens,
+            sessionStartedAt: header.sessionStartedAt,
+            turnStartedAt: header.turnStartedAt,
+            turnEndedAt: header.turnEndedAt
         )
     }
 
     func hasSameContent(as other: TranscriptMeta) -> Bool {
-        title == other.title
-            && model == other.model
-            && branch == other.branch
-            && permissionMode == other.permissionMode
-            && claudeVersion == other.claudeVersion
+        var mine = self
+        var theirs = other
+        mine.lastModified = nil
+        theirs.lastModified = nil
+        return mine == theirs
     }
 }

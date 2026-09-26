@@ -109,6 +109,34 @@ struct FakeTranscriptProviderTests {
         #expect(await fake.subscriberCount(forSession: "s1") == 0)
     }
 
+    @Test func homeFieldsTravelThroughMetaPagesAndDeltas() async throws {
+        let fake = FakeTranscriptProvider()
+        let home = TranscriptMeta(
+            title: "receitas-api",
+            model: "claude-opus-5-5",
+            lastModified: Date(timeIntervalSince1970: 1_790_000_100),
+            preview: MessagePreview(author: .assistant, text: "Rodei os testes."),
+            activity: ToolActivity(toolName: "Bash", summary: "npm test", status: .running),
+            contextTokens: 120_000,
+            sessionStartedAt: Date(timeIntervalSince1970: 1_790_000_000),
+            turnStartedAt: Date(timeIntervalSince1970: 1_790_000_050),
+            turnEndedAt: Date(timeIntervalSince1970: 1_789_999_000)
+        )
+        await fake.setMeta(home, forSession: "s1")
+        #expect(await fake.meta(forSession: session) == home)
+        let subscription = try await fake.open(session: session, limit: 60)
+        defer { subscription.cancel() }
+        #expect(subscription.page.meta == home)
+
+        var finished = home
+        finished.activity = ToolActivity(toolName: "Bash", summary: "npm test", status: .succeeded)
+        finished.turnEndedAt = Date(timeIntervalSince1970: 1_790_000_090)
+        await fake.publishMeta(finished, toSession: "s1")
+        var iterator = subscription.deltas.makeAsyncIterator()
+        #expect(await iterator.next() == .meta(finished))
+        #expect(await fake.meta(forSession: session) == finished)
+    }
+
     @Test func metaAndStatsAreFixedPerSession() async {
         let fake = FakeTranscriptProvider()
         let stats = TranscriptStats(dropped: 2, orphanResults: 1, unknown: ["type:x": 3], claudeVersion: "2.1.283")

@@ -120,10 +120,23 @@
     }
   ],
   "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "",
+      "toolName" : "EnterPlanMode"
+    },
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-opus-5-5",
     "permissionMode" : "plan",
-    "title" : "Planejar endpoint /health"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Modo de plano ativo. Qual a próxima etapa?"
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "Planejar endpoint /health",
+    "turnEndedAt" : "2026-09-25T15:00:57.230Z",
+    "turnStartedAt" : "2026-09-25T15:00:52.518Z"
   },
   "stats" : {
     "dropped" : 0,

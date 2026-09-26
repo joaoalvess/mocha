@@ -82,6 +82,16 @@ actor TranscriptTracker {
         return TranscriptSubscription(page: page, deltas: deltas, onCancel: { continuation.finish() })
     }
 
+    func followedMeta() -> TranscriptMeta? {
+        guard let follower else { return nil }
+        catchUp()
+        var meta = liveMeta
+        if let modified = follower.status()?.modificationDate {
+            meta.lastModified = modified
+        }
+        return meta
+    }
+
     func unsubscribe(_ id: UUID) {
         guard let continuation = subscribers.removeValue(forKey: id) else { return }
         continuation.finish()

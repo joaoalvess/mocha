@@ -175,10 +175,23 @@
     }
   ],
   "meta" : {
+    "activity" : {
+      "status" : "failed",
+      "summary" : "rm -rf build",
+      "toolName" : "Bash"
+    },
     "branch" : "main",
+    "contextTokens" : 19212,
     "model" : "claude-haiku-4-5-20251001",
     "permissionMode" : "auto",
-    "title" : "Criar notas.txt"
+    "preview" : {
+      "author" : "assistant",
+      "text" : "O modo automático bloqueou o rm -rf build. Quer que eu apague manualmente só os arquivos gerados?"
+    },
+    "sessionStartedAt" : "2026-09-25T15:00:04.001Z",
+    "title" : "Criar notas.txt",
+    "turnEndedAt" : "2026-09-25T15:02:27.267Z",
+    "turnStartedAt" : "2026-09-25T15:02:22.555Z"
   },
   "stats" : {
     "dropped" : 0,

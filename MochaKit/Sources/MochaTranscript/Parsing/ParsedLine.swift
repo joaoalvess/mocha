@@ -18,6 +18,9 @@ enum LineEffect: Sendable, Equatable {
     case slashCommand(ChatItem, promptId: String?)
     case commandOutput(String)
     case toolResult(ToolResultOutcome)
+    case contextTokens(Int)
+    case turnStarted
+    case turnEnded
 
     var producesItem: Bool {
         switch self {
@@ -25,14 +28,30 @@ enum LineEffect: Sendable, Equatable {
         default: false
         }
     }
+
+    var isUserPrompt: Bool {
+        guard case .item(let item) = self, case .userPrompt = item.kind else { return false }
+        return true
+    }
 }
 
 struct ParsedLine: Sendable, Equatable {
     var version: String?
+    var timestamp: String?
     var effects: [LineEffect]
 
-    static let empty = ParsedLine(version: nil, effects: [])
-    static let dropped = ParsedLine(version: nil, effects: [.dropped])
+    init(version: String? = nil, timestamp: String? = nil, effects: [LineEffect]) {
+        self.version = version
+        self.timestamp = timestamp
+        self.effects = effects
+    }
+
+    static let empty = ParsedLine(effects: [])
+    static let dropped = ParsedLine(effects: [.dropped])
+
+    var date: Date? {
+        timestamp.flatMap(ProtocolDate.date(from:))
+    }
 
     var itemCount: Int {
         effects.reduce(0) { $0 + ($1.producesItem ? 1 : 0) }

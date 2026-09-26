@@ -1,4 +1,5 @@
 import Foundation
+import MochaDaemonCore
 import MochaProtocol
 import MochaTranscript
 
@@ -58,16 +59,69 @@ public struct TranscriptSnapshot: Codable, Equatable, Sendable {
         public var model: String?
         public var branch: String?
         public var permissionMode: String?
+        public var preview: MessagePreview?
+        public var activity: ToolActivity?
+        public var contextTokens: Int?
+        public var sessionStartedAt: Date?
+        public var turnStartedAt: Date?
+        public var turnEndedAt: Date?
 
-        public init(title: String?, model: String?, branch: String?, permissionMode: String?) {
+        public init(
+            title: String?,
+            model: String?,
+            branch: String?,
+            permissionMode: String?,
+            preview: MessagePreview? = nil,
+            activity: ToolActivity? = nil,
+            contextTokens: Int? = nil,
+            sessionStartedAt: Date? = nil,
+            turnStartedAt: Date? = nil,
+            turnEndedAt: Date? = nil
+        ) {
             self.title = title
             self.model = model
             self.branch = branch
             self.permissionMode = permissionMode
+            self.preview = preview
+            self.activity = activity
+            self.contextTokens = contextTokens
+            self.sessionStartedAt = sessionStartedAt
+            self.turnStartedAt = turnStartedAt
+            self.turnEndedAt = turnEndedAt
+        }
+
+        public init(header: TranscriptHeader) {
+            self.init(
+                title: header.title,
+                model: header.model,
+                branch: header.branch,
+                permissionMode: header.permissionMode,
+                preview: header.preview,
+                activity: header.activity,
+                contextTokens: header.contextTokens,
+                sessionStartedAt: header.sessionStartedAt,
+                turnStartedAt: header.turnStartedAt,
+                turnEndedAt: header.turnEndedAt
+            )
+        }
+
+        public init(meta: TranscriptMeta) {
+            self.init(
+                title: meta.title,
+                model: meta.model,
+                branch: meta.branch,
+                permissionMode: meta.permissionMode,
+                preview: meta.preview,
+                activity: meta.activity,
+                contextTokens: meta.contextTokens,
+                sessionStartedAt: meta.sessionStartedAt,
+                turnStartedAt: meta.turnStartedAt,
+                turnEndedAt: meta.turnEndedAt
+            )
         }
 
         private enum CodingKeys: String, CodingKey {
-            case title, model, branch, permissionMode
+            case title, model, branch, permissionMode, preview, activity, contextTokens, sessionStartedAt, turnStartedAt, turnEndedAt
         }
 
         public init(from decoder: any Decoder) throws {
@@ -76,6 +130,12 @@ public struct TranscriptSnapshot: Codable, Equatable, Sendable {
             model = try container.decodeIfPresent(String.self, forKey: .model)
             branch = try container.decodeIfPresent(String.self, forKey: .branch)
             permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+            preview = try container.decodeIfPresent(MessagePreview.self, forKey: .preview)
+            activity = try container.decodeIfPresent(ToolActivity.self, forKey: .activity)
+            contextTokens = try container.decodeIfPresent(Int.self, forKey: .contextTokens)
+            sessionStartedAt = try Self.decodeDate(container, .sessionStartedAt)
+            turnStartedAt = try Self.decodeDate(container, .turnStartedAt)
+            turnEndedAt = try Self.decodeDate(container, .turnEndedAt)
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -84,6 +144,20 @@ public struct TranscriptSnapshot: Codable, Equatable, Sendable {
             try container.encode(model, forKey: .model)
             try container.encode(branch, forKey: .branch)
             try container.encode(permissionMode, forKey: .permissionMode)
+            try container.encode(preview, forKey: .preview)
+            try container.encode(activity, forKey: .activity)
+            try container.encode(contextTokens, forKey: .contextTokens)
+            try container.encode(sessionStartedAt.map(ProtocolDate.string(from:)), forKey: .sessionStartedAt)
+            try container.encode(turnStartedAt.map(ProtocolDate.string(from:)), forKey: .turnStartedAt)
+            try container.encode(turnEndedAt.map(ProtocolDate.string(from:)), forKey: .turnEndedAt)
+        }
+
+        private static func decodeDate(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> Date? {
+            guard let text = try container.decodeIfPresent(String.self, forKey: key) else { return nil }
+            guard let date = ProtocolDate.date(from: text) else {
+                throw DecodingError.dataCorruptedError(forKey: key, in: container, debugDescription: "Data inválida: \(text)")
+            }
+            return date
         }
     }
 
@@ -110,12 +184,7 @@ public struct TranscriptSnapshot: Codable, Equatable, Sendable {
     }
 
     public init(document: TranscriptDocument) {
-        meta = Meta(
-            title: document.header.title,
-            model: document.header.model,
-            branch: document.header.branch,
-            permissionMode: document.header.permissionMode
-        )
+        meta = Meta(header: document.header)
         items = document.items
         stats = Stats(
             dropped: document.statistics.dropped,

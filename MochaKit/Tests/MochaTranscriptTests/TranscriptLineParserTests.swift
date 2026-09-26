@@ -263,7 +263,9 @@ struct TranscriptLineParserTests {
             model: "claude-opus-5-5",
             branch: nil,
             permissionMode: "auto",
-            claudeVersion: "2.1.284"
+            claudeVersion: "2.1.284",
+            preview: MessagePreview(author: .assistant, text: "b"),
+            sessionStartedAt: ProtocolDate.date(from: "2026-09-25T15:00:01.000Z")
         ))
     }
 
