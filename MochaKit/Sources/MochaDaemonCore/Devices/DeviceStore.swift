@@ -30,25 +30,51 @@ public actor DeviceStore {
         return match
     }
 
-    public func register(name: String, token: String, at date: Date) throws -> DeviceRecord {
+    public func register(name: String, token: String, at date: Date, apns: ApnsRegistration? = nil) throws -> DeviceRecord {
         let record = DeviceRecord(
             id: UUID().uuidString,
             name: name,
             tokenSha256: SecureToken.sha256Hex(token),
             createdAt: date,
-            lastSeenAt: date
+            lastSeenAt: date,
+            apns: apns
         )
         var records = try read()
+        if let apns {
+            Self.releaseApnsToken(apns.token, from: &records)
+        }
         records.append(record)
         try write(records)
         return record
     }
 
-    public func markSeen(_ id: DeviceID, at date: Date) throws {
+    public func markSeen(_ id: DeviceID, at date: Date, apns: ApnsRegistration? = nil) throws {
         var records = try read()
         guard let index = records.firstIndex(where: { $0.id == id }) else { return }
         records[index].lastSeenAt = date
+        if let apns {
+            Self.releaseApnsToken(apns.token, from: &records)
+            records[index].apns = apns
+        }
         try write(records)
+    }
+
+    public func setPreferences(_ preferences: DevicePreferences, for id: DeviceID) throws -> Bool {
+        var records = try read()
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
+        records[index].preferences = preferences
+        try write(records)
+        return true
+    }
+
+    public func removeApnsToken(_ token: String, from id: DeviceID) throws -> Bool {
+        var records = try read()
+        guard let index = records.firstIndex(where: { $0.id == id }), records[index].apns?.token.lowercased() == token.lowercased() else {
+            return false
+        }
+        records[index].apns = nil
+        try write(records)
+        return true
     }
 
     public func remove(_ id: DeviceID) throws -> Bool {
@@ -57,6 +83,12 @@ public actor DeviceStore {
         records.remove(at: index)
         try write(records)
         return true
+    }
+
+    private static func releaseApnsToken(_ token: String, from records: inout [DeviceRecord]) {
+        for index in records.indices where records[index].apns?.token.lowercased() == token.lowercased() {
+            records[index].apns = nil
+        }
     }
 
     private var path: String {

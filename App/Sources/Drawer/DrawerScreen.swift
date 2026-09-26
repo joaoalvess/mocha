@@ -8,6 +8,7 @@ struct DrawerScreen: View {
     @AppStorage(DrawerPreferences.collapsedKey) private var storedCollapsed = ""
     @State private var query = ""
     @State private var hint: String?
+    @State private var creatingTabs: Set<WorkspaceID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,6 +59,11 @@ struct DrawerScreen: View {
                 return
             }
         }
+        #if DEBUG
+        .task(id: session.connectionState) {
+            await runDebugLaunch()
+        }
+        #endif
     }
 
     private static let hintDuration: Duration = .seconds(2.5)
@@ -90,9 +96,12 @@ struct DrawerScreen: View {
     private func treeRow(_ row: DrawerTreeRow) -> some View {
         switch row {
         case .workspace(let workspace):
-            DrawerWorkspaceRowView(row: workspace) {
-                toggle(workspace.id)
-            }
+            DrawerWorkspaceRowView(
+                row: workspace,
+                isCreatingTab: creatingTabs.contains(workspace.id),
+                action: { toggle(workspace.id) },
+                onNewTab: { createAgentTab(in: workspace.id) }
+            )
         case .shell(let shell):
             DrawerTabRowView(icon: .shell, title: shell.title, level: shell.level) {
                 show(hint: Self.terminalHint)
@@ -166,6 +175,40 @@ struct DrawerScreen: View {
             storedCollapsed = DrawerContent.storedValue(forCollapsed: updated)
         }
     }
+
+    private func createAgentTab(in workspaceId: WorkspaceID) {
+        guard creatingTabs.insert(workspaceId).inserted else { return }
+        Task {
+            do {
+                let reply = try await session.request(.newAgentTab(workspaceId: workspaceId))
+                guard case .ack(let agentId?) = reply else {
+                    throw AppSessionError.unexpectedReply(type: reply.type)
+                }
+                creatingTabs.remove(workspaceId)
+                session.openChat(.agent(agentId))
+            } catch {
+                creatingTabs.remove(workspaceId)
+                show(hint: (error as? AppSessionError ?? .notConnected).message)
+            }
+        }
+    }
+
+    #if DEBUG
+    private func runDebugLaunch() async {
+        guard session.connectionState == .connected else { return }
+        let options = DrawerDebugOptions.current()
+        guard let workspaceId = options.newTabWorkspaceId, DrawerDebugLaunch.consume(DrawerDebugOptions.newTabKey) else { return }
+        try? await Task.sleep(for: options.newTabDelay)
+        guard !Task.isCancelled else { return }
+        createAgentTab(in: workspaceId)
+        if let reopenAfter = options.reopenAfter {
+            Task {
+                try? await Task.sleep(for: reopenAfter)
+                session.openDrawer()
+            }
+        }
+    }
+    #endif
 
     private func isVisible(_ agentId: AgentID) -> Bool {
         session.visibleChat?.target == .agent(agentId)

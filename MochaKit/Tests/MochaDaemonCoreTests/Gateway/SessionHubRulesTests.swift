@@ -157,6 +157,79 @@ struct SessionHubRulesTests {
         }
     }
 
+    @Test func newAgentTabAnswersTheNewAgentId() async throws {
+        try await withHub { harness in
+            let (socket, _) = try await harness.pairedClient()
+            #expect(try await socket.reply(to: .newAgentTab(workspaceId: "w1"), id: "c-1") == .ack(agentId: "w1:p3"))
+            #expect(harness.herdr.newAgentTabCalls == ["w1"])
+            let chat = try await socket.reply(to: .openChat(target: .agent("w1:p3")), id: "c-2")
+            guard case .chatPage(let page) = chat else { throw UnexpectedMessage(message: chat) }
+            #expect(page.target == .agent("w1:p3"))
+        }
+    }
+
+    @Test func newAgentTabAcceptsNestedWorkspacesAndRejectsUnknownOnes() async throws {
+        let child = Sample.workspace("w2", label: "feature", number: 2, tabs: [])
+        let tree = [Sample.workspace("w1", tabs: [TabNode(id: "w1:t1", title: "Claude", agents: [Sample.agent("w1:p1")])], children: [child])]
+        try await withHub(tree: tree) { harness in
+            let (socket, _) = try await harness.pairedClient()
+            #expect(try await socket.reply(to: .newAgentTab(workspaceId: "w2"), id: "c-1") == .ack(agentId: "w2:p1"))
+            let unknown = try await socket.reply(to: .newAgentTab(workspaceId: "w9"), id: "c-2")
+            #expect(unknown == .error(code: .invalidPayload, message: "Workspace não encontrado"))
+            #expect(harness.herdr.newAgentTabCalls == ["w2"])
+        }
+    }
+
+    @Test func newAgentTabWithoutHerdrIsHerdrUnavailable() async throws {
+        try await withHub(available: false) { harness in
+            let (socket, _) = try await harness.pairedClient()
+            #expect(try await socket.reply(to: .newAgentTab(workspaceId: "w1")).errorCode == .herdrUnavailable)
+            #expect(harness.herdr.newAgentTabCalls.isEmpty)
+        }
+    }
+
+    @Test func newAgentTabWaitDoesNotHoldTheConnection() async throws {
+        try await withHub { harness in
+            let (socket, _) = try await harness.pairedClient()
+            harness.herdr.holdNewAgentTabs()
+            try socket.deliver(.newAgentTab(workspaceId: "w1"), id: "c-1")
+            #expect(try await eventually { harness.herdr.heldNewAgentTabCount == 1 ? true : nil })
+            #expect(try await socket.reply(to: .ping, id: "c-2") == .pong)
+            #expect(try await socket.reply(to: .setForeground(agentId: "w1:p1", isActive: true), id: "c-3") == .ack())
+            #expect(socket.pendingCount == 0)
+            harness.herdr.releaseNewAgentTabs()
+            let ack = try await socket.next()
+            #expect(ack.id == "c-1")
+            #expect(ack.message == .ack(agentId: "w1:p3"))
+        }
+    }
+
+    @Test(arguments: [
+        (HerdrBridgeError.unavailable, ProtocolErrorCode.herdrUnavailable),
+        (.agentBlocked, .agentBlocked),
+        (.agentNotFound, .agentNotFound),
+        (.workspaceNotFound, .invalidPayload),
+        (.herdr(code: "agent_blocked", message: "blocked"), .agentBlocked),
+        (.herdr(code: "pane_not_found", message: "no pane"), .agentNotFound),
+        (.herdr(code: "agent_not_found", message: "no agent"), .agentNotFound),
+        (.herdr(code: "agent_not_ready", message: "not ready"), .internal),
+        (.herdr(code: "timeout", message: "timeout"), .internal),
+        (.herdr(code: "not_found", message: "no workspace"), .internal),
+    ])
+    func newAgentTabErrorsFollowTheHerdrTable(error: HerdrBridgeError, expected: ProtocolErrorCode) async throws {
+        try await withHub { harness in
+            let (socket, _) = try await harness.pairedClient()
+            harness.herdr.setNewAgentTabError(error)
+            let reply = try await socket.reply(to: .newAgentTab(workspaceId: "w1"))
+            #expect(reply.errorCode == expected)
+            let message = try #require(reply.errorMessage)
+            #expect(!message.isEmpty)
+            if error == .workspaceNotFound {
+                #expect(message == "Workspace não encontrado")
+            }
+        }
+    }
+
     @Test func unknownAndLaterPhaseTypesAnswerUnknownType() async throws {
         try await withHub { harness in
             let (socket, _) = try await harness.pairedClient()
@@ -164,7 +237,7 @@ struct SessionHubRulesTests {
             let unknown = try await socket.next()
             #expect(unknown.id == "c-1")
             #expect(unknown.message.errorCode == .unknownType)
-            #expect(try await socket.reply(to: .slash(agentId: "w1:p1", command: "/compact"), id: "c-3").errorCode == .unknownType)
+            #expect(try await socket.reply(to: .respond(requestId: "r-1", response: .allow), id: "c-3").errorCode == .unknownType)
             #expect(try await socket.reply(to: .ping, id: "c-4") == .pong)
         }
     }

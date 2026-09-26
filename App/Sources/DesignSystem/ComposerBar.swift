@@ -48,6 +48,7 @@ struct CollapsedComposer: View {
 struct ExpandedComposer<Field: View>: View {
     let canSend: Bool
     var buttons: ComposerButtons = []
+    var activeButtons: ComposerButtons = []
     var onAttach: () -> Void = {}
     var onSlashMenu: () -> Void = {}
     var onMicrophone: () -> Void = {}
@@ -63,7 +64,7 @@ struct ExpandedComposer<Field: View>: View {
                     ComposerIconButton(systemImage: "plus", accessibilityLabel: "Anexar imagem", action: onAttach)
                 }
                 if buttons.contains(.slashMenu) {
-                    ComposerIconButton(lineIcon: .redo, accessibilityLabel: "Comandos", action: onSlashMenu)
+                    ComposerIconButton(lineIcon: .redo, accessibilityLabel: "Comandos", isActive: activeButtons.contains(.slashMenu), action: onSlashMenu)
                 }
                 Spacer(minLength: 0)
                 if buttons.contains(.microphone) {
@@ -109,6 +110,7 @@ struct ComposerIconButton: View {
     var systemImage: String?
     var lineIcon: LineIcon?
     let accessibilityLabel: String
+    var isActive = false
     let action: () -> Void
 
     var body: some View {
@@ -116,10 +118,12 @@ struct ComposerIconButton: View {
             glyph
                 .foregroundStyle(Palette.textPrimary)
                 .frame(width: 40, height: 36)
+                .background(Capsule().fill(Color.white.opacity(isActive ? 0.12 : 0)))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     @ViewBuilder

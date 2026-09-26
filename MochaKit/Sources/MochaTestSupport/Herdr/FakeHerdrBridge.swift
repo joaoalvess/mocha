@@ -13,6 +13,16 @@ public struct FakeHerdrPromptCall: Sendable, Equatable {
     }
 }
 
+public struct FakeHerdrSessionRefresh: Sendable, Equatable {
+    public let agentId: AgentID
+    public let sessionId: String
+
+    public init(agentId: AgentID, sessionId: String) {
+        self.agentId = agentId
+        self.sessionId = sessionId
+    }
+}
+
 public final class FakeHerdrBridge: HerdrBridging {
     private struct State {
         var agents: [AgentID: HerdrAgent]
@@ -24,6 +34,12 @@ public final class FakeHerdrBridge: HerdrBridging {
         var interruptCalls: [AgentID] = []
         var openChatsCalls: [Set<AgentID>] = []
         var resolveCalls: [AgentID] = []
+        var sessionRefreshCalls: [FakeHerdrSessionRefresh] = []
+        var dirtyRefreshCalls: [AgentID] = []
+        var newAgentTabCalls: [WorkspaceID] = []
+        var newAgentTabError: HerdrBridgeError?
+        var holdsNewAgentTabs = false
+        var heldNewAgentTabs: [CheckedContinuation<Void, Never>] = []
     }
 
     public static let defaultServerInfo = HerdrServerInfo(version: "0.9.1", protocolVersion: 22)
@@ -98,6 +114,68 @@ public final class FakeHerdrBridge: HerdrBridging {
         get async { state.withLock { $0.serverInfo } }
     }
 
+    public func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async {
+        let changed = state.withLock { state -> Bool in
+            state.sessionRefreshCalls.append(FakeHerdrSessionRefresh(agentId: id, sessionId: sessionId))
+            guard var agent = state.agents[id], agent.sessionId != sessionId else { return false }
+            agent.sessionId = sessionId
+            state.agents[id] = agent
+            return true
+        }
+        if changed {
+            hub.publish(.sessionChanged(id, sessionId: sessionId))
+        }
+    }
+
+    public func refreshDirtyState(ofAgent id: AgentID) async {
+        state.withLock { $0.dirtyRefreshCalls.append(id) }
+    }
+
+    public func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID {
+        let error = state.withLock { state in
+            state.newAgentTabCalls.append(workspaceId)
+            return state.newAgentTabError
+        }
+        await waitForNewAgentTabRelease()
+        try failIfNeeded(error)
+        return state.withLock { state in
+            var number = 1
+            while state.agents["\(workspaceId):p\(number)"] != nil {
+                number += 1
+            }
+            let agentId = "\(workspaceId):p\(number)"
+            state.agents[agentId] = HerdrAgent(paneId: agentId, workspaceId: workspaceId, kind: "claude", status: .idle)
+            return agentId
+        }
+    }
+
+    public func setNewAgentTabError(_ error: HerdrBridgeError?) {
+        state.withLock { $0.newAgentTabError = error }
+    }
+
+    public func holdNewAgentTabs() {
+        state.withLock { $0.holdsNewAgentTabs = true }
+    }
+
+    public func releaseNewAgentTabs() {
+        let held = state.withLock { state in
+            state.holdsNewAgentTabs = false
+            defer { state.heldNewAgentTabs.removeAll() }
+            return state.heldNewAgentTabs
+        }
+        for continuation in held {
+            continuation.resume()
+        }
+    }
+
+    public var newAgentTabCalls: [WorkspaceID] {
+        state.withLock { $0.newAgentTabCalls }
+    }
+
+    public var heldNewAgentTabCount: Int {
+        state.withLock { $0.heldNewAgentTabs.count }
+    }
+
     public func setTree(_ tree: [WorkspaceNode]) {
         hub.publish(.treeChanged(tree))
     }
@@ -165,8 +243,29 @@ public final class FakeHerdrBridge: HerdrBridging {
         state.withLock { $0.resolveCalls }
     }
 
+    public var sessionRefreshCalls: [FakeHerdrSessionRefresh] {
+        state.withLock { $0.sessionRefreshCalls }
+    }
+
+    public var dirtyRefreshCalls: [AgentID] {
+        state.withLock { $0.dirtyRefreshCalls }
+    }
+
     public var subscriberCount: Int {
         hub.subscriberCount
+    }
+
+    private func waitForNewAgentTabRelease() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let isHeld = state.withLock { state in
+                guard state.holdsNewAgentTabs else { return false }
+                state.heldNewAgentTabs.append(continuation)
+                return true
+            }
+            if !isHeld {
+                continuation.resume()
+            }
+        }
     }
 
     private func failIfNeeded(_ configured: HerdrBridgeError?) throws {

@@ -61,6 +61,9 @@ public enum HerdrRequest: Sendable, Hashable {
     case paneGet(paneId: String)
     case agentPrompt(target: String, text: String)
     case agentSendKeys(target: String, keys: [String])
+    case tabCreate(workspaceId: String, cwd: String?)
+    case agentStart(name: String, kind: String, paneId: String, args: [String], timeoutMs: Int?)
+    case agentWait(target: String, until: [HerdrAgentStatus], timeoutMs: Int)
     case eventsSubscribe([HerdrSubscription])
 
     public var method: String {
@@ -74,6 +77,9 @@ public enum HerdrRequest: Sendable, Hashable {
         case .paneGet: "pane.get"
         case .agentPrompt: "agent.prompt"
         case .agentSendKeys: "agent.send_keys"
+        case .tabCreate: "tab.create"
+        case .agentStart: "agent.start"
+        case .agentWait: "agent.wait"
         case .eventsSubscribe: "events.subscribe"
         }
     }
@@ -100,6 +106,13 @@ public enum HerdrRequest: Sendable, Hashable {
             case workspaceId = "workspace_id"
             case paneId = "pane_id"
             case subscriptions
+            case cwd
+            case focus
+            case name
+            case kind
+            case args
+            case until
+            case timeoutMs = "timeout_ms"
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -119,6 +132,20 @@ public enum HerdrRequest: Sendable, Hashable {
             case .agentSendKeys(let target, let keys):
                 try container.encode(target, forKey: .target)
                 try container.encode(keys, forKey: .keys)
+            case .tabCreate(let workspaceId, let cwd):
+                try container.encode(workspaceId, forKey: .workspaceId)
+                try container.encodeIfPresent(cwd, forKey: .cwd)
+                try container.encode(false, forKey: .focus)
+            case .agentStart(let name, let kind, let paneId, let args, let timeoutMs):
+                try container.encode(name, forKey: .name)
+                try container.encode(kind, forKey: .kind)
+                try container.encode(paneId, forKey: .paneId)
+                try container.encode(args, forKey: .args)
+                try container.encodeIfPresent(timeoutMs, forKey: .timeoutMs)
+            case .agentWait(let target, let until, let timeoutMs):
+                try container.encode(target, forKey: .target)
+                try container.encode(until.map(\.rawValue), forKey: .until)
+                try container.encode(timeoutMs, forKey: .timeoutMs)
             case .eventsSubscribe(let subscriptions):
                 try container.encode(subscriptions, forKey: .subscriptions)
             }

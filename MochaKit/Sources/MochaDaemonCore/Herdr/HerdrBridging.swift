@@ -10,6 +10,9 @@ public protocol HerdrBridging: Sendable {
     func prompt(_ id: AgentID, text: String) async throws
     func interrupt(_ id: AgentID) async throws
     func setOpenChats(_ ids: Set<AgentID>) async
+    func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async
+    func refreshDirtyState(ofAgent id: AgentID) async
+    func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID
     var serverInfo: HerdrServerInfo? { get async }
 }
 
@@ -76,5 +79,6 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
     case unavailable
     case agentNotFound
     case agentBlocked
+    case workspaceNotFound
     case herdr(code: String, message: String)
 }

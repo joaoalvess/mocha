@@ -7,6 +7,7 @@ import Testing
 func withLocalControl(
     _ harness: HubHarness,
     pairingURL: @escaping LocalControl.PairingURLProvider = { Sample.pairingURL },
+    apnsIssues: @escaping LocalControl.ApnsIssuesProvider = { [] },
     _ body: (LocalControlServer, LocalControlClient) async throws -> Void
 ) async throws {
     let path = FakeHerdrServer.temporarySocketPath()
@@ -17,6 +18,7 @@ func withLocalControl(
         herdr: harness.herdr,
         transcripts: harness.transcripts,
         pairingURL: pairingURL,
+        apnsIssues: apnsIssues,
         version: "9.9.9",
         startedAt: Sample.start
     )
@@ -88,6 +90,39 @@ struct LocalControlTests {
                 #expect(object["startedAt"] as? String == ProtocolDate.string(from: Sample.start))
             }
         }
+    }
+
+    @Test func statusCarriesTheApnsConfigurationErrors() async throws {
+        let issue = ApnsConfigurationIssue(environment: .production, status: 403, reason: "BadEnvironmentKeyInToken", at: Sample.start)
+        try await withHub { harness in
+            try await withLocalControl(harness, apnsIssues: { [issue] }) { _, client in
+                let status = try await client.status()
+                #expect(status.apns == LocalStatus.Apns(configurationErrors: [issue]))
+
+                let raw = try await client.send(.get, LocalControl.statusPath)
+                let object = try #require(try JSONSerialization.jsonObject(with: raw.body) as? [String: Any])
+                let apns = try #require(object["apns"] as? [String: Any])
+                let errors = try #require(apns["configurationErrors"] as? [[String: Any]])
+                #expect(errors.count == 1)
+                #expect(errors.first?["environment"] as? String == "production")
+                #expect(errors.first?["status"] as? Int == 403)
+                #expect(errors.first?["reason"] as? String == "BadEnvironmentKeyInToken")
+                #expect(errors.first?["at"] as? String == ProtocolDate.string(from: Sample.start))
+            }
+            try await withLocalControl(harness) { _, client in
+                let status = try await client.status()
+                #expect(status.apns == LocalStatus.Apns(configurationErrors: []))
+            }
+        }
+    }
+
+    @Test func statusWithoutApnsFromAnOlderDaemonStillDecodes() throws {
+        let json = """
+        {"clients":[],"herdr":{"available":false},"sessions":[],"startedAt":"\(ProtocolDate.string(from: Sample.start))","version":"0.1.0"}
+        """
+        let status = try LocalJSON.decoder().decode(LocalStatus.self, from: Data(json.utf8))
+        #expect(status.apns == nil)
+        #expect(status.version == "0.1.0")
     }
 
     @Test func pairingCodeFromTheLocalChannelPairsAnIPhone() async throws {

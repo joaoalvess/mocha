@@ -78,8 +78,7 @@ struct TranscriptStoreHomeMetaTests {
 
     @Test func metaOfAFollowedSessionComesFromTheLiveState() async throws {
         let sandbox = try TranscriptSandbox()
-        let outside = try TranscriptSandbox()
-        let url = try outside.write(try TranscriptFixtures.bytes("tool-calls"), to: outside.sessionURL("viva"))
+        let url = try sandbox.write(try TranscriptFixtures.bytes("tool-calls"), to: sandbox.projectURL().appending(path: "aninhado/viva.jsonl"))
         let store = TranscriptStore(projectsRoot: sandbox.rootPath)
         let bySessionId = TranscriptSession(sessionId: "viva")
         #expect(await store.meta(forSession: bySessionId) == nil)
@@ -88,7 +87,7 @@ struct TranscriptStoreHomeMetaTests {
             session: TranscriptSession(sessionId: "viva", transcriptPath: url.path(percentEncoded: false)),
             limit: 60
         )
-        try outside.append(line: Self.toolUse(id: "toolu_viva", command: "make", uuid: "a-viva"), to: url)
+        try sandbox.append(line: Self.toolUse(id: "toolu_viva", command: "make", uuid: "a-viva"), to: url)
         let live = try #require(await store.meta(forSession: bySessionId))
         #expect(live.activity == ToolActivity(toolName: "Bash", summary: "make", status: .running))
         #expect(live.title == "Corrigir testes do login")

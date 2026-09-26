@@ -88,6 +88,10 @@ enum TreeComposer {
         agents(in: tree).first { $0.id == id }
     }
 
+    static func containsWorkspace(_ id: WorkspaceID, in tree: [WorkspaceNode]) -> Bool {
+        tree.contains { $0.id == id || containsWorkspace(id, in: $0.children) }
+    }
+
     static func updatingAgent(
         _ id: AgentID,
         in tree: [WorkspaceNode],

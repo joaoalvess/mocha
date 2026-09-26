@@ -1,4 +1,5 @@
 import Foundation
+import MochaProtocol
 import MochaTestSupport
 import Network
 import Testing
@@ -6,12 +7,13 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DaemonRuntimeTests {
-    static func options(_ home: TemporaryHome, herdrSocket: String) -> DaemonOptions {
+    static func options(_ home: TemporaryHome, herdrSocket: String, hookPort: UInt16? = 0) -> DaemonOptions {
         DaemonOptions(
             paths: home.paths,
             herdrSocketPath: herdrSocket,
             projectsRoot: home.url.appending(path: "projects").path(percentEncoded: false),
-            pairingURL: { Sample.pairingURL }
+            pairingURL: { Sample.pairingURL },
+            hookPort: hookPort
         )
     }
 
@@ -81,6 +83,102 @@ struct DaemonRuntimeTests {
                     try await client.status()
                 }
             }
+        }
+    }
+
+    @Test func hookPortInUseFailsFastAndReleasesTheGateway() async throws {
+        try await withRunningServer(HttpRouter()) { hookPort in
+            try await withTemporaryHome(short: true) { home in
+                let gatewayPort = try await Self.freePort()
+                try home.write(
+                    #"{"gatewayPort": \#(gatewayPort), "hookPort": \#(hookPort)}"#,
+                    to: "Library/Application Support/Mocha/config.json",
+                    permissions: 0o600
+                )
+                let runtime = DaemonRuntime(options: Self.options(home, herdrSocket: FakeHerdrServer.temporarySocketPath(), hookPort: nil))
+
+                await #expect(throws: DaemonStartError.portInUse(hookPort)) {
+                    try await runtime.start()
+                }
+                #expect(socketMode(home.paths.controlSocket.path(percentEncoded: false)) == nil)
+                let probe = HttpServer(binding: .loopback(port: gatewayPort), router: HttpRouter())
+                try await probe.start()
+                await probe.stop()
+            }
+        }
+    }
+
+    @Test func runServesTheHookRoutesWithTheSecretFromTheConfig() async throws {
+        try await withTemporaryHome(short: true) { home in
+            let port = try await Self.freePort()
+            try home.write(#"{"gatewayPort": \#(port), "hookSecret": "segredo-do-config"}"#, to: "Library/Application Support/Mocha/config.json", permissions: 0o600)
+            let runtime = DaemonRuntime(options: Self.options(home, herdrSocket: FakeHerdrServer.temporarySocketPath()))
+            let events = runtime.hookEvents.events()
+
+            let started = try await runtime.start()
+
+            #expect(started.hookPort != 0)
+            #expect(started.hookPort != DaemonConfig.defaultHookPort)
+            #expect(started.generatedHookSecret == false)
+            let body = try Fixtures.data("hooks/Stop.json")
+            let rejected = try await sendRequest("POST", port: started.hookPort, target: "/hooks/Stop", headers: ["X-Mocha-Pane": "w1C:p2"], body: body)
+            #expect(rejected.status == 401)
+            let accepted = try await sendRequest(
+                "POST",
+                port: started.hookPort,
+                target: "/hooks/Stop",
+                headers: ["X-Mocha-Pane": "w1C:p2", "X-Mocha-Hook-Secret": "segredo-do-config", "Content-Type": "application/json"],
+                body: body
+            )
+            #expect(accepted.status == 200)
+            #expect(String(decoding: accepted.body, as: UTF8.self) == "{}")
+            var iterator = events.makeAsyncIterator()
+            let received = try #require(await iterator.next())
+            #expect(received.agentId == "w1C:p2")
+            #expect(received.event.name == .stop)
+
+            await runtime.stop()
+
+            #expect(await iterator.next() == nil)
+        }
+    }
+
+    @Test func aStopHookBecomesAnAlertForTheRegisteredDevice() async throws {
+        try await withTemporaryHome(short: true) { home in
+            let port = try await Self.freePort()
+            try home.write(#"{"gatewayPort": \#(port), "hookSecret": "segredo-do-config"}"#, to: "Library/Application Support/Mocha/config.json", permissions: 0o600)
+            _ = try await DeviceStore(fileURL: home.paths.devicesFile).register(
+                name: "iPhone",
+                token: "t",
+                at: Date(),
+                apns: ApnsRegistration(token: PushTestData.deviceToken, env: .sandbox)
+            )
+            let key = try PushTestData.signingKey()
+            let transport = FakeApnsTransport()
+            var options = Self.options(home, herdrSocket: FakeHerdrServer.temporarySocketPath())
+            options.apnsCredentials = { ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId), key: key) }
+            options.apnsTransport = transport
+            let runtime = DaemonRuntime(options: options)
+
+            let started = try await runtime.start()
+            let accepted = try await sendRequest(
+                "POST",
+                port: started.hookPort,
+                target: "/hooks/Stop",
+                headers: ["X-Mocha-Pane": "w1C:p2", "X-Mocha-Hook-Secret": "segredo-do-config", "Content-Type": "application/json"],
+                body: try Fixtures.data("hooks/Stop.json")
+            )
+            #expect(accepted.status == 200)
+
+            let request = try await eventually { transport.requests.first }
+            #expect(request.url?.host() == "api.sandbox.push.apple.com")
+            let payload = try PushTestData.jsonObject(try #require(request.httpBody))
+            let alert = try #require((payload["aps"] as? [String: Any])?["alert"] as? [String: Any])
+            #expect(alert["title"] as? String == "Claude terminou")
+            #expect(alert["body"] as? String == "pronto")
+            #expect(payload["agentId"] as? String == "w1C:p2")
+
+            await runtime.stop()
         }
     }
 

@@ -47,7 +47,8 @@ public struct Doctor: Sendable {
                 config: config,
                 signature: await signer.signatureStatus(of: binary.fileSystemPath),
                 binary: paths.display(binary),
-                keychain: { keyPresence.presence(keyId: $0.keyId) }
+                keychain: { keyPresence.presence(keyId: $0.keyId) },
+                issues: (try? status.get())?.apns?.configurationErrors ?? []
             ),
             DoctorChecks.dataDirectory(paths),
             DoctorChecks.transcript(status),

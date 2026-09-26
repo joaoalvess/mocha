@@ -5,6 +5,7 @@ enum DrawerIcon {
     case clock
     case listRect
     case gear
+    case plus
 }
 
 struct DrawerIconShape: Shape {
@@ -36,6 +37,9 @@ struct DrawerIconShape: Shape {
             path.addLines(Self.gearOutline)
             path.closeSubpath()
             path.addEllipse(in: CGRect(x: 8.7, y: 8.7, width: 6.6, height: 6.6))
+        case .plus:
+            path.addLines([CGPoint(x: 12, y: 4), CGPoint(x: 12, y: 20)])
+            path.addLines([CGPoint(x: 4, y: 12), CGPoint(x: 20, y: 12)])
         }
         return path
     }

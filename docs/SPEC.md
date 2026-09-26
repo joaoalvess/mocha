@@ -52,7 +52,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Live Activity agregada / Dynamic Island | 1b |
 | Ditado por voz on-device | 1b |
 | Anexar imagem ao prompt | 1a-core |
-| Abrir nova tab com Claude num workspace existente | 1b |
+| Abrir nova tab com Claude num workspace existente | 1a-final |
 | Terminal SSH (`herdr agent attach`) | 2 |
 | Transporte Mosh no terminal | 3 |
 
@@ -235,9 +235,9 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 | `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
 | `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
 | `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
-| `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1b |
-| `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1b |
-| `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1b |
+| `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1a-final |
+| `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1a-final |
+| `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1a-final |
 | `agent.read` | `{target, source: "recent_unwrapped", lines}` | `pane_read` (`read.text`) | Diagnóstico (`doctor`) | 1b |
 
 #### §3.1.3 Eventos
@@ -270,7 +270,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 #### §3.2.1 Localização
 
 - Arquivo da sessão: `~/.claude/projects/<cwd codificado>/<session_id>.jsonl`.
-- Resolução: procurar só `~/.claude/projects/*/<session_id>.jsonl` (um nível), com cache do resultado. **Não** reimplementar a codificação do diretório. Quando o hook traz `transcript_path`, ele tem precedência.
+- Resolução: procurar só `~/.claude/projects/*/<session_id>.jsonl` (um nível), com cache do resultado. **Não** reimplementar a codificação do diretório. Quando o hook traz `transcript_path`, ele tem precedência, mas só vale se, sem `.`/`..` e com os symlinks resolvidos (quando o arquivo ainda não existe, resolve-se o ancestral existente mais próximo), cair dentro de `~/.claude/projects/` (também resolvido) e se chamar exatamente `<session_id>.jsonl`. Senão, é ignorado como se não viesse: vale a busca por `session_id`, com log debug sem o caminho.
 - O diretório do projeto também tem `memory/`, `<session_id>/tool-results/`, `<session_id>/subagents/` e `.jsonl` de plugins (ex.: `vercel-plugin/skill-injections.jsonl`, sem `type`). Nunca varrer `**/*.jsonl`.
 - **Criação**: numa sessão nova, o arquivo só nasce na primeira mensagem, e o `transcript_path` do `SessionStart` pode apontar para um arquivo que ainda não existe. O diretório do projeto também pode não existir ainda (primeira sessão naquele `cwd`). O `TranscriptStore` trata arquivo inexistente como sessão vazia e observa o diretório do projeto (ou `~/.claude/projects/`, se ele também não existir) até o arquivo aparecer. Depois de `/clear`, o arquivo novo nasce na hora, já com as linhas do `/clear`.
 - **Sessões**: `/clear` cria um `session_id` novo e um arquivo novo; o antigo só recebe metadados depois disso. `/compact` mantém o `session_id` e o arquivo.
@@ -405,7 +405,7 @@ Política para tipos novos:
   - `-o /dev/null` é obrigatório: no `SessionStart` e no `UserPromptSubmit`, a saída em texto vira contexto do Claude.
   - Com `async: true`, o Claude não espera o comando e não aplica o `timeout`; quem limita o tempo é o `-m 3` do `curl`. O `$HERDR_PANE_ID` é expandido pelo shell do hook, que herda o ambiente do pane.
 - `HERDR_PANE_ID` existe no ambiente de todo processo dentro de um pane do Herdr, junto com `HERDR_TAB_ID` e `HERDR_WORKSPACE_ID`. Hook de Claude fora do Herdr chega com o header vazio e é ignorado. Esses valores são fixados quando o processo nasce. Depois de um `pane_moved` entre workspaces, o Claude continua mandando o `HERDR_PANE_ID` antigo; o `HookServer` traduz pelo mapa `previous_pane_id → pane.pane_id` do `HerdrBridge`.
-- O segredo é o `hookSecret` do `config.json`, escrito literalmente no header e no comando. O `HookServer` responde 401 sem ele. O segredo fica em texto no `settings.json` e aparece na linha de comando do `curl` enquanto o hook roda; isso é aceito num Mac de um usuário só.
+- O segredo é o `hookSecret` do `config.json`, escrito literalmente no header e no comando. O `HookServer` responde 401 sem ele. O segredo fica em texto no `settings.json` e aparece na linha de comando do `curl` enquanto o hook roda; isso é aceito num Mac de um usuário só. Por isso o `install-hooks` grava o `settings.json` e o `settings.json.mocha-bak` em 0600, qualquer que seja a permissão anterior.
 - **`HookServer`**:
   - rotas `POST /hooks/<Evento>`, respondendo 200 com JSON (`{}` quando não decide), ou 401 sem o segredo;
   - o cliente dos hooks `http` é o `axios`, com `Connection: keep-alive`. O `HttpServer` (§4.4) responde sempre com `Connection: close`, e o axios abre outra conexão no hook seguinte; fechar sem esse header faz o hook seguinte falhar com `ECONNRESET`, visível no terminal;
@@ -484,6 +484,9 @@ public protocol HerdrBridging: Sendable {
     func prompt(_ id: AgentID, text: String) async throws
     func interrupt(_ id: AgentID) async throws
     func setOpenChats(_ ids: Set<AgentID>) async
+    func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async
+    func refreshDirtyState(ofAgent id: AgentID) async
+    func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID
     var serverInfo: HerdrServerInfo? { get async }
 }
 
@@ -516,6 +519,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
     case unavailable
     case agentNotFound
     case agentBlocked
+    case workspaceNotFound
     case herdr(code: String, message: String)
 }
 ```
@@ -526,6 +530,9 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
 - `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
 - `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
+- `refreshAgent(_:expectingSession:)` é chamado no `SessionStart` do hook (§3.1.3 d): repete o `agent.get` do pane em 0; 0,5; 1,5 e 3,5 s até o Herdr informar a sessão do hook, sem aplicar a sessão do hook direto, para o estado não alternar entre as duas. Não bloqueia quem chama.
+- `refreshDirtyState(ofAgent:)` é chamado no `Stop`: invalida o cache de `isDirty` do workspace do agente (§3.1.4) e reagenda a árvore.
+- `newAgentTab(in:)` segue a §5.3.1 e devolve o `pane_id` do pane novo. Espera pelo `pane.agent_status_changed` do pane novo (inscrição aberta antes do `agent.start`) e pelo `agent.wait` ao mesmo tempo, com prazo de 30 s; o primeiro sinal de pronto vence, e qualquer desfecho da espera devolve o id. Antes de devolver, relê o `session.snapshot` para o agente já estar na árvore. Um nome `mocha-<n>` em uso por outra chamada em andamento fica reservado até ela terminar. `workspaceNotFound` vira `invalidPayload`.
 - `serverInfo` é a versão e o protocolo do último `ping` (§3.1.1), `nil` antes do primeiro. Alimenta o `status`, o `doctor` e o `/local/status`.
 
 **`TranscriptProviding`**: declarado em `MochaDaemonCore/Transcript/` e implementado pelo `TranscriptStore`.
@@ -684,7 +691,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 ### §4.4 HttpServer
 
 - `NWListener` TCP em `127.0.0.1`: os hooks em 47420 (§3.3) e o gateway em 47421 (§4.5), com o mesmo servidor atendendo HTTP e o upgrade de WebSocket. O binding `.unixSocket(path:)` é usado pelo canal local (§4.8), não pelo gateway (S5).
-- Suporta: linha de requisição, headers, corpo com `Content-Length` (limite de 1 MB; 20 MB só em `/v1/upload`; acima disso, 413), resposta com `Content-Length`, `Connection: close`. Sem chunked, sem keep-alive, sem HTTP/2.
+- Suporta: linha de requisição, headers, corpo com `Content-Length` (limite de 1 MB; 16 MiB nas rotas `/hooks/*`, porque o `PermissionRequest` de um `Write` traz o arquivo inteiro no `tool_input`; 20 MB só em `/v1/upload`; acima disso, 413), resposta com `Content-Length`, `Connection: close`. Sem chunked, sem keep-alive, sem HTTP/2.
 - Handlers são `async` e podem segurar a resposta por até 600 s (necessário para o `PermissionRequest`, §8.1). A conexão fechada pelo cliente cancela a `Task` do handler.
 - **WebSocket**: o upgrade (`Sec-WebSocket-Accept` com SHA-1 + base64) e o framing RFC 6455 são implementados no próprio `HttpServer`: frames de texto e binário, fragmentação de entrada, ping/pong automático, close, e máscara obrigatória nos frames do cliente. Sem extensões (sem `permessage-deflate`). O `NWProtocolWebSocket` fica de fora porque, no stack do listener, ele não atende HTTP comum na mesma porta.
 - Resposta a método desconhecido ou path inválido: 404/405 com corpo vazio.
@@ -735,6 +742,8 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 }]
 ```
 
+- `hello` com `apns` grava o token e o `env` do aparelho; `hello` sem `apns` mantém o que já está gravado.
+
 ### §4.7 Metas de desempenho do daemon
 
 - Parado (sem cliente e sem agente trabalhando): CPU ~0 %, RSS < 30 MB.
@@ -752,7 +761,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 | Rota | Resposta |
 |---|---|
 | `POST /local/pairing-code` | `{"code","url","expiresAt"}` (§4.5) |
-| `GET /local/status` | JSON com `version`, `startedAt`, `herdr{available, version?, protocol?}`, `clients[{deviceId, name, connectedAt}]` e `sessions[{sessionId, agentId, claudeVersion?, dropped, orphanResults, unknown}]` |
+| `GET /local/status` | JSON com `version`, `startedAt`, `herdr{available, version?, protocol?}`, `clients[{deviceId, name, connectedAt}]` e `sessions[{sessionId, agentId, claudeVersion?, dropped, orphanResults, unknown}]`, e `apns{configurationErrors[{environment, status, reason, at}]}` com a última recusa de configuração do APNs por ambiente (§7.1), que o `doctor` mostra no item APNs |
 | `DELETE /local/devices/<id>` | 200 com `{}` depois de fechar as conexões do aparelho (`error{unauthorized}` e close 1008) e removê-lo de `devices.json`; 404 se o aparelho não existe |
 
 ### §4.9 SessionArchive
@@ -1036,7 +1045,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}` | 1a-final |
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
-| `newAgentTab` | `{workspaceId}` | `ack{agentId}` | 1b |
+| `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
 | `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
 
 **Servidor → cliente**
@@ -1084,6 +1093,14 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - `sendPrompt`, `interrupt` e `slash` só aceitam `agentId`: o app não oferece envio num chat de sessão.
 - **`archive`**: `sessionId` que não é a sessão atual de nenhum agente da árvore → `sessionNotFound`. Aceito, o daemon responde `ack`, grava o arquivamento (§4.9) e manda `treeChanged` com o `archivedAt`.
 - **`sendPrompt`, `interrupt` e `slash`**: agente com `kind != "claude"` → `invalidPayload`, com a mesma mensagem do `openChat`.
+- **`newAgentTab`**:
+  - `workspaceId` fora da árvore → `invalidPayload` ("Workspace não encontrado");
+  - o daemon chama `tab.create {workspace_id, cwd: <diretório do workspace (§3.1.4)>, focus: false}` e depois `agent.start {name: "mocha-<n>", kind: "claude", pane_id: <root_pane.pane_id>, args: []}`, com `<n>` o menor inteiro a partir de 1 cujo nome não está em uso entre os agentes do Herdr;
+  - espera o agente ficar `idle` ou `blocked` pelo `pane.agent_status_changed` do pane novo, ou por `agent.wait {target: <pane>, until: ["idle", "blocked"], timeout_ms: 30000}`, e responde `ack{agentId}` com o id do pane novo;
+  - `blocked` é o diálogo de confiança de uma pasta nova (S2). O daemon não responde a esse diálogo: responde `ack{agentId}`, o agente aparece em PRECISA DE VOCÊ e o João responde no Mac;
+  - passados os 30 s sem `idle` nem `blocked`, responde `ack{agentId}` do mesmo jeito, e o agente segue na árvore com o status que tiver;
+  - a espera não segura as outras mensagens da conexão, que seguem sendo respondidas;
+  - erros do `tab.create` e do `agent.start` seguem a tabela abaixo. Se o `agent.start` falhar, a tab criada continua aberta: o daemon não fecha tabs.
 - **Erros do Herdr** (§3.1.1):
 
 | Herdr | Protocolo |
@@ -1126,7 +1143,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
 - **Deep links**: `mocha://agent/<paneId>` abre o chat por cima da Home (substitui o chat aberto, se houver) e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`. Os testes abrem deep links pelo argumento de launch `-open-url <url>` (só em Debug) e por teste unitário, nunca por `simctl openurl` (o aviso "Open in Mocha?" trava o simulador).
-- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), `-demo-offline` (junto com `-demo`, a conexão cai logo depois de entregar a árvore, as arquivadas e o uso, e fica em `waitingToRetry(.unreachable)`: Home sem conexão), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-open-settings` (abre Ajustes ao iniciar, para a captura da tela 12), só em Debug, `-pairing-error <unreachable|daemonNotRunning|unauthorized|pairingExpired>` (par chave-valor; junto com `-demo -demo-unpaired`, troca o `pairingRequired(nil)` pelo problema, para a captura da tela 01c), só em Debug, `-open-drawer` (abre a gaveta ao iniciar, depois do `-open-url`; com `-drawer.mode recent|tree` e `-drawer.collapsedWorkspaces <ids separados por quebra de linha>` no domínio de argumentos, serve às capturas da gaveta; os pares `-chave valor` vêm antes das flags), só em Debug, `-probe push` e `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`, ou da `MarkdownPreviewScreen` com `turn|elements|blocks|perf`), e, só em Debug e lidos dentro do chat, `-chat-open-session`, `-chat-scroll-to`, `-chat-scroll-anchor center|bottom`, `-chat-expand-tool`, `-chat-focus-composer`, `-chat-draft`, `-chat-send`, `-chat-older-delay`, `-chat-perf-sweep`, `-chat-attach-samples <n>` (par chave-valor; anexa n imagens de amostra geradas no app, antes do `-chat-focus-composer` e do `-chat-send`; com `-chat-send ''`, envia só as imagens) e `-chat-attach-menu` (com `-chat-focus-composer`, abre o menu do `+`) (servem às capturas e à medição do chat, §6.3 e §6.5). O `-probe` e o `-preview` são lidos só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
+- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), `-demo-offline` (junto com `-demo`, a conexão cai logo depois de entregar a árvore, as arquivadas e o uso, e fica em `waitingToRetry(.unreachable)`: Home sem conexão), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-open-settings` (abre Ajustes ao iniciar, para a captura da tela 12), só em Debug, `-pairing-error <unreachable|daemonNotRunning|unauthorized|pairingExpired>` (par chave-valor; junto com `-demo -demo-unpaired`, troca o `pairingRequired(nil)` pelo problema, para a captura da tela 01c), só em Debug, `-open-drawer` (abre a gaveta ao iniciar, depois do `-open-url`; com `-drawer.mode recent|tree` e `-drawer.collapsedWorkspaces <ids separados por quebra de linha>` no domínio de argumentos, serve às capturas da gaveta; os pares `-chave valor` vêm antes das flags), só em Debug, `-probe push` e `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`, ou da `MarkdownPreviewScreen` com `turn|elements|blocks|perf`), e, só em Debug e lidos dentro do chat, `-chat-open-session`, `-chat-scroll-to`, `-chat-scroll-anchor center|bottom`, `-chat-expand-tool`, `-chat-focus-composer`, `-chat-draft`, `-chat-send`, `-chat-older-delay`, `-chat-perf-sweep`, `-chat-attach-samples <n>` (par chave-valor; anexa n imagens de amostra geradas no app, antes do `-chat-focus-composer` e do `-chat-send`; com `-chat-send ''`, envia só as imagens) e `-chat-attach-menu` (com `-chat-focus-composer`, abre o menu do `+`), `-chat-slash-menu` (com `-chat-focus-composer`, abre o menu `↻`), `-chat-confirm-clear` (mostra a confirmação do `/clear`), `-chat-slash <comando>` (executa um item do menu `↻` sem confirmação) e `-chat-close-after <s>` (volta para a Home depois de s segundos) (servem às capturas e à medição do chat, §6.3 e §6.5), e, só em Debug e lidos em `Notifications/`, `-notification-tap <agentId>` (injeta um alerta de turno concluído desse agente pelo mesmo caminho do toque na notificação) e `-notification-tap-delay <s>` (atrasa essa injeção), e, só em Debug e lidos em `Drawer/`, `-drawer-new-tab <workspaceId>` (aciona o `+` desse workspace uma vez, quando a conexão chega a `.connected`), `-drawer-new-tab-delay <s>` (atrasa esse toque) e `-drawer-reopen-after <s>` (reabre a gaveta s segundos depois do toque, para a captura da tab nova). O `-probe` e o `-preview` são lidos só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
 
 **Conexão**: esboço normativo em `MochaProtocol`, como a §5.2.
 
@@ -1332,11 +1349,11 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados sob o repositório.
 - Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador. Em `working` o asterisco pulsa com brilho; em `blocked` aparece um ponto `dirty` à direita.
 - A linha do chat aberto fica com `selectedRow`. Tocar numa tab com agente fecha a gaveta e abre o chat (por push sobre a Home, substituindo o chat aberto); tocar numa tab de shell mostra "Terminal chega na fase 2" (na fase 2, abre o terminal).
-- 1b: botão `+` por workspace → "Nova tab com Claude".
+- 1a-final: botão `+` na linha de cada workspace (visual no mock, `11-gaveta-arvore`) → "Nova tab com Claude": manda `newAgentTab` e, enquanto espera (até ~30 s), troca o `+` por um indicador de progresso. No `ack{agentId}`, fecha a gaveta e abre o chat do agente novo por push sobre a Home. Um `error` aparece com a `message` no mesmo aviso da gaveta que mostra "Terminal chega na fase 2".
 
 **Ajustes** (`12-ajustes`)
 - Folha aberta pela engrenagem da Home ou da gaveta.
-- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), notificações de turno concluído (`setPreferences`, 1a-final), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
+- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com o controle "Turno concluído" (`setPreferences`, 1a-final; volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
 
 **Inbox** (1b, `13-inbox`)
 - Sino na Home, ao lado da engrenagem, com a contagem. Abre uma folha.
@@ -1371,6 +1388,7 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 ### §7.1 Alertas (1a-final)
 
 - **APNs**: HTTP/2 via uma `URLSession` do daemon, reaproveitada entre envios (o `URLSession` negocia `h2` sozinho), para `api.sandbox.push.apple.com` ou `api.push.apple.com`, conforme o `env` do token do aparelho. Referência medida com conexão nova a cada envio: resposta em 372–824 ms (mediana 465 ms); alerta com o app aberto em 0,5–1,0 s.
+- **Permissão e token no app**: a permissão (`.alert`, `.sound`, `.badge`) é pedida na primeira conexão real com o Mac, nunca no `-demo`. O app chama `registerForRemoteNotifications` a cada launch e guarda o último token no `UserDefaults`; o `hello` leva esse token quando o `env` é o mesmo, e um token que chega depois do `hello` vai no `hello` seguinte. Com o app aberto, o `willPresent` sempre mostra o banner: quem suprime é o daemon, pelo `setForeground`.
 - **Ambiente do token**: o app manda `env` junto com cada token (`hello.apns`, `registerLiveActivity`). Ele lê `Entitlements.aps-environment` do `embedded.mobileprovision` do próprio bundle (plist dentro do CMS, entre `<?xml` e `</plist>`): `development` → `sandbox`, `production` → `production`. Sem o arquivo (TestFlight, App Store) → `production`. No simulador → `sandbox`.
 - **Chave**: a `.p8` Team Scoped `<KEY_ID>` vale **só no sandbox** (produção responde `403 BadEnvironmentKeyInToken`). Build de TestFlight exige uma chave de produção antes.
 - **JWT**: ES256 com a `.p8` (CryptoKit `P256.Signing.PrivateKey(pemRepresentation:)`). Header `{"alg":"ES256","kid":"<KeyID>"}`, claims `{"iss":"<TeamID>","iat":<segundos Unix>}`, base64url sem padding. A assinatura usa `signature.rawRepresentation` (r‖s, 64 bytes), **não DER**. O token é reutilizado e renovado a cada 40 min (a Apple rejeita renovação abaixo de 20 min e token acima de 60 min), e também na hora em `403 ExpiredProviderToken`.
@@ -1383,14 +1401,14 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown (`PlainText.preview(fromMarkdown:)`, §3.2.2). `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
 - **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
-- **Deduplicação**: um alerta de "precisa de você" por pedido. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do `PermissionRequest`, o `blocked` do Herdr e o `Notification` `permission_prompt` dessa sessão não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo.
+- **Deduplicação**: um alerta de "precisa de você" por pedido, contado por `agentId`. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do último alerta de "precisa de você" do agente, o `blocked` do Herdr e o `Notification` `permission_prompt` desse agente não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo. O `blocked` do Herdr só alerta na transição para `blocked`, só em agente Claude e depois de 1 s ainda `blocked`, para o `PermissionRequest` do mesmo diálogo chegar antes. Os outros tipos de `Notification` não geram alerta. Os sinais secundários usam um corpo fixo em português, porque a mensagem do Claude vem em inglês; sem workspace conhecido, o título sai sem " · <workspace>".
 - **Payload**: `{"aps":{"alert":{"title","body"},"sound":"default","thread-id","category","interruption-level"?},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…","sentAt":<ms Unix>}`. O `sentAt` serve para diagnóstico de atraso. Payload ≤ 4 KB.
 - **Respostas**:
   - 200 traz `apns-id` e, no sandbox, `apns-unique-id` (consulta no Push Notifications Console);
   - 410 ou `400 BadDeviceToken` removem o token do aparelho;
   - `403 ExpiredProviderToken` renova o JWT e repete uma vez;
   - `403 BadEnvironmentKeyInToken` (a documentação diz `BadEnvironmentKeyIdInToken`; tratar os dois), `InvalidProviderToken` e `TopicDisallowed` são erro de configuração: log e `doctor`, sem retry;
-  - 429 e 5xx seguem com backoff.
+  - 429, 5xx e erro de transporte (sem resposta) seguem com backoff de 1, 2, 4 e 8 s.
 - **Tokens**: hexadecimal de tamanho variável (32 bytes o de alerta, 80 bytes os de Live Activity no iPhone, 128 no simulador). Validar só hex com tamanho par.
 - **Simulador**: não entrega o token de alerta (`registerForRemoteNotifications` nunca responde). Alertas só se testam no iPhone.
 

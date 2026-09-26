@@ -26,9 +26,7 @@ struct ClaudeSettingsInspectorTests {
             mochaEvents: ["Notification", "PermissionRequest", "SessionStart", "Stop", "UserPromptSubmit"],
             moshiEvents: []
         )))
-        let hooks = DoctorChecks.hooks(inspection)
-        #expect(hooks.status == .warning)
-        #expect(hooks.summary.hasPrefix("chegam na 1a-final"))
+        #expect(DoctorChecks.hooks(inspection) == DoctorItem("Hooks", .ok, "instalados em SessionStart, UserPromptSubmit, Stop, Notification, PermissionRequest"))
         #expect(DoctorChecks.moshiHook(inspection) == DoctorItem("moshi-hook", .ok, "ausente"))
     }
 
@@ -46,6 +44,12 @@ struct ClaudeSettingsInspectorTests {
             #expect(moshi.status == .warning)
             #expect(moshi.summary == "instalado em Notification, PreToolUse, Stop")
             #expect(moshi.details == ["antes da 1b: moshi-hook uninstall e depois brew services stop moshi-hook"])
+            #expect(DoctorChecks.hooks(inspection) == DoctorItem(
+                "Hooks",
+                .warning,
+                "incompletos: faltam SessionStart, UserPromptSubmit, Stop, PermissionRequest (mochad install-hooks)"
+            ))
+            #expect(DoctorChecks.hooks(.hooks(ClaudeHooksSummary())) == DoctorItem("Hooks", .warning, "não instalados (mochad install-hooks)"))
             #expect(try Data(contentsOf: url) == before)
             #expect(fileMode(url) == 0o600)
             #expect(inode(url) == originalInode)
@@ -57,11 +61,12 @@ struct ClaudeSettingsInspectorTests {
             let url = home.paths.claudeSettingsFile
             #expect(ClaudeSettingsInspector(url: url).inspect() == .missing)
             #expect(DoctorChecks.moshiHook(.missing).status == .ok)
-            #expect(DoctorChecks.hooks(.missing) == DoctorItem("Hooks", .warning, "chegam na 1a-final (mochad install-hooks)"))
+            #expect(DoctorChecks.hooks(.missing) == DoctorItem("Hooks", .warning, "não instalados: sem ~/.claude/settings.json (mochad install-hooks)"))
 
             try home.write("{ não é json", to: ".claude/settings.json")
             #expect(ClaudeSettingsInspector(url: url).inspect() == .unreadable)
             #expect(DoctorChecks.moshiHook(.unreadable).status == .warning)
+            #expect(DoctorChecks.hooks(.unreadable) == DoctorItem("Hooks", .warning, "não consegui ler ~/.claude/settings.json"))
         }
     }
 }

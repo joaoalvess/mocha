@@ -24,6 +24,8 @@ struct ChatConversation: View {
     @State private var draft = ""
     @State private var attachments = ComposerAttachments()
     @State private var isComposing = false
+    @State private var isConfirmingClear = false
+    @State private var listGeneration = 0
     @FocusState private var isFieldFocused: Bool
 
     var body: some View {
@@ -39,6 +41,7 @@ struct ChatConversation: View {
                     .padding(.horizontal, Metrics.floatingMargin)
                     .padding(.bottom, Metrics.composerBottomInset)
             }
+            .overlay { clearConfirmation }
             .onChange(of: chat?.items ?? [], initial: true) { _, items in
                 itemsChanged(items)
             }
@@ -50,10 +53,6 @@ struct ChatConversation: View {
             .onChange(of: isFieldFocused) { _, isFocused in
                 if !isFocused { isComposing = false }
             }
-            .onChange(of: foregroundReport, initial: true) {
-                reportForeground()
-            }
-            .onDisappear { reportForeground() }
             .task { await runDebugLaunch() }
     }
 
@@ -103,6 +102,7 @@ struct ChatConversation: View {
             }
             .scrollTargetLayout()
         }
+        .id(listGeneration)
         .contentMargins(.top, Metrics.listItemSpacing, for: .scrollContent)
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
@@ -136,8 +136,31 @@ struct ChatConversation: View {
         if isReadOnly {
             ReadOnlyComposerPill()
         } else {
-            ChatComposer(draft: $draft, isExpanded: $isComposing, isFocused: $isFieldFocused, attachments: attachments, onSend: send)
+            ChatComposer(
+                draft: $draft,
+                isExpanded: $isComposing,
+                isFocused: $isFieldFocused,
+                attachments: attachments,
+                onSend: send,
+                onSlashAction: runSlashAction
+            )
         }
+    }
+
+    private var clearConfirmation: some View {
+        ZStack {
+            if isConfirmingClear {
+                ClearConfirmation(
+                    onCancel: { isConfirmingClear = false },
+                    onConfirm: {
+                        isConfirmingClear = false
+                        perform(.clear)
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.smooth(duration: 0.2), value: isConfirmingClear)
     }
 
     private var jumpButton: some View {
@@ -223,6 +246,7 @@ struct ChatConversation: View {
     private func itemsChanged(_ items: [ChatItem]) {
         switch list.apply(items) {
         case .replaced:
+            listGeneration += 1
             pinToBottom()
         case .prepended:
             keepViewportAfterPrepend()
@@ -321,14 +345,19 @@ struct ChatConversation: View {
         Task { try? await session.interrupt() }
     }
 
-    private var foregroundReport: ForegroundReport {
-        ForegroundReport(agentId: ForegroundReport.agentId(of: session.visibleChat?.target), isConnected: isConnected)
+    private func runSlashAction(_ action: SlashMenuAction) {
+        dismissComposer()
+        if action.needsConfirmation {
+            isConfirmingClear = true
+        } else {
+            perform(action)
+        }
     }
 
-    private func reportForeground() {
-        guard isConnected else { return }
-        let agentId = ForegroundReport.agentId(of: session.visibleChat?.target)
-        Task { try? await session.request(.setForeground(agentId: agentId, isActive: true)) }
+    private func perform(_ action: SlashMenuAction) {
+        guard case .agent(let agentId) = liveTarget else { return }
+        pinToBottom()
+        Task { try? await session.request(action.message(for: agentId)) }
     }
 
     private func runDebugLaunch() async {
@@ -364,6 +393,16 @@ struct ChatConversation: View {
         }
         if let text = options.sendText, ChatDebugLaunch.consume(ChatDebugOptions.sendKey) {
             submit(text, attachments: attachments.takeAll())
+        }
+        if options.confirmsClear, ChatDebugLaunch.consume(ChatDebugOptions.confirmClearKey) {
+            isConfirmingClear = true
+        }
+        if let command = options.slashCommand, let action = SlashMenuAction.matching(command: command), ChatDebugLaunch.consume(ChatDebugOptions.slashCommandKey) {
+            perform(action)
+        }
+        if let delay = options.closeChatAfter, ChatDebugLaunch.consume(ChatDebugOptions.closeChatAfterKey) {
+            try? await Task.sleep(for: delay)
+            session.closeChat()
         }
         if options.performanceSweep, ChatDebugLaunch.consume(ChatDebugOptions.performanceSweepKey) {
             await runPerformanceSweep()
@@ -430,16 +469,6 @@ struct OlderPageTrigger: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-struct ForegroundReport: Equatable {
-    let agentId: AgentID?
-    let isConnected: Bool
-
-    static func agentId(of target: ChatTarget?) -> AgentID? {
-        guard case .agent(let agentId) = target else { return nil }
-        return agentId
     }
 }
 

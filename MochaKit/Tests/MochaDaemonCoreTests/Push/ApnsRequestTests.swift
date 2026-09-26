@@ -123,7 +123,7 @@ struct ApnsRequestTests {
         #expect(authorization.dropFirst("bearer ".count).split(separator: ".").count == 3)
     }
 
-    @Test func clientRenewsTokenAfterExpiredProviderToken() async throws {
+    @Test func clientRenewsTokenAndRetriesOnceAfterExpiredProviderToken() async throws {
         let transport = FakeApnsTransport(responses: [ApnsResponse(status: 403, reason: "ExpiredProviderToken")])
         let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
         let client = ApnsClient(tokens: ApnsTokenProvider(key: try PushTestData.signingKey(), now: { clock.now }), transport: transport)
@@ -135,12 +135,27 @@ struct ApnsRequestTests {
             priority: .high,
             payload: Data("{}".utf8)
         )
-        #expect(try await client.send(request).reason == "ExpiredProviderToken")
-        clock.advance(by: 1)
-        _ = try await client.send(request)
+        #expect(try await client.send(request).status == 200)
         let tokens = transport.requests.compactMap { $0.value(forHTTPHeaderField: "authorization") }
         #expect(tokens.count == 2)
         #expect(tokens[0] != tokens[1])
+        #expect(Set(transport.requests.compactMap { $0.value(forHTTPHeaderField: "apns-id") }).count == 1)
+    }
+
+    @Test func clientRetriesExpiredProviderTokenOnlyOnce() async throws {
+        let expired = ApnsResponse(status: 403, reason: "ExpiredProviderToken")
+        let transport = FakeApnsTransport(responses: [expired, expired])
+        let client = ApnsClient(tokens: ApnsTokenProvider(key: try PushTestData.signingKey()), transport: transport)
+        let request = ApnsRequest(
+            deviceToken: PushTestData.deviceToken,
+            environment: .sandbox,
+            pushType: .alert,
+            topic: "com.example.mocha",
+            priority: .high,
+            payload: Data("{}".utf8)
+        )
+        #expect(try await client.send(request) == expired)
+        #expect(transport.requests.count == 2)
     }
 
     @Test func clientDoesNotSendInvalidRequest() async throws {

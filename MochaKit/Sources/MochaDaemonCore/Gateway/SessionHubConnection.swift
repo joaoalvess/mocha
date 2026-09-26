@@ -140,7 +140,7 @@ extension SessionHub {
                 return
             }
             do {
-                try await devices.markSeen(record.id, at: clock.now())
+                try await devices.markSeen(record.id, at: clock.now(), apns: acceptedApns(hello.apns))
             } catch {
                 gatewayLogger.error("failed to update lastSeenAt: \(String(describing: error), privacy: .public)")
             }
@@ -152,7 +152,7 @@ extension SessionHub {
             }
             let token = SecureToken.generate()
             do {
-                let record = try await devices.register(name: hello.deviceName, token: token, at: clock.now())
+                let record = try await devices.register(name: hello.deviceName, token: token, at: clock.now(), apns: acceptedApns(hello.apns))
                 accept(clientId, device: record, deviceToken: token, id: envelope.id)
             } catch {
                 gatewayLogger.error("failed to register a device: \(String(describing: error), privacy: .public)")
@@ -161,6 +161,15 @@ extension SessionHub {
         default:
             refuse(clientId, .helloCredentials, id: envelope.id)
         }
+    }
+
+    private func acceptedApns(_ apns: ApnsRegistration?) -> ApnsRegistration? {
+        guard let apns else { return nil }
+        guard ApnsRequest.isValidDeviceToken(apns.token) else {
+            gatewayLogger.error("ignored an invalid APNs token in hello")
+            return nil
+        }
+        return ApnsRegistration(token: apns.token.lowercased(), env: apns.env)
     }
 
     private func refuse(_ clientId: UUID, _ error: HubError, id: String?) {
@@ -223,7 +232,13 @@ extension SessionHub {
             send(.pong, id: id, to: clientId)
         case .archive(let sessionId):
             await archiveSession(sessionId, id: id, clientId: clientId)
-        case .slash, .setPreferences, .respond, .newAgentTab, .registerLiveActivity, .unknown:
+        case .slash(let agentId, let command):
+            await run(.prompt(command), agentId: agentId, id: id, clientId: clientId)
+        case .setPreferences(let preferences):
+            await setPreferences(preferences, id: id, clientId: clientId)
+        case .newAgentTab(let workspaceId):
+            await openAgentTab(in: workspaceId, id: id, clientId: clientId)
+        case .respond, .registerLiveActivity, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }
@@ -254,6 +269,49 @@ extension SessionHub {
             send(.herdr(error), id: id, to: clientId)
         } catch {
             send(.herdrFailed, id: id, to: clientId)
+        }
+    }
+
+    private func openAgentTab(in workspaceId: WorkspaceID, id: String, clientId: UUID) async {
+        guard await herdr.isAvailable else {
+            send(.herdrUnavailable, id: id, to: clientId)
+            return
+        }
+        guard TreeComposer.containsWorkspace(workspaceId, in: baseTree) else {
+            send(.workspaceNotFound, id: id, to: clientId)
+            return
+        }
+        let herdr = herdr
+        Task { [weak self] in
+            let reply: Result<AgentID, HubError>
+            do {
+                reply = .success(try await herdr.newAgentTab(in: workspaceId))
+            } catch let error as HerdrBridgeError {
+                reply = .failure(.herdr(error))
+            } catch {
+                reply = .failure(.herdrFailed)
+            }
+            await self?.finishAgentTab(reply, id: id, clientId: clientId)
+        }
+    }
+
+    private func finishAgentTab(_ reply: Result<AgentID, HubError>, id: String, clientId: UUID) {
+        switch reply {
+        case .success(let agentId):
+            send(.ack(agentId: agentId), id: id, to: clientId)
+        case .failure(let error):
+            send(error, id: id, to: clientId)
+        }
+    }
+
+    private func setPreferences(_ preferences: DevicePreferences, id: String, clientId: UUID) async {
+        guard let deviceId = clients[clientId]?.deviceId else { return }
+        do {
+            _ = try await devices.setPreferences(preferences, for: deviceId)
+            send(.ack(), id: id, to: clientId)
+        } catch {
+            gatewayLogger.error("failed to save preferences: \(String(describing: error), privacy: .public)")
+            send(.deviceStoreFailed, id: id, to: clientId)
         }
     }
 

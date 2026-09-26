@@ -57,6 +57,18 @@ extension [WorkspaceNode] {
         return nil
     }
 
+    func workspace(withId id: WorkspaceID) -> WorkspaceNode? {
+        for workspace in self {
+            if workspace.id == id {
+                return workspace
+            }
+            if let child = workspace.children.workspace(withId: id) {
+                return child
+            }
+        }
+        return nil
+    }
+
     func agent(withSessionId sessionId: String) -> AgentSummary? {
         allAgents.first { $0.sessionId == sessionId }
     }

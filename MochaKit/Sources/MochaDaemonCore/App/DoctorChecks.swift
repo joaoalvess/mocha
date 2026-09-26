@@ -40,15 +40,22 @@ public enum DoctorChecks {
     }
 
     public static func hooks(_ inspection: ClaudeSettingsInspection) -> DoctorItem {
-        guard case .hooks(let summary) = inspection, !summary.mochaEvents.isEmpty else {
-            return DoctorItem("Hooks", .warning, "chegam na 1a-final (mochad install-hooks)")
+        let expected = HookEventName.allCases.map(\.rawValue)
+        switch inspection {
+        case .missing:
+            return DoctorItem("Hooks", .warning, "não instalados: sem ~/.claude/settings.json (mochad install-hooks)")
+        case .unreadable:
+            return DoctorItem("Hooks", .warning, "não consegui ler ~/.claude/settings.json")
+        case .hooks(let summary):
+            let missing = expected.filter { !summary.mochaEvents.contains($0) }
+            if missing.isEmpty {
+                return DoctorItem("Hooks", .ok, "instalados em \(expected.joined(separator: ", "))")
+            }
+            if missing.count == expected.count {
+                return DoctorItem("Hooks", .warning, "não instalados (mochad install-hooks)")
+            }
+            return DoctorItem("Hooks", .warning, "incompletos: faltam \(missing.joined(separator: ", ")) (mochad install-hooks)")
         }
-        return DoctorItem(
-            "Hooks",
-            .warning,
-            "chegam na 1a-final; o HookServer ainda não escuta",
-            details: ["entradas do Mocha em ~/.claude/settings.json: \(summary.mochaEvents.joined(separator: ", "))"]
-        )
     }
 
     public static func moshiHook(_ inspection: ClaudeSettingsInspection) -> DoctorItem {
@@ -99,7 +106,8 @@ public enum DoctorChecks {
         config: Result<ApnsConfig?, any Error>,
         signature: SignatureStatus,
         binary: String,
-        keychain: (ApnsConfig) -> KeychainItemPresence
+        keychain: (ApnsConfig) -> KeychainItemPresence,
+        issues: [ApnsConfigurationIssue] = []
     ) -> DoctorItem {
         var parts: [(DoctorStatus, String)] = []
         switch config {
@@ -126,8 +134,27 @@ public enum DoctorChecks {
         case .unsigned(let detail):
             parts.append((.warning, "\(binary) sem assinatura (\(detail)): o Keychain vai pedir autorização"))
         }
+        for issue in issues {
+            parts.append((
+                .failure,
+                "o APNs \(issue.environment.rawValue) recusou o último envio com \(issue.status) \(issue.reason): \(apnsHint(for: issue))"
+            ))
+        }
         let status = parts.map(\.0).max() ?? .ok
         return DoctorItem("APNs", status, status == .ok ? "pronto" : "com pendências", details: parts.map { "\($0.0.symbol) \($0.1)" })
+    }
+
+    private static func apnsHint(for issue: ApnsConfigurationIssue) -> String {
+        switch issue.reason {
+        case "BadEnvironmentKeyInToken", "BadEnvironmentKeyIdInToken":
+            "a chave não vale para \(issue.environment.rawValue); importe uma chave desse ambiente (mochad apns import)"
+        case "InvalidProviderToken":
+            "Key ID, Team ID ou chave inválidos (mochad apns import)"
+        case "TopicDisallowed":
+            "o bundle do config.json não aceita push com essa chave"
+        default:
+            "confira a chave e o config.json"
+        }
     }
 
     public static func dataDirectory(_ paths: DaemonPaths) -> DoctorItem {

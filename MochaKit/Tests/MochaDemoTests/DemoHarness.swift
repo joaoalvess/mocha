@@ -53,7 +53,8 @@ extension DemoOptions {
     static let fast = DemoOptions(
         connectDelay: .milliseconds(5),
         echoDelay: .milliseconds(5),
-        replyDelay: .milliseconds(5)
+        replyDelay: .milliseconds(5),
+        newAgentTabDelay: .milliseconds(5)
     )
 
     static let scriptScale = 0.05

@@ -8,13 +8,14 @@ struct DoctorTests {
     static let now = Date(timeIntervalSince1970: 1_790_003_900)
     static let startedAt = Date(timeIntervalSince1970: 1_790_000_000)
 
-    static func running(sessions: [LocalStatus.Session] = [], clients: [LocalStatus.Client] = []) -> LocalStatus {
+    static func running(sessions: [LocalStatus.Session] = [], clients: [LocalStatus.Client] = [], apns: LocalStatus.Apns? = nil) -> LocalStatus {
         LocalStatus(
             version: "0.1.0",
             startedAt: startedAt,
             herdr: LocalStatus.Herdr(available: true, version: "0.9.1", protocolVersion: 22),
             clients: clients,
-            sessions: sessions
+            sessions: sessions,
+            apns: apns
         )
     }
 
@@ -50,7 +51,7 @@ struct DoctorTests {
             #expect(items.map(\.title) == ["mochad", "Herdr", "agent.list", "Hooks", "moshi-hook", "Serve", "APNs", "Dados", "Transcript"])
             #expect(items[0] == DoctorItem("mochad", .failure, "mochad parado: rode mochad install ou scripts/run-daemon.sh"))
             #expect(items[1] == DoctorItem("Herdr", .failure, "o socket não existe em \(missingHerdr)"))
-            #expect(items[3].summary == "chegam na 1a-final (mochad install-hooks)")
+            #expect(items[3] == DoctorItem("Hooks", .warning, "não instalados: sem ~/.claude/settings.json (mochad install-hooks)"))
             #expect(items[5].status == .failure)
             #expect(items[5].details == ["rode mochad serve-setup --apply (tailscale serve --bg --https=443 http://127.0.0.1:47421)"])
             #expect(items[8] == DoctorItem("Transcript", .warning, "precisa do daemon (mochad parado)"))
@@ -114,6 +115,24 @@ struct DoctorTests {
         let noConfig = DoctorChecks.apns(config: .success(nil), signature: .teamSigned, binary: "mochad", keychain: { _ in .present })
         #expect(noConfig.status == .warning)
         #expect(noConfig.details.count == 2)
+    }
+
+    @Test func apnsItemShowsTheConfigurationErrorsFromLocalStatus() async throws {
+        try await withTemporaryHome { home in
+            let issue = ApnsConfigurationIssue(environment: .production, status: 403, reason: "BadEnvironmentKeyInToken", at: Self.startedAt)
+            let status = Self.running(apns: LocalStatus.Apns(configurationErrors: [issue]))
+            let herdrSocket = FakeHerdrServer.temporarySocketPath()
+            let apns = await Self.doctor(home, local: FakeLocalControl(status: .success(status)), herdrSocket: herdrSocket).run()[6]
+
+            #expect(apns.title == "APNs")
+            #expect(apns.status == .failure)
+            #expect(apns.summary == "com pendências")
+            #expect(apns.details.last == "❌ o APNs production recusou o último envio com 403 BadEnvironmentKeyInToken: a chave não vale para production; importe uma chave desse ambiente (mochad apns import)")
+
+            let clean = await Self.doctor(home, local: FakeLocalControl(status: .success(Self.running(apns: LocalStatus.Apns(configurationErrors: [])))), herdrSocket: herdrSocket).run()[6]
+            #expect(clean.status == .warning)
+            #expect(!clean.details.contains { $0.hasPrefix("❌") })
+        }
     }
 
     @Test func doctorChecksTheInstalledBinarySignatureWhenItExists() async throws {

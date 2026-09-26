@@ -7,6 +7,9 @@ let herdrLogger = Logger(subsystem: "com.joaoalves.mocha", category: "herdr")
 
 public actor HerdrBridge: HerdrBridging {
     public static let interruptKeys = ["Escape"]
+    public static let newAgentKind = "claude"
+    public static let newAgentNamePrefix = "mocha-"
+    public static let readyStatuses: [HerdrAgentStatus] = [.idle, .blocked]
 
     private struct PaneSubscription {
         let token: UUID
@@ -39,8 +42,10 @@ public actor HerdrBridge: HerdrBridging {
     private var updateProbes: [String: ScheduledTask] = [:]
     private var pendingUpdateProbes: Set<String> = []
     private var detectionProbes: [String: ScheduledTask] = [:]
+    private var sessionProbes: [String: ScheduledTask] = [:]
     private var treeDerivations = 0
     private var publishedDerivation = 0
+    private var reservedAgentNames: Set<String> = []
 
     public init(
         client: HerdrClient = HerdrClient(),
@@ -123,10 +128,104 @@ public actor HerdrBridge: HerdrBridging {
         updateReconciliation()
     }
 
-    private func command(_ operation: @Sendable (HerdrClient) async throws -> Void) async throws {
+    public func refreshAgent(_ id: AgentID, expectingSession sessionId: String) {
+        let paneId = resolve(id)
+        guard available, state.pane(paneId) != nil else { return }
+        sessionProbes.removeValue(forKey: paneId)?.task.cancel()
+        let token = UUID()
+        let cycle = generation
+        let delays = configuration.sessionStartProbeDelays
+        let task = Task { [weak self] in
+            var elapsed: Duration = .zero
+            for delay in delays {
+                guard (try? await Task.sleep(for: delay - elapsed)) != nil else { return }
+                elapsed = delay
+                guard let self, await self.needsSessionStartProbe(paneId, expecting: sessionId, token: token, cycle: cycle) else {
+                    return
+                }
+                await self.refreshAgent(paneId, cycle: cycle)
+            }
+            await self?.sessionProbesFinished(paneId, token: token)
+        }
+        sessionProbes[paneId] = ScheduledTask(token: token, task: task)
+    }
+
+    public func refreshDirtyState(ofAgent id: AgentID) async {
+        let paneId = resolve(id)
+        guard let pane = state.pane(paneId),
+            let workspace = state.workspace(pane.workspaceId),
+            let directory = HerdrTreeBuilder.workspaceDirectory(workspace, in: state)
+        else { return }
+        await git.invalidateDirty(at: directory)
+        scheduleTreeRefresh()
+    }
+
+    public func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID {
+        guard available else { throw HerdrBridgeError.unavailable }
+        guard let workspace = state.workspace(workspaceId) else { throw HerdrBridgeError.workspaceNotFound }
+        let directory = HerdrTreeBuilder.workspaceDirectory(workspace, in: state)
+        let created = try await command { client in
+            try await client.tabCreate(workspaceId: workspaceId, cwd: directory)
+        }
+        let paneId = created.rootPane.paneId
+        let statusEvents = try? await client.subscribe([.agentStatusChanged(paneId: paneId)])
+        defer { statusEvents?.cancel() }
+        let namesInUse = try await command { client in
+            try await client.agentList().compactMap(\.name)
+        }
+        let name = Self.newAgentName(excluding: reservedAgentNames.union(namesInUse))
+        reservedAgentNames.insert(name)
+        defer { reservedAgentNames.remove(name) }
+        _ = try await command { client in
+            try await client.agentStart(name: name, kind: Self.newAgentKind, paneId: paneId, args: [])
+        }
+        await waitUntilReady(paneId, statusEvents: statusEvents)
+        if available {
+            await refreshSnapshotNow(cycle: generation)
+        }
+        return paneId
+    }
+
+    static func newAgentName(excluding namesInUse: Set<String>) -> String {
+        var number = 1
+        while namesInUse.contains("\(newAgentNamePrefix)\(number)") {
+            number += 1
+        }
+        return "\(newAgentNamePrefix)\(number)"
+    }
+
+    private func waitUntilReady(_ paneId: String, statusEvents: HerdrEventSubscription?) async {
+        let client = self.client
+        let timeout = configuration.newAgentReadyTimeout
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return true
+            }
+            group.addTask {
+                (try? await client.agentWait(target: paneId, until: Self.readyStatuses, timeout: timeout)) != nil
+            }
+            if let statusEvents {
+                group.addTask {
+                    for await event in statusEvents.events {
+                        if case .agentStatusChanged(_, _, let status, _) = event, Self.readyStatuses.contains(status) {
+                            return true
+                        }
+                    }
+                    return false
+                }
+            }
+            for await isReady in group where isReady {
+                group.cancelAll()
+                return
+            }
+        }
+    }
+
+    private func command<Value: Sendable>(_ operation: @Sendable (HerdrClient) async throws -> Value) async throws -> Value {
         guard available else { throw HerdrBridgeError.unavailable }
         do {
-            try await operation(client)
+            return try await operation(client)
         } catch let error as HerdrClientError {
             throw bridgeError(for: error)
         } catch is CancellationError {
@@ -236,6 +335,10 @@ public actor HerdrBridge: HerdrBridging {
             probe.task.cancel()
         }
         detectionProbes.removeAll()
+        for probe in sessionProbes.values {
+            probe.task.cancel()
+        }
+        sessionProbes.removeAll()
         reconciliation?.cancel()
         reconciliation = nil
         setAvailable(false)
@@ -473,6 +576,7 @@ public actor HerdrBridge: HerdrBridging {
         updateProbes.removeValue(forKey: paneId)?.task.cancel()
         pendingUpdateProbes.remove(paneId)
         detectionProbes.removeValue(forKey: paneId)?.task.cancel()
+        sessionProbes.removeValue(forKey: paneId)?.task.cancel()
     }
 
     private func refreshAgent(_ paneId: String, cycle: Int) async {
@@ -509,6 +613,10 @@ public actor HerdrBridge: HerdrBridging {
     private func refreshSnapshot(token: UUID, cycle: Int) async {
         guard snapshotRefresh?.token == token else { return }
         snapshotRefresh = nil
+        await refreshSnapshotNow(cycle: cycle)
+    }
+
+    private func refreshSnapshotNow(cycle: Int) async {
         guard cycle == generation else { return }
         do {
             let snapshot = try await client.sessionSnapshot()
@@ -629,6 +737,20 @@ public actor HerdrBridge: HerdrBridging {
     private func detectionProbesFinished(_ paneId: String, token: UUID) {
         guard detectionProbes[paneId]?.token == token else { return }
         detectionProbes[paneId] = nil
+    }
+
+    private func needsSessionStartProbe(_ paneId: String, expecting sessionId: String, token: UUID, cycle: Int) -> Bool {
+        guard cycle == generation, sessionProbes[paneId]?.token == token else { return false }
+        guard state.pane(paneId)?.sessionId != sessionId else {
+            sessionProbes[paneId] = nil
+            return false
+        }
+        return true
+    }
+
+    private func sessionProbesFinished(_ paneId: String, token: UUID) {
+        guard sessionProbes[paneId]?.token == token else { return }
+        sessionProbes[paneId] = nil
     }
 
     private func updateReconciliation() {
