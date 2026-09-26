@@ -96,7 +96,7 @@ struct ToolCallDetailBox: View {
                     .lineLimit(nil)
                     .linePitch(18, size: Typography.toolCardSize)
                     .fixedSize(horizontal: true, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     .clipped()
             }
         }
