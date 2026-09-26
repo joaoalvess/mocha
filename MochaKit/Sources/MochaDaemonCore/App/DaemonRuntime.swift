@@ -109,7 +109,8 @@ public actor DaemonRuntime {
                 devices: devices,
                 herdr: herdr,
                 transcripts: transcripts,
-                pairingURL: options.pairingURL
+                pairingURL: options.pairingURL,
+                apnsIssues: { await push.configurationIssues() }
             )
         )
         self.herdr = herdr

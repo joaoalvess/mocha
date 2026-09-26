@@ -22,8 +22,7 @@ struct BigTranscriptMetaPerformanceTests {
             Issue.record("Fixture grande ausente em \(path). Gere com: swift scripts/gen-big-transcript.swift")
             return
         }
-        let sandbox = try TranscriptSandbox()
-        let store = TranscriptStore(projectsRoot: sandbox.rootPath)
+        let store = TranscriptStore(projectsRoot: TranscriptFixtures.bigFixture.deletingLastPathComponent().path(percentEncoded: false))
         let session = TranscriptSession(sessionId: "big-50mb", transcriptPath: path)
         let clock = ContinuousClock()
         let start = clock.now

@@ -49,18 +49,28 @@ public struct LocalStatus: Codable, Sendable, Equatable {
         }
     }
 
+    public struct Apns: Codable, Sendable, Equatable {
+        public var configurationErrors: [ApnsConfigurationIssue]
+
+        public init(configurationErrors: [ApnsConfigurationIssue]) {
+            self.configurationErrors = configurationErrors
+        }
+    }
+
     public var version: String
     public var startedAt: Date
     public var herdr: Herdr
     public var clients: [Client]
     public var sessions: [Session]
+    public var apns: Apns?
 
-    public init(version: String, startedAt: Date, herdr: Herdr, clients: [Client], sessions: [Session]) {
+    public init(version: String, startedAt: Date, herdr: Herdr, clients: [Client], sessions: [Session], apns: Apns? = nil) {
         self.version = version
         self.startedAt = startedAt
         self.herdr = herdr
         self.clients = clients
         self.sessions = sessions
+        self.apns = apns
     }
 }
 

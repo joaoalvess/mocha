@@ -6,6 +6,7 @@ let localControlLogger = Logger(subsystem: "com.joaoalves.mocha", category: "loc
 
 public struct LocalControl: Sendable {
     public typealias PairingURLProvider = @Sendable () async throws -> URL
+    public typealias ApnsIssuesProvider = @Sendable () async -> [ApnsConfigurationIssue]
 
     public static let pairingCodePath = "/local/pairing-code"
     public static let statusPath = "/local/status"
@@ -17,6 +18,7 @@ public struct LocalControl: Sendable {
     let herdr: any HerdrBridging
     let transcripts: any TranscriptProviding
     let pairingURL: PairingURLProvider
+    let apnsIssues: ApnsIssuesProvider
     let version: String
     let startedAt: Date
 
@@ -27,6 +29,7 @@ public struct LocalControl: Sendable {
         herdr: any HerdrBridging,
         transcripts: any TranscriptProviding,
         pairingURL: @escaping PairingURLProvider,
+        apnsIssues: @escaping ApnsIssuesProvider = { [] },
         version: String = DaemonVersion.current,
         startedAt: Date = Date()
     ) {
@@ -36,6 +39,7 @@ public struct LocalControl: Sendable {
         self.herdr = herdr
         self.transcripts = transcripts
         self.pairingURL = pairingURL
+        self.apnsIssues = apnsIssues
         self.version = version
         self.startedAt = startedAt
     }
@@ -83,7 +87,8 @@ public struct LocalControl: Sendable {
             startedAt: startedAt,
             herdr: LocalStatus.Herdr(available: await herdr.isAvailable, version: info?.version, protocolVersion: info?.protocolVersion),
             clients: clients,
-            sessions: sessions
+            sessions: sessions,
+            apns: LocalStatus.Apns(configurationErrors: await apnsIssues())
         )
     }
 
