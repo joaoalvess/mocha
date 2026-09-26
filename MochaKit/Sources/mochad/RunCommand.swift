@@ -26,7 +26,7 @@ enum RunCommand {
             return Console.fail("mochad: não consegui subir: \(error)")
         }
         stamp("mochad \(DaemonVersion.current) no ar (pid \(getpid()))")
-        stamp("gateway em 127.0.0.1:\(started.gatewayPort) · canal local em \(started.controlSocket)")
+        stamp("gateway em 127.0.0.1:\(started.gatewayPort) · hooks em 127.0.0.1:\(started.hookPort) · canal local em \(started.controlSocket)")
         stamp("Herdr em \(started.herdrSocket)")
         if started.generatedHookSecret {
             stamp("hookSecret gerado no config.json")
