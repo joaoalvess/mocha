@@ -51,7 +51,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Inbox de aprovações e perguntas (sino na Home e card no chat); ações na notificação | 1b |
 | Live Activity agregada / Dynamic Island | 1b |
 | Ditado por voz on-device | 1b |
-| Anexar imagem ao prompt | 1b |
+| Anexar imagem ao prompt | 1a-core |
 | Abrir nova tab com Claude num workspace existente | 1b |
 | Terminal SSH (`herdr agent attach`) | 2 |
 | Transporte Mosh no terminal | 3 |
@@ -322,6 +322,8 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 | `system` / `stop_hook_summary`, `bridge_status`, `agents_killed` | — | ignorados |
 | `system`, outro `subtype` | — | ignorado e contado |
 | outro `type` | — | ignorado e contado |
+
+**Marcadores de imagem do Mocha** (§6.5): no texto de todo `userPrompt` (content string, blocos `text` ou `prompt` do `queued_command`), cada linha que é exatamente `[imagem: <caminho>]`, com `<caminho>` absoluto dentro de `~/Library/Application Support/Mocha/uploads/`, sai do `text` e soma 1 no `imageCount`. As linhas vazias que sobram no fim do texto são aparadas. Um marcador com caminho fora de `uploads/` fica no texto.
 
 `toolCall.summary` (uma linha, até 120 caracteres):
 
@@ -669,7 +671,7 @@ O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para
 | `~/Library/Application Support/Mocha/devices.json` | Aparelhos (§4.6). Permissão 0600 |
 | `~/Library/Application Support/Mocha/sessions.json` | Sessões arquivadas e arquivamentos do usuário (§4.9). Permissão 0600 |
 | `~/Library/Application Support/Mocha/mochad.sock` | Canal local (§4.8). Permissão 0600 |
-| `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (1b). Apagadas depois de 7 dias |
+| `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (0700; arquivos 0600). Apagadas depois de 7 dias, na subida do daemon e a cada 6 h |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
 | Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` (senha genérica). O ACL confia no binário que criou o item pelo requisito de assinatura, e a lista de partição recebe `teamid:<TEAM>` |
 
@@ -1108,7 +1110,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `GET /v1/health` | `{"ok":true,"version":"…","herdr":true}` (para o `doctor` e o S5) | 1a-core |
 | `GET /v1` (upgrade) | WebSocket | 1a-core |
 | `POST /v1/respond` | Corpo `{requestId, response}` (mesmo JSON de §5.2.1). Usado pelas ações de notificação sem abrir o app. 200 com `{}`, 404 se o pedido não existe mais | 1b |
-| `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta `{"path": "/Users/…/uploads/<uuid>.<ext>"}` | 1b |
+| `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta 200 `UploadResponse` (`{"path": "/Users/…/uploads/<uuid>.<ext>"}`, `MochaProtocol`). Erros: 401 sem Bearer válido, 411 sem `Content-Length`, 413 acima de 20 MB, 415 com outro `Content-Type`, 400 com corpo vazio. O arquivo é gravado atômico com 0600 em `uploads/` (0700), com nome UUID gerado pelo daemon e extensão pelo `Content-Type` (`jpg`, `png`, `heic`) | 1a-core |
 | `POST /v1/live-activity` | Corpo `LiveActivityRegistration` (mesmo JSON do `registerLiveActivity`), com `Authorization: Bearer`. Usado pelo app acordado em background por push-to-start, sem WebSocket aberto, para entregar o token de update da atividade nova. 200 com `{}` | 1b |
 
 ---
@@ -1311,7 +1313,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 **Composer** (`05-chat-inicio-turno`, `08-chat-digitando`), flutuante sobre o fim da lista
 - **Recolhido**: uma linha só, "Chat via Mocha…", com o botão enviar à direita. Um rascunho não enviado aparece na linha recolhida, em branco, com enviar aceso.
 - **Expandido** (ao tocar): campo multilinha (até 6 linhas, depois rola) e a linha de botões:
-  - `+`: imagem, 1b (oculto antes);
+  - `+`: imagem (§6.5);
   - microfone: 1b (oculto antes);
   - `↻`: menu de slash e ações, 1a-final (oculto antes);
   - enviar: círculo, desabilitado sem texto.
@@ -1351,12 +1353,14 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Antes de habilitar o microfone, conferir `SpeechTranscriber.supportedLocales` e baixar o modelo via `AssetInventory` se preciso.
 - Toque no microfone inicia e toque de novo para. O texto parcial aparece no campo em `textSecondary` e o final substitui o parcial. Nada é enviado sozinho.
 
-### §6.5 Imagem (1b)
+### §6.5 Imagem (1a-core)
 
-- Origem: `PhotosPicker`, câmera e colar da área de transferência.
-- Reduzir para no máximo 2.048 px no lado maior, JPEG qualidade 0,85.
-- `POST /v1/upload`, e o caminho devolvido entra no prompt como texto (`[imagem: /Users/…/uploads/x.jpg]`). O Claude Code lê imagens pelo caminho.
-- A bolha do usuário mostra "📎 1 imagem".
+- O `+` do composer expandido abre um menu com três origens: "Fotos" (`PhotosPicker`, várias de uma vez), "Câmera" e "Colar imagem" (área de transferência). O componente de colar é escolhido pelo WP e registrado no relatório.
+- Até 5 imagens por prompt. Cada uma é reduzida para no máximo 2.048 px no lado maior e vira JPEG com qualidade 0,85, mantendo a orientação.
+- As imagens anexadas aparecem como miniaturas quadradas numa faixa acima do campo, cada uma com um "x" para remover. Com imagem anexada, enviar fica habilitado mesmo sem texto.
+- Ao enviar: cada imagem vai por `POST /v1/upload` (§5.5), em sequência, com `Authorization: Bearer <deviceToken>` e a base `https://<host do pareamento>`. Depois de todos os uploads, o app manda um `sendPrompt` com o texto do campo seguido de uma linha `[imagem: <path>]` por imagem, na ordem das miniaturas. O Claude Code lê a imagem pelo caminho.
+- Se um upload falhar, nada é enviado: o texto e as miniaturas ficam no composer e o erro aparece como na falha de `sendPrompt`.
+- A bolha do usuário (pendente e definitiva) mostra o texto sem os marcadores e uma linha "📎 1 imagem" ou "📎 N imagens". O daemon tira os marcadores do texto pela regra da §3.2.
 
 ---
 
