@@ -7,6 +7,7 @@ public struct DemoOptions: Sendable, Equatable {
     public var echoDelay: Duration
     public var replyDelay: Duration
     public var scriptTimeScale: Double
+    public var newAgentTabDelay: Duration
 
     public init(
         startsPaired: Bool = true,
@@ -16,7 +17,8 @@ public struct DemoOptions: Sendable, Equatable {
         connectDelay: Duration = .milliseconds(400),
         echoDelay: Duration = .seconds(1),
         replyDelay: Duration = .seconds(2),
-        scriptTimeScale: Double = 1
+        scriptTimeScale: Double = 1,
+        newAgentTabDelay: Duration = .milliseconds(1500)
     ) {
         self.startsPaired = startsPaired
         self.runsScript = runsScript
@@ -26,5 +28,6 @@ public struct DemoOptions: Sendable, Equatable {
         self.echoDelay = echoDelay
         self.replyDelay = replyDelay
         self.scriptTimeScale = scriptTimeScale
+        self.newAgentTabDelay = newAgentTabDelay
     }
 }

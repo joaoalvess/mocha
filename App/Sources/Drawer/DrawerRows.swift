@@ -19,6 +19,11 @@ enum DrawerLayout {
     static let blockedDotSize: CGFloat = 8
     static let branchLeading: CGFloat = 7.7
     static let claudeMarkScale: CGFloat = 1.18
+    static let newTabButtonSize: CGFloat = 28
+    static let newTabButtonTrailing: CGFloat = 2
+    static let newTabIconSize: CGFloat = 14
+    static let newTabIconStroke: CGFloat = 2
+    static let newTabHitOutset: CGFloat = 4
 
     static func chevronInset(level: Int) -> CGFloat {
         9.7 + CGFloat(level) * levelIndent
@@ -39,7 +44,9 @@ enum DrawerLayout {
 
 struct DrawerWorkspaceRowView: View {
     let row: DrawerWorkspaceRow
+    let isCreatingTab: Bool
     let action: () -> Void
+    let onNewTab: () -> Void
 
     var body: some View {
         Button(action: action) {
@@ -63,7 +70,7 @@ struct DrawerWorkspaceRowView: View {
                 }
             }
             .padding(.leading, DrawerLayout.workspaceNameInset(level: row.level))
-            .padding(.trailing, 12)
+            .padding(.trailing, DrawerLayout.newTabButtonTrailing + DrawerLayout.newTabButtonSize)
             .frame(maxWidth: .infinity, minHeight: DrawerLayout.treeRowHeight, alignment: .leading)
             .overlay(alignment: .leading) {
                 LineIconView(icon: .chevronRight, size: 10, strokeWidth: 2.2, color: Palette.textSecondary)
@@ -76,6 +83,40 @@ struct DrawerWorkspaceRowView: View {
         .buttonStyle(.pressable)
         .accessibilityElement(children: .combine)
         .accessibilityValue(row.isExpanded ? "Expandido" : "Recolhido")
+        .overlay(alignment: .trailing) {
+            DrawerNewTabButton(workspaceLabel: row.label, isCreating: isCreatingTab, action: onNewTab)
+                .padding(.trailing, DrawerLayout.newTabButtonTrailing)
+        }
+    }
+}
+
+struct DrawerNewTabButton: View {
+    let workspaceLabel: String
+    let isCreating: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if isCreating {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Palette.textSecondary)
+                } else {
+                    DrawerIconView(
+                        icon: .plus,
+                        size: DrawerLayout.newTabIconSize,
+                        strokeWidth: DrawerLayout.newTabIconStroke,
+                        color: Palette.textSecondary
+                    )
+                }
+            }
+            .frame(width: DrawerLayout.newTabButtonSize, height: DrawerLayout.newTabButtonSize)
+            .contentShape(Rectangle().inset(by: -DrawerLayout.newTabHitOutset))
+        }
+        .buttonStyle(.pressable)
+        .disabled(isCreating)
+        .accessibilityLabel(isCreating ? "Abrindo tab com Claude em \(workspaceLabel)" : "Nova tab com Claude em \(workspaceLabel)")
     }
 }
 

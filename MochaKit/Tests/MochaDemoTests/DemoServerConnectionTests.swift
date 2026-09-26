@@ -188,7 +188,7 @@ struct DemoServerConnectionTests {
 
         let errors: [(ClientMessage, ProtocolErrorCode)] = [
             (.respond(requestId: "r1", response: .allow), .requestNotFound),
-            (.newAgentTab(workspaceId: "w1"), .internal),
+            (.newAgentTab(workspaceId: "w99"), .invalidPayload),
             (.unknown(type: "teleport"), .unknownType),
             (.slash(agentId: "w99:p1", command: "/clear"), .agentNotFound),
             (.slash(agentId: "w4:p3", command: "/clear"), .invalidPayload),
