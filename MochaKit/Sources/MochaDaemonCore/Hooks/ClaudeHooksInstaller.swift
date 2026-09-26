@@ -79,6 +79,9 @@ public struct ClaudeHooksInstaller: Sendable {
         if outcome.settings != current {
             report.backup = try write(outcome.settings, replacing: original)
             report.changed = true
+        } else if original != nil {
+            try Self.restrict(settingsFile.resolvingSymlinksInPath())
+            try restrictBackup()
         }
         if case .hooks(let summary) = ClaudeSettingsInspector(url: settingsFile).inspect() {
             report.moshiEvents = summary.moshiEvents
@@ -93,10 +96,9 @@ public struct ClaudeHooksInstaller: Sendable {
 
     private func write(_ settings: OrderedJSON, replacing original: Data?) throws -> URL? {
         let target = settingsFile.resolvingSymlinksInPath()
-        let permissions = Self.permissions(of: target) ?? 0o600
         var backup: URL?
         if let original, !FileManager.default.fileExists(atPath: backupFile.fileSystemPath) {
-            try AtomicFile.write(original, to: backupFile, permissions: permissions)
+            try AtomicFile.write(original, to: backupFile, permissions: Self.permissions)
             backup = backupFile
         }
         try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -104,7 +106,8 @@ public struct ClaudeHooksInstaller: Sendable {
         if original.map(Self.endsWithNewline) ?? true {
             text += "\n"
         }
-        try AtomicFile.write(Data(text.utf8), to: target, permissions: permissions)
+        try AtomicFile.write(Data(text.utf8), to: target, permissions: Self.permissions)
+        try restrictBackup()
         return backup
     }
 
@@ -121,9 +124,16 @@ public struct ClaudeHooksInstaller: Sendable {
         byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D
     }
 
-    private static func permissions(of url: URL) -> mode_t? {
-        var info = stat()
-        guard stat(url.fileSystemPath, &info) == 0 else { return nil }
-        return info.st_mode & 0o777
+    private static let permissions: mode_t = 0o600
+
+    private func restrictBackup() throws {
+        guard FileManager.default.fileExists(atPath: backupFile.fileSystemPath) else { return }
+        try Self.restrict(backupFile)
+    }
+
+    private static func restrict(_ url: URL) throws {
+        guard chmod(url.fileSystemPath, permissions) == 0 else {
+            throw AtomicFileError.writeFailed(path: url.fileSystemPath, errno: errno)
+        }
     }
 }

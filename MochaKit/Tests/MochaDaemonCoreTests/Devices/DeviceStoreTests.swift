@@ -88,6 +88,46 @@ struct DeviceStoreTests {
         }
     }
 
+    @Test func apnsRegistrationIsStoredKeptAndMovedBetweenDevices() async throws {
+        try await withStore { store, fileURL in
+            let sandbox = ApnsRegistration(token: String(repeating: "ab", count: 32), env: .sandbox)
+            let first = try await store.register(name: "iPhone", token: "t1", at: start, apns: sandbox)
+            #expect(first.apns == sandbox)
+            try await store.markSeen(first.id, at: start.addingTimeInterval(60))
+            #expect(try await store.devices().first?.apns == sandbox)
+
+            let production = ApnsRegistration(token: String(repeating: "cd", count: 32), env: .production)
+            try await store.markSeen(first.id, at: start.addingTimeInterval(120), apns: production)
+            #expect(try await store.devices().first?.apns == production)
+
+            let second = try await store.register(name: "iPhone novo", token: "t2", at: start, apns: ApnsRegistration(token: production.token.uppercased(), env: .production))
+            let records = try await store.devices()
+            #expect(records.first { $0.id == first.id }?.apns == nil)
+            #expect(records.first { $0.id == second.id }?.apns?.env == .production)
+            #expect(try permissions(of: fileURL) == 0o600)
+        }
+    }
+
+    @Test func preferencesAndTokenRemovalRewriteOnlyTheirDevice() async throws {
+        try await withStore { store, _ in
+            let registration = ApnsRegistration(token: String(repeating: "ab", count: 32), env: .sandbox)
+            let phone = try await store.register(name: "iPhone", token: "t1", at: start, apns: registration)
+            let pad = try await store.register(name: "iPad", token: "t2", at: start)
+
+            #expect(try await store.setPreferences(DevicePreferences(turnDoneAlerts: false), for: phone.id))
+            #expect(try await store.setPreferences(DevicePreferences(turnDoneAlerts: false), for: "sumiu") == false)
+            #expect(try await store.removeApnsToken(String(repeating: "cd", count: 32), from: phone.id) == false)
+            #expect(try await store.removeApnsToken(registration.token, from: pad.id) == false)
+            #expect(try await store.devices().first { $0.id == phone.id }?.apns == registration)
+            #expect(try await store.removeApnsToken(registration.token.uppercased(), from: phone.id))
+
+            let records = try await store.devices()
+            #expect(records.first { $0.id == phone.id }?.preferences == DevicePreferences(turnDoneAlerts: false))
+            #expect(records.first { $0.id == phone.id }?.apns == nil)
+            #expect(records.first { $0.id == pad.id }?.preferences == DevicePreferences())
+        }
+    }
+
     @Test func recordsKeepPreferencesAndOptionalRegistrations() async throws {
         try await withStore { store, fileURL in
             let record = try await store.register(name: "iPhone", token: SecureToken.generate(), at: start)

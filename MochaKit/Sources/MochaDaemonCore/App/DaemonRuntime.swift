@@ -18,19 +18,25 @@ public struct DaemonOptions: Sendable {
     public var projectsRoot: String
     public var pairingURL: LocalControl.PairingURLProvider
     public var hookPort: UInt16?
+    public var apnsCredentials: ApnsCredentials.Loader?
+    public var apnsTransport: (any ApnsTransport)?
 
     public init(
         paths: DaemonPaths = DaemonPaths(),
         herdrSocketPath: String = HerdrSocketPath.resolve(),
         projectsRoot: String = TranscriptStore.defaultProjectsRoot,
         pairingURL: @escaping LocalControl.PairingURLProvider = { try await TailscaleCLI().webSocketURL() },
-        hookPort: UInt16? = nil
+        hookPort: UInt16? = nil,
+        apnsCredentials: ApnsCredentials.Loader? = nil,
+        apnsTransport: (any ApnsTransport)? = nil
     ) {
         self.paths = paths
         self.herdrSocketPath = herdrSocketPath
         self.projectsRoot = projectsRoot
         self.pairingURL = pairingURL
         self.hookPort = hookPort
+        self.apnsCredentials = apnsCredentials
+        self.apnsTransport = apnsTransport
     }
 }
 
@@ -53,6 +59,8 @@ public actor DaemonRuntime {
     private var gatewayServer: HttpServer?
     private var hookServer: HttpServer?
     private var controlServer: LocalControlServer?
+    private var hookRouter: HookRouter?
+    private var push: PushService?
     private var uploadCleanup: Task<Void, Never>?
 
     public init(options: DaemonOptions = DaemonOptions(), events: @escaping Gateway.EventSink = { _ in }) {
@@ -72,6 +80,13 @@ public actor DaemonRuntime {
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
         let archive = SessionArchive(fileURL: paths.sessionsFile)
         let hub = SessionHub(herdr: herdr, transcripts: transcripts, devices: devices, pairing: pairing, usage: usage, archive: archive)
+        let push = PushService(
+            devices: devices,
+            audience: hub,
+            credentials: options.apnsCredentials ?? ApnsCredentials.loader(configFile: paths.configFile),
+            transport: options.apnsTransport ?? URLSessionApnsTransport()
+        )
+        let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
         let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
@@ -100,6 +115,8 @@ public actor DaemonRuntime {
         self.herdr = herdr
         self.usage = usage
         self.gateway = gateway
+        self.push = push
+        self.hookRouter = hookRouter
         uploads.removeExpired(now: Date())
         let clock = SystemGatewayClock()
         uploadCleanup = Task {
@@ -108,6 +125,7 @@ public actor DaemonRuntime {
         await usage.start()
         await herdr.start()
         await hub.start()
+        await hookRouter.start(hooks: hookEvents.events())
         do {
             try await gatewayServer.start()
         } catch {
@@ -146,6 +164,10 @@ public actor DaemonRuntime {
         await hookServer?.stop()
         hookServer = nil
         hookEvents.finish()
+        await hookRouter?.stop()
+        hookRouter = nil
+        await push?.shutdown()
+        push = nil
         await gateway?.shutdown()
         gateway = nil
         await gatewayServer?.stop()

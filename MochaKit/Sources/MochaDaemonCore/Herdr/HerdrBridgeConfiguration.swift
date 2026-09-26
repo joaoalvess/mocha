@@ -4,6 +4,7 @@ public struct HerdrBridgeConfiguration: Sendable {
     public var treeDebounce: Duration
     public var paneUpdateProbeDelay: Duration
     public var agentDetectedProbeDelays: [Duration]
+    public var sessionStartProbeDelays: [Duration]
     public var reconciliationInterval: Duration
 
     public init(
@@ -12,6 +13,7 @@ public struct HerdrBridgeConfiguration: Sendable {
         treeDebounce: Duration = .milliseconds(150),
         paneUpdateProbeDelay: Duration = .seconds(1),
         agentDetectedProbeDelays: [Duration] = [.seconds(1), .seconds(3)],
+        sessionStartProbeDelays: [Duration] = [.zero, .milliseconds(500), .milliseconds(1500), .milliseconds(3500)],
         reconciliationInterval: Duration = .seconds(5)
     ) {
         self.reconnectInterval = reconnectInterval
@@ -19,6 +21,7 @@ public struct HerdrBridgeConfiguration: Sendable {
         self.treeDebounce = treeDebounce
         self.paneUpdateProbeDelay = paneUpdateProbeDelay
         self.agentDetectedProbeDelays = agentDetectedProbeDelays
+        self.sessionStartProbeDelays = sessionStartProbeDelays
         self.reconciliationInterval = reconciliationInterval
     }
 }

@@ -6,6 +6,7 @@ public struct HookServer: Sendable {
 
     public static let secretHeader = "X-Mocha-Hook-Secret"
     public static let paneHeader = "X-Mocha-Pane"
+    public static let maxBodySize = 16 << 20
 
     let secrets: HookSecretVerifier
     let events: HookEventHub
@@ -27,7 +28,7 @@ public struct HookServer: Sendable {
     public func makeRouter() -> HttpRouter {
         var router = HttpRouter()
         for name in HookEventName.allCases {
-            router.route(.post, name.path) { request in
+            router.route(.post, name.path, maxBodySize: Self.maxBodySize) { request in
                 await respond(to: request, as: name)
             }
         }

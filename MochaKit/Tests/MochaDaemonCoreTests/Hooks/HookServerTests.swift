@@ -59,6 +59,38 @@ struct HookServerTests {
         }
     }
 
+    @Test func permissionRequestOfTwoMegabytesIsAcceptedAndAbove16MiBIs413() async throws {
+        #expect(HookServer.maxBodySize == 16 * 1024 * 1024)
+        let content = String(repeating: "a", count: 2 * 1024 * 1024)
+        let body = Data(
+            #"{"session_id":"33333333-3333-4333-8333-333333333333","cwd":"/Users/dev/projects/demo-app","hook_event_name":"PermissionRequest","tool_name":"Write","tool_input":{"file_path":"/Users/dev/projects/demo-app/grande.txt","content":"\#(content)"}}"#.utf8
+        )
+        try await Self.withHookServer { port, iterator in
+            var iterator = iterator
+            let accepted = try await sendRequest("POST", port: port, target: HookEventName.permissionRequest.path, headers: Self.headers(), body: body)
+            #expect(accepted.status == 200)
+            #expect(String(decoding: accepted.body, as: UTF8.self) == "{}")
+            let received = try #require(await iterator.next())
+            guard case .permissionRequest(let request) = received.event else {
+                Issue.record("unexpected \(received.event.name)")
+                return
+            }
+            #expect(request.toolInput["content"]?.stringValue?.utf8.count == content.utf8.count)
+
+            let tooLarge = try await sendRequest(
+                "POST",
+                port: port,
+                target: HookEventName.permissionRequest.path,
+                headers: Self.headers(),
+                body: Data(count: HookServer.maxBodySize + 1)
+            )
+            #expect(tooLarge.status == 413)
+            let stop = try await Self.post(.stop, "Stop.json", port: port)
+            #expect(stop.status == 200)
+            #expect(try #require(await iterator.next()).event.name == .stop)
+        }
+    }
+
     @Test func withoutTheRightSecretTheAnswerIs401AndNothingIsPublished() async throws {
         try await Self.withHookServer { port, iterator in
             var iterator = iterator
