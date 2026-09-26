@@ -1031,13 +1031,13 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 |---|---|---|
 | `bg` | `#1E1E1E` | Fundo do chat e do terminal |
 | `drawerBg` | `#161719` | Fundo da gaveta |
-| `scrim` | `#0F0F10` | Conteúdo escurecido atrás da gaveta |
+| `scrim` | `#0F0F10` | Conteúdo escurecido atrás da gaveta: camada preta a 50 % sobre o `bg`, que resulta nesse hex |
 | `textPrimary` | `#FCFCFC` | Texto do chat, nomes de workspace, texto em negrito |
 | `textSecondary` | `#98A0A8` | Subtítulos, "Brewed for", recap, placeholder, branch, cabeçalho de seção, ícone de shell |
 | `link` | `#78A0F4` | Código inline, caminhos e comandos no markdown |
 | `userBubble` | `#1B351B` | Bolha do usuário (texto `textPrimary`) |
 | `selectedRow` | `#142E16` | Linha selecionada na gaveta |
-| `toolCard` | `#121416` | Card de ferramenta (borda `#303438`) |
+| `toolCard` | `#121416` | Card de ferramenta (borda `#303438` só no card expandido; o fechado não tem borda) |
 | `glass` | `#3C3C3C` translúcido | Header e botões flutuantes (Liquid Glass escuro) |
 | `composer` | `#383838` translúcido | Composer flutuante |
 | `controlBg` | `#202225` / selecionado `#121416` | Controle segmentado (recentes/árvore) |
@@ -1050,8 +1050,8 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 | `accessoryBar` | `#424242` / tecla `#272829` | Barra de teclas do terminal (fase 2) |
 
 - **Tipografia**:
-  - Chat, header e composer usam fonte **monoespaçada**. O WP de design system identifica a fonte do print comparando o SF Mono do sistema (`.monospaced`) com JetBrains Mono e Geist Mono (licença OFL, empacotável).
-  - O corpo do chat mede ~17 pt, com entrelinha folgada (ver prints), e respeita o Dynamic Type.
+  - Chat, header e composer usam a **JetBrains Mono** (OFL, §11), identificada no print pelo zero com ponto central, pelo `l` com cauda curva e pela ligadura de `...`. Pesos empacotados em `App/Resources/Fonts/`: Regular, Italic, Bold e BoldItalic.
+  - Medidas do print (3x): corpo do chat 14,67 pt, com uma linha a cada 20 pt; título do header 16 pt em negrito; subtítulo e card de ferramenta 12 pt; composer 14 pt. Tudo respeita o Dynamic Type (`relativeTo:`), e o tamanho do corpo fica num token só.
   - A gaveta usa a fonte do sistema (SF Pro), como no print `gaveta-workspaces.png`.
 - **Ponto de status do header**: `idle` e `done` em `statusOk` (disco com o glifo `−`), `working` em `statusOk` pulsando, `blocked` em `dirty`, `unknown` e sem conexão em `textSecondary`.
 - **Vidro**: `glassEffect` do iOS 26 no header, no composer e nos botões redondos flutuantes, sempre escuro (o app força `.preferredColorScheme(.dark)`).
@@ -1086,7 +1086,7 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
   - à direita, um botão redondo que abre a gaveta (bússola).
   - O conteúdo rola por baixo do header.
 - **Lista**:
-  - `userPrompt`: bolha à direita, cantos arredondados de ~20 pt, largura máxima de ~80 %.
+  - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
   - `assistantText`: markdown à esquerda, largura total, sem bolha.
   - `toolCall`: card `toolCard` de uma linha (`>_ Shell <resumo>` com ✓ ou ✗ à direita). Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`). Tocar expande e mostra, por chamada, o input e a prévia do resultado em mono.
   - `thinking`: linha colapsada "Pensou" em `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
@@ -1332,6 +1332,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 | Frameworks da Apple (SwiftUI, Network, CryptoKit, Security, ActivityKit, UserNotifications, Speech, VisionKit, PhotosUI, CoreImage) | app e daemon | — | todas |
 | `swift-markdown` (github.com/swiftlang/swift-markdown), `exactVersion: 0.9.0` | app (`Markdown/`) | Apache-2.0 | 1a-core |
 | `swift-cmark` e `swift-docc-plugin`, transitivas do `swift-markdown` | app | BSD-2 / Apache-2.0 | 1a-core |
+| JetBrains Mono 2.304 (github.com/JetBrains/JetBrainsMono), pesos Regular, Italic, Bold e BoldItalic em `App/Resources/Fonts/`, com a `OFL.txt`. Motivo: é a fonte mono dos prints (§6.2) | app (`DesignSystem/`) | OFL-1.1 | 1a-core |
 | Swift Testing | testes | — | todas |
 | `SwiftTerm` (github.com/migueldeicaza/SwiftTerm) | app | MIT | 2 |
 | `Citadel` (github.com/orlandos-nl/Citadel) | app | MIT | 2 |
