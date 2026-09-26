@@ -12,19 +12,27 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 2. Apresente ao João um plano curto da fase: ondas, WPs por onda, bloqueios que precisam dele agora. Espere a aprovação antes de delegar.
 3. Peça todos os bloqueios (`Bx`) da fase de uma vez, no começo.
 4. **Fase 0**: o WP0.1 é feito por você mesmo, direto em `main` (`git init` e o commit dos docs primeiro). Só depois você cria a branch `fase/0`. Nas outras fases, você cria `fase/<id>` a partir de `main` antes de delegar.
-5. Delegue cada WP a um subagente com: o bloco do WP no PLANO, as §§ da SPEC citadas, a lista de arquivos existentes relevantes e a seção "Subagente" deste arquivo. No máximo 3 subagentes ao mesmo tempo, spikes incluídos.
-6. Você é o dono de `MochaKit/Package.swift`, `project.yml`, `MochaKit/Sources/MochaProtocol/**`, `MochaKit/Fixtures/protocol/**`, `docs/SPEC.md`, `docs/PLANO.md` e `docs/HANDOFF.md`. Aplique você as mudanças que os subagentes propuserem nesses arquivos. Spikes escrevem só no diretório dono listado no PLANO, que inclui o próprio `docs/spikes/<Sx>.md`.
-7. Revise cada entrega contra os critérios de aceite, rode a validação (ou delegue a um subagente de validação, que devolve só passou/falhou e os trechos de erro), faça os commits do WP e atualize a tabela de status do PLANO.
-8. Ao fim de cada spike, aplique no PLANO e na SPEC o que o relatório lista em "Impacto".
-9. Não delegue decisões de arquitetura nem a revisão final.
+5. Delegue cada WP a um subagente com: o bloco do WP no PLANO, as §§ da SPEC citadas, a lista de arquivos existentes relevantes, a seção "Subagente" deste arquivo e, a partir da 1a-core, o caminho absoluto do worktree do WP. No máximo 3 subagentes ao mesmo tempo, spikes incluídos.
+6. Você é o dono de `MochaKit/Package.swift`, `project.yml`, `MochaKit/Sources/MochaProtocol/**`, `MochaKit/Fixtures/protocol/**`, `App/Info.plist`, `App/Mocha.entitlements`, `Widgets/Info.plist`, `AGENTS.md`, `.gitignore`, `docs/SPEC.md`, `docs/PLANO.md` e `docs/HANDOFF.md`. Aplique você as mudanças que os subagentes propuserem nesses arquivos. A exceção é um arquivo que o bloco do WP no PLANO entrega ao WP, só naquela onda. Spikes escrevem só no diretório dono listado no PLANO, que inclui o próprio `docs/spikes/<Sx>.md`.
+7. **Worktree por WP** (a partir da 1a-core):
+   - no início da onda, crie um worktree do Herdr por WP: `herdr worktree create --cwd ~/Developer/mocha --branch wp/<id> --base fase/<fase> --path ~/Developer/mocha/.claude/worktrees/<id> --no-focus`;
+   - copie `Config/Signing.xcconfig` do repositório principal para o worktree;
+   - se o WP precisa da fixture grande, ligue `MochaKit/Fixtures/transcripts/generated/` do worktree por symlink ao mesmo diretório do repositório principal;
+   - no fim do WP, revise, commite em `wp/<id>`, faça `git merge --no-ff wp/<id>` na branch da fase e rode `herdr worktree remove --workspace <id do workspace>`, que mantém a branch;
+   - mudança num arquivo seu no meio de uma onda: aplique no worktree do WP que precisa dela, em commit separado;
+   - antes de abrir ou remover um worktree, confira que nenhum pane está com `cd` dentro dele (bug do Herdr 0.9.1: o `worktree remove` fecharia o workspace do repositório).
+8. Revise cada entrega contra os critérios de aceite, rode a validação (ou delegue a um subagente de validação, que devolve só passou/falhou e os trechos de erro), faça os commits do WP e atualize a tabela de status do PLANO.
+9. Ao fim de cada spike, aplique no PLANO e na SPEC o que o relatório lista em "Impacto".
+10. Não delegue decisões de arquitetura nem a revisão final.
 
 ## Subagente
 
-1. Trabalhe só no **diretório dono** do seu WP. Precisa mudar um arquivo fora dele (inclusive os do orquestrador)? Descreva a mudança como diff no relatório.
-2. Siga a SPEC. Se algo da SPEC estiver errado ou impossível, pare e reporte; não improvise contrato.
-3. **Não faça commit.** O orquestrador commita.
-4. Rode os testes do seu escopo antes de entregar (§Builds e testes).
-5. Entregue o relatório no formato do fim deste arquivo.
+1. Trabalhe só no caminho absoluto do worktree que o orquestrador der. Nunca edite o repositório principal nem outro worktree.
+2. Dentro dele, trabalhe só no **diretório dono** do seu WP. Precisa mudar um arquivo fora dele (inclusive os do orquestrador)? Descreva a mudança como diff no relatório.
+3. Siga a SPEC. Se algo da SPEC estiver errado ou impossível, pare e reporte; não improvise contrato.
+4. **Não faça commit.** O orquestrador commita.
+5. Rode os testes do seu escopo antes de entregar (§Builds e testes).
+6. Entregue o relatório no formato do fim deste arquivo.
 
 ## Ambiente
 
@@ -35,7 +43,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
   - `/usr/bin/jq`.
   - Se o `PATH` estiver vazio num subagente, use caminhos absolutos.
 - O João roda tudo dentro do Herdr (`HERDR_ENV=1`). Processos longos (daemon em primeiro plano, `log stream`, app no simulador) rodam numa tab do Herdr, não no Bash do agente:
-  1. `herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd ~/Developer/mocha --label <o-que> --no-focus`;
+  1. `herdr tab create --workspace <id> --cwd <caminho> --label <o-que> --no-focus`. O subagente usa o workspace do próprio worktree (em `herdr workspace list`, o que tem `.worktree.checkout_path` igual ao caminho dele) e `--cwd` no worktree. O orquestrador usa o workspace da própria sessão (`$HERDR_WORKSPACE_ID`) e `--cwd ~/Developer/mocha`;
   2. `herdr pane run <pane> "<comando>"`;
   3. leia a saída com `herdr pane read --source recent-unwrapped`.
   Deixe a tab aberta enquanto o processo roda.
@@ -44,6 +52,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
   - `scripts/test.sh`: testes do MochaKit;
   - `scripts/build-app.sh`: build para o simulador;
   - `scripts/build-device.sh`: build assinado para o iPhone;
+  - `scripts/lib/xcode-lock.sh`: trava que os dois scripts de build do app pegam antes do `xcodebuild`;
   - `scripts/build-daemon.sh`: build release do `mochad`;
   - `scripts/run-daemon.sh`: `mochad run` em primeiro plano.
 
@@ -62,10 +71,12 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 - Swift Testing (`import Testing`).
 - Testes unitários nunca usam o Herdr real, o Claude real, a rede, o APNs nem o Keychain real: use `MochaTestSupport` e `MochaKit/Fixtures/`.
 - Testes que tocam o sistema real levam a tag `.integration` e só rodam com `MOCHA_INTEGRATION=1`.
-- Subagentes em paralelo: `swift test --package-path MochaKit --scratch-path MochaKit/.build/<WP>`.
-- `xcodebuild`: um por vez na máquina, com `-derivedDataPath build/DerivedData-<WP>`.
+- Cada worktree tem o próprio `.build` e o próprio `build/DerivedData`. Rode `scripts/test.sh` no worktree, sem `--scratch-path`.
+- `xcodebuild` só pelos scripts (`build-app.sh`, `build-device.sh`). Eles pegam a trava em `~/Library/Caches/com.joaoalves.mocha/xcodebuild.lock`, e assim só um `xcodebuild` roda por vez na máquina. Os pacotes clonados ficam em `~/Library/Caches/com.joaoalves.mocha/SourcePackages`, compartilhados entre os worktrees.
+- Medições de desempenho (tempo de página, `signpost`, RSS) só rodam quando o orquestrador libera a janela sem nenhum build na máquina.
 - **UI**:
-  - compare capturas do simulador (`xcrun simctl io booted screenshot <arquivo>`) com os prints de `docs/referencias/moshi/` e liste as diferenças no relatório;
+  - simulador: use o UDID que o orquestrador der, sempre com `xcrun simctl … <udid>`, nunca `booted`;
+  - compare capturas do simulador (`xcrun simctl io <udid> screenshot <arquivo>`) com os prints de `docs/referencias/moshi/` e liste as diferenças no relatório;
   - cores exatamente as da SPEC §6.2;
   - antes de rodar verificação pesada de UI, o orquestrador oferece ao João testar no iPhone.
 
@@ -73,8 +84,8 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 
 - **Herdr**:
   - o Herdr é real e está em uso;
-  - é permitido: ler estado; criar e fechar os workspaces de laboratório `mocha-lab-<Sx>` (um por spike, com diretório em `~/Developer/mocha-lab/<Sx>/`, fora do repositório) e mexer neles; criar tabs no workspace da própria sessão do orquestrador para processos longos (§Ambiente);
-  - nunca mande texto ou teclas para qualquer outro pane.
+  - é permitido: ler estado; criar e fechar os workspaces de laboratório `mocha-lab-<Sx>` (um por spike, com diretório em `~/Developer/mocha-lab/<Sx>/`, fora do repositório) e mexer neles; criar e remover os worktrees dos WPs (só o orquestrador); criar tabs para processos longos no workspace do próprio worktree ou da própria sessão do orquestrador (§Ambiente);
+  - ninguém manda texto ou teclas para panes fora do próprio worktree, do próprio laboratório ou das tabs que o próprio agente criou.
 - **Claude**:
   - não edite `~/.claude/settings.json`; sessões de teste usam `claude --setting-sources project,local --settings <arquivo>`;
   - o `mochad install-hooks` real roda só nos WPs de integração, com o ok do João.
@@ -86,6 +97,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 ## Git
 
 - A branch de cada fase é `fase/<id>` (ex.: `fase/0`, `fase/1a-core`), criada a partir de `main`. A exceção é o WP0.1, feito direto em `main`.
+- A partir da 1a-core, cada WP tem a branch `wp/<id>`, criada a partir da branch da fase pelo `herdr worktree create`. O orquestrador commita nela e faz `git merge --no-ff wp/<id>` na branch da fase, sem rebase.
 - O merge em `main` acontece no fim da fase: para a Fase 0, quando todos os WPs e spikes estiverem concluídos e o João der o ok; nas demais, depois do checklist do WP de integração.
 - Commits pequenos, em inglês, no padrão Conventional Commits com escopo:
   - `feat(daemon): …`, `feat(app): …`, `feat(protocol): …`;
