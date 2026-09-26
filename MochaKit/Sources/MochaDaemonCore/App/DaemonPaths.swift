@@ -27,6 +27,10 @@ public struct DaemonPaths: Sendable, Equatable {
         supportDirectory.appending(path: "mochad.sock", directoryHint: .notDirectory)
     }
 
+    public var uploadsDirectory: URL {
+        supportDirectory.appending(path: "uploads", directoryHint: .isDirectory)
+    }
+
     public var logsDirectory: URL {
         home.appending(path: "Library/Logs/Mocha", directoryHint: .isDirectory)
     }

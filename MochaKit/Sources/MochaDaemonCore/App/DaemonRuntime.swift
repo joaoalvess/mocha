@@ -45,6 +45,7 @@ public actor DaemonRuntime {
     private var gateway: Gateway?
     private var gatewayServer: HttpServer?
     private var controlServer: LocalControlServer?
+    private var uploadCleanup: Task<Void, Never>?
 
     public init(options: DaemonOptions = DaemonOptions(), events: @escaping Gateway.EventSink = { _ in }) {
         self.options = options
@@ -63,7 +64,8 @@ public actor DaemonRuntime {
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
         let archive = SessionArchive(fileURL: paths.sessionsFile)
         let hub = SessionHub(herdr: herdr, transcripts: transcripts, devices: devices, pairing: pairing, usage: usage, archive: archive)
-        let gateway = Gateway(herdr: herdr, hub: hub, events: events)
+        let uploads = UploadStore(directory: paths.uploadsDirectory)
+        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let controlServer = LocalControlServer(
             socketPath: paths.controlSocket.fileSystemPath,
@@ -79,6 +81,11 @@ public actor DaemonRuntime {
         self.herdr = herdr
         self.usage = usage
         self.gateway = gateway
+        uploads.removeExpired(now: Date())
+        let clock = SystemGatewayClock()
+        uploadCleanup = Task {
+            await uploads.removeExpiredPeriodically(clock: clock)
+        }
         await usage.start()
         await herdr.start()
         await hub.start()
@@ -116,6 +123,8 @@ public actor DaemonRuntime {
         herdr = nil
         await usage?.stop()
         usage = nil
+        uploadCleanup?.cancel()
+        uploadCleanup = nil
     }
 
     private static func gatewayError(_ error: any Error, port: UInt16) -> DaemonStartError {
