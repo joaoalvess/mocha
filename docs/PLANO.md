@@ -716,7 +716,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I12 | feito (gestos no checklist do WP-X1) | 70ce184, a2713c0, 3508650, caa6aa4, 02b7c4f, merge 03a8201 |
 | WP-I4 | feito, menos o critério de 16 ms: 131 ms em Debug no simulador, critério a redefinir pelo João | e93e84e, 2d28456, merge 4716495 |
 | WP-M4 | em andamento | |
-| WP-I3 | em andamento | |
+| WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | 49d329d, d44971b, 6b51ad2, merge 63d873a |
 | WP-I5 | em andamento | |
 | WP-I2 | todo | |
 | WP-M10 | todo | |
