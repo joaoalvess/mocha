@@ -13,6 +13,16 @@ public struct FakeHerdrPromptCall: Sendable, Equatable {
     }
 }
 
+public struct FakeHerdrSessionRefresh: Sendable, Equatable {
+    public let agentId: AgentID
+    public let sessionId: String
+
+    public init(agentId: AgentID, sessionId: String) {
+        self.agentId = agentId
+        self.sessionId = sessionId
+    }
+}
+
 public final class FakeHerdrBridge: HerdrBridging {
     private struct State {
         var agents: [AgentID: HerdrAgent]
@@ -24,6 +34,8 @@ public final class FakeHerdrBridge: HerdrBridging {
         var interruptCalls: [AgentID] = []
         var openChatsCalls: [Set<AgentID>] = []
         var resolveCalls: [AgentID] = []
+        var sessionRefreshCalls: [FakeHerdrSessionRefresh] = []
+        var dirtyRefreshCalls: [AgentID] = []
     }
 
     public static let defaultServerInfo = HerdrServerInfo(version: "0.9.1", protocolVersion: 22)
@@ -98,6 +110,23 @@ public final class FakeHerdrBridge: HerdrBridging {
         get async { state.withLock { $0.serverInfo } }
     }
 
+    public func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async {
+        let changed = state.withLock { state -> Bool in
+            state.sessionRefreshCalls.append(FakeHerdrSessionRefresh(agentId: id, sessionId: sessionId))
+            guard var agent = state.agents[id], agent.sessionId != sessionId else { return false }
+            agent.sessionId = sessionId
+            state.agents[id] = agent
+            return true
+        }
+        if changed {
+            hub.publish(.sessionChanged(id, sessionId: sessionId))
+        }
+    }
+
+    public func refreshDirtyState(ofAgent id: AgentID) async {
+        state.withLock { $0.dirtyRefreshCalls.append(id) }
+    }
+
     public func setTree(_ tree: [WorkspaceNode]) {
         hub.publish(.treeChanged(tree))
     }
@@ -163,6 +192,14 @@ public final class FakeHerdrBridge: HerdrBridging {
 
     public var resolveCalls: [AgentID] {
         state.withLock { $0.resolveCalls }
+    }
+
+    public var sessionRefreshCalls: [FakeHerdrSessionRefresh] {
+        state.withLock { $0.sessionRefreshCalls }
+    }
+
+    public var dirtyRefreshCalls: [AgentID] {
+        state.withLock { $0.dirtyRefreshCalls }
     }
 
     public var subscriberCount: Int {

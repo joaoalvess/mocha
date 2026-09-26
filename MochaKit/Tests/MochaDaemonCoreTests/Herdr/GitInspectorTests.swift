@@ -97,6 +97,40 @@ final class HerdrTestInstantSource: Sendable {
         #expect(runner.calls.count == 3)
     }
 
+    @Test func invalidationForcesTheNextDirtyCheckOfThatDirectoryOnly() async throws {
+        let clock = HerdrTestInstantSource()
+        let runner = FakeGitCommandRunner(result: GitCommandResult(exitCode: 0, output: Data()))
+        let inspector = GitInspector(runner: runner, now: { clock.now })
+        #expect(await inspector.isDirty(at: "/repo") == false)
+        #expect(await inspector.isDirty(at: "/other") == false)
+        runner.setResult(GitCommandResult(exitCode: 0, output: Data("?? new\n".utf8)))
+        clock.advance(by: .seconds(1))
+
+        await inspector.invalidateDirty(at: "/repo")
+
+        #expect(await inspector.isDirty(at: "/repo"))
+        #expect(await inspector.isDirty(at: "/other") == false)
+        #expect(await inspector.isDirty(at: "/repo"))
+        #expect(runner.calls.count == 3)
+    }
+
+    @Test func aCheckStartedBeforeTheInvalidationDoesNotRefillTheCache() async throws {
+        let runner = GatedGitRunner(outputs: ["", "?? new\n"])
+        let inspector = GitInspector(runner: runner)
+        let stale = Task { await inspector.isDirty(at: "/repo") }
+        _ = try await eventually { await runner.callCount == 1 ? true : nil }
+
+        await inspector.invalidateDirty(at: "/repo")
+        let fresh = Task { await inspector.isDirty(at: "/repo") }
+        _ = try await eventually { await runner.callCount == 2 ? true : nil }
+        await runner.release()
+
+        #expect(await stale.value == false)
+        #expect(await fresh.value)
+        #expect(await inspector.isDirty(at: "/repo"))
+        #expect(await runner.callCount == 2)
+    }
+
     @Test func systemRunnerCapturesOutputAndExitCode() async throws {
         let echo = SystemGitCommandRunner(executableURL: URL(filePath: "/bin/echo"))
         let result = try await echo.run(arguments: ["status"])
@@ -105,5 +139,33 @@ final class HerdrTestInstantSource: Sendable {
         let failing = SystemGitCommandRunner(executableURL: URL(filePath: "/usr/bin/false"))
         #expect(try await failing.run(arguments: []).exitCode != 0)
         #expect(SystemGitCommandRunner().executableURL.path(percentEncoded: false) == "/usr/bin/git")
+    }
+}
+
+actor GatedGitRunner: GitCommandRunning {
+    private var outputs: [String]
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    private var isOpen = false
+    private(set) var callCount = 0
+
+    init(outputs: [String]) {
+        self.outputs = outputs
+    }
+
+    func run(arguments: [String]) async throws -> GitCommandResult {
+        callCount += 1
+        let output = outputs.isEmpty ? "" : outputs.removeFirst()
+        if !isOpen {
+            await withCheckedContinuation { waiting.append($0) }
+        }
+        return GitCommandResult(exitCode: 0, output: Data(output.utf8))
+    }
+
+    func release() {
+        isOpen = true
+        for continuation in waiting {
+            continuation.resume()
+        }
+        waiting.removeAll()
     }
 }

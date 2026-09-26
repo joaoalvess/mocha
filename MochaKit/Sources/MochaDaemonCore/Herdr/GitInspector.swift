@@ -3,6 +3,7 @@ import Foundation
 public protocol GitInspecting: Sendable {
     func branch(at directory: String) async -> String?
     func isDirty(at directory: String) async -> Bool
+    func invalidateDirty(at directory: String) async
 }
 
 public struct GitCommandResult: Sendable, Equatable {
@@ -63,6 +64,7 @@ public actor GitInspector: GitInspecting {
     private let now: @Sendable () -> ContinuousClock.Instant
     private var dirtyCache: [String: CachedDirty] = [:]
     private var dirtyChecks: [String: Task<Bool, Never>] = [:]
+    private var dirtyGenerations: [String: Int] = [:]
 
     public init(
         runner: any GitCommandRunning = SystemGitCommandRunner(),
@@ -90,15 +92,23 @@ public actor GitInspector: GitInspecting {
             return await running.value
         }
         let runner = self.runner
+        let generation = dirtyGenerations[directory, default: 0]
         let check = Task {
             guard let result = try? await runner.run(arguments: Self.statusArguments(directory: directory)) else { return false }
             return result.exitCode == 0 && !result.output.isEmpty
         }
         dirtyChecks[directory] = check
         let value = await check.value
+        guard dirtyGenerations[directory, default: 0] == generation else { return value }
         dirtyChecks[directory] = nil
         dirtyCache[directory] = CachedDirty(value: value, checkedAt: now())
         return value
+    }
+
+    public func invalidateDirty(at directory: String) {
+        dirtyGenerations[directory, default: 0] += 1
+        dirtyCache[directory] = nil
+        dirtyChecks[directory] = nil
     }
 }
 

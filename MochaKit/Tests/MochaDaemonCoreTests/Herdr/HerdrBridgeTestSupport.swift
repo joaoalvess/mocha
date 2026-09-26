@@ -56,6 +56,7 @@ struct HerdrBridgeHarness {
     static func make(
         snapshot: String = "session.snapshot.two-agents-one-tab.response.json",
         git: FakeGitInspector = FakeGitInspector(),
+        inspector: (any GitInspecting)? = nil,
         configuration: HerdrBridgeConfiguration = fastConfiguration,
         start: Bool = true
     ) async throws -> HerdrBridgeHarness {
@@ -65,7 +66,7 @@ struct HerdrBridgeHarness {
         let client = HerdrClient(
             configuration: HerdrClientConfiguration(socketPath: server.socketPath, requestTimeout: .seconds(2), promptTimeout: .seconds(2))
         )
-        let bridge = HerdrBridge(client: client, git: git, configuration: configuration)
+        let bridge = HerdrBridge(client: client, git: inspector ?? git, configuration: configuration)
         let harness = HerdrBridgeHarness(server: server, bridge: bridge, git: git, recorder: HerdrBridgeEventRecorder(bridge.events()))
         if start {
             try await harness.start()

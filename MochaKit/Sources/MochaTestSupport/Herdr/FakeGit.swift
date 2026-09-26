@@ -7,6 +7,7 @@ public final class FakeGitInspector: GitInspecting {
         var branches: [String: String]
         var dirtyDirectories: Set<String>
         var dirtyChecks: [String] = []
+        var invalidations: [String] = []
     }
 
     private let state: Mutex<State>
@@ -26,6 +27,10 @@ public final class FakeGitInspector: GitInspecting {
         }
     }
 
+    public func invalidateDirty(at directory: String) async {
+        state.withLock { $0.invalidations.append(directory) }
+    }
+
     public func setBranch(_ branch: String?, at directory: String) {
         state.withLock { $0.branches[directory] = branch }
     }
@@ -42,6 +47,10 @@ public final class FakeGitInspector: GitInspecting {
 
     public var dirtyChecks: [String] {
         state.withLock { $0.dirtyChecks }
+    }
+
+    public var invalidations: [String] {
+        state.withLock { $0.invalidations }
     }
 }
 
