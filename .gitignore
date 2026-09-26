@@ -8,3 +8,4 @@ xcuserdata/
 *.p8
 Config/Signing.xcconfig
 MochaKit/Fixtures/transcripts/generated/
+.claude/worktrees/
