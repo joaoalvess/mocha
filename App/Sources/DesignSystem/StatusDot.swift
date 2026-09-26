@@ -4,6 +4,7 @@ import SwiftUI
 enum StatusIndicator: Equatable {
     case agent(AgentStatus)
     case disconnected
+    case archived
 
     var color: Color {
         switch self {
@@ -11,17 +12,8 @@ enum StatusIndicator: Equatable {
             Palette.statusOk
         case .agent(.blocked):
             Palette.dirty
-        case .agent(.unknown), .disconnected:
+        case .agent(.unknown), .disconnected, .archived:
             Palette.textSecondary
-        }
-    }
-
-    var showsIdleGlyph: Bool {
-        switch self {
-        case .agent(.idle), .agent(.done), .agent(.working):
-            true
-        case .agent(.blocked), .agent(.unknown), .disconnected:
-            false
         }
     }
 
@@ -37,6 +29,7 @@ enum StatusIndicator: Equatable {
         case .agent(.blocked): "Esperando você"
         case .agent(.unknown): "Estado desconhecido"
         case .disconnected: "Sem conexão"
+        case .archived: "Sessão encerrada"
         }
     }
 }
@@ -46,19 +39,14 @@ struct StatusDot: View {
     var diameter: CGFloat = Metrics.statusDotSize
 
     var body: some View {
-        Group {
-            if indicator.pulses {
-                disc.phaseAnimator([1.0, 0.35]) { content, opacity in
-                    content.opacity(opacity)
-                } animation: { _ in
-                    .easeInOut(duration: 0.8)
+        disc
+            .background {
+                if indicator.pulses {
+                    PulseGlow(diameter: diameter, color: indicator.color)
                 }
-            } else {
-                disc
             }
-        }
-        .accessibilityElement()
-        .accessibilityLabel(indicator.accessibilityLabel)
+            .accessibilityElement()
+            .accessibilityLabel(indicator.accessibilityLabel)
     }
 
     private var disc: some View {
@@ -66,11 +54,31 @@ struct StatusDot: View {
             .fill(indicator.color)
             .frame(width: diameter, height: diameter)
             .overlay {
-                if indicator.showsIdleGlyph {
-                    Capsule()
-                        .fill(Palette.glyphOnAccent)
-                        .frame(width: diameter * 0.44, height: max(1, diameter * 0.08))
-                }
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Palette.glyphOnAccent)
+                    .frame(width: diameter * 0.425, height: diameter * 0.1)
+            }
+    }
+}
+
+private struct PulseGlow: View {
+    let diameter: CGFloat
+    let color: Color
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: diameter, height: diameter)
+            .phaseAnimator([false, true]) { content, expanded in
+                content
+                    .background {
+                        Circle()
+                            .fill(color.opacity(expanded ? 0.2 : 0.12))
+                            .padding(expanded ? -6 : -3)
+                    }
+                    .shadow(color: color.opacity(expanded ? 0.45 : 0.25), radius: expanded ? 8 : 4)
+            } animation: { _ in
+                .easeInOut(duration: 0.8)
             }
     }
 }
