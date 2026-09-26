@@ -755,7 +755,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I5 | feito (signpost dos 2.000 itens numa janela sem build; gestos no checklist do WP-X1) | 118affb, f8fd224, f621510, merge b0a067f |
 | WP-I2 | feito (QR pela câmera, Keychain real e pareamento com o `mochad` no checklist do WP-X1) | dd92fce, 1f73158, 06354de, 147a24c, 0690dff, 4090942, merge 7d574b1 |
 | WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | e80cfe8, 78b0bce, bb172cb, 2d7b8c5, merge f8b3aea |
-| WP-X1 | preparado (daemon, Serve, `doctor` e build assinado); checklist do João pendente | |
+| WP-X1 | feito (aprovado pelo João no iPhone em 2026-09-26; correção do card de ferramenta `49520ac`) | 3c95e82, 49520ac |
 | WP-M11 | feito | fe805ff, fdd4a93, 51fa807, merge 2ae5ac4 |
 | WP-I13 | feito (fotos, câmera e colar no iPhone ficam no checklist do WP-X1) | ba007da, 51dd365, 5b7f1f5, 5635c99, 74488dc, merge 51cbacf |
 | WP-M5 | todo | |

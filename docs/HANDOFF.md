@@ -44,7 +44,7 @@
 
 - Fase **1a-core**, branch `fase/1a-core`. Sem remoto. Todos os WPs de código estão feitos e mergeados: M1, M2, D2, M2b, I1, M3, I4, I12, I3, M4, M10, I2 e I5 (commits na tabela de status do `docs/PLANO.md`). Nenhum worktree aberto; todos os simuladores desligados.
 - Ledger: `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`.
-- **Próximo passo: o João percorre o checklist do WP-X1** (seção "Relatório da noite"). A preparação está feita.
+- **1a-core concluída**: WP-X1 aprovado pelo João no iPhone e `fase/1a-core` mergeada em `main`. **Próximo passo**: apresentar ao João o plano curto da 1a-final (ondas M5 · I6 · I7 → M6 → X2, bloqueios) e as decisões pendentes: subagentes no app (escopo, fase, mock primeiro) e a "nova tab" (hoje na 1b).
 - **Medições pendentes** (numa janela sem build, sem nenhum agente rodando):
   - M2b: `BigTranscriptMetaPerformanceTests` < 50 ms e `BigTranscriptPerformanceTests` < 300 ms;
   - I4 e I5: signpost do chat de 2.000 itens (comandos no relatório do I5, com `-chat-perf-sweep`), incluindo os blocos visíveis de uma mensagem de 20 KB;
