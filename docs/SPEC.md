@@ -17,7 +17,9 @@ São duas peças:
 - **Mocha** (iPhone): SwiftUI, iOS 26+.
 - **mochad** (Mac): daemon Swift que roda como LaunchAgent. Fala com o Herdr, lê os transcripts do Claude Code, recebe os hooks do Claude e manda push direto para o APNs.
 
-O **modo agente** (chat) é a tela principal. O terminal é secundário e entra só na fase 2.
+A tela inicial é a **Home** (central de agentes): os agentes Claude do Herdr agrupados por estado, com o contexto livre de cada um e o uso do plano. Cada agente abre um **chat nativo** por cima da Home. O terminal é secundário e entra só na fase 2.
+
+O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com uma captura 3x de cada tela em `docs/design/mock/` (§6.2).
 
 ### §1.2 Ambiente fixo
 
@@ -36,13 +38,17 @@ O **modo agente** (chat) é a tela principal. O terminal é secundário e entra 
 | Funcionalidade | Fase |
 |---|---|
 | Pareamento iPhone ↔ Mac por QR | 1a-core |
+| Home (central de agentes): seções por estado, prévia da última mensagem, última ferramenta, anel de contexto livre | 1a-core |
+| Detalhe do agente (folha) | 1a-core |
+| Uso do plano (janelas de 5h e 7d) na Home e no detalhe | 1a-core |
+| Sessões arquivadas persistentes, arquivar pelo card, chat só de leitura de sessão encerrada | 1a-core |
 | Gaveta de workspaces, tabs e agentes do Herdr, ao vivo (inclui os worktrees do Herdr criados pelos agentes) | 1a-core |
 | Chat do agente: histórico paginado, atualização ao vivo, markdown, cards de ferramenta | 1a-core |
 | Enviar prompt, interromper (Esc) | 1a-core |
 | Daemon como LaunchAgent, `doctor` | 1a-core |
 | Push de turno concluído e de agente bloqueado, com deep link | 1a-final |
 | Slash commands rápidos | 1a-final |
-| Inbox de aprovações e perguntas; ações na notificação | 1b |
+| Inbox de aprovações e perguntas (sino na Home e card no chat); ações na notificação | 1b |
 | Live Activity agregada / Dynamic Island | 1b |
 | Ditado por voz on-device | 1b |
 | Anexar imagem ao prompt | 1b |
@@ -116,7 +122,7 @@ Princípios:
     Package.swift
     Sources/
       MochaProtocol/              tipos compartilhados app ↔ daemon (§5), o protocolo ServerConnection e, só no iOS, MochaAgentsAttributes (§7.3). Sem dependências
-      MochaClient/                cliente WS do app: ConnectionManager, reconexão, TokenStore (§6.1)
+      MochaClient/                cliente WS do app: ConnectionManager, reconexão, TokenStore (§6.1) e a lógica pura de apresentação (Presentation/)
       MochaDemo/                  ServerConnection em processo com dados de demonstração (Resources/*.json)
       MochaTranscript/            parser do JSONL do Claude Code → ChatItem (§3.2)
       MochaHerdr/                 cliente do socket do Herdr (§3.1)
@@ -126,7 +132,7 @@ Princípios:
     Tests/
       MochaProtocolTests/  MochaDemoTests/  MochaClientTests/  MochaTranscriptTests/  MochaHerdrTests/  MochaDaemonCoreTests/
     Fixtures/
-      transcripts/  herdr/  hooks/  protocol/
+      transcripts/  herdr/  hooks/  protocol/  usage/
   scripts/
     bootstrap.sh                  xcodegen generate
     test.sh                       swift test --package-path MochaKit
@@ -135,7 +141,8 @@ Princípios:
     build-daemon.sh               swift build -c release --product mochad
     lib/xcode-lock.sh             trava que build-app.sh e build-device.sh pegam antes do xcodebuild (um por vez na máquina)
     run-daemon.sh                 roda o mochad em primeiro plano com log no stdout
-  docs/  prompts/
+  docs/                           SPEC, PLANO, HANDOFF, spikes, referencias/moshi/ e design/ (mock.html e mock/NN-nome.png)
+  prompts/
 ```
 
 `Package.swift`: `platforms: [.iOS(.v26), .macOS(.v26)]`.
@@ -163,14 +170,19 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 
 **Abrir o app (1a-core)**
 1. O app lê a URL e o token do Keychain, abre o WebSocket e envia `hello` (§5.3).
-2. O daemon valida o token e responde `helloOk` seguido de `tree` (e de `pending`, na 1b).
-3. O app mostra o último chat aberto, ou a gaveta se não houver nenhum.
+2. O daemon valida o token e responde `helloOk` seguido de `tree`, `archived`, `usage` (quando o cache de uso existe, §3.4) e, na 1b, `pending`.
+3. O app mostra a Home. Um deep link `mocha://agent/<paneId>` abre o chat desse agente por cima dela.
 
 **Abrir um chat (1a-core)**
-1. O app envia `openChat{agentId, limit: 60}`.
+1. O app envia `openChat{agentId, limit: 60}` para um agente vivo, ou `openChat{sessionId, limit: 60}` para uma sessão arquivada (chat só de leitura, §5.3.1).
 2. O daemon resolve o arquivo da sessão (§3.2.1), monta a última página e responde `chatPage`.
 3. Enquanto o chat está aberto, novas entradas no arquivo viram `chatAppend` ou `chatUpdate` para esse cliente.
-4. Rolar até o topo pede `openChat{agentId, before: cursor}`.
+4. Rolar até o topo pede `openChat{<mesmo alvo>, before: cursor}`.
+
+**Home ao vivo (1a-core)**
+1. O daemon acompanha o transcript de todo agente `working` ou `blocked`, mesmo sem chat aberto (§3.2.3), e recompõe o `AgentSummary` (prévia, ferramenta, contexto e horários do turno, §4.1.2).
+2. Cada mudança sai num `treeChanged` com debounce de 150 ms. O app reclassifica as seções com o relógio local (§6.3, Home).
+3. Quando uma sessão termina (`/clear`, pane fechado, Claude encerrado), o daemon a grava em `sessions.json` e manda `archived` (§4.9).
 
 **Enviar prompt (1a-core)**
 1. O app envia `sendPrompt{agentId, text}`.
@@ -344,6 +356,13 @@ Regras:
   - Modelo e branch vêm da última linha `assistant` que não seja `<synthetic>` (`message.model`, `gitBranch`).
   - `gitBranch == "HEAD"` (pasta sem git ou HEAD destacado) vira `nil`. O modelo pode ter sufixo de data (`claude-haiku-4-5-20251001`).
   - O título vem do último `ai-title`, que começa como frase e depois vira o nome em kebab-case (igual ao título do terminal). Na falta dele, vem de `terminal_title_stripped` do Herdr.
+- **Meta da Home** (campos do `TranscriptMeta`, §4.1.1, derivados dos mesmos itens da tabela acima):
+  - `preview`: o último item `userPrompt` (autor `user`) ou `assistantText` (autor `assistant`) do arquivo. O texto passa por `PlainText.preview(fromMarkdown:)` (`MochaTranscript`): tira cercas e crases de código, marcadores de ênfase, `#` de título, marcadores de lista e de citação, troca `[texto](url)` por `texto`, junta todos os espaços e quebras num espaço só e corta em 200 caracteres, sem reticências. Um `userPrompt` só com imagens vira `[imagem]`. Sem nenhum desses itens (sessão nova ou recém-limpa), `nil`.
+  - `activity`: o último `toolCall` com `status == running`; sem nenhum rodando, o último `toolCall` do arquivo. Leva `name`, `summary` e `status`.
+  - `contextTokens`: `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` do `message.usage` da última linha `assistant` que não seja `<synthetic>` nem erro de API (sem `output_tokens`; sidechain já é ignorada).
+  - `sessionStartedAt`: o `timestamp` da primeira linha do arquivo que tem `timestamp`.
+  - `turnStartedAt`: o `timestamp` do último `userPrompt` vindo de uma linha `user` (o `queued_command` não abre turno).
+  - `turnEndedAt`: o `timestamp` da última linha `system`/`turn_duration`. Turno interrompido não tem `turn_duration`, então `turnEndedAt` pode ficar anterior ao `turnStartedAt`.
 - **Escrita**:
   - O Claude grava cada bloco completo, sem streaming por token. Enquanto o status for `working`, o app mostra o indicador de "trabalhando".
   - Os metadados (`last-prompt`, `ai-title`, `mode`, `permission-mode`, `atis-latch`) são regravados em grupo durante o turno, então `permissionMode` pode atrasar alguns segundos em relação ao terminal.
@@ -367,7 +386,8 @@ Política para tipos novos:
 - **Acompanhamento**: `DispatchSource.makeFileSystemObjectSource` (`.extend`, `.write`, `.rename`, `.delete`), lendo de `lastOffset` até o fim. Linha incompleta (sem `\n`) fica em buffer até completar.
 - **Arquivo que ainda não existe** (sessão nova sem mensagem): observar o diretório do projeto, ou `~/.claude/projects/` se ele também não existir, até o arquivo aparecer.
 - **Cursor de paginação**: opaco para o app. Internamente é `<sessionId>:<offset>`, com o offset da primeira linha da página que gera item, que precisa ser o início de uma linha do índice. Linhas sem item entre duas páginas (resultados, saídas) ficam na página mais antiga. `hasMore` é `true` quando existe uma linha com item antes da página; sem ele, `before` vem `nil`. Cursor de outra sessão ou fora do índice é inválido (§5.3.1).
-- O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para push e Live Activity). Fora disso, fecha o descritor.
+- O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para a Home ao vivo, o push e a Live Activity). Fora disso, fecha o descritor.
+- **Meta sem acompanhamento**: com a sessão acompanhada, o `TranscriptMeta` sai do estado já montado. Fora disso, `meta(forSession:)` lê o fim do arquivo de trás para a frente, em blocos, até achar todos os campos ou ler 8 MB (o que faltar fica `nil`), e a primeira linha para o `sessionStartedAt`. O resultado fica em cache por tamanho e mtime.
 
 ### §3.3 Hooks do Claude Code
 
@@ -406,6 +426,21 @@ O Mac tem o `moshi-hook` (Homebrew, serviço `sh.brew.moshi-hook`) instalado com
 - `mochad doctor` e `install-hooks` detectam entradas com `moshi-hook` no `settings.json` e avisam, mostrando o comando de remoção: `moshi-hook uninstall` e depois `brew services stop moshi-hook`.
 - Antes da 1b (quando o Mocha passa a decidir), o `moshi-hook` precisa estar desinstalado (bloqueio B7).
 
+### §3.4 Uso do plano e contexto
+
+- **Cache do plugin `herdr-agent-usage`**: `~/.local/state/herdr/plugins/herdr-agent-usage/claude-statusline.json`, gravado pelo plugin do Herdr do João a partir do stdin do statusLine do Claude Code, a cada turno. O plugin grava por rename, então o daemon observa o **diretório** (`DispatchSource` `.write`) e reabre o arquivo a cada mudança, com debounce de 500 ms. Formato usado (o resto é ignorado):
+  - `fetched_at_unix`: segundos Unix da última gravação;
+  - `windows[]`: `{kind: "five_hour" | "weekly", used_percent, remaining_percent, resets_at}` (`resets_at` em segundos Unix). Outros `kind` são ignorados;
+  - `session_contexts.<sessionId>.used_percent`: contexto usado da sessão, em %;
+  - `session_models.<sessionId>`: nome de exibição do modelo da sessão (ex.: `"Opus 5.5 (1M context)"`).
+  - Fixture sintética em `MochaKit/Fixtures/usage/claude-statusline.json`.
+- **Plano e conta**: o daemon lê de `~/.claude.json` só `oauthAccount.organizationRateLimitTier` e `oauthAccount.emailAddress`, com cache por mtime, e nunca grava nem registra no log o conteúdo desse arquivo. O plano vem do tier: contém `max_20x` → "Max 20x"; contém `max_5x` → "Max 5x"; contém `pro` → "Pro"; outro valor → `nil`. A conta é o e-mail mascarado: primeira letra do usuário + `•••` + `@` + primeira letra do domínio + `•••` + o último rótulo com o ponto (`dev@example.com` → `d•••@e•••.com`). Fixture sintética em `MochaKit/Fixtures/usage/claude.json`, com só essas duas chaves. **Os nomes das chaves e os valores de tier são inferidos e precisam da conferência do João** (a leitura de `~/.claude.json` pelos agentes é bloqueada).
+- **Contexto livre** (`AgentSummary.contextLeftPercent`, 0–100, arredondado):
+  1. `100 − session_contexts.<sessionId>.used_percent` do cache do plugin, quando a sessão está lá;
+  2. senão, `100 − contextTokens × 100 / janela`, com `contextTokens` do `TranscriptMeta` (§3.2.2) e a janela pelo modelo do transcript (`ContextWindow.size(forModel:)` em `MochaTranscript`): 1.000.000 para `claude-opus-4-7` ou mais novo, `claude-opus-5*`, `claude-fable*` e `claude-sonnet-5*`; 200.000 para os demais;
+  3. sem os dois, `nil`.
+- **Sem cache**: arquivo ausente ou inválido → sem `usage` para os clientes (o app esconde a pílula de uso) e contexto só pelo transcript. O `doctor` mostra o item Uso: ✅ com a idade do cache, ⚠️ sem o arquivo.
+
 ---
 
 ## §4 mochad (daemon do Mac)
@@ -420,6 +455,8 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `HerdrBridge` | Snapshot inicial, inscrições e reconexão (§3.1.3), árvore derivada (§3.1.4), comandos (prompt, Esc, teclas, nova tab) |
 | `TranscriptStore` | Resolução de arquivo, índice de offsets, páginas, acompanhamento, deltas por sessão |
 | `SessionHub` | Clientes conectados, chats abertos por cliente, primeiro plano por cliente, broadcast |
+| `UsageMonitor` | Cache de uso do plugin e plano da conta (§3.4); contexto usado por sessão |
+| `SessionArchive` | Sessões encerradas e arquivamento pelo usuário, persistidos em `sessions.json` (§4.9) |
 | `HttpServer` | HTTP/1.1 mínimo sobre `NWListener` (§4.4) |
 | `Gateway` | Rotas do app sobre o `HttpServer`: WebSocket `/v1` e HTTP de ações e upload (§5) |
 | `HookServer` | Rotas `/hooks/<evento>` no listener local, validação do segredo, tradução em eventos internos |
@@ -530,6 +567,12 @@ public struct TranscriptMeta: Sendable, Equatable {
     public var permissionMode: String?
     public var claudeVersion: String?
     public var lastModified: Date?         // mtime do arquivo
+    public var preview: MessagePreview?    // §3.2.2, meta da Home
+    public var activity: ToolActivity?
+    public var contextTokens: Int?
+    public var sessionStartedAt: Date?
+    public var turnStartedAt: Date?
+    public var turnEndedAt: Date?
 }
 
 public struct TranscriptStats: Sendable, Equatable {
@@ -549,16 +592,41 @@ public enum TranscriptError: Error, Sendable, Equatable {
 - `page`: cursor inválido ou de outra sessão lança `TranscriptError.invalidCursor`.
 - `meta(forSession:)` é lido do fim do arquivo, sem índice completo, com cache por tamanho e mtime. Devolve `nil` se o arquivo não existe.
 - `stats(forSession:)` alimenta o `doctor` (§4.2) pelo `/local/status` (§4.8). Ele varre o arquivo inteiro, com cache por tamanho e mtime.
-- O delta `.meta` sai só quando `title`, `model`, `branch`, `permissionMode` ou `claudeVersion` mudam, e leva o `lastModified` do momento. O `SessionHub` repassa cada `.meta` como `chatMeta`.
+- O delta `.meta` sai quando qualquer campo do `TranscriptMeta` muda, menos o `lastModified` sozinho, e leva o `lastModified` do momento. O `SessionHub` manda `chatMeta` só quando muda um campo do `ChatMeta` (§4.1.2), e `treeChanged` quando muda um campo do `AgentSummary`.
 - Erro de E/S no `open` vira log e sessão vazia, sem lançar.
 
-**Fakes**: `FakeHerdrBridge` (`MochaTestSupport/Herdr/`) e `FakeTranscriptProvider` (`MochaTestSupport/Transcript/`) implementam os dois protocolos e são controlados pelo teste: emitem eventos, fixam a árvore e as páginas e contam as chamadas.
+**`UsageProviding`**: declarado em `MochaDaemonCore/Usage/` e implementado pelo `UsageMonitor` (§3.4).
+
+```swift
+public protocol UsageProviding: Sendable {
+    func events() -> AsyncStream<UsageSnapshot?>   // o primeiro elemento é o estado atual
+    var snapshot: UsageSnapshot? { get async }
+    func contextUsedPercent(forSession sessionId: String) async -> Double?
+}
+```
+
+**`SessionArchiving`**: declarado em `MochaDaemonCore/Sessions/` e implementado pelo `SessionArchive` (§4.9).
+
+```swift
+public protocol SessionArchiving: Sendable {
+    func events() -> AsyncStream<[ArchivedSession]>  // o primeiro elemento é a lista atual
+    var sessions: [ArchivedSession] { get async }
+    func session(_ sessionId: String) async -> ArchivedSession?
+    func sessionEnded(_ session: ArchivedSession) async
+    func archive(sessionId: String, at date: Date) async
+    func archivedAt(sessionId: String) async -> Date?
+    func turnStarted(sessionId: String, at date: Date) async
+}
+```
+
+**Fakes**: `FakeHerdrBridge` (`MochaTestSupport/Herdr/`), `FakeTranscriptProvider` (`MochaTestSupport/Transcript/`), `FakeUsageProvider` (`MochaTestSupport/Usage/`) e `FakeSessionArchive` (`MochaTestSupport/Sessions/`) implementam os protocolos e são controlados pelo teste: emitem eventos, fixam a árvore, as páginas, o uso e as sessões e contam as chamadas.
 
 #### §4.1.2 Composição
 
 O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para os clientes.
 
-- **Fronteira**: o `HerdrBridge` monta a árvore inteira com o que vem do Herdr e do git (ids, rótulos, `number`, `repoName`, `branch`, `isDirty`, tabs, agentes com `kind`, `status`, `sessionId`, `branch` e o `title` do terminal, e o `agentStatus` agregado). O `SessionHub` sobrescreve só `AgentSummary.title`, `model` e `lastActivityAt`, com o `TranscriptMeta` da sessão.
+- **Fronteira**: o `HerdrBridge` monta a árvore inteira com o que vem do Herdr e do git (ids, rótulos, `number`, `repoName`, `branch`, `isDirty`, tabs, agentes com `kind`, `status`, `sessionId`, `branch` e o `title` do terminal, e o `agentStatus` agregado). O `SessionHub` sobrescreve em cada `AgentSummary` com sessão: `title`, `model`, `lastActivityAt`, `preview`, `activity`, `sessionStartedAt`, `turnStartedAt` e `turnEndedAt` (do `TranscriptMeta`), `contextLeftPercent` (§3.4, primeiro o `UsageProviding`, depois o `contextTokens`) e `archivedAt` (do `SessionArchiving`).
+- **Home ao vivo**: o `SessionHub` mantém uma inscrição no `TranscriptProviding` (`open`) para cada agente `working` ou `blocked`, mesmo sem chat aberto, e a solta 30 s depois de o agente sair desses estados (o `turn_duration` chega logo depois do `Stop`). Para os demais agentes, usa `meta(forSession:)` a cada `tree` recomposto.
 - `AgentSummary.title`: `TranscriptMeta.title` (ai-title) quando existe; senão, o título do terminal do Herdr (`terminal_title_stripped`); senão, o `label` da tab; senão, "Claude Code". `ChatMeta.title` segue a mesma ordem. `AgentSummary.model` vem de `TranscriptMeta.model`.
 - `AgentSummary.branch`: `HEAD` do `foreground_cwd` (§3.1.4). `ChatMeta.branch`: `gitBranch` do transcript (§3.2.2).
 - `WorkspaceNode.agentStatus`: agregado dos agentes das tabs do próprio workspace (os worktrees filhos têm o agregado deles), com a prioridade `blocked` > `working` > `done` > `idle` > `unknown`. Workspace sem agente fica `unknown`.
@@ -566,10 +634,14 @@ O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para
 - `ChatMeta`: `title`, `model`, `branch` e `permissionMode` vêm do transcript; `workspaceLabel` e `status`, do Herdr.
 - **Eventos para os clientes**:
   - mudança de status gera `agentStatus` na hora e `treeChanged` com debounce de 150 ms;
-  - `chatMeta` sai só quando o `TranscriptMeta` de um chat aberto muda;
-  - troca de sessão gera `treeChanged`, e o chat aberto passa para o arquivo novo.
+  - mudança de um campo do `AgentSummary` vindo do `TranscriptMeta`, do uso ou do arquivamento gera `treeChanged` com o mesmo debounce;
+  - `chatMeta` sai só quando muda um campo do `ChatMeta` de um chat aberto;
+  - troca de sessão gera `treeChanged`, e o chat aberto passa para o arquivo novo;
+  - mudança no `UsageProviding` gera `usage`; no `SessionArchiving`, `archived`; na disponibilidade do Herdr, `herdrStatus`.
+- **Chat de sessão arquivada** (`ChatTarget.session`): `ChatMeta.title`, `model`, `branch` e `permissionMode` vêm do `TranscriptMeta` da sessão; `workspaceLabel` vem da `ArchivedSession` (vazio sem registro); `status` é `unknown`.
+- **Arquivamento**: a cada `turnStartedAt` novo de uma sessão, o `SessionHub` chama `SessionArchiving.turnStarted`, que apaga o `archivedAt` anterior a ele. Quando a sessão de um agente muda, a antiga vai para `sessionEnded` com `reason: cleared`; quando o agente some da árvore (pane fechado, pane que saiu, Claude encerrado), a sessão dele vai com `reason: ended`. O registro leva o último `AgentSummary` conhecido.
 - **`pane_moved`**: mensagens com o id antigo são traduzidas por `resolve`. O app reaponta o chat aberto pelo `sessionId` que vem no `treeChanged` (§6.1).
-- **Herdr indisponível**: o `SessionHub` continua servindo a última árvore conhecida e responde `herdrUnavailable` a `sendPrompt` e `interrupt`. `helloOk.host.herdrConnected` reflete o estado no momento do `hello`.
+- **Herdr indisponível**: o `SessionHub` continua servindo a última árvore conhecida e responde `herdrUnavailable` a `sendPrompt` e `interrupt`. `helloOk.host.herdrConnected` reflete o estado no momento do `hello`, e cada mudança depois dele sai em `herdrStatus`. Enquanto o Herdr está indisponível, nenhuma sessão vai para o arquivo por sumir da árvore.
 
 ### §4.2 CLI
 
@@ -586,7 +658,7 @@ O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
 | `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity (1b), com `--working`, `--waiting`, `--title`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
-| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados e Transcript. **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
+| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
 
 ### §4.3 Caminhos e configuração
 
@@ -594,6 +666,7 @@ O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para
 |---|---|
 | `~/Library/Application Support/Mocha/config.json` | `hookPort` (47420), `gatewayPort` (47421), `apns{teamId, keyId, bundleId}`, `hookSecret` |
 | `~/Library/Application Support/Mocha/devices.json` | Aparelhos (§4.6). Permissão 0600 |
+| `~/Library/Application Support/Mocha/sessions.json` | Sessões arquivadas e arquivamentos do usuário (§4.9). Permissão 0600 |
 | `~/Library/Application Support/Mocha/mochad.sock` | Canal local (§4.8). Permissão 0600 |
 | `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (1b). Apagadas depois de 7 dias |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
@@ -679,6 +752,14 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
 | `GET /local/status` | JSON com `version`, `startedAt`, `herdr{available, version?, protocol?}`, `clients[{deviceId, name, connectedAt}]` e `sessions[{sessionId, agentId, claudeVersion?, dropped, orphanResults, unknown}]` |
 | `DELETE /local/devices/<id>` | 200 com `{}` depois de fechar as conexões do aparelho (`error{unauthorized}` e close 1008) e removê-lo de `devices.json`; 404 se o aparelho não existe |
 
+### §4.9 SessionArchive
+
+- **`sessions.json`**: `{"sessions": [ArchivedSession], "userArchived": {"<sessionId>": "<ISO-8601>"}}`, com o JSON de §5.2.1, gravação atômica e 0600, relido antes de cada gravação.
+- **Entradas**: `sessionEnded` (do `SessionHub`, §4.1.2) grava ou substitui a `ArchivedSession` pelo `sessionId`, com `endedAt` = agora. Uma sessão que volta a ser a sessão atual de algum agente (`claude --resume`) sai da lista.
+- **Retenção**: só sessões com `lastActivityAt` (ou `endedAt`) nos últimos 7 dias, no máximo 50, as mais recentes primeiro. A limpeza roda ao iniciar e a cada gravação.
+- **Arquivamento pelo usuário**: `archive{sessionId}` grava `userArchived[sessionId]` = agora. `archivedAt(sessionId:)` o devolve até um `turnStarted` posterior, que o apaga. O `SessionHub` só aceita `archive` para a sessão atual de um agente da árvore (§5.3.1).
+- Cada mudança na lista sai em `events()`, e o `SessionHub` a manda como `archived` para todos os clientes.
+
 ---
 
 ## §5 Protocolo v1 (`MochaProtocol`)
@@ -692,7 +773,7 @@ Mensagens WebSocket de texto, JSON UTF-8. Datas em ISO-8601 com milissegundos. C
 ```
 
 - `v`: versão do protocolo. Um cliente com `v` diferente recebe `error{code:"protocolMismatch"}` e é desconectado.
-- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
+- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `archived`, `usage`, `herdrStatus`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
 - Tipo desconhecido vindo do cliente: o daemon responde `error{code:"unknownType"}` e segue. Tipo desconhecido vindo do servidor: o app ignora a mensagem.
 - `payload` ausente equivale a `{}`.
 
@@ -756,6 +837,63 @@ public struct AgentSummary: Codable, Sendable, Identifiable {
     public var sessionId: String?
     public var lastActivityAt: Date?
     public var pendingCount: Int           // 1b; 0 na 1a
+    public var preview: MessagePreview?    // última mensagem (§3.2.2); nil = sessão sem mensagem
+    public var activity: ToolActivity?     // última ferramenta
+    public var contextLeftPercent: Int?    // 0–100 (§3.4)
+    public var sessionStartedAt: Date?
+    public var turnStartedAt: Date?
+    public var turnEndedAt: Date?
+    public var archivedAt: Date?           // arquivado pelo usuário e sem turno novo depois (§4.9)
+}
+
+public enum MessageAuthor: String, Codable, Sendable { case user, assistant }
+
+public struct MessagePreview: Codable, Sendable {
+    public var author: MessageAuthor
+    public var text: String                // texto plano, uma linha, até 200 caracteres
+}
+
+public struct ToolActivity: Codable, Sendable {
+    public var toolName: String            // nome da ferramenta no transcript ("Bash", "Read", …)
+    public var summary: String             // mesma regra de ToolCall.summary
+    public var status: ToolStatus
+}
+
+public enum ArchiveReason: String, Codable, Sendable { case cleared, ended, unknown }   // valor desconhecido → unknown
+
+public struct ArchivedSession: Codable, Sendable, Identifiable {
+    public var id: String                  // sessionId
+    public var agentId: AgentID?           // pane onde a sessão rodou (pode não existir mais)
+    public var title: String
+    public var workspaceLabel: String
+    public var model: String?
+    public var branch: String?
+    public var preview: MessagePreview?
+    public var contextLeftPercent: Int?
+    public var reason: ArchiveReason
+    public var endedAt: Date
+    public var sessionStartedAt: Date?
+    public var lastActivityAt: Date?
+}
+
+public enum UsageWindowKind: String, Codable, Sendable { case fiveHour, weekly, unknown }   // valor desconhecido → unknown
+
+public struct UsageWindow: Codable, Sendable {
+    public var kind: UsageWindowKind
+    public var usedPercent: Double
+    public var resetsAt: Date?
+}
+
+public struct UsageSnapshot: Codable, Sendable {
+    public var plan: String?               // "Max 20x" (§3.4)
+    public var account: String?            // e-mail mascarado
+    public var windows: [UsageWindow]      // lista tolerante
+    public var fetchedAt: Date
+}
+
+public enum ChatTarget: Sendable, Hashable {
+    case agent(AgentID)                    // chat vivo
+    case session(String)                   // sessionId de uma sessão arquivada: só leitura
 }
 
 public enum ToolStatus: String, Codable, Sendable { case running, succeeded, failed }
@@ -837,6 +975,8 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - `AgentStatus` com valor desconhecido decodifica como `.unknown`.
 - Listas tolerantes: `items` de `chatPage`, `chatAppend` e `chatUpdate`, e `requests` de `pending`, descartam o item que não decodifica e mantêm os outros. As demais listas são estritas.
 - Os códigos de `error` formam um conjunto aberto (`ProtocolErrorCode`): um código desconhecido é preservado.
+- **`ChatTarget`** é achatado no payload que o carrega: `.agent(id)` vira `"agentId": id`, e `.session(id)` vira `"sessionId": id`. Na decodificação, exatamente um dos dois precisa existir; os dois ou nenhum é erro de decodificação.
+- `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
 
@@ -867,26 +1007,29 @@ Envelope completo:
 {"v":1,"type":"agentStatus","payload":{"agentId":"w17:p1","status":"working"}}
 {"v":1,"id":"c-9","type":"ack","payload":{}}
 {"v":1,"id":"c-9","type":"error","payload":{"code":"agentBlocked","message":"O agente está esperando uma resposta no terminal."}}
+{"v":1,"id":"c-11","type":"openChat","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","limit":60}}
+{"v":1,"type":"usage","payload":{"plan":"Max 20x","account":"d•••@e•••.com","windows":[{"kind":"fiveHour","usedPercent":12,"resetsAt":"2026-09-26T07:00:00.000Z"},{"kind":"weekly","usedPercent":71,"resetsAt":"2026-09-28T14:00:00.000Z"}],"fetchedAt":"2026-09-26T03:21:03.000Z"}}
 ```
 
 ### §5.3 Mensagens
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
-Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage` e `LiveActivityRegistration`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`.
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage` e `LiveActivityRegistration`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`.
 
 **Cliente → servidor**
 
 | `type` | payload | Resposta | Fase |
 |---|---|---|---|
 | `hello` | `{deviceToken?: String, pairingCode?: String, deviceName: String, appVersion: String, apns?: ApnsRegistration}` (exatamente um entre `deviceToken` e `pairingCode`) | `helloOk` e depois `tree` | 1a-core (`apns` 1a-final) |
-| `openChat` | `{agentId, before?: String, limit?: Int}` (`limit` padrão 60, máximo 200) | `chatPage` | 1a-core |
-| `closeChat` | `{agentId}` | `ack{}` | 1a-core |
+| `openChat` | `{<ChatTarget>, before?: String, limit?: Int}` (`agentId` ou `sessionId`; `limit` padrão 60, máximo 200) | `chatPage` | 1a-core |
+| `closeChat` | `{<ChatTarget>}` | `ack{}` | 1a-core |
 | `sendPrompt` | `{agentId, text}` | `ack{}` | 1a-core |
 | `interrupt` | `{agentId}` | `ack{}` | 1a-core |
 | `setForeground` | `{agentId?: String, isActive: Bool}` | `ack{}` | 1a-core |
 | `unpair` | `{}` | `ack{}` e o daemon fecha a conexão e apaga o aparelho | 1a-core |
 | `ping` | `{}` | `pong{}` | 1a-core |
+| `archive` | `{sessionId}` (sessão atual de um agente) | `ack{}` e `treeChanged` | 1a-core |
 | `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}` | 1a-final |
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
@@ -899,16 +1042,19 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 |---|---|---|
 | `helloOk` | `{host: HostInfo, deviceId: DeviceID, deviceToken?: String, preferences: DevicePreferences}` (`deviceToken` só no pareamento) | Resposta a `hello` válido |
 | `tree` | `{workspaces: [WorkspaceNode]}` | Logo depois de `helloOk`, com o mesmo `id` |
+| `archived` | `{sessions: [ArchivedSession]}` (lista inteira, mais recentes primeiro) | Logo depois de `tree`, sem `id`; e a cada mudança (§4.9) |
+| `usage` | `UsageSnapshot` | Depois de `archived`, sem `id`, quando o cache existe; e a cada mudança do cache (§3.4) |
+| `herdrStatus` | `{connected: Bool}` | Evento: o Herdr ficou disponível ou indisponível depois do `hello` |
 | `treeChanged` | `{workspaces: [WorkspaceNode]}` (árvore inteira; é pequena) | Evento: mudança de árvore (debounce de 150 ms) |
 | `agentStatus` | `{agentId, status: AgentStatus, title?: String}` | Evento: mudança de status |
-| `chatPage` | `{agentId, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
-| `chatAppend` | `{agentId, items: [ChatItem]}` | Evento: itens novos num chat aberto |
-| `chatUpdate` | `{agentId, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
-| `chatMeta` | `{agentId, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
+| `chatPage` | `{<ChatTarget>, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
+| `chatAppend` | `{<ChatTarget>, items: [ChatItem]}` | Evento: itens novos num chat aberto |
+| `chatUpdate` | `{<ChatTarget>, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
+| `chatMeta` | `{<ChatTarget>, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
 | `pending` | `{requests: [PendingRequest]}` (lista completa) | 1b. Evento: mudança na lista (também enviado logo depois de `tree`) |
 | `ack` | `{}`, ou `{agentId}` para `newAgentTab` | Resposta simples |
 | `pong` | `{}` | Resposta a `ping` |
-| `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `internal` |
+| `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `sessionNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `internal` |
 
 #### §5.3.1 Regras do servidor
 
@@ -928,6 +1074,12 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - agente sem sessão → `chatPage` com `items: []`, `before: nil` e `hasMore: false`, e o chat passa a ser acompanhado (o arquivo pode nascer depois, §3.2.1);
   - agente desconhecido, depois de `resolve` (§4.1.1) → `agentNotFound`;
   - com um id antigo traduzido por `resolve`, o `chatPage` volta com o `agentId` atual.
+- **`openChat` e `closeChat` com `sessionId`** (chat só de leitura):
+  - `sessionId` fora do formato UUID → `invalidPayload`;
+  - sessão sem arquivo em `~/.claude/projects/*/<sessionId>.jsonl` → `sessionNotFound`;
+  - a sessão não precisa estar em `archived`; o chat é acompanhado como qualquer outro, e o `chatPage` e os eventos voltam com o mesmo `sessionId`;
+  - `sendPrompt`, `interrupt` e `slash` só aceitam `agentId`: o app não oferece envio num chat de sessão.
+- **`archive`**: `sessionId` que não é a sessão atual de nenhum agente da árvore → `sessionNotFound`. Aceito, o daemon responde `ack`, grava o arquivamento (§4.9) e manda `treeChanged` com o `archivedAt`.
 - **`sendPrompt`, `interrupt` e `slash`**: agente com `kind != "claude"` → `invalidPayload`, com a mesma mensagem do `openChat`.
 - **Erros do Herdr** (§3.1.1):
 
@@ -966,11 +1118,12 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 
 - SwiftUI, iOS 26+, só iPhone, só retrato na 1a.
 - Estado de UI em classes `@Observable @MainActor`.
-- Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug).
+- Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Home/`, `AgentDetail/`, `Usage/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug).
+- Lógica pura de apresentação, testável no macOS, fica em `MochaClient/Presentation/`: seções da Home, ritmo do uso, tempos relativos ("agora", "há 4 min", "ontem"), abreviação do modelo e agrupamento de ferramentas.
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
-- **Deep links**: `mocha://agent/<paneId>` abre o chat e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`.
-- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), e, só em Debug, `-probe push|gateway` e `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`). O `-probe` e o `-preview` são lidos só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
+- **Deep links**: `mocha://agent/<paneId>` abre o chat por cima da Home (substitui o chat aberto, se houver) e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`. Os testes abrem deep links pelo argumento de launch `-open-url <url>` (só em Debug) e por teste unitário, nunca por `simctl openurl` (o aviso "Open in Mocha?" trava o simulador).
+- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-probe push|gateway` e `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`). O `-probe` e o `-preview` são lidos só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
 
 **Conexão**: esboço normativo em `MochaProtocol`, como a §5.2.
 
@@ -1020,14 +1173,15 @@ public protocol ServerConnection: Sendable {
 
 **`AppSession`** (`App/Sources/AppShell/`, `@MainActor @Observable`):
 - é o único consumidor de `messages` e `states`;
-- guarda o host, as preferências, a árvore, o estado da conexão, o chat visível e a navegação (inclusive se Ajustes e Pareamento estão abertos);
+- guarda o host, as preferências, a árvore, as sessões arquivadas, o uso, o `herdrConnected`, o estado da conexão, o chat visível e a navegação;
+- **navegação**: a Home é a raiz de um `NavigationStack`; o chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda ou tocar no disco de status do header. A gaveta é uma camada por cima (sem gesto de borda), aberta pelo botão esquerdo da Home e pela bússola do chat. Detalhe do agente, Uso e Ajustes são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
 - correlaciona as respostas pelo id;
 - ao voltar para `.connected`, reabre o chat visível com `openChat` e substitui a lista;
 - num `tree` ou `treeChanged`, se o `agentId` do chat visível sumiu e outro agente tem o mesmo `sessionId`, passa a usar o id novo.
 
 ### §6.2 Design system
 
-O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova é comparada lado a lado com o print correspondente antes de ser dada como pronta. As cores abaixo foram medidas nos prints (arredondadas em ±4 por canal).
+O visual segue o **mock aprovado**: `docs/design/mock.html`, com uma captura 3x (1170 × 2532) de cada tela em `docs/design/mock/NN-nome.png`. Quando o mock e os prints do Moshi (`docs/referencias/moshi/`) divergem, vale o mock. As medidas estão no CSS do mock, com 1 px do mock = 1 pt no iPhone (tela de 390 × 844). Toda tela nova é comparada lado a lado com a captura correspondente, no simulador, antes de ser dada como pronta. As cores abaixo são as variáveis do mock (as do chat foram medidas nos prints do Moshi, ±4 por canal).
 
 | Token | Hex | Uso |
 |---|---|---|
@@ -1050,80 +1204,145 @@ O visual segue fielmente os prints em `docs/referencias/moshi/`. Toda tela nova 
 | `error` | `#D8383C` | ✗ de ferramenta com falha |
 | `termText` | `#D4D8E0` | Texto padrão do terminal (fase 2) |
 | `accessoryBar` | `#424242` / tecla `#272829` | Barra de teclas do terminal (fase 2) |
+| `black` | `#010102` | Fundo da Home, do Uso e do Detalhe, sob os brilhos verdes |
+| `toolBorder` | `#303438` | Borda do card de ferramenta expandido |
+| `controlSel` | `#121416` | Segmento selecionado |
+| `badgeOk` | `#0F3712` | Fundo do selo de workspace (texto `statusOk`) e dos selos verdes |
+| `badgeWarn` | `#342C1F` | Fundo dos selos âmbar (texto `dirty`) |
+| `sepDot` | `#55595F` | Ponto separador "•" da linha de metadados do card |
+| `ringTrack` | `#2F3032` | Trilho do anel de contexto |
+| `divider` | `#202223` | Divisórias de lista e de folha |
+| `barTrack` | `#191B1D` | Trilho das barras de uso |
+| `paceMark` | `#979899` | Traço do ritmo constante nas barras de uso |
+| `claudeTile` | `#2E221F` | Ladrilho do asterisco no Uso |
+| `heroBg` | `#120A08` | Fundo do bloco principal do Detalhe |
+| `heroTile` | `#2E1914` | Ladrilho do asterisco no Detalhe |
+| `tableBorder` | `#2B2B2B` | Borda das tabelas do markdown |
+| `codeInner` | `#17191B` | Caixa interna do card expandido (prévia do resultado) |
+| `grabber` | `#47474B` | Alça das folhas |
+
+- **Vidros** (`glassEffect` escuro do iOS 26 com tinta; no mock, fundo translúcido com borda interna clara): `glassChat` `rgba(66,66,66,.8)` no header do chat e nos botões dele; `glassComposer` `rgba(62,62,62,.84)`; `glassHome` `rgba(62,78,64,.5)` nos botões redondos da Home; `glassPill` `rgba(96,100,106,.5)` na pílula de uso e na cápsula "sem conexão"; `glassHero` `rgba(84,74,72,.5)` no X do Detalhe; `glassBlack` `rgba(60,60,62,.55)` nos botões sobre a câmera.
+- **Brilho da Home**: sobre `black`, dois gradientes radiais verdes (`statusOk`): 260 × 330 pt centrado no topo (y = 40) com 7,8 % de opacidade, e 250 × 240 pt no canto inferior direito com 11,5 %, os dois indo a 0. Home, Uso, Detalhe, Ajustes, Inbox e Pareamento usam esse fundo; o chat usa `bg`.
 
 - **Tipografia**:
   - Chat, header e composer usam a **JetBrains Mono** (OFL, §11), identificada no print pelo zero com ponto central, pelo `l` com cauda curva e pela ligadura de `...`. Pesos empacotados em `App/Resources/Fonts/`: Regular, Italic, Bold e BoldItalic.
   - Medidas do print (3x): corpo do chat 14,67 pt, com uma linha a cada 20 pt; título do header 16 pt em negrito; subtítulo e card de ferramenta 12 pt; composer 14 pt. Tudo respeita o Dynamic Type (`relativeTo:`), e o tamanho do corpo fica num token só.
-  - A gaveta usa a fonte do sistema (SF Pro), como no print `gaveta-workspaces.png`.
-- **Ponto de status do header**: `idle` e `done` em `statusOk` (disco com o glifo `−`), `working` em `statusOk` pulsando, `blocked` em `dirty`, `unknown` e sem conexão em `textSecondary`.
+  - A gaveta, a Home, as folhas (Uso, Detalhe, Ajustes, Inbox) e o Pareamento usam a fonte do sistema (SF Pro). Na Home: cabeçalho de seção 12 pt maiúsculo em `textSecondary`; título do card 16 pt semibold; segunda linha 14 pt; selo 11 pt semibold. Os valores mono do Detalhe (workspace, tab, sessão) usam a JetBrains Mono.
+- **Ponto de status do header**: `idle` e `done` em `statusOk` (disco com o glifo `−`), `working` em `statusOk` pulsando, `blocked` em `dirty`, `unknown` e sem conexão em `textSecondary`. Num chat de sessão arquivada, `textSecondary`.
+- **Anel de contexto** (card da Home): 40 pt, trilho `ringTrack`, arco proporcional ao `contextLeftPercent` com o número no centro (11 pt semibold) e um selo redondo no topo (⚡ verde; `!` âmbar em `blocked`). Cor do arco: `dirty` em `blocked`; `statusOk` nos demais; esmaecido (50 %) nos arquivados; sem conexão, cinza e parado. Em `working`, um arco curto extra gira em volta. Sem `contextLeftPercent`, o número vira "—" e o arco some.
 - **Vidro**: `glassEffect` do iOS 26 no header, no composer e nos botões redondos flutuantes, sempre escuro (o app força `.preferredColorScheme(.dark)`).
 - **Ícones**: SF Symbols. O asterisco do Claude é um símbolo desenhado (asset vetorial) na cor `claude`.
 
 ### §6.3 Telas
 
-**Pareamento** (primeira execução ou token inválido)
-- Tela escura com o logo, "Parear com o Mac" e as instruções `mochad pair`.
-- Botão de ler QR (câmera) e campo para colar o link.
-- Estados: lendo, conectando, pareado e erro. Mensagens de erro:
+Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
+
+**Pareamento** (`01-pareamento`, `01b-lendo-qr`, `01c-erro-pareamento`)
+- Primeira execução, token recusado ou depois de desparear. Fundo da Home, logo, "Parear com o Mac" e as instruções `mochad pair`.
+- "Ler QR" abre a câmera em tela cheia (`DataScannerViewController`); ao reconhecer o QR, os cantos ficam verdes e a pílula mostra "Conectando ao <host>…"; pareado, vai direto para a Home. O X volta.
+- "Colar" só aparece quando a área de transferência tem um link `mocha://pair`, que também chega por deep link.
+- O aviso de erro fica acima do botão até a próxima tentativa. Mensagens:
   - "O Mac respondeu, mas o mochad não está rodando" (502 no handshake);
   - "Sem conexão com o Mac" (timeout ou erro de rede);
   - "Código vencido; gere outro com `mochad pair`" (`pairingExpired`);
   - "Este iPhone não está mais pareado" (`unauthorized`).
 
-**Gaveta** (`gaveta-workspaces.png`)
-- Abre pela borda esquerda (arrasto) ou pelo botão do header, e ocupa ~90 % da largura com `scrim` no restante.
-- Topo: campo de busca ("Buscar workspaces, agentes…") filtrando por workspace, tab e título do agente, e o controle segmentado **Recentes** (relógio: agentes por `lastActivityAt`) | **Árvore** (lista).
-- Botão de engrenagem no canto superior direito, ao lado da busca, que abre Ajustes.
-- Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados.
-- Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador, como no print. Em `working` o asterisco pulsa; em `blocked` aparece um ponto `dirty` à direita.
-- A linha do chat atual fica com `selectedRow`. Tocar numa tab com agente abre o chat; tocar numa tab de shell mostra "Terminal chega na fase 2".
-- 1b: botão `+` por workspace → "Nova tab com Claude".
+**Home** (`02-home`, `02b-home-sem-conexao`, `02c-home-vazia`)
+- Tela inicial. Botão redondo à esquerda abre a gaveta; engrenagem à direita abre Ajustes (na 1b, o sino da Inbox fica ao lado dela, com a contagem).
+- Mostra só agentes com `kind == "claude"` e as sessões de `archived`. Seções, nesta ordem, cada uma só quando tem card:
+  - **PRECISA DE VOCÊ**: `status == blocked`. Card com borda âmbar;
+  - **TRABALHANDO**: `status == working`;
+  - **ARQUIVADOS**: `archivedAt != nil`; ou `sessionStartedAt` há mais de 6 h; ou `turnEndedAt ?? lastActivityAt` há 10 min ou mais; e todas as `ArchivedSession`;
+  - **CONCLUÍDOS**: os demais agentes.
+  A regra é avaliada nessa ordem (blocked > working > arquivado > concluído), com o relógio local, a cada mudança da árvore e a cada 30 s. A lógica fica em `MochaClient/Presentation/` com testes. A ordem dentro da seção é `lastActivityAt` (ou `endedAt`) decrescente.
+- **Card**:
+  - anel de contexto à esquerda (§6.2) e chevron à direita;
+  - título: a `preview`, com "Você: " antes quando o autor é `user`; sem `preview`, "Sessão limpa";
+  - segunda linha, opcional: em `blocked`, "Precisa de você · <ferramenta>" em `dirty` (só "Precisa de você" sem `activity`); em `working` com `activity`, "<ferramenta>: <resumo>" em `textSecondary`; numa `ArchivedSession`, "Sessão encerrada". O nome da ferramenta segue o card de ferramenta (`Bash` → "Shell");
+  - metadados: selo do workspace (`badgeOk`), "Claude Code" em `claude` e o tempo relativo de `lastActivityAt` ("agora" abaixo de 1 min, "há N min", "há N h", "ontem", "há N dias"), separados por `sepDot`;
+  - tocar abre o chat (`agentId`, ou `sessionId` numa `ArchivedSession`); segurar abre o Detalhe; arrastar para a esquerda um card de CONCLUÍDOS manda `archive{sessionId}` (a ação "Arquivar"). Os outros cards não arrastam.
+- **Pílula de uso** flutuante no rodapé (`glassPill`): asterisco, "5h" com barra e %, divisória, "7d" com barra e %. Tocar abre o Uso. Some sem `usage`.
+- **Sem conexão**: a lista fica com o último estado conhecido, anéis parados em cinza, e uma cápsula no topo ("Sem conexão com o Mac", ou a mensagem do estado) abre Ajustes. Nada some; a reconexão é automática.
+- **Vazia**: nenhum agente Claude nem sessão arquivada. Texto "Nenhum Claude aberto no Herdr" e o botão "Ver workspaces", que abre a gaveta.
 
-**Chat** (`chat-conversa.png`, `chat-recap.png`)
-- **Header flutuante de vidro**, com:
-  - ponto de status;
-  - asterisco do Claude;
-  - título (truncado no meio);
+**Uso do plano** (`03-uso-plano`)
+- Folha média sobre a Home (arrastar fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
+- Cartão: ladrilho do asterisco, "<plano> (<conta>)" (sem plano, "Claude"; sem conta, sem parênteses) e "Claude Code · <hostName>".
+- Uma linha por janela (`fiveHour` → "5h", `weekly` → "7d"): barra com o `usedPercent`, o traço `paceMark` na posição do tempo decorrido, o % e o tempo até zerar ("3h 35m", "2d 10h").
+- Tempo decorrido da janela = `1 − (resetsAt − agora) / duração` (5 h ou 7 dias). Ritmo = `usedPercent − decorrido × 100`: acima de +5, "ritmo mais rápido"; abaixo de −5, "ritmo mais lento"; entre os dois, "no ritmo". A linha de baixo junta as duas: "5h: ritmo mais lento · 7d: no ritmo".
+- Nota fixa no rodapé: "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
+
+**Detalhe do agente** (`04-detalhe-agente`, `04b-detalhe-precisa-de-voce`)
+- Folha grande, aberta tocando no título do header do chat ou segurando um card da Home. X (`glassHero`) ou arrastar para baixo fecha.
+- Bloco principal (`heroBg`): ladrilho do asterisco, a `preview` (como no card, até 4 linhas), "<workspace em mono verde> · <hostName> · <tempo relativo>" e o selo de estado: TRABALHANDO (verde, a borda gira), PRONTO (verde), PRECISA DE VOCÊ (âmbar; o workspace fica âmbar também). Numa `ArchivedSession`, o selo ENCERRADA em `textSecondary`.
+- "Abrir terminal" (fase 2): oculto até lá.
+- Cartão Conta: "<plano> (<conta>)" e as barras de 5h e 7d, sem o traço de ritmo. Some sem `usage`.
+- Lista: Host (`hostName`), Modelo (abreviado como no header), Workspace do Herdr, Tab do Herdr (`TabNode.title`), Sessão (id encurtado no meio, em mono; tocar copia o id inteiro e mostra "Copiado").
+- Na 1b, com pedido pendente, um botão "Responder" leva ao card do pedido no chat.
+
+**Chat** (`05-chat-inicio-turno`, `05b-chat-fim-turno`, `06-card-expandido`, `07-chat-trabalhando`)
+- **Header flutuante de vidro** (`glassChat`), com:
+  - disco de status (§6.2); tocar volta à Home;
+  - asterisco do Claude e título (truncado no meio); tocar no título abre o Detalhe;
   - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
-  - à direita, um botão redondo que abre a gaveta (bússola).
-  - O conteúdo rola por baixo do header.
+  - botão redondo de git, reservado e desabilitado;
+  - bússola, que abre a gaveta.
+  - O conteúdo rola por baixo do header e do composer.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
   - `assistantText`: markdown à esquerda, largura total, sem bolha.
-  - `toolCall`: card `toolCard` de uma linha (`>_ Shell <resumo>` com ✓ ou ✗ à direita). Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`). Tocar expande e mostra, por chamada, o input e a prévia do resultado em mono.
-  - `thinking`: linha colapsada "Pensou" em `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
+  - `toolCall`: card `toolCard` de uma linha (ícone, nome em negrito, resumo, e à direita ✓, ✗ em `error` ou o giro de `running`). O nome de exibição de `Bash` é "Shell". Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`) e ✗ quando alguma falhou. Tocar expande: por chamada, o input (`$ comando` no Shell) e a prévia do resultado numa caixa `codeInner`; o card expandido ganha a borda `toolBorder`. Tocar de novo recolhe.
+  - `thinking`: linha colapsada "Pensou" em itálico `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
   - `turnFooter`: "Brewed for 45s" em itálico `textSecondary`.
   - `recap`: "**Recap:** …" em itálico `textSecondary`.
-  - `slashCommand`: chip discreto com `name` e `args` (ex.: "/clear"); com `output`, o toque expande a saída em mono. `name == "!"` é um comando de shell digitado no terminal.
+  - `slashCommand`: chip discreto à direita com `name` e `args` (ex.: "/clear"); com `output`, o toque expande a saída em mono. `name == "!"` é um comando de shell digitado no terminal.
   - `notice`: texto centralizado pequeno.
-  - Indicador "trabalhando…" no fim da lista enquanto `status == working`.
-- **Rolagem**: gruda no fim quando o usuário já está no fim. Se ele rolou pra cima, aparece o botão redondo "↓" (canto inferior direito, acima do composer) e itens novos não mexem na posição.
+- **Linha de status** no fim da lista enquanto `status == working`: "✱ Trabalhando… (3m 58s)", com o tempo desde `turnStartedAt` atualizado a cada segundo, e à direita o botão verde redondo de **parar**, que manda `interrupt`.
+- **Rolagem**: gruda no fim quando o usuário já está no fim. Se ele rolou pra cima, aparece o botão redondo "↓" (canto inferior direito, acima do composer) e itens novos não mexem na posição. Enviar sempre leva ao fim.
 - **Paginação**: ao chegar no topo, carrega `before` com um indicador; a posição de leitura se mantém.
-- **Troca de sessão**: quando o `sessionId` do agente do chat aberto muda num `tree`/`treeChanged` (depois de `/clear`), o app reabre o chat com `openChat` e substitui a lista; a sessão nova começa com o chip `/clear`.
-- **Bolha "enviando"**: cada `sendPrompt` cria uma bolha pendente.
+- **Troca de sessão**: quando o `sessionId` do agente do chat aberto muda num `tree`/`treeChanged` (depois de `/clear`), o app reabre o chat com `openChat` e substitui a lista; a sessão nova começa com o chip `/clear` e o aviso centralizado.
+- **Bolha "enviando"**: cada `sendPrompt` cria uma bolha pendente, esmaecida, com "enviando…" abaixo.
   - As bolhas são casadas em ordem (FIFO), com o texto aparado, com o próximo `userPrompt` ou `slashCommand` que chegar (`slashCommand` para texto `/x …` ou `!cmd`).
   - A bolha também some quando chega um `chatPage`, porque a lista é substituída.
   - Depois de 60 s sem par, ela fica marcada "sem confirmação", e o toque a descarta.
+- **Sessão arquivada** (`ChatTarget.session`): mesma lista, sem linha de status; o composer dá lugar a uma pílula `glassComposer` "Sessão encerrada · só leitura".
 
-**Composer** (flutuante sobre o fim da lista)
-- Campo multilinha "Chat via Mocha…" (até 6 linhas, depois rola).
-- Linha de botões:
-  - `+`: imagem, 1b;
-  - `>_`: terminal, fase 2, **oculto antes da fase 2**;
-  - `↻`: menu de slash e ações, 1a-final;
-  - microfone: 1b;
-  - enviar: círculo; desabilitado sem texto.
-- Com o agente em `working`, o botão enviar vira **parar** (quadrado), que manda `interrupt`. Com texto digitado durante `working`, enviar continua disponível (o Claude enfileira).
-- **Menu `↻`** (1a-final): `/compact`, `/clear` (com confirmação), `/context`, `/cost`, "Interromper (Esc)". Comandos que abrem seletor no terminal (`/model`, `/resume`) ficam fora. Lista fixa no código.
+**Composer** (`05-chat-inicio-turno`, `08-chat-digitando`), flutuante sobre o fim da lista
+- **Recolhido**: uma linha só, "Chat via Mocha…", com o botão enviar à direita. Um rascunho não enviado aparece na linha recolhida, em branco, com enviar aceso.
+- **Expandido** (ao tocar): campo multilinha (até 6 linhas, depois rola) e a linha de botões:
+  - `+`: imagem, 1b (oculto antes);
+  - microfone: 1b (oculto antes);
+  - `↻`: menu de slash e ações, 1a-final (oculto antes);
+  - enviar: círculo, desabilitado sem texto.
+- O teclado fecha, e o composer volta a uma linha, ao rolar a lista, tocar fora, abrir a gaveta ou enviar.
+- Enviar continua enviando durante `working` (o Claude enfileira). Parar fica só na linha de status.
+- **Menu `↻`** (1a-final, `09-menu-slash`, `09b-confirma-clear`): abre acima do `↻`, por cima do teclado. `/compact`, `/clear` (com confirmação), `/context`, `/cost` e "Interromper (Esc)". Comandos que abrem seletor no terminal (`/model`, `/resume`) ficam fora. Lista fixa no código. Depois do `/clear`, o chat reabre na sessão nova.
 
-**Inbox** (1b)
-- Acesso por um sino no header da gaveta, com badge da contagem.
-- Um cartão por `PendingRequest`, com agente, workspace e tempo.
-- Aprovação: ferramenta, resumo e input expandível, com botões "Permitir" e "Negar".
-- Pergunta: cada `PendingQuestion` com as opções (seleção única ou múltipla), campo "Outro" e botão "Responder".
+**Pedido no chat** (1b, `10-pedido-aprovacao`, `10b-pergunta`)
+- O card do `PendingRequest` do agente entra no fim da lista, e o disco do header fica âmbar.
+- Aprovação: ferramenta, resumo, "Ver entrada completa" (abre o JSON do input) e os botões "Permitir" e "Negar", que respondem na hora.
+- Pergunta: seleção única com rádio, múltipla com caixas, "Outro…" como resposta livre; com várias perguntas, um bloco por pergunta e um "Responder" só.
+
+**Gaveta** (`11-gaveta-arvore`, `11b-gaveta-recentes`)
+- Camada por cima da Home ou do chat, aberta pelo botão esquerdo da Home ou pela bússola do chat, **sem gesto de borda**. Ao abrir, fecha o teclado. Ocupa ~90 % da largura com `scrim` no restante; fecha tocando no scrim ou arrastando para a esquerda.
+- Topo: campo de busca ("Buscar workspaces, agentes…") filtrando por workspace, tab e título do agente nas duas abas, o controle segmentado **Recentes** (relógio: agentes por `lastActivityAt`, com workspace e estado) | **Árvore** (lista), e a engrenagem, que abre Ajustes.
+- Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados sob o repositório.
+- Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador. Em `working` o asterisco pulsa com brilho; em `blocked` aparece um ponto `dirty` à direita.
+- A linha do chat aberto fica com `selectedRow`. Tocar numa tab com agente fecha a gaveta e abre o chat (por push sobre a Home, substituindo o chat aberto); tocar numa tab de shell mostra "Terminal chega na fase 2" (na fase 2, abre o terminal).
+- 1b: botão `+` por workspace → "Nova tab com Claude".
+
+**Ajustes** (`12-ajustes`)
+- Folha aberta pela engrenagem da Home ou da gaveta.
+- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), notificações de turno concluído (`setPreferences`, 1a-final), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
+
+**Inbox** (1b, `13-inbox`)
+- Sino na Home, ao lado da engrenagem, com a contagem. Abre uma folha.
+- Um cartão por `PendingRequest`, com agente, workspace e tempo, e as mesmas ações do pedido no chat.
 - Tocar no nome do agente abre o chat.
 
-**Ajustes**: host pareado, estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe), desparear (`unpair` e limpeza do Keychain), notificações de turno concluído (`setPreferences`, 1a-final), versão do app e do daemon.
+**Tela bloqueada e banner** (1a-final e 1b, `14-tela-bloqueada`, `14b-banner`): a Live Activity (1b, §7.3) e o alerta de turno concluído (1a-final, §7.1). Com o app aberto em outro chat, o alerta chega como banner; o do chat visível é suprimido (`setForeground`). Tocar abre `mocha://agent/<paneId>`.
+
+**Terminal** (fase 2, `15-terminal`): folha sobre o chat com o terminal do pane (§9.1), aberta por "Abrir terminal" no Detalhe ou por uma tab de shell da gaveta.
 
 ### §6.4 Voz (1b)
 
@@ -1156,7 +1375,7 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
   - `apns-collapse-id` = `agentId` (≤ 64 bytes);
   - `apns-expiration`: agora + 1 h para turno concluído e agora + 10 min para "precisa de você" (o hook segura no máximo 590 s).
 - **Tipos**:
-  - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown. `thread-id` = `agentId`; `category` `TURN_DONE`.
+  - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown (`PlainText.preview(fromMarkdown:)`, §3.2.2). `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
 - **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
 - **Deduplicação**: um alerta de "precisa de você" por pedido. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do `PermissionRequest`, o `blocked` do Herdr e o `Notification` `permission_prompt` dessa sessão não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo.
@@ -1303,7 +1522,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 - **Chave**: P-256 criada na Secure Enclave (`SecureEnclave.P256.Signing.PrivateKey`, com `.biometryCurrentSet`), usada como `ecdsa-sha2-nistp256` via `NIOSSHPrivateKey(secureEnclaveP256Key:)`. Se o Citadel não expuser isso, um delegate de autenticação próprio.
 - A chave pública aparece em Ajustes para colar em `~/.ssh/authorized_keys` do Mac. O Remote Login precisa estar ligado no Mac (bloqueio B5).
 - **Host**: o mesmo nome MagicDNS, porta 22, dentro do tailnet.
-- **Sessão**: `herdr agent attach <paneId>` no pane do chat atual (botão `>_` no composer) ou `herdr` puro pela gaveta. Ao reconectar, reanexa no mesmo alvo.
+- **Sessão**: `herdr agent attach <paneId>` pelo "Abrir terminal" do Detalhe do agente, ou `herdr` puro por uma tab de shell da gaveta (§6.3). Ao reconectar, reanexa no mesmo alvo.
 - **Barra de teclas** (`terminal.png`): Ctrl (trava), Esc, Tab, setas (joystick), prefixo do Herdr (`ctrl+space`), colar, histórico e recolher teclado. Cores em §6.2.
 
 ### §9.2 Mosh (fase 3)
@@ -1366,3 +1585,6 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | Atualização de Live Activity com prioridade 5 atrasa minutos ou se perde | Prioridade 10 em toda mudança visível, limite de 1 update a cada 10 s (§7.3); `stale-date` marca a atividade como desatualizada |
 | O Keychain pede autorização a cada build novo do `mochad` | Binário sempre assinado com a identidade do time e identificador fixo (§4.3); o `doctor` confere a assinatura |
 | A chave APNs atual só vale no sandbox; TestFlight usa produção | Criar ou habilitar uma chave de produção antes do primeiro build de TestFlight; `BadEnvironmentKeyInToken` aparece no `doctor` (§7.1) |
+| O cache de uso é privado do plugin `herdr-agent-usage` e pode mudar de formato ou deixar de existir | Leitura tolerante de só quatro campos (§3.4), fixture sintética versionada, contexto com reserva pelo transcript, pílula de uso escondida sem cache e item Uso no `doctor` |
+| O plano e a conta vêm de chaves de `~/.claude.json` inferidas, sem leitura real pelos agentes | Só `organizationRateLimitTier` e `emailAddress`, com fallback para "Claude" sem plano; conferência do João no WP-X1 |
+| A janela de contexto do modelo é inferida pelo nome | Primeiro o `used_percent` do plugin, que vem do próprio Claude Code; a tabela de `ContextWindow` é só reserva |
