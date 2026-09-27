@@ -160,6 +160,7 @@ struct TranscriptHeaderScannerTests {
             permissionMode: "plan",
             claudeVersion: "2.1.283",
             preview: MessagePreview(author: .user, text: String(String(repeating: "texto longo ", count: 17).prefix(200))),
+            prompt: String(String(repeating: "texto longo ", count: 17).prefix(200)),
             sessionStartedAt: ProtocolDate.date(from: "2026-09-25T15:00:01.000Z"),
             turnStartedAt: ProtocolDate.date(from: "2026-09-25T15:00:00.000Z")
         ))

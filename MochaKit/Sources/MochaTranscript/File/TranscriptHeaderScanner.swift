@@ -170,6 +170,7 @@ public enum TranscriptHeaderScanner {
         private var hasContext = false
         private var hasVersion = false
         private var hasPreview = false
+        private var hasPrompt = false
         private var hasTurnStart = false
         private var hasTurnEnd = false
         private var lastToolCall: ScannedActivity?
@@ -178,7 +179,7 @@ public enum TranscriptHeaderScanner {
 
         var isComplete: Bool {
             hasTitle && hasPermission && hasModel && hasContext && hasVersion
-                && hasPreview && hasTurnStart && hasTurnEnd && runningToolCall != nil
+                && hasPreview && hasPrompt && hasTurnStart && hasTurnEnd && runningToolCall != nil
         }
 
         var result: ScannedHeader {
@@ -235,8 +236,9 @@ public enum TranscriptHeaderScanner {
                 || ((!hasModel || !hasContext) && mentions(Scanner.assistantMarker))
                 || (!hasVersion && mentions(Scanner.versionMarker))
                 || (!hasTurnEnd && mentions(Scanner.turnDurationMarker))
-                || ((!hasPreview || !hasTurnStart) && mentions(Scanner.userMarker))
-                || (!hasPreview && (mentions(Scanner.assistantMarker) || mentions(Scanner.queuedCommandMarker)))
+                || ((!hasPreview || !hasPrompt || !hasTurnStart) && mentions(Scanner.userMarker))
+                || (!hasPreview && mentions(Scanner.assistantMarker))
+                || ((!hasPreview || !hasPrompt) && mentions(Scanner.queuedCommandMarker))
         }
 
         private mutating func absorbVersion(_ version: String?) {
@@ -280,10 +282,14 @@ public enum TranscriptHeaderScanner {
 
         private mutating func absorb(_ item: ChatItem) {
             switch item.kind {
-            case .userPrompt, .assistantText:
-                guard !hasPreview else { return }
-                header.preview = MessagePreview(transcriptItem: item)
-                hasPreview = true
+            case .userPrompt:
+                if !hasPrompt {
+                    header.prompt = MessagePreview(transcriptItem: item)?.text
+                    hasPrompt = true
+                }
+                absorbPreview(item)
+            case .assistantText:
+                absorbPreview(item)
             case .toolCall(var call):
                 guard searchesToolCalls else { return }
                 if let isError = laterResults.removeValue(forKey: call.toolUseId) {
@@ -299,6 +305,12 @@ public enum TranscriptHeaderScanner {
             default:
                 break
             }
+        }
+
+        private mutating func absorbPreview(_ item: ChatItem) {
+            guard !hasPreview else { return }
+            header.preview = MessagePreview(transcriptItem: item)
+            hasPreview = true
         }
     }
 }
