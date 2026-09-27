@@ -17,6 +17,7 @@ struct AgentsActivityTextTests {
         pending: AgentsActivityContent.Pending? = nil
     ) -> AgentsActivityContent {
         AgentsActivityContent(
+            agentId: "w1:p1",
             status: status.rawValue,
             title: "Refatorar o parser",
             workspaceLabel: workspaceLabel,
