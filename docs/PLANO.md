@@ -645,10 +645,109 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ## Fase subagentes
 
+**Ondas**
 - Branch `fase/subagentes`, criada a partir de `fase/1a-final`. Não depende do B7.
-- **Ordem**: mock (um subagente, em paralelo às ondas 2.B e 2.C, só em `docs/design/`) → ok do João no mock → SPEC e contratos (orquestrador) → ondas e WPs, definidos depois da SPEC → WP-X6.
-- **Escopo aprovado pelo João**: card do subagente (`Agent`) vivo no chat, que abre o transcript do subagente só de leitura; selo "N subagentes" no card da Home e lista no Detalhe do agente; card de workflow com as fases.
-- **Fonte dos dados** (conferida no Claude Code 2.1.283): `~/.claude/projects/<proj>/<session>/subagents/agent-<id>.jsonl` com `agent-<id>.meta.json` (`agentType`, `description`, `toolUseId`, `spawnDepth`, `requestShape`), e `<session>/workflows/wf_*.json` (`status`, `phases`, `agentCount`, `totalTokens`, `totalToolCalls`, `workflowProgress`). Hoje a SPEC §3.2 ignora as linhas de sidechain e os subagentes.
+- **Escopo aprovado pelo João**: card do subagente (`Agent`) vivo no chat, que abre o transcript do subagente só de leitura; selo "N subagentes" no card da Home e lista no Detalhe do agente; card de workflow com as fases. O mock (telas 16 a 19) está aprovado.
+- **Antes da onda 4.A**, o orquestrador: SPEC desta fase (§3.2.2, §3.5, §4.1.1, §4.1.2, §5, §6.1, §6.3) e contratos, com commit na fase. Os contratos são:
+  - os tipos no `MochaProtocol` e as fixtures em `MochaKit/Fixtures/protocol/` (§5.3);
+  - o tratamento mínimo dos casos novos nos `switch` exaustivos fora do protocolo (app, daemon, demo e transcript), que só compila e mantém o comportamento atual, para `scripts/test.sh` e `scripts/build-app.sh` ficarem verdes na fase;
+  - em `App/Sources/DesignSystem/`, os glifos `agent` e `flow` do mock (`i-agent`, `i-flow`) e o ícone de estado do subagente (girando, ✓, ✗, ■), que o WP-I14 e o WP-I15 usam sem mexer em `DesignSystem/`.
+- **Onda 4.A**, em paralelo: WP-M13 · WP-D3.
+- **Onda 4.B**, em paralelo: WP-M14 · WP-I14 · WP-I15. Depois dos merges da onda, o orquestrador confere no demo que tocar numa linha da lista do Detalhe abre o transcript do subagente (I15 + I14).
+- **Onda 4.C**: WP-X6.
+
+### WP-M13: parser de subagentes e workflows
+
+- **Dono**: `MochaKit/Sources/MochaTranscript/`, `MochaKit/Tests/MochaTranscriptTests/`, as fixtures novas em `MochaKit/Fixtures/transcripts/` (com o README delas) e `MochaKit/Fixtures/transcripts/expected/`.
+- **Depende de**: contratos da fase.
+- **SPEC**: §3.2.2 (card de subagente, card de workflow, notificação de tarefa, modo subagente), §3.5.1, §3.5.3 (fases), §5.2, §5.2.1.
+- **Faz**:
+  1. No transcript principal, `tool_use` `Agent`/`Task` vira `subagent` e `Workflow` vira `workflow`, com o `tool_result` preenchendo `agentId`, `runId` e o nome; resultado síncrono vira `completed` com os totais; `is_error`, `failed`.
+  2. Notificação de tarefa: o `TaskNotification.parse` público (o WP-M14 usa o mesmo), com os blocos detectados só por `origin.kind` e `commandMode`, antes da regra de `isMeta`. `^a` e `^w` atualizam o card por `chatUpdate`, sem item; `^b`, bloco sem `<task-id>` e texto sem bloco continuam `notice`. A linha `user` de `peer` é ignorada por regra própria.
+  3. Modo subagente: aceita `isSidechain`, gera `task` na primeira linha, pula até a fronteira do fork, transforma `Agent` aninhado em `subagent` e não gera `turnFooter`. A entrada do modo é o `TranscriptParseMode.subagent(forkToolUseId:)` da §3.2.2.
+  4. `WorkflowScriptMeta`, público: `name` e fases do `export const meta` (§3.5.3), com falha sem erro.
+  5. Tipo sem o prefixo de plugin.
+  6. Fixtures redigidas a partir dos formatos da §3.5, sem conteúdo privado, cada uma com a linha no README e o snapshot em `expected/`: `subagents-background.jsonl` (principal: `Agent` em background, handback de `peer`, `queue-operation`, notificação por `attachment` e por `user`, interina, `failed`, `TaskStop` com `killed`, `Agent` sem `<tool-use-id>` na notificação e um `^b`) com `subagents-background/subagents/` (um `agent-<id>.jsonl` com `.meta.json` para concluído com handback, falha de API, parado, fork com `fork-context-ref`, fork aninhado com linhas copiadas e aninhado de `spawnDepth` 2, com a notificação do aninhado entregue no arquivo do pai como `user` com `origin.kind: "task-notification"` e `isMeta: true`, e um sidecar `*.forked-skill.json`); e `workflow.jsonl` (lançamento e notificação `Dynamic workflow`) com `workflow/subagents/workflows/wf_<runId>/` (journal com retentativa e dois agentes, um com `StructuredOutput`) e `workflow/workflows/wf_<runId>.json`. Essas fixtures também servem ao WP-M14.
+  7. Regenera `expected/subagents.json` e a linha dele no README: os `Agent` viram `subagent` e o aviso `Agent "Revisar README" finished` some. Revisa item a item antes de entregar.
+- **Aceite**:
+  - [ ] Cada fixture nova gera o snapshot de `expected/`, revisado item a item contra a §3.2.2, e a sequência de tipos bate com a coluna "Itens esperados" do README.
+  - [ ] `expected/subagents.json` regenerado: os dois `Agent` viram `subagent(completed)` (o primeiro pelo resultado síncrono, o segundo pela notificação `a4ccb30dd881b5306`), sem o `notice` do `Agent`; o `notice` do `Background command` continua. Os snapshots das outras fixtures não mudam.
+  - [ ] Teste da notificação: `^a` com `<tool-use-id>` e sem ele (casado pelo `agentId`); interina mantém `running`; `failed` com o motivo depois de `failed: `; `killed` vira `stopped`; `<usage>` preenche `toolUses` e `durationMs`; `^w` fecha o `workflow` com as contagens; `^b` vira `notice`; linha com três blocos; no modo subagente, a notificação do aninhado com `isMeta: true` atualiza o card dele; `queue-operation`, `prompt_snapshot` e `deferred_tools_record` com a string `<task-notification>` não geram nada.
+  - [ ] Teste do modo subagente: `task` da primeira linha; o fork com `fork-context-ref` e o fork aninhado começam depois da fronteira, com a tarefa depois de `Your directive: `; o `Agent` aninhado vira `subagent`; `turn_duration` não gera `turnFooter`.
+  - [ ] Teste do `WorkflowScriptMeta`: aspas simples, duplas e crase, `detail` ausente, `name`; script sem `meta`, com `${` ou malformado falha sem lançar.
+  - [ ] Tipo `feature-dev:code-reviewer` vira `code-reviewer`; sem `subagent_type`, `general-purpose`.
+  - [ ] `scripts/test.sh` verde.
+
+### WP-D3: demo dos subagentes
+
+- **Dono**: `MochaKit/Sources/MochaDemo/` e `MochaKit/Tests/MochaDemoTests/`.
+- **Depende de**: contratos da fase.
+- **SPEC**: §2.2 (subagentes no demo), §5.2, §5.3, §5.3.1 (`openChat` com `subagentId`, `listSubagents`), §6.3 (telas 16 a 19).
+- **Faz**:
+  1. Os dados das telas 16 a 19 da §2.2: os cards de subagente no chat de `receitas-api` (inclusive os de cima da parte visível), o card do aninhado no transcript do subagente que roda (tela 16b), o card de workflow no chat de `demo-app`, o card parado e o workflow concluído no histórico de `login-social` e o `runningSubagents` da árvore (1 no `receitas-api`, 2 no `demo-app`).
+  2. `openChat`/`closeChat` com `sessionId` e `subagentId`: o transcript de cada subagente e de cada agente do workflow (páginas fixas, com `task` no topo e `ChatMeta.subagent`), e as regras da §5.3.1 (`invalidPayload` fora do formato, `sessionNotFound` "Subagente não encontrado").
+  3. `listSubagents` com a lista da tela 18 na ordem da §5.3.1, e as regras (`agentNotFound`, `invalidPayload` no agente do codex, lista vazia sem sessão).
+  4. Roteiro `-demo-script`: o subagente que roda termina (`chatUpdate` do card, `chatMeta` do transcript, `treeChanged` com o selo zerado, e o `listSubagents` passa a devolvê-lo como `completed`).
+- **Aceite**:
+  - [ ] Testes em `MochaDemoTests` para cada item acima: os cards e estados de cada chat e transcript da §2.2, cada regra de `openChat`/`closeChat` e de `listSubagents`, e cada evento do roteiro, inclusive a lista depois dele.
+  - [ ] Os testes atuais do demo passam, adaptados só aos contratos novos.
+  - [ ] `scripts/test.sh` verde.
+
+### WP-M14: subagentes no daemon
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Subagents/` (novo); em `MochaDaemonCore/Transcript/`, o modo subagente do `TranscriptStore` (`TranscriptSession.subagent`, cursor); a composição e as mensagens em `MochaDaemonCore/Gateway/`; a montagem do `SubagentStore` em `MochaDaemonCore/App/`; `MochaKit/Sources/MochaTestSupport/Subagents/` (novo) e o `FakeTranscriptProvider` em `MochaTestSupport/Transcript/`; e os testes (`MochaKit/Tests/MochaDaemonCoreTests/Subagents/`, `Transcript/` e `Gateway/`).
+- **Depende de**: WP-M13.
+- **SPEC**: §3.2.3, §3.5, §4.1, §4.1.1 (`SubagentProviding`, `TranscriptSession.subagent`), §4.1.2 (subagentes e workflows), §5.3, §5.3.1.
+- **Faz**:
+  1. O `SubagentStore` implementa `SubagentProviding`: observação por `DispatchSource` e leitura incremental (§3.5.4), estado e métricas de cada subagente (§3.5.2), workflows com journal, fases, fim e symlink (§3.5.3), contagem dos que rodam, lista na ordem da §5.3.1 e resolução do arquivo do subagente.
+  2. O `TranscriptStore` abre um `TranscriptSession` com `subagent` no modo subagente do WP-M13, com o cursor `<sessionId>/<agentId>:<offset>`.
+  3. O `SessionHub`: `observe(sessions:)`, sobreposição do estado nos cards com o limite de 1 s, `runningSubagents` com `treeChanged`, a Home ao vivo acompanhando agente com subagente rodando, `listSubagents`, `openChat`/`closeChat` com `subagentId` e o `ChatMeta` do chat de subagente (§4.1.2, §5.3.1).
+  4. Entrega o `FakeSubagentProvider` em `MochaTestSupport/Subagents/`.
+- **Aceite**:
+  - [ ] Testes do estado com as fixtures do WP-M13 copiadas para um diretório temporário: cada desfecho da tabela (a) da §3.5.2, `stoppedByUser`, `enqueue` antes da entrega, notificação interina, retomada por `coordinator` voltando a `running`, `attachment` depois do fim sem mudar o estado, `failureReason` pela precedência da §3.5.2 (o texto sintético não muda quando a notificação chega), e a primeira leitura pelo `timestamp` mais recente.
+  - [ ] Primeira observação de um transcript principal de 50 MB (fixture de `scripts/gen-big-transcript.swift`) lê no máximo 8 MB, conferido por um contador de bytes lidos; depois, a leitura é incremental só nas condições de acompanhamento da §3.5.4.
+  - [ ] Append simulado: um `tool_use` no arquivo do subagente muda `activity` e `toolUses` e gera evento; o `meta.json` reescrito com inode novo é relido; `.jsonl` antes do meta é aceito; `*.forked-skill*.json` é ignorado.
+  - [ ] Teste de workflow: fases do script inline e do `scriptPath`, reserva pelo journal com script malformado, retentativa com a mesma `key` (vale a última), estado das fases, fim pelo `wf_*.json` e pela notificação, symlink deduplicado. As variantes `scriptPath` (com o `workflows/scripts/*.js`) e symlink de `wf_*` são montadas pelo próprio teste no diretório temporário, a partir da fixture `workflow` do WP-M13.
+  - [ ] Teste do `SessionHub` com `FakeSubagentProvider`: card sobreposto no `chatPage`; `chatUpdate` com no máximo 1 por card a cada 1 s e mudança de `status` na hora; `runningSubagents` gera `treeChanged`; agente `idle` com subagente rodando mantém a inscrição do transcript; `listSubagents` com as regras da §5.3.1.
+  - [ ] Teste do chat de subagente: `openChat` com `subagentId` devolve `task` no topo e o `ChatMeta` da §4.1.2; paginação com o cursor novo; `subagentId` inválido → `invalidPayload`; arquivo inexistente → `sessionNotFound`; agente de workflow abre pelo diretório `wf_*`.
+  - [ ] `FakeSubagentProvider` com teste próprio.
+  - [ ] `scripts/test.sh` verde.
+
+### WP-I14: subagentes e workflow no chat
+
+- **Dono**: `App/Sources/Chat/`; em `App/Sources/AppShell/`, só a navegação do chat de subagente (`AppSession` e `AppShellView`; único WP da onda que mexe ali); `MochaKit/Sources/MochaClient/Presentation/ChatNavigation.swift` e os testes dele em `MochaKit/Tests/MochaClientTests/`.
+- **Depende de**: WP-D3.
+- **SPEC**: §6.1 (navegação, argumentos de launch), §6.3 (Subagente no chat, Transcript do subagente, Workflow no chat).
+- **Faz**: `SubagentCard`, `WorkflowCard` e `TaskCard`; `ChatScreen(target: .subagent)` com o header de voltar, o aviso do topo, a pílula de estado e o rodapé ou o motivo da falha; o push sobre a pilha, com os chats da pilha abertos e reabertos na reconexão; e o `-chat-open-subagent`. Tudo contra o demo.
+- **Aceite**:
+  - [ ] Capturas no demo comparadas com `16-chat-subagente`, `16b-transcript-subagente`, `16c-transcript-concluido` e `19-chat-workflow`, e os estados abaixo das telas 16 e 19 no mock (falhou, parado, workflow recolhido), que no demo estão no `Plan` com falha do `receitas-api` e no subagente parado e no workflow concluído do `login-social`.
+  - [ ] Tocar num card de subagente, num aninhado e num agente do workflow abre o transcript certo; voltar volta ao chat de baixo, que continua ao vivo.
+  - [ ] No roteiro `-demo-script`, o card e a pílula passam de rodando a concluído sem reabrir o chat.
+  - [ ] Testes do `ChatNavigation` para o push de subagente, o `closeChat` ao sair da pilha e a reabertura da pilha.
+
+### WP-I15: Home e Detalhe com subagentes
+
+- **Dono**: `App/Sources/Home/`, `App/Sources/AgentDetail/`, `MochaKit/Sources/MochaClient/Presentation/HomeSections.swift`, o arquivo novo `MochaKit/Sources/MochaClient/Presentation/SubagentRows.swift` e os testes deles em `MochaKit/Tests/MochaClientTests/`.
+- **Depende de**: WP-D3.
+- **SPEC**: §6.3 (Home, Home com subagentes, Detalhe com subagentes), §5.3.1 (`listSubagents`), §6.1 (`-home-open-detail`).
+- **Faz**: o selo no card da Home; a regra de ARQUIVADOS com `runningSubagents > 0`; a seção SUBAGENTES do Detalhe, com `listSubagents` ao abrir e a cada mudança do `runningSubagents`, aninhado recuado e tempo ao vivo, com as linhas montadas pelo `SubagentRows` (lógica pura); o toque que fecha a folha e chama `AppSession.openChat(.subagent(sessionId:agentId:))`; e o `-home-open-detail`. Tudo contra o demo. A tela do transcript é do WP-I14, na mesma onda: o toque ponta a ponta é conferido pelo orquestrador depois dos merges da onda 4.B.
+- **Aceite**:
+  - [ ] Capturas no demo comparadas com `17-home-subagentes` e `18-detalhe-subagentes`.
+  - [ ] Testes do `HomeSections`: agente `idle` com `runningSubagents > 0` e turno terminado há mais de 10 min fica em CONCLUÍDOS; com `archivedAt`, vai para ARQUIVADOS.
+  - [ ] No roteiro `-demo-script`, o selo do `receitas-api` some, e o Detalhe aberto pede a lista de novo.
+  - [ ] Testes do `SubagentRows`: recuo do aninhado, texto de cada linha (tipo, tempo, ferramentas, "falhou") e o `ChatTarget.subagent(sessionId:agentId:)` de cada linha, inclusive a do aninhado.
+
+### WP-X6: integração dos subagentes
+
+- **Checklist do João**, no iPhone, com o `mochad` e o app da fase:
+  - [ ] Um `Agent` real em background aparece como card vivo, com a ferramenta atual, o tempo e a contagem mudando, e fecha com ✓ e os números finais.
+  - [ ] Tocar no card abre o transcript do subagente, que atualiza ao vivo enquanto ele roda; voltar volta ao chat pai.
+  - [ ] O selo "N subagentes" aparece no card da Home e some quando todos terminam, inclusive com o Claude principal já ocioso (em CONCLUÍDOS).
+  - [ ] O Detalhe lista os subagentes da sessão, com o aninhado recuado sob o pai, e tocar numa linha abre o transcript.
+  - [ ] Um subagente que falha mostra ✗, "falhou" e o motivo em inglês no fim do transcript; um parado pelo `TaskStop` mostra ■ e "Parado".
+  - [ ] Um workflow real mostra as fases avançando, os agentes da fase atual com a ferramenta, e recolhe numa linha no fim; tocar num agente abre o transcript dele.
+  - [ ] O aviso `Agent "…" finished` não aparece no chat.
+  - [ ] O chat de sessão arquivada e o chat de agente continuam funcionando como antes.
 
 ---
 
@@ -797,7 +896,12 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 4697966, ce21252, merge 3c11fdb |
 | WP-M12 | feito (o `+` real, contra o Herdr, no checklist do WP-X2) | bd8cecf, 1dacb64, merge d97c1da |
 | WP-X2 | feito (aprovado pelo João no iPhone em 2026-09-26) | 0c5e708 |
-| Mock dos subagentes | todo | |
+| Mock dos subagentes | feito | 95f2616, 0829b2f, merge 67347d0 |
+| WP-M13 | todo | |
+| WP-D3 | todo | |
+| WP-M14 | todo | |
+| WP-I14 | todo | |
+| WP-I15 | todo | |
 | WP-X6 | todo | |
 | WP-M7 | todo | |
 | WP-M8 | todo | |
