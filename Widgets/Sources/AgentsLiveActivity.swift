@@ -14,24 +14,21 @@ struct AgentsLiveActivity: Widget {
                 .widgetURL(AgentsActivityText.deepLink(for: content))
         } dynamicIsland: { context in
             let content = AgentsActivityContent(context.state)
+            let header = AgentsActivityText.header(of: content)
             let tone = AgentsActivityText.tone(of: content)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    ClaudeTile(size: 36, markSize: 22)
-                        .padding(.leading, 4)
+                    AgentsCardTitle(header: header, metrics: .island)
+                        .frame(height: AgentsCardMetrics.island.tileSize)
+                        .padding(.leading, 6)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let highlight = content.highlight {
-                        ElapsedTimer(since: highlight.since, tone: AgentsActivityText.tone(of: highlight), size: 15)
-                            .padding(.trailing, 4)
-                    }
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    AgentsIslandHeader(content: content, isStale: context.isStale)
+                    AgentsCardBadge(context: header.context, metrics: .island)
+                        .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    AgentsIslandBottom(content: content)
-                        .padding(.horizontal, 4)
+                    AgentsIslandBody(content: content, isStale: context.isStale)
+                        .padding(.horizontal, 6)
                 }
             } compactLeading: {
                 ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
@@ -59,132 +56,70 @@ struct AgentsLockScreenView: View {
     let content: AgentsActivityContent
     let isStale: Bool
 
-    var body: some View {
-        if let pending = content.pending {
-            pendingBody(pending)
-        } else {
-            overview
-        }
-    }
+    private let metrics = AgentsCardMetrics.lockScreen
 
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 11) {
-                ClaudeTile(size: 34, markSize: 21)
-                VStack(alignment: .leading, spacing: 0) {
-                    SummaryText(content: content, size: 16)
-                    Text(AgentsActivityText.subtitle(isStale: isStale))
-                        .font(.system(size: 13))
-                        .foregroundStyle(AgentsPalette.textSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
+    var body: some View {
+        VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+            AgentsCardHeader(header: AgentsActivityText.header(of: content), metrics: metrics)
+            AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
+            if let footnote = AgentsActivityText.footnote(of: content, isStale: isStale) {
+                AgentsCardFootnote(footnote: footnote, metrics: metrics)
             }
-            if let highlight = content.highlight {
-                AgentsPalette.divider
-                    .frame(height: 1)
-                    .padding(.top, 12)
-                AgentsHighlightRow(highlight: highlight)
-                    .padding(.top, 11)
+            if let pending = content.pending {
+                PendingActivityControls(pending: pending, metrics: metrics)
+                    .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 13)
-    }
-
-    private func pendingBody(_ pending: AgentsActivityContent.Pending) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                ClaudeMark(size: 16)
-                SummaryText(content: content, size: 14)
-                Spacer(minLength: 8)
-                if let highlight = content.highlight {
-                    ElapsedTimer(since: highlight.since, tone: .waiting, size: 14)
-                }
-            }
-            PendingActivitySection(
-                pending: pending,
-                workspaceLabel: workspaceLabel(for: pending),
-                layout: .lockScreen
-            )
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-    }
-
-    private func workspaceLabel(for pending: AgentsActivityContent.Pending) -> String? {
-        guard let highlight = content.highlight, highlight.agentId == pending.agentId else { return nil }
-        return highlight.workspaceLabel
+        .padding(.vertical, 13.5)
     }
 }
 
-struct AgentsHighlightRow: View {
-    let highlight: AgentsActivityContent.Highlight
-
-    var body: some View {
-        let tone = AgentsActivityText.tone(of: highlight)
-        HStack(spacing: 10) {
-            StatusDot(tone: tone)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(highlight.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AgentsPalette.textPrimary)
-                    .lineLimit(1)
-                Text(AgentsActivityText.highlightDetail(highlight))
-                    .font(.system(size: 13))
-                    .foregroundStyle(AgentsPalette.textSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            ElapsedTimer(since: highlight.since, tone: tone, size: 16)
-        }
-    }
-}
-
-struct AgentsIslandHeader: View {
+struct AgentsIslandBody: View {
     let content: AgentsActivityContent
     let isStale: Bool
 
+    private let metrics = AgentsCardMetrics.island
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            SummaryText(content: content, size: 14)
-            Text(content.highlight?.title ?? AgentsActivityText.subtitle(isStale: isStale))
-                .font(.system(size: 12))
-                .foregroundStyle(AgentsPalette.textSecondary)
-                .lineLimit(1)
+        let footnote = AgentsActivityText.footnote(of: content, isStale: isStale)
+        let openURL = AgentsActivityText.deepLink(for: content)
+        VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+            AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
+            if let pending = content.pending {
+                if let footnote {
+                    AgentsCardFootnote(footnote: footnote, metrics: metrics)
+                }
+                PendingActivityControls(pending: pending, metrics: metrics)
+                    .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
+            } else if footnote != nil || openURL != nil {
+                HStack(spacing: 8) {
+                    if let footnote {
+                        AgentsCardFootnote(footnote: footnote, metrics: metrics)
+                    }
+                    Spacer(minLength: 8)
+                    if let openURL {
+                        OpenAgentButton(url: openURL, height: metrics.buttonHeight)
+                    }
+                }
+                .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-struct AgentsIslandBottom: View {
-    let content: AgentsActivityContent
+struct OpenAgentButton: View {
+    let url: URL
+    let height: CGFloat
 
     var body: some View {
-        if let pending = content.pending {
-            PendingActivitySection(pending: pending, workspaceLabel: nil, layout: .island)
-        } else {
-            HStack(spacing: 8) {
-                if let highlight = content.highlight {
-                    StatusDot(tone: AgentsActivityText.tone(of: highlight))
-                    Text(AgentsActivityText.highlightDetail(highlight))
-                        .font(.system(size: 12))
-                        .foregroundStyle(AgentsPalette.textSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                if let url = AgentsActivityText.deepLink(for: content) {
-                    Link(destination: url) {
-                        Text(AgentsActivityText.open)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AgentsPalette.textPrimary)
-                            .padding(.horizontal, 16)
-                            .frame(height: 30)
-                            .background(AgentsPalette.controlBg, in: Capsule())
-                    }
-                }
-            }
+        Link(destination: url) {
+            Text(AgentsActivityText.open)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AgentsPalette.textPrimary)
+                .padding(.horizontal, 16)
+                .frame(height: height)
+                .background(AgentsPalette.controlBg, in: Capsule())
         }
     }
 }

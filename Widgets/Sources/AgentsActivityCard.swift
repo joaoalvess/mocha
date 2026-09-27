@@ -1,0 +1,167 @@
+import MochaClient
+import SwiftUI
+
+struct AgentsCardMetrics {
+    let headerSize: CGFloat
+    let headlineSize: CGFloat
+    let detailSize: CGFloat
+    let commandSize: CGFloat
+    let footnoteSize: CGFloat
+    let tileSize: CGFloat
+    let markSize: CGFloat
+    let lineSpacing: CGFloat
+    let actionsSpacing: CGFloat
+    let buttonHeight: CGFloat
+    let gridButtonHeight: CGFloat
+    let gridSpacing: CGFloat
+
+    static let lockScreen = AgentsCardMetrics(
+        headerSize: 13,
+        headlineSize: 17,
+        detailSize: 15,
+        commandSize: 14,
+        footnoteSize: 12,
+        tileSize: 21,
+        markSize: 17,
+        lineSpacing: 3,
+        actionsSpacing: 8,
+        buttonHeight: 34,
+        gridButtonHeight: 27,
+        gridSpacing: 5
+    )
+
+    static let island = AgentsCardMetrics(
+        headerSize: 13,
+        headlineSize: 16,
+        detailSize: 14,
+        commandSize: 13,
+        footnoteSize: 12,
+        tileSize: 21,
+        markSize: 17,
+        lineSpacing: 2,
+        actionsSpacing: 8,
+        buttonHeight: 30,
+        gridButtonHeight: 26,
+        gridSpacing: 5
+    )
+}
+
+struct AgentsCardTitle: View {
+    let header: AgentsActivityHeader
+    let metrics: AgentsCardMetrics
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(header.label)
+                .foregroundStyle(AgentsPalette.labelColor(for: header.tone))
+            if let model = header.model {
+                Text("·")
+                    .foregroundStyle(AgentsPalette.separator)
+                    .fixedSize()
+                Text(model)
+                    .foregroundStyle(AgentsPalette.textSecondary)
+                    .layoutPriority(1)
+            }
+        }
+        .font(.system(size: metrics.headerSize))
+        .lineLimit(1)
+    }
+}
+
+struct AgentsCardBadge: View {
+    let context: AgentsActivityContext?
+    let metrics: AgentsCardMetrics
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let context {
+                ContextBar(context: context)
+            }
+            ClaudeTile(size: metrics.tileSize, markSize: metrics.markSize)
+        }
+    }
+}
+
+struct AgentsCardHeader: View {
+    let header: AgentsActivityHeader
+    let metrics: AgentsCardMetrics
+
+    var body: some View {
+        HStack(spacing: 8) {
+            AgentsCardTitle(header: header, metrics: metrics)
+            Spacer(minLength: 0)
+            AgentsCardBadge(context: header.context, metrics: metrics)
+        }
+        .frame(height: metrics.tileSize)
+    }
+}
+
+struct AgentsCardLines: View {
+    let lines: AgentsActivityLines
+    let metrics: AgentsCardMetrics
+
+    var body: some View {
+        Group {
+            switch lines.detail {
+            case nil:
+                headline
+            case .continuation:
+                ViewThatFits(in: .horizontal) {
+                    headline
+                    VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+                        headline
+                        detail(lines.headline, size: metrics.detailSize, design: .default)
+                    }
+                }
+            case .command(let command):
+                VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+                    headline
+                    detail(command, size: metrics.commandSize, design: .monospaced)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headline: some View {
+        Text(lines.headline)
+            .font(.system(size: metrics.headlineSize, weight: .bold))
+            .foregroundStyle(AgentsPalette.textPrimary)
+            .lineLimit(1)
+    }
+
+    private func detail(_ text: String, size: CGFloat, design: Font.Design) -> some View {
+        Text(text)
+            .font(.system(size: size, design: design))
+            .foregroundStyle(AgentsPalette.textSecondary)
+            .lineLimit(1)
+    }
+}
+
+struct AgentsCardFootnote: View {
+    let footnote: AgentsActivityFootnote
+    let metrics: AgentsCardMetrics
+
+    var body: some View {
+        text
+            .font(.system(size: metrics.footnoteSize))
+            .foregroundStyle(AgentsPalette.textSecondary)
+            .lineLimit(1)
+    }
+
+    private var text: Text {
+        var parts: [Text] = []
+        if let working = footnote.working {
+            parts.append(Text(working))
+        }
+        if let waiting = footnote.waiting {
+            parts.append(Text(waiting).foregroundStyle(AgentsPalette.waiting))
+        }
+        if let stale = footnote.stale {
+            parts.append(Text(stale))
+        }
+        return parts.dropFirst().reduce(parts.first ?? Text(footnote.text)) {
+            Text("\($0)\(AgentsActivityText.separator)\($1)")
+        }
+    }
+}
