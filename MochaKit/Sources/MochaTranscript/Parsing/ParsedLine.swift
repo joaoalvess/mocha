@@ -1,11 +1,28 @@
 import Foundation
 import MochaProtocol
 
+struct ToolUseResultSummary: Sendable, Equatable {
+    var status: String?
+    var agentId: String?
+    var totalToolUseCount: Int?
+    var totalDurationMs: Int?
+    var runId: String?
+    var taskId: String?
+    var workflowName: String?
+
+    static let asyncLaunched = "async_launched"
+
+    var isAsyncLaunch: Bool {
+        status == Self.asyncLaunched
+    }
+}
+
 struct ToolResultOutcome: Sendable, Equatable {
     let toolUseId: String
     let isError: Bool
     let preview: String?
     let answersPreview: String?
+    var toolUseResult: ToolUseResultSummary?
 }
 
 enum LineEffect: Sendable, Equatable {
@@ -18,6 +35,7 @@ enum LineEffect: Sendable, Equatable {
     case slashCommand(ChatItem, promptId: String?)
     case commandOutput(String)
     case toolResult(ToolResultOutcome)
+    case taskNotification(TaskNotification)
     case contextTokens(Int)
     case turnStarted
     case turnEnded
@@ -39,11 +57,13 @@ struct ParsedLine: Sendable, Equatable {
     var version: String?
     var timestamp: String?
     var effects: [LineEffect]
+    var crossesForkBoundary: Bool
 
-    init(version: String? = nil, timestamp: String? = nil, effects: [LineEffect]) {
+    init(version: String? = nil, timestamp: String? = nil, effects: [LineEffect], crossesForkBoundary: Bool = false) {
         self.version = version
         self.timestamp = timestamp
         self.effects = effects
+        self.crossesForkBoundary = crossesForkBoundary
     }
 
     static let empty = ParsedLine(effects: [])
