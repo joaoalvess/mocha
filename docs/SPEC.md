@@ -1815,7 +1815,7 @@ public struct ContentState: Codable, Hashable {
   - pergunta com `options`: a pergunta e um botão por opção;
   - pergunta sem `options`: a prévia e o toque abre o chat com o card (deep link do agente).
   - Os botões são `Button(intent:)` com `LiveActivityIntent`: o sistema roda o intent no processo do app, sem abri-lo, e o app faz `POST /v1/respond` (Bearer, §5.5). "Permitir" tem `authenticationPolicy = .requiresAuthentication` (Face ID); "Negar" e as opções usam o padrão, que roda com o iPhone travado.
-  - Depois de uma resposta aceita, o app atualiza a atividade localmente sem o `pending`; a atualização do daemon vem em seguida. Uma resposta recusada (400/404) ou sem conexão deixa o `pending` e mostra o motivo numa notificação local, como nas ações de notificação (§7.2).
+  - Depois de uma resposta aceita, o app atualiza a atividade localmente sem o `pending`; a atualização do daemon vem em seguida. Uma resposta recusada (400) ou sem conexão deixa o `pending` e mostra o motivo numa notificação local, como nas ações de notificação (§7.2). Um 404 (o pedido já foi resolvido no Mac ou expirou) tira o `pending` e mostra a notificação local "Esse pedido já foi resolvido no Mac", também na ação de notificação.
 - **Headers**: `apns-push-type: liveactivity`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-id`. `apns-expiration` e `apns-collapse-id` são aceitos, mas não são necessários.
 - **Ciclo de vida**:
   - **Início**: quando algum agente passa a `working` e não há atividade ativa.
@@ -1887,7 +1887,7 @@ Mecanismo validado pelo spike S3 no Claude Code 2.1.283. Payloads, respostas e l
 
 - Todo diálogo em que o Claude espera uma decisão no terminal dispara o hook `PermissionRequest` no mesmo instante em que o diálogo aparece: a aprovação de ferramenta (Bash, Write, Edit, MCP…) **e** o seletor do `AskUserQuestion`. O hook (HTTP, timeout 590 s, §3.3.1) fica pendente no `HookServer` enquanto o diálogo continua respondível no Mac. Vale a primeira resposta, dos dois lados.
 - Não há hook `PreToolUse` do Mocha nem fallback por `agent.send_keys`.
-- Um agente tem no máximo um pedido pendente. Com várias ferramentas na mesma resposta, o Claude mostra um diálogo por vez e só dispara o `PermissionRequest` seguinte depois que o anterior se resolve.
+- Um agente tem no máximo um pedido pendente. Um subagente (com `agent_id` no payload do hook) conta à parte: o pedido dele não encerra o do agente principal da mesma `session_id`, e vice-versa. Com várias ferramentas na mesma resposta, o Claude mostra um diálogo por vez e só dispara o `PermissionRequest` seguinte depois que o anterior se resolve.
 - **Entrada** (`Fixtures/hooks/PermissionRequest.*.json`): `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `tool_name`, `tool_input` e, só para ferramentas, `permission_suggestions` (ignorado: não corresponde às opções do diálogo). Não traz `tool_use_id`.
 - **Criação do `PendingRequest`**:
   - `agentId` vem do header `X-Mocha-Pane`, traduzido depois de `pane_moved` (§3.3.1);
@@ -1903,6 +1903,7 @@ Resposta HTTP 200, `Content-Type: application/json` (`Fixtures/hooks/response.*.
 | `PendingResponse` | Corpo |
 |---|---|
 | `allow` (permissão) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}` |
+| `allow` (permissão `ExitPlanMode`) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":<tool_input original>,"updatedPermissions":[{"type":"setMode","mode":"auto","destination":"session"}]}}}`. O `allow` puro não basta para o plano: o Claude ignora e o diálogo continua no terminal (documentação dos hooks, 2026-09-27). O modo `auto` repete a 1ª opção do terminal, decisão do João |
 | `deny(reason)` (permissão ou pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"<reason, ou 'Negado pelo usuário no iPhone.'>"}}}` |
 | `answers(map)` (pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"questions":<tool_input.questions original>,"answers":{"<question>":"<resposta>"}}}}}` |
 | sem decisão | `{}` |
@@ -1947,7 +1948,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 
 ### §8.5 Estado
 
-- O `PendingStore` mantém os pedidos em memória, no máximo um por sessão. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada: para o Claude isso é um erro não bloqueante, e o diálogo do terminal continua.
+- O `PendingStore` mantém os pedidos em memória, no máximo um por sessão e `agent_id`. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada: para o Claude isso é um erro não bloqueante, e o diálogo do terminal continua.
 - `pendingCount` por agente alimenta a gaveta e o `waiting` da Live Activity.
 
 ---
