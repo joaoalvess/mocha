@@ -106,7 +106,7 @@ actor TranscriptTracker {
                 return try follower.page(beforeOffset: offset, limit: limit)
             }
             guard let path = locator.path(for: session) else { return nil }
-            return try TranscriptPageReader(path: path).page(beforeOffset: offset, limit: limit)
+            return try TranscriptPageReader(path: path, mode: session.parseMode).page(beforeOffset: offset, limit: limit)
         } catch TranscriptFileError.notFound {
             return nil
         } catch {
@@ -143,7 +143,7 @@ actor TranscriptTracker {
     private func openFollower(start: TranscriptFollower.Start) -> Bool {
         guard let path = locator.path(for: session) else { return false }
         do {
-            let opened = try TranscriptFollower(path: path, start: start)
+            let opened = try TranscriptFollower(path: path, start: start, mode: session.parseMode)
             follower = opened
             followedFile = opened.status()
             liveMeta = TranscriptMeta(header: opened.header, lastModified: followedFile?.modificationDate)
@@ -158,13 +158,13 @@ actor TranscriptTracker {
 
     private func lastPage(limit: Int) -> TranscriptPage {
         guard let follower else {
-            return TranscriptPage(slice: .empty, sessionId: session.sessionId, meta: liveMeta)
+            return TranscriptPage(slice: .empty, sessionId: session.cursorKey, meta: liveMeta)
         }
         do {
-            return TranscriptPage(slice: try follower.lastPage(limit: limit), sessionId: session.sessionId, meta: liveMeta)
+            return TranscriptPage(slice: try follower.lastPage(limit: limit), sessionId: session.cursorKey, meta: liveMeta)
         } catch {
             transcriptLogger.error("page read failed for \(self.session.sessionId, privacy: .public): \(String(describing: error), privacy: .public)")
-            return TranscriptPage(slice: .empty, sessionId: session.sessionId, meta: liveMeta)
+            return TranscriptPage(slice: .empty, sessionId: session.cursorKey, meta: liveMeta)
         }
     }
 

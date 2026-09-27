@@ -79,7 +79,16 @@ public actor DaemonRuntime {
         let pairing = Pairing()
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
         let archive = SessionArchive(fileURL: paths.sessionsFile)
-        let hub = SessionHub(herdr: herdr, transcripts: transcripts, devices: devices, pairing: pairing, usage: usage, archive: archive)
+        let subagents = SubagentStore(projectsRoot: options.projectsRoot)
+        let hub = SessionHub(
+            herdr: herdr,
+            transcripts: transcripts,
+            devices: devices,
+            pairing: pairing,
+            usage: usage,
+            archive: archive,
+            subagents: subagents
+        )
         let push = PushService(
             devices: devices,
             audience: hub,

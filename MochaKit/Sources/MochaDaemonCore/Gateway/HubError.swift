@@ -15,6 +15,8 @@ struct HubError: Error, Sendable, Equatable {
     static let notClaude = HubError(code: .invalidPayload, message: "Chat disponível só para Claude Code")
     static let invalidCursor = HubError(code: .invalidPayload, message: "Cursor de página inválido.")
     static let invalidSessionId = HubError(code: .invalidPayload, message: "O sessionId precisa ser um UUID.")
+    static let invalidSubagentId = HubError(code: .invalidPayload, message: "Id de subagente inválido.")
+    static let subagentNotFound = HubError(code: .sessionNotFound, message: "Subagente não encontrado")
     static let agentNotFound = HubError(code: .agentNotFound, message: "Agente não encontrado.")
     static let sessionNotFound = HubError(code: .sessionNotFound, message: "Sessão não encontrada no Mac.")
     static let sessionNotCurrent = HubError(code: .sessionNotFound, message: "A sessão não é a atual de nenhum agente.")

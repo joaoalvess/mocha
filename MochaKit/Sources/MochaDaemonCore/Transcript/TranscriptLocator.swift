@@ -11,6 +11,9 @@ final class TranscriptLocator: Sendable {
     }
 
     func path(for session: TranscriptSession) -> String? {
+        if let subagent = session.subagent {
+            return TranscriptFileStatus.of(path: subagent.path) != nil ? subagent.path : nil
+        }
         if let transcriptPath = trustedTranscriptPath(of: session) {
             return transcriptPath
         }
@@ -63,6 +66,9 @@ final class TranscriptLocator: Sendable {
     }
 
     func directoriesToWatch(for session: TranscriptSession) -> [String] {
+        if let subagent = session.subagent {
+            return [Self.nearestExistingDirectory(from: (subagent.path as NSString).deletingLastPathComponent)]
+        }
         if let transcriptPath = trustedTranscriptPath(of: session) {
             return [Self.nearestExistingDirectory(from: (transcriptPath as NSString).deletingLastPathComponent)]
         }

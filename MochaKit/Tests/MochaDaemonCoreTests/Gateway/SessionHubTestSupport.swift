@@ -301,6 +301,7 @@ struct HubHarness {
     let transcripts: FakeTranscriptProvider
     let usage: FakeUsageProvider
     let archive: FakeSessionArchive
+    let subagents: FakeSubagentProvider
     let clock: ManualClock
     let devices: DeviceStore
     let pairing: Pairing
@@ -362,6 +363,7 @@ func withHub(
     bridge: (any HerdrBridging)? = nil,
     usage: FakeUsageProvider = FakeUsageProvider(),
     archive: FakeSessionArchive = FakeSessionArchive(),
+    subagents: FakeSubagentProvider = FakeSubagentProvider(),
     configure: (FakeTranscriptProvider) async -> Void = { _ in },
     _ body: (HubHarness) async throws -> Void
 ) async throws {
@@ -379,6 +381,7 @@ func withHub(
         pairing: pairing,
         usage: usage,
         archive: archive,
+        subagents: subagents,
         clock: clock,
         configuration: SessionHubConfiguration(hostName: "Mac de Teste", daemonVersion: "9.9.9")
     )
@@ -388,6 +391,7 @@ func withHub(
         transcripts: transcripts,
         usage: usage,
         archive: archive,
+        subagents: subagents,
         clock: clock,
         devices: devices,
         pairing: pairing,
