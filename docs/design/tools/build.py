@@ -1148,7 +1148,8 @@ sub_run = screen('s-sub-run', '', sb() +
     '<div class="notice">general-purpose · 13:52 · opus-5-5</div>'
     + task_card('Rode o teste de carga de GET /receitas com o k6 (load/list-recipes.js): 50 usuários por 2 min, primeiro na main e depois em feat/cursor-receitas. Compare o p95 e a taxa de erro das duas rodadas.')
     + '<div class="think">Pensou</div>'
-    + tools(tool('doc', 'Read', 'load/list-recipes.js', count=2),
+    + tools(sa_card('Explore', 'Achar o script de carga', 'ok', '41s • 5 ferramentas'),
+            tool('doc', 'Read', 'load/list-recipes.js'),
             tool('term', 'Shell', 'k6 run --vus 50 --duration 2m load/list-recipes.js', count=3))
     + '<div class="p">Na <span class="ci">main</span>, com OFFSET: p95 de 1,82 s na página 200 e nenhum erro. Agora com o cursor:</div>'
     + tools(tool('term', 'Shell', 'git switch feat/cursor-receitas &amp;&amp; go build ./...', count=2),
