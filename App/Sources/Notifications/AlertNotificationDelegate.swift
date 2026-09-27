@@ -11,15 +11,19 @@ final class AlertNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         completionHandler([.banner, .list, .sound])
     }
 
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let content = response.notification.request.content
         if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
-            Self.open(userInfo: response.notification.request.content.userInfo)
+            Self.open(userInfo: content.userInfo)
+            return
         }
-        completionHandler()
+        guard let reply = PendingNotificationReply(
+            actionIdentifier: response.actionIdentifier,
+            userInfo: content.userInfo,
+            body: content.body,
+            text: (response as? UNTextInputNotificationResponse)?.userText
+        ) else { return }
+        await PendingNotificationResponder.send(reply)
     }
 
     static func open(userInfo: [AnyHashable: Any]) {
