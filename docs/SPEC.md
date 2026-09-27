@@ -1752,7 +1752,7 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 ### §7.2 Ações de notificação (1b)
 
 - `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`). "Negar" manda `deny` com a mensagem padrão (§8.2): o Claude recebe a negação e continua o turno.
-- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Várias perguntas ou `multiSelect` abrem o app (`.foreground`).
+- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Com `QUESTION`, o corpo é o texto exato da pergunta (até 2.000 bytes), que o app usa como chave de `answers`. Várias perguntas, `multiSelect` ou uma pergunta maior vão com a categoria `NEEDS_INPUT`, sem ações, e o corpo é a prévia de `questions[0].question`: o toque abre o chat com o card.
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
 
 ### §7.3 Live Activity agregada (1b)
