@@ -100,6 +100,7 @@ public actor DaemonRuntime {
             transport: options.apnsTransport ?? URLSessionApnsTransport()
         )
         let liveActivity = LiveActivityService(devices: devices, sender: push)
+        await push.attachLiveActivity(liveActivity)
         await hub.attachLiveActivity(liveActivity)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
