@@ -1000,7 +1000,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
 | S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | 26067bd, merge e704dcb |
-| WP-C1 | todo | |
+| WP-C1 | feito (73 testes do protocolo passaram; pacote completo aguarda C2/C3 para tratar os novos casos) | d166607, 8fe544f, merge 1361c9f |
 | WP-C2 | todo | |
 | WP-C3 | todo | |
 | WP-XC | todo | |
