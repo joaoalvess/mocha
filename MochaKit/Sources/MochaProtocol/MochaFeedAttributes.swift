@@ -16,6 +16,7 @@ public struct MochaFeedAttributes: ActivityAttributes, Sendable {
         public var preview: String?
         public var activity: String?
         public var prompt: String?
+        public var outcome: String?
         public var pending: Pending?
         public var updatedAt: Date
 
@@ -30,6 +31,7 @@ public struct MochaFeedAttributes: ActivityAttributes, Sendable {
             preview: String? = nil,
             activity: String? = nil,
             prompt: String? = nil,
+            outcome: String? = nil,
             pending: Pending? = nil,
             updatedAt: Date
         ) {
@@ -43,6 +45,7 @@ public struct MochaFeedAttributes: ActivityAttributes, Sendable {
             self.preview = preview
             self.activity = activity
             self.prompt = prompt
+            self.outcome = outcome
             self.pending = pending
             self.updatedAt = updatedAt
         }
