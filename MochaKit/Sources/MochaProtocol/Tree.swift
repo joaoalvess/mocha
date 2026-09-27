@@ -78,6 +78,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
     public var turnEndedAt: Date?
     public var archivedAt: Date?
     public var runningSubagents: Int?
+    public var controlAvailable: Bool?
 
     public init(
         id: AgentID,
@@ -97,7 +98,8 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         turnStartedAt: Date? = nil,
         turnEndedAt: Date? = nil,
         archivedAt: Date? = nil,
-        runningSubagents: Int? = nil
+        runningSubagents: Int? = nil,
+        controlAvailable: Bool? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -117,12 +119,13 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         self.turnEndedAt = turnEndedAt
         self.archivedAt = archivedAt
         self.runningSubagents = runningSubagents
+        self.controlAvailable = controlAvailable
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, status, title, workspaceLabel, model, branch, sessionId, lastActivityAt, pendingCount
         case preview, activity, contextLeftPercent, sessionStartedAt, turnStartedAt, turnEndedAt, archivedAt
-        case runningSubagents
+        case runningSubagents, controlAvailable
     }
 
     public init(from decoder: any Decoder) throws {
@@ -145,6 +148,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         turnEndedAt = try container.decodeProtocolDateIfPresent(forKey: .turnEndedAt)
         archivedAt = try container.decodeProtocolDateIfPresent(forKey: .archivedAt)
         runningSubagents = try container.decodeIfPresent(Int.self, forKey: .runningSubagents)
+        controlAvailable = try container.decodeIfPresent(Bool.self, forKey: .controlAvailable)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -167,6 +171,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         try container.encodeProtocolDateIfPresent(turnEndedAt, forKey: .turnEndedAt)
         try container.encodeProtocolDateIfPresent(archivedAt, forKey: .archivedAt)
         try container.encodeIfPresent(runningSubagents, forKey: .runningSubagents)
+        try container.encodeIfPresent(controlAvailable, forKey: .controlAvailable)
     }
 }
 

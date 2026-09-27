@@ -161,7 +161,7 @@ private func encodedJSON<Value: Encodable>(_ value: Value) throws -> JSONValue {
 
     @Test func emptyPayloadIsEncodedAsEmptyObject() throws {
         let json = try encodedJSON(ClientEnvelope(id: "c-1", message: .ping))
-        #expect(json == .object(["v": .number(1), "id": .string("c-1"), "type": .string("ping"), "payload": .object([:])]))
+        #expect(json == .object(["v": .number(2), "id": .string("c-1"), "type": .string("ping"), "payload": .object([:])]))
     }
 
     @Test func clientMessagesRequireAnId() {

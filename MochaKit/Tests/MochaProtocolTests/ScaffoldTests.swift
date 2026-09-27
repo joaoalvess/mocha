@@ -8,6 +8,6 @@ import Testing
     #expect(isDirectory.boolValue)
 }
 
-@Test func protocolVersionIsOne() {
-    #expect(ProtocolVersion.current == 1)
+@Test func protocolVersionIsTwo() {
+    #expect(ProtocolVersion.current == 2)
 }
