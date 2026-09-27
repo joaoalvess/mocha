@@ -444,6 +444,9 @@ final class AppSession {
         }
         guard state == .connected else {
             foreground.connectionClosed()
+            if wasConnected {
+                AgentsActivityController.shared.socketClosed()
+            }
             failAllReplies(with: .notConnected)
             if !isOpeningConnection {
                 failChatWaitingForConnection()
@@ -454,6 +457,18 @@ final class AppSession {
             reopenChatStack()
             sendForeground()
             AppNotifications.connectionOpened()
+            AgentsActivityController.shared.socketOpened { [weak self] registration in
+                await self?.registerLiveActivity(registration) ?? false
+            }
+        }
+    }
+
+    private func registerLiveActivity(_ registration: LiveActivityRegistration) async -> Bool {
+        do {
+            try await request(.registerLiveActivity(registration))
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -519,6 +534,7 @@ final class AppSession {
     private func applyTree(_ newWorkspaces: [WorkspaceNode]) {
         workspaces = newWorkspaces
         hasReceivedTree = true
+        AgentsActivityController.shared.agentsChanged(newWorkspaces.allAgents)
         for current in chatStack {
             guard case .agent = current.target else { continue }
             switch ChatTargetTracking.change(for: current.target, knownSessionId: current.sessionId, in: newWorkspaces) {
@@ -542,6 +558,7 @@ final class AppSession {
                 agent.title = title
             }
         }
+        AgentsActivityController.shared.agentsChanged(workspaces.allAgents)
         updateChats(target: .agent(agentId)) { chat in
             chat.meta?.status = status
             if let title {

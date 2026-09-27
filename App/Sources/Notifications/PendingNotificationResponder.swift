@@ -6,11 +6,13 @@ import UserNotifications
 enum PendingNotificationResponder {
     private static let logger = Logger(subsystem: "com.joaoalves.mocha", category: "notifications")
 
-    static func send(_ reply: PendingNotificationReply, responder: any PendingResponding = GatewayPendingResponder(tokenStore: KeychainTokenStore())) async {
+    @discardableResult
+    static func send(_ reply: PendingNotificationReply, responder: any PendingResponding = GatewayPendingResponder(tokenStore: KeychainTokenStore())) async -> PendingRespondResult {
         let result = await responder.respond(to: reply.requestId, with: reply.response)
         logger.info("notification \(reply.response.type, privacy: .public) for \(reply.requestId, privacy: .public): \(String(describing: result), privacy: .public)")
-        guard let notice = PendingText.failureNotice(for: result) else { return }
+        guard let notice = PendingText.failureNotice(for: result) else { return result }
         await post(notice, for: reply)
+        return result
     }
 
     private static func post(_ notice: PendingNotice, for reply: PendingNotificationReply) async {
