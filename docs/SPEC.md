@@ -377,7 +377,7 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 - agente ou workflow sem card carregado (outra página, ou o `tool_use` numa sessão anterior): o bloco não gera nada.
 - texto sem nenhum bloco (ex.: "2 background agents were stopped by the user: …", visto na 2.1.252): `notice` com o texto.
 - Assim, o aviso `Agent "…" finished` não aparece no chat: o card mostra o fim. Com mais de um `notice` na mesma linha, os ids seguem a regra `<uuid>#<índice>`.
-- A leitura dos blocos é pública, em `MochaTranscript`: `TaskNotification.parse(_ text: String) -> [TaskNotification]`, com `taskId`, `toolUseId`, `status`, `summary`, `note`, `toolUses` e `durationMs`. O daemon usa a mesma função nos sinais (b) e (c) da §3.5.2.
+- A leitura dos blocos é pública, em `MochaTranscript`: `TaskNotification.parse(_ text: String) -> [TaskNotification]`, com `taskId`, `toolUseId`, `status`, `summary`, `note`, `toolUses`, `durationMs` e `agentCount`. O daemon usa a mesma função nos sinais (b) e (c) da §3.5.2.
 
 **Modo subagente** (transcript `agent-<agentId>.jsonl`, aberto pelo chat de subagente, §5.3.1): a entrada é `TranscriptParseMode.subagent(forkToolUseId: String?)`, em `MochaTranscript` (o padrão é `.main`), que o `TranscriptStore` monta a partir do `SubagentTranscript` (§4.1.1). Valem as mesmas regras, com estas diferenças:
 - linhas com `isSidechain == true` são aceitas;

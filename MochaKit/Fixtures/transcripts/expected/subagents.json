@@ -13,26 +13,28 @@
       "type" : "thinking"
     },
     {
+      "agentId" : "aaf5c2a0f163d5774",
+      "agentType" : "Explore",
       "at" : "2026-09-25T15:00:05.803Z",
+      "description" : "Listar scripts do package.json",
+      "durationMs" : 4100,
       "id" : "5561606d-3a70-52dc-93b4-8ab05df92b3f",
-      "inputJSON" : "{\"description\":\"Listar scripts do package.json\",\"subagent_type\":\"Explore\",\"prompt\":\"Liste os scripts do package.json do demo-app.\"}",
-      "name" : "Agent",
-      "resultPreview" : "Scripts: build, test, lint.\nagentId: aaf5c2a0f163d5774\n<usage>total_tokens: 9000\ntool_uses: 1\nduration_ms: 4100</usage>",
-      "status" : "succeeded",
-      "summary" : "Listar scripts do package.json",
+      "status" : "completed",
       "toolUseId" : "toolu_01EFZauhRshoU76JicRBsEFB",
-      "type" : "toolCall"
+      "toolUses" : 1,
+      "type" : "subagent"
     },
     {
+      "agentId" : "a4ccb30dd881b5306",
+      "agentType" : "general-purpose",
       "at" : "2026-09-25T15:00:11.203Z",
+      "description" : "Revisar README",
+      "durationMs" : 31000,
       "id" : "7760deae-62b6-5f28-9915-1d1290410b1e",
-      "inputJSON" : "{\"description\":\"Revisar README\",\"subagent_type\":\"general-purpose\",\"prompt\":\"Revise o README do demo-app e aponte erros.\",\"run_in_background\":true}",
-      "name" : "Agent",
-      "resultPreview" : "Async agent launched successfully.\nagentId: a4ccb30dd881b5306\nThe agent is working in the background. You will be notified automatically when it completes.",
-      "status" : "succeeded",
-      "summary" : "Revisar README",
+      "status" : "completed",
       "toolUseId" : "toolu_01CAaGD44Eazp6jemtySjPKF",
-      "type" : "toolCall"
+      "toolUses" : 2,
+      "type" : "subagent"
     },
     {
       "at" : "2026-09-25T15:00:13.203Z",
@@ -84,12 +86,6 @@
       "durationMs" : 1200,
       "id" : "9ad1c440-1044-5840-9bc3-287008db85c2",
       "type" : "turnFooter"
-    },
-    {
-      "at" : "2026-09-25T15:01:02.943Z",
-      "id" : "73940455-11bf-5528-a9c3-77a33c8caffe",
-      "text" : "Agent \"Revisar README\" finished",
-      "type" : "notice"
     },
     {
       "at" : "2026-09-25T15:01:03.843Z",

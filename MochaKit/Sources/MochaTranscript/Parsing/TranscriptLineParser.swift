@@ -19,20 +19,54 @@ enum TranscriptLineParser {
     private static let syntheticModel = "<synthetic>"
     private static let detachedBranch = "HEAD"
 
-    static func parse(_ bytes: [UInt8], offset: UInt64) -> ParsedLine {
-        bytes.withUnsafeBytes { parse($0, offset: offset) }
+    private static let forkDirectiveMarker = "Your directive: "
+
+    static func parse(_ bytes: [UInt8], offset: UInt64, mode: LineMode = .main) -> ParsedLine {
+        bytes.withUnsafeBytes { parse($0, offset: offset, mode: mode) }
     }
 
-    static func parse(_ bytes: UnsafeRawBufferPointer, offset: UInt64) -> ParsedLine {
+    static func parse(_ bytes: UnsafeRawBufferPointer, offset: UInt64, mode: LineMode = .main) -> ParsedLine {
         guard bytes.contains(where: { !isJSONWhitespace($0) }) else { return .empty }
+        if case .forkPrelude(let toolUseId) = mode {
+            return forkPreludeLine(bytes, offset: offset, toolUseId: toolUseId)
+        }
         guard let root = try? JSONParser.parse(bytes).objectValue,
               let type = root["type"]?.stringValue else {
             return .dropped
         }
-        let line = Line(object: root, offset: offset)
+        let line = Line(object: root, offset: offset, isSubagent: mode == .subagent)
         let version = root["version"]?.stringValue
-        guard !root["isSidechain"].isTrue else { return ParsedLine(version: version, effects: []) }
+        guard line.isSubagent || !root["isSidechain"].isTrue else { return ParsedLine(version: version, effects: []) }
         return ParsedLine(version: version, timestamp: root["timestamp"]?.stringValue, effects: effects(type: type, line: line))
+    }
+
+    private static func forkPreludeLine(_ bytes: UnsafeRawBufferPointer, offset: UInt64, toolUseId: String) -> ParsedLine {
+        guard contains(Array(toolUseId.utf8), in: bytes),
+              let root = try? JSONParser.parse(bytes).objectValue,
+              root["type"]?.stringValue == "user",
+              let blocks = root["message"]?["content"]?.arrayValue,
+              blocks.contains(where: { $0["type"]?.stringValue == "tool_result" && $0["tool_use_id"]?.stringValue == toolUseId }) else {
+            return .empty
+        }
+        let texts = blocks.compactMap { $0["type"]?.stringValue == "text" ? $0["text"]?.stringValue : nil }
+        let directive = texts.lazy.compactMap { text in
+            text.range(of: forkDirectiveMarker).map { String(text[$0.upperBound...]) }
+        }.first ?? texts.first ?? ""
+        let line = Line(object: root, offset: offset, isSubagent: true)
+        return ParsedLine(
+            version: root["version"]?.stringValue,
+            timestamp: root["timestamp"]?.stringValue,
+            effects: [.item(line.item(.task(text: directive.trimmingCharacters(in: .whitespacesAndNewlines))))],
+            crossesForkBoundary: true
+        )
+    }
+
+    private static func contains(_ needle: [UInt8], in bytes: UnsafeRawBufferPointer) -> Bool {
+        guard !needle.isEmpty, let base = bytes.baseAddress, bytes.count >= needle.count else { return false }
+        return needle.withUnsafeBytes { pattern in
+            guard let patternBase = pattern.baseAddress else { return false }
+            return memmem(base, bytes.count, patternBase, pattern.count) != nil
+        }
     }
 
     private static func isJSONWhitespace(_ byte: UInt8) -> Bool {
@@ -77,17 +111,39 @@ enum TranscriptLineParser {
                 return []
             }
         case "task-notification":
-            let text = attachment["prompt"].map(plainText) ?? ""
-            return [.item(line.item(.notice(text: CommandMarkup.taskNotificationSummary(in: text))))]
+            return taskNotificationEffects(attachment["prompt"].map(plainText) ?? "", line: line)
         default:
             return []
         }
     }
 
+    private static func taskNotificationEffects(_ text: String, line: Line) -> [LineEffect] {
+        let notifications = TaskNotification.parse(text)
+        guard !notifications.isEmpty else {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [.item(line.item(.notice(text: trimmed)))]
+        }
+        let noticeCount = notifications.count(where: { $0.kind == .other })
+        return notifications.enumerated().map { index, notification in
+            guard notification.kind == .other else { return .taskNotification(notification) }
+            let summary = notification.summary ?? CommandMarkup.taskNotificationSummary(in: text)
+            return .item(line.item(.notice(text: summary), blockIndex: noticeCount > 1 ? index : nil))
+        }
+    }
+
     private static func userEffects(_ line: Line) -> [LineEffect] {
+        let originKind = line["origin"]?["kind"]?.stringValue
+        if originKind == "peer" { return [] }
+        let content = line["message"]?["content"]
+        if originKind == "task-notification", case .string(let text) = content {
+            return taskNotificationEffects(text, line: line)
+        }
         guard !line["isMeta"].isTrue, !line["isCompactSummary"].isTrue else { return [] }
+        if line.isSubagent, line.isRoot, let content {
+            return [.item(line.item(.task(text: plainText(content).trimmingCharacters(in: .whitespacesAndNewlines))))]
+        }
         let effects: [LineEffect]
-        switch line["message"]?["content"] {
+        switch content {
         case .string(let text):
             effects = userTextEffects(text, line: line)
         case .array(let blocks):
@@ -114,9 +170,6 @@ enum TranscriptLineParser {
         if head.hasPrefix("<bash-stdout>") || head.hasPrefix("<bash-stderr>") {
             return [.commandOutput(CommandMarkup.bashOutput(in: text))]
         }
-        if line["origin"]?["kind"]?.stringValue == "task-notification" || head.hasPrefix("<task-notification>") {
-            return [.item(line.item(.notice(text: CommandMarkup.taskNotificationSummary(in: text))))]
-        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed == "/compact" || trimmed.hasPrefix("/compact ") {
             let args = trimmed.dropFirst("/compact".count).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -129,13 +182,15 @@ enum TranscriptLineParser {
         let results = blocks.filter { $0["type"]?.stringValue == "tool_result" }
         if !results.isEmpty {
             let answers = results.count == 1 ? ToolResultPreview.answersPreview(of: line["toolUseResult"]) : nil
+            let toolUseResult = results.count == 1 ? toolUseResultSummary(of: line["toolUseResult"]) : nil
             return results.compactMap { block in
                 guard let toolUseId = block["tool_use_id"]?.stringValue else { return nil }
                 return .toolResult(ToolResultOutcome(
                     toolUseId: toolUseId,
                     isError: block["is_error"].isTrue,
                     preview: ToolResultPreview.preview(of: block["content"]),
-                    answersPreview: answers
+                    answersPreview: answers,
+                    toolUseResult: toolUseResult
                 ))
             }
         }
@@ -146,6 +201,19 @@ enum TranscriptLineParser {
             return [.item(line.item(.notice(text: interruptionNotice)))]
         }
         return promptEffects(blocks: blocks, line: line)
+    }
+
+    private static func toolUseResultSummary(of value: JSONValue?) -> ToolUseResultSummary? {
+        guard let value, value.objectValue != nil else { return nil }
+        return ToolUseResultSummary(
+            status: value["status"]?.stringValue,
+            agentId: value["agentId"]?.stringValue,
+            totalToolUseCount: value["totalToolUseCount"]?.intValue,
+            totalDurationMs: value["totalDurationMs"]?.intValue,
+            runId: value["runId"]?.stringValue,
+            taskId: value["taskId"]?.stringValue,
+            workflowName: value["workflowName"]?.stringValue
+        )
     }
 
     private static func promptEffects(blocks: [JSONValue], line: Line) -> [LineEffect] {
@@ -202,7 +270,7 @@ enum TranscriptLineParser {
             case "redacted_thinking":
                 effects.append(.item(line.item(.thinking(text: nil), blockIndex: blockIndex)))
             case "tool_use":
-                effects.append(.item(line.item(.toolCall(toolCall(from: block, cwd: line["cwd"]?.stringValue)), blockIndex: blockIndex)))
+                effects.append(.item(line.item(toolUseKind(block, line: line), blockIndex: blockIndex)))
             case let other:
                 effects.append(.unknown("block:\(other ?? "")"))
             }
@@ -214,6 +282,29 @@ enum TranscriptLineParser {
         guard let usage = usage?.objectValue else { return nil }
         let counts = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"].compactMap { usage[$0]?.intValue }
         return counts.isEmpty ? nil : counts.reduce(0, +)
+    }
+
+    private static func toolUseKind(_ block: JSONValue, line: Line) -> ChatItemKind {
+        let toolUseId = block["id"]?.stringValue ?? ""
+        let input = block["input"]
+        switch block["name"]?.stringValue {
+        case "Agent", "Task":
+            return .subagent(SubagentCall(
+                toolUseId: toolUseId,
+                agentType: SubagentType.displayName(for: input?["subagent_type"]?.stringValue),
+                description: input?["description"]?.stringValue ?? "",
+                status: .running
+            ))
+        case "Workflow":
+            return .workflow(WorkflowCall(
+                toolUseId: toolUseId,
+                name: WorkflowName.name(script: input?["script"]?.stringValue, scriptPath: input?["scriptPath"]?.stringValue),
+                status: .running,
+                startedAt: line.date
+            ))
+        default:
+            return .toolCall(toolCall(from: block, cwd: line["cwd"]?.stringValue))
+        }
     }
 
     private static func toolCall(from block: JSONValue, cwd: String?) -> ToolCall {
@@ -233,7 +324,7 @@ enum TranscriptLineParser {
         let content = line["content"]?.stringValue
         switch subtype {
         case "turn_duration":
-            guard let duration = line["durationMs"]?.intValue else { return [.turnEnded] }
+            guard !line.isSubagent, let duration = line["durationMs"]?.intValue else { return [.turnEnded] }
             return [.item(line.item(.turnFooter(durationMs: duration))), .turnEnded]
         case "away_summary":
             guard let content else { return [] }
@@ -272,9 +363,18 @@ enum TranscriptLineParser {
 private struct Line {
     let object: JSONObject
     let offset: UInt64
+    let isSubagent: Bool
 
     subscript(key: String) -> JSONValue? {
         object[key]
+    }
+
+    var isRoot: Bool {
+        object["parentUuid"] == .null
+    }
+
+    var date: Date? {
+        object["timestamp"]?.stringValue.flatMap(ProtocolDate.date(from:))
     }
 
     func item(_ kind: ChatItemKind, blockIndex: Int? = nil) -> ChatItem {

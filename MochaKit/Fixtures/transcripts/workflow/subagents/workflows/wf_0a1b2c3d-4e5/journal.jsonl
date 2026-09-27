@@ -1,0 +1,6 @@
+{"type":"launched"}
+{"type":"started","key":"v2:0000000000000000000000000000000000000000000000000000000000000001","agentId":"a8888888888888888","label":"impl:A","phase":"Implementar"}
+{"type":"result","key":"v2:0000000000000000000000000000000000000000000000000000000000000001","agentId":"a8888888888888888","result":"Tarefa A implementada."}
+{"type":"started","key":"v2:0000000000000000000000000000000000000000000000000000000000000002","agentId":"a9999999999999999","label":"verify:A#1","phase":"Verificar"}
+{"type":"started","key":"v2:0000000000000000000000000000000000000000000000000000000000000002","agentId":"abbbbbbbbbbbbbbbb","label":"verify:A#1","phase":"Verificar"}
+{"type":"result","key":"v2:0000000000000000000000000000000000000000000000000000000000000002","agentId":"abbbbbbbbbbbbbbbb","result":{"passed":true,"failures":[],"summary":"Testes verdes."}}

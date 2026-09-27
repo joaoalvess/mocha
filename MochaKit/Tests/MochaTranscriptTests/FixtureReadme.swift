@@ -68,6 +68,16 @@ enum FixtureReadme {
             if call.name != parts[0] { return "ferramenta: esperado \(parts[0]), veio \(call.name)" }
             if call.status.rawValue != parts[1] { return "status de \(call.name): esperado \(parts[1]), veio \(call.status.rawValue)" }
             return nil
+        case .subagent(let call):
+            guard let qualifier else { return nil }
+            let parts = qualifier.split(separator: ":").map(String.init)
+            guard parts.count == 2 else { return "qualificador inválido \(qualifier)" }
+            if call.agentType != parts[0] { return "tipo: esperado \(parts[0]), veio \(call.agentType)" }
+            if call.status.rawValue != parts[1] { return "status de \(call.description): esperado \(parts[1]), veio \(call.status.rawValue)" }
+            return nil
+        case .workflow(let call):
+            guard let qualifier else { return nil }
+            return call.status.rawValue == qualifier ? nil : "status do workflow: esperado \(qualifier), veio \(call.status.rawValue)"
         case .notice(let text):
             guard let qualifier, qualifier.hasPrefix("\""), qualifier.hasSuffix("\""), qualifier.count >= 2 else { return nil }
             let expected = String(qualifier.dropFirst().dropLast())

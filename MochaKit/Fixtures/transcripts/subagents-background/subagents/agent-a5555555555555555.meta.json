@@ -1,0 +1,1 @@
+{"agentType": "fork", "isFork": true, "description": "Comparar com o CHANGELOG", "toolUseId": "toolu_01FIXTUREEAGENT00000000001", "parentAgentId": "a1111111111111111", "spawnDepth": 2, "requestShape": "background", "requestNonInteractive": true, "model": "inherit"}

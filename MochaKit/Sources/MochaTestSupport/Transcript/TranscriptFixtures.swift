@@ -15,7 +15,23 @@ public enum TranscriptFixtures {
         "subagents",
         "images-and-queued",
         "malformed",
+        "subagents-background",
+        "workflow",
     ]
+
+    public static let subagentNames = [
+        "subagents-background/subagents/agent-a1111111111111111",
+        "subagents-background/subagents/agent-a2222222222222222",
+        "subagents-background/subagents/agent-a3333333333333333",
+        "subagents-background/subagents/agent-a4444444444444444",
+        "subagents-background/subagents/agent-a5555555555555555",
+        "subagents-background/subagents/agent-a6666666666666666",
+        "workflow/subagents/workflows/wf_0a1b2c3d-4e5/agent-a8888888888888888",
+        "workflow/subagents/workflows/wf_0a1b2c3d-4e5/agent-a9999999999999999",
+        "workflow/subagents/workflows/wf_0a1b2c3d-4e5/agent-abbbbbbbbbbbbbbbb",
+    ]
+
+    public static let snapshotNames = names + subagentNames
 
     public static let fixturesRoot = URL(filePath: #filePath)
         .deletingLastPathComponent()
@@ -44,8 +60,19 @@ public enum TranscriptFixtures {
         Array(try Data(contentsOf: url(name)))
     }
 
+    public static func metaURL(_ name: String) -> URL {
+        directory.appending(path: "\(name).meta.json")
+    }
+
+    public static func mode(_ name: String) throws -> TranscriptParseMode {
+        guard subagentNames.contains(name) else { return .main }
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: metaURL(name))) as? [String: Any]
+        let isFork = object?["isFork"] as? Bool ?? false
+        return .subagent(forkToolUseId: isFork ? object?["toolUseId"] as? String : nil)
+    }
+
     public static func document(_ name: String) throws -> TranscriptDocument {
-        try TranscriptDocument.read(path: path(name))
+        try TranscriptDocument.read(path: path(name), mode: mode(name))
     }
 
     public static func expectedSnapshot(_ name: String) throws -> TranscriptSnapshot {

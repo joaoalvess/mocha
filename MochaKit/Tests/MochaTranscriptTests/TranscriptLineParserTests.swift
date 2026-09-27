@@ -94,7 +94,6 @@ struct TranscriptLineParserTests {
         #expect(try toolCall([L.toolUse("Bash", id: "t1", input: ["command": "\nnpm test\nnpm run lint"])]).summary == "npm test")
         #expect(try toolCall([L.toolUse("Grep", id: "t1", input: ["pattern": "TODO", "path": "src"])]).summary == "TODO")
         #expect(try toolCall([L.toolUse("WebSearch", id: "t1", input: ["query": "swift testing"])]).summary == "swift testing")
-        #expect(try toolCall([L.toolUse("Agent", id: "t1", input: ["prompt": "longo", "description": "Revisar"])]).summary == "Revisar")
         #expect(try toolCall([L.toolUse("AskUserQuestion", id: "t1", input: ["questions": [["question": "Qual?", "header": "Q"]]])]).summary == "Qual?")
         #expect(try toolCall([L.toolUse("ExitPlanMode", id: "t1", input: ["plan": "\n\n# Plano\n- passo"])]).summary == "# Plano")
         #expect(try toolCall([L.toolUse("Skill", id: "t1", input: ["skill": "pdf", "args": "x"])]).summary == "pdf")

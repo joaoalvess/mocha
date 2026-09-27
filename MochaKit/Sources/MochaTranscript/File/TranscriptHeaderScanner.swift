@@ -21,19 +21,24 @@ public enum TranscriptHeaderScanner {
     private static let versionMarker = Array("\"version\"".utf8)
     private static let timestampMarker = Array("\"timestamp\"".utf8)
 
-    public static func header(ofFileAt path: String) throws(TranscriptFileError) -> TranscriptHeader {
-        try scan(fileAt: path).header
+    public static func header(ofFileAt path: String, mode: TranscriptParseMode = .main) throws(TranscriptFileError) -> TranscriptHeader {
+        try scan(fileAt: path, mode: mode).header
     }
 
-    static func scan(fileAt path: String, limit: UInt64 = scanLimit) throws(TranscriptFileError) -> ScannedHeader {
+    static func scan(fileAt path: String, limit: UInt64 = scanLimit, mode: TranscriptParseMode = .main) throws(TranscriptFileError) -> ScannedHeader {
         let file = try TranscriptFile(path: path)
         guard let size = file.status()?.size else { return ScannedHeader(header: TranscriptHeader()) }
         guard let end = try lastLineEnd(in: file, size: size) else { return ScannedHeader(header: TranscriptHeader()) }
-        return try scan(file, end: end, limit: limit)
+        return try scan(file, end: end, limit: limit, mode: mode)
     }
 
-    static func scan(_ file: TranscriptFile, end: UInt64, limit: UInt64 = scanLimit) throws(TranscriptFileError) -> ScannedHeader {
-        var state = BackwardMetaState()
+    static func scan(
+        _ file: TranscriptFile,
+        end: UInt64,
+        limit: UInt64 = scanLimit,
+        mode: TranscriptParseMode = .main
+    ) throws(TranscriptFileError) -> ScannedHeader {
+        var state = BackwardMetaState(lineMode: mode.scanLineMode)
         try forEachLineBackward(in: file, end: end, limit: limit) { offset, bytes in
             state.consider(bytes, offset: offset)
             return !state.isComplete
@@ -157,6 +162,7 @@ public enum TranscriptHeaderScanner {
     }
 
     fileprivate struct BackwardMetaState {
+        let lineMode: LineMode
         private(set) var header = TranscriptHeader()
         private var hasTitle = false
         private var hasPermission = false
@@ -201,7 +207,7 @@ public enum TranscriptHeaderScanner {
                 }
                 if let ids = outline.toolUseIds {
                     if wanted || needsToolCall(from: ids) {
-                        absorb(TranscriptLineParser.parse(bytes, offset: offset))
+                        absorb(TranscriptLineParser.parse(bytes, offset: offset, mode: lineMode))
                     } else {
                         for id in ids.reversed() {
                             laterResults.removeValue(forKey: id)
@@ -211,7 +217,7 @@ public enum TranscriptHeaderScanner {
                 }
             }
             guard wanted else { return }
-            absorb(TranscriptLineParser.parse(bytes, offset: offset))
+            absorb(TranscriptLineParser.parse(bytes, offset: offset, mode: lineMode))
         }
 
         private func needsToolCall(from ids: [String]) -> Bool {
