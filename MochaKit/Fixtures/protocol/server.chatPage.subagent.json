@@ -1,0 +1,71 @@
+{
+  "v": 1,
+  "id": "c-12",
+  "type": "chatPage",
+  "payload": {
+    "sessionId": "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64",
+    "subagentId": "a0123456789abcdef",
+    "meta": {
+      "title": "Teste de carga /receitas",
+      "workspaceLabel": "receitas-api",
+      "model": "claude-opus-5-5",
+      "branch": "development",
+      "status": "unknown",
+      "subagent": {
+        "parentTitle": "Paginação com cursor em /receitas",
+        "agentType": "general-purpose",
+        "status": "running",
+        "startedAt": "2026-09-26T13:52:11.000Z",
+        "toolUses": 9
+      }
+    },
+    "items": [
+      {
+        "id": "2f6c8a10-4d3b-4e95-a7c1-8b0e2d4f6a39",
+        "at": "2026-09-26T13:52:11.000Z",
+        "type": "task",
+        "text": "Rode o teste de carga de GET /receitas com o k6 (load/list-recipes.js): 50 usuários por 2 min, primeiro na main e depois em feat/cursor-receitas. Compare o p95 e a taxa de erro das duas rodadas."
+      },
+      {
+        "id": "9a4e2c6b-1f83-4d07-b5a2-6c8e0f3d1b72",
+        "at": "2026-09-26T13:52:15.402Z",
+        "type": "thinking"
+      },
+      {
+        "id": "d17b5f3e-8a26-4c49-9e0d-3f5a7b1c9e28",
+        "at": "2026-09-26T13:52:19.866Z",
+        "type": "subagent",
+        "toolUseId": "toolu_01NS5cX9Kp",
+        "agentId": "a76543210fedcba98",
+        "agentType": "Explore",
+        "description": "Achar o script de carga",
+        "status": "completed",
+        "toolUses": 5,
+        "startedAt": "2026-09-26T13:52:20.000Z",
+        "durationMs": 41000
+      },
+      {
+        "id": "4b8d0f26-3e7a-4c15-a9f4-1d6b8e2c0a57",
+        "at": "2026-09-26T13:53:04.118Z",
+        "type": "toolCall",
+        "toolUseId": "toolu_01Rd8wLp3N",
+        "name": "Read",
+        "summary": "load/list-recipes.js",
+        "inputJSON": "{\"file_path\":\"/Users/dev/projects/receitas-api/load/list-recipes.js\"}",
+        "status": "succeeded",
+        "resultPreview": "import http from 'k6/http';\nimport { check } from 'k6';"
+      },
+      {
+        "id": "5e9b3d17-c2a4-4f86-b1e0-7a3d9c5f2b84",
+        "at": "2026-09-26T13:55:47.310Z",
+        "type": "toolCall",
+        "toolUseId": "toolu_01K6vRz4Qm",
+        "name": "Bash",
+        "summary": "k6 run --vus 50 --duration 2m load/list-recipes.js",
+        "inputJSON": "{\"command\":\"k6 run --vus 50 --duration 2m load/list-recipes.js\"}",
+        "status": "running"
+      }
+    ],
+    "hasMore": false
+  }
+}

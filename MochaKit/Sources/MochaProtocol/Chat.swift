@@ -37,6 +37,9 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
     case assistantText(markdown: String)
     case thinking(text: String?)
     case toolCall(ToolCall)
+    case subagent(SubagentCall)
+    case workflow(WorkflowCall)
+    case task(text: String)
     case turnFooter(durationMs: Int)
     case recap(text: String)
     case notice(text: String)
@@ -49,6 +52,9 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
         case .assistantText: "assistantText"
         case .thinking: "thinking"
         case .toolCall: "toolCall"
+        case .subagent: "subagent"
+        case .workflow: "workflow"
+        case .task: "task"
         case .turnFooter: "turnFooter"
         case .recap: "recap"
         case .notice: "notice"
@@ -81,6 +87,12 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
             self = .thinking(text: try container.decodeIfPresent(String.self, forKey: .text))
         case "toolCall":
             self = .toolCall(try ToolCall(from: decoder))
+        case "subagent":
+            self = .subagent(try SubagentCall(from: decoder))
+        case "workflow":
+            self = .workflow(try WorkflowCall(from: decoder))
+        case "task":
+            self = .task(text: try container.decode(String.self, forKey: .text))
         case "turnFooter":
             self = .turnFooter(durationMs: try container.decode(Int.self, forKey: .durationMs))
         case "recap":
@@ -109,9 +121,13 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
             try container.encodeIfPresent(text, forKey: .text)
         case .toolCall(let toolCall):
             try toolCall.encode(to: encoder)
+        case .subagent(let subagent):
+            try subagent.encode(to: encoder)
+        case .workflow(let workflow):
+            try workflow.encode(to: encoder)
         case .turnFooter(let durationMs):
             try container.encode(durationMs, forKey: .durationMs)
-        case .recap(let text), .notice(let text):
+        case .task(let text), .recap(let text), .notice(let text):
             try container.encode(text, forKey: .text)
         case .unsupported:
             break
@@ -156,6 +172,7 @@ public struct ChatMeta: Codable, Sendable, Hashable {
     public var branch: String?
     public var status: AgentStatus
     public var permissionMode: String?
+    public var subagent: SubagentChatInfo?
 
     public init(
         title: String,
@@ -163,7 +180,8 @@ public struct ChatMeta: Codable, Sendable, Hashable {
         model: String? = nil,
         branch: String? = nil,
         status: AgentStatus,
-        permissionMode: String? = nil
+        permissionMode: String? = nil,
+        subagent: SubagentChatInfo? = nil
     ) {
         self.title = title
         self.workspaceLabel = workspaceLabel
@@ -171,6 +189,33 @@ public struct ChatMeta: Codable, Sendable, Hashable {
         self.branch = branch
         self.status = status
         self.permissionMode = permissionMode
+        self.subagent = subagent
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case title, workspaceLabel, model, branch, status, permissionMode, subagent
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        workspaceLabel = try container.decode(String.self, forKey: .workspaceLabel)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        branch = try container.decodeIfPresent(String.self, forKey: .branch)
+        status = try container.decode(AgentStatus.self, forKey: .status)
+        permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        subagent = (try? container.decodeIfPresent(SubagentChatInfo.self, forKey: .subagent)) ?? nil
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        try container.encode(workspaceLabel, forKey: .workspaceLabel)
+        try container.encodeIfPresent(model, forKey: .model)
+        try container.encodeIfPresent(branch, forKey: .branch)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(permissionMode, forKey: .permissionMode)
+        try container.encodeIfPresent(subagent, forKey: .subagent)
     }
 }
 
@@ -190,12 +235,12 @@ public struct ChatPage: Codable, Sendable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case agentId, sessionId, meta, items, before, hasMore
+        case agentId, sessionId, subagentId, meta, items, before, hasMore
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        target = try container.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId)
+        target = try container.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
         meta = try container.decode(ChatMeta.self, forKey: .meta)
         items = try container.decodeLossyArray(of: ChatItem.self, forKey: .items)
         before = try container.decodeIfPresent(String.self, forKey: .before)
@@ -204,7 +249,7 @@ public struct ChatPage: Codable, Sendable, Hashable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId)
+        try container.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
         try container.encode(meta, forKey: .meta)
         try container.encode(items, forKey: .items)
         try container.encodeIfPresent(before, forKey: .before)

@@ -78,15 +78,15 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
     @Test func everyMessageAndDomainCaseHasAFixture() {
         let clientTypes = [
             "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "setForeground", "unpair", "ping",
-            "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity",
+            "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity", "listSubagents",
         ]
         let serverTypes = [
             "helloOk", "tree", "archived", "usage", "herdrStatus", "treeChanged", "agentStatus", "chatPage",
-            "chatAppend", "chatUpdate", "chatMeta", "pending", "ack", "pong", "error",
+            "chatAppend", "chatUpdate", "chatMeta", "pending", "ack", "pong", "error", "subagentList",
         ]
         let chatItemTypes = [
             "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
-            "unsupported",
+            "unsupported", "workflow", "task",
         ]
         let expected = clientTypes.map { "client.\($0).json" }
             + serverTypes.map { "server.\($0).json" }
@@ -95,8 +95,15 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
             + ["allow", "deny", "answers"].map { "pendingResponse.\($0).json" }
             + ["client.openChat", "client.closeChat", "server.chatPage", "server.chatAppend"].map { "\($0).session.json" }
             + ["server.usage.noPlan.json", "server.tree.home.json"]
+        let subagentStates: [String] = ["running", "completed", "failed", "stopped"]
+        let subagentTargets: [String] = [
+            "client.openChat", "client.closeChat", "server.chatPage", "server.chatUpdate", "server.chatMeta",
+        ]
+        let subagentPhase: [String] = subagentStates.map { "chatItem.subagent.\($0).json" }
+            + subagentTargets.map { "\($0).subagent.json" }
+            + ["server.tree.subagents.json"]
 
-        for name in expected {
+        for name in expected + subagentPhase {
             #expect(ProtocolFixtures.names.contains(name), "Falta a fixture \(name)")
         }
     }
@@ -123,6 +130,13 @@ enum CanonicalExamples {
         #"{"id":"b7e0…","at":"2026-09-25T15:44:41.000Z","type":"toolCall","toolUseId":"toolu_01H3…","name":"Bash","summary":"scripts/test.sh","inputJSON":"{\"command\":\"scripts/test.sh\"}","status":"succeeded","resultPreview":"All tests passed"}"#,
         #"{"id":"c1f4…","at":"2026-09-25T15:45:10.000Z","type":"turnFooter","durationMs":45000}"#,
         #"{"id":"d2a9…","at":"2026-09-25T15:45:11.000Z","type":"slashCommand","name":"/clear","args":""}"#,
+    ]
+
+    static let subagentItems = [
+        #"{"id":"e4b1…","at":"2026-09-26T13:52:10.000Z","type":"subagent","toolUseId":"toolu_01AG…","agentId":"a0123456789abcdef","agentType":"general-purpose","description":"Teste de carga /receitas","status":"running","activity":{"toolName":"Bash","summary":"k6 run --vus 50 --duration 2m load/list-recipes.js","status":"running"},"toolUses":9,"startedAt":"2026-09-26T13:52:11.000Z"}"#,
+        #"{"id":"f5c2…","at":"2026-09-26T13:50:02.000Z","type":"subagent","toolUseId":"toolu_01PL…","agentId":"a89abcdef01234567","agentType":"Plan","description":"Revisar o índice de receitas","status":"failed","toolUses":3,"startedAt":"2026-09-26T13:50:03.000Z","durationMs":48000,"failureReason":"Agent terminated early due to an API error: …"}"#,
+        #"{"id":"0a7d…","at":"2026-09-26T14:10:00.000Z","type":"workflow","toolUseId":"toolu_01WF…","runId":"wf_0a1b2c3d-4e5","name":"auditoria-a11y","status":"running","phases":[{"title":"Mapear telas","status":"completed","agents":[{"agentId":"a1111111111111111","label":"Mapear","status":"completed","durationMs":95000}]},{"title":"Corrigir por tela","detail":"uma tela por agente, com testes de UI","status":"running","agents":[{"agentId":"a2222222222222222","label":"Ajustes","status":"running","activity":{"toolName":"Edit","summary":"SettingsView.swift","status":"running"}}]},{"title":"Revisar","status":"pending","agents":[]}],"agentCount":5,"toolUses":86,"startedAt":"2026-09-26T14:10:00.000Z"}"#,
+        #"{"id":"1b8e…","at":"2026-09-26T13:52:11.000Z","type":"task","text":"Rode o teste de carga de GET /receitas com o k6 (load/list-recipes.js)…"}"#,
     ]
 
     static let all: [CanonicalExample] = [
@@ -163,6 +177,26 @@ enum CanonicalExamples {
         CanonicalExample(
             fixture: "client.openChat.session.json",
             json: #"{"v":1,"id":"c-11","type":"openChat","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","limit":60}}"#
+        ),
+        CanonicalExample(fixture: "chatItem.subagent.running.json", json: subagentItems[0]),
+        CanonicalExample(fixture: "chatItem.subagent.failed.json", json: subagentItems[1]),
+        CanonicalExample(fixture: "chatItem.workflow.json", json: subagentItems[2]),
+        CanonicalExample(fixture: "chatItem.task.json", json: subagentItems[3]),
+        CanonicalExample(
+            fixture: "client.openChat.subagent.json",
+            json: #"{"v":1,"id":"c-12","type":"openChat","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","subagentId":"a0123456789abcdef","limit":60}}"#
+        ),
+        CanonicalExample(
+            fixture: "server.chatMeta.subagent.json",
+            json: #"{"v":1,"type":"chatMeta","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","subagentId":"a0123456789abcdef","meta":{"title":"Teste de carga /receitas","workspaceLabel":"receitas-api","model":"claude-opus-5-5","branch":"development","status":"unknown","subagent":{"parentTitle":"Paginação com cursor em /receitas","agentType":"general-purpose","status":"completed","startedAt":"2026-09-26T13:52:11.000Z","durationMs":231000,"toolUses":12}}}}"#
+        ),
+        CanonicalExample(
+            fixture: "client.listSubagents.json",
+            json: #"{"v":1,"id":"c-13","type":"listSubagents","payload":{"agentId":"w17:p1"}}"#
+        ),
+        CanonicalExample(
+            fixture: "server.subagentList.json",
+            json: #"{"v":1,"id":"c-13","type":"subagentList","payload":{"agentId":"w17:p1","items":[{"agentId":"a0123456789abcdef","agentType":"general-purpose","description":"Teste de carga /receitas","status":"running","toolUses":9,"startedAt":"2026-09-26T13:52:11.000Z"},{"agentId":"a76543210fedcba98","parentAgentId":"a0123456789abcdef","agentType":"Explore","description":"Achar o script de carga","status":"completed","toolUses":5,"startedAt":"2026-09-26T13:52:20.000Z","durationMs":41000}]}}"#
         ),
         CanonicalExample(
             fixture: "server.usage.json",
