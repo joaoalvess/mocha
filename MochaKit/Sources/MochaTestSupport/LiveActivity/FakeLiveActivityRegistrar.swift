@@ -6,6 +6,11 @@ public final class FakeLiveActivityRegistrar: LiveActivityRegistering {
     public struct Registered: Sendable, Equatable {
         public let registration: LiveActivityRegistration
         public let deviceId: DeviceID
+
+        public init(registration: LiveActivityRegistration, deviceId: DeviceID) {
+            self.registration = registration
+            self.deviceId = deviceId
+        }
     }
 
     private struct State {
