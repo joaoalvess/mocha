@@ -43,6 +43,55 @@ enum LiveActivitySample {
     static func singleQuestion(_ text: String, labels: [String], multiSelect: Bool = false) -> PendingQuestion {
         PendingQuestion(header: "Pergunta", question: text, options: labels.map { PendingOption(label: $0) }, multiSelect: multiSelect)
     }
+
+    static func tree(_ tabs: [TabNode], children: [WorkspaceNode] = []) -> [WorkspaceNode] {
+        [WorkspaceNode(id: "w1", label: "demo-app", number: 1, isDirty: false, agentStatus: .working, tabs: tabs, children: children)]
+    }
+
+    static func input(_ tree: [WorkspaceNode], pending: [PendingRequest] = []) -> LiveActivityInput {
+        LiveActivityInput(agents: TreeComposer.agents(in: tree), pending: pending, tabTitles: LiveActivityInput.tabTitles(in: tree))
+    }
+}
+
+struct LiveActivityAppContentState: Decodable, Equatable {
+    struct Highlight: Decodable, Equatable {
+        var agentId: String
+        var title: String
+        var workspaceLabel: String
+        var status: String
+        var since: Date
+        var tabTitle: String?
+        var model: String?
+        var contextLeftPercent: Int?
+        var preview: String?
+        var activity: String?
+    }
+
+    struct Pending: Decodable, Equatable {
+        enum Kind: String, Decodable, Equatable {
+            case permission
+            case question
+        }
+
+        var requestId: String
+        var agentId: String
+        var kind: Kind
+        var toolName: String?
+        var text: String
+        var options: [String]
+    }
+
+    var working: Int
+    var waiting: Int
+    var highlight: Highlight?
+    var pending: Pending?
+    var updatedAt: Date
+
+    static func decoding(_ push: LiveActivityPush) throws -> LiveActivityAppContentState {
+        let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
+        let data = try JSONSerialization.data(withJSONObject: try #require(aps["content-state"] as? [String: Any]))
+        return try JSONDecoder().decode(LiveActivityAppContentState.self, from: data)
+    }
 }
 
 struct LiveActivityHarness {
@@ -80,6 +129,11 @@ struct LiveActivityHarness {
 
     func agents(_ agents: [AgentSummary], pending: [PendingRequest] = [], foreground: Set<DeviceID> = []) async throws {
         await service.apply(LiveActivityInput(agents: agents, pending: pending, foregroundDevices: foreground))
+        try await settle()
+    }
+
+    func tree(_ tree: [WorkspaceNode], pending: [PendingRequest] = []) async throws {
+        await service.apply(LiveActivitySample.input(tree, pending: pending))
         try await settle()
     }
 

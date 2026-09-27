@@ -17,8 +17,15 @@ extension SessionHub {
 
     func publishLiveActivityInput(_ tree: [WorkspaceNode]? = nil) {
         guard !isShuttingDown else { return }
-        let agents = TreeComposer.agents(in: tree ?? composedTree())
-        liveActivityInputContinuation.yield(LiveActivityInput(agents: agents, pending: pendingRequests, foregroundDevices: activeDevices()))
+        let tree = tree ?? composedTree()
+        liveActivityInputContinuation.yield(
+            LiveActivityInput(
+                agents: TreeComposer.agents(in: tree),
+                pending: pendingRequests,
+                foregroundDevices: activeDevices(),
+                tabTitles: LiveActivityInput.tabTitles(in: tree)
+            )
+        )
     }
 
     func registerLiveActivity(_ registration: LiveActivityRegistration, id: String, clientId: UUID) async {

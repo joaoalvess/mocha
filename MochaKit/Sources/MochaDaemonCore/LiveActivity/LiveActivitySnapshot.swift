@@ -3,6 +3,7 @@ import MochaProtocol
 
 struct LiveActivitySnapshot: Sendable, Equatable {
     static let allDone = LiveActivitySnapshot(working: 0, waiting: 0, highlight: nil, pending: nil)
+    static let encodedByteBudget = 3_840
 
     var working: Int
     var waiting: Int
@@ -22,6 +23,20 @@ struct LiveActivitySnapshot: Sendable, Equatable {
 
     func contentState(at date: Date) -> LiveActivityContentState {
         LiveActivityContentState(working: working, waiting: waiting, highlight: highlight, pending: pending, updatedAt: date)
+    }
+
+    func fitsEncodedBudget(at date: Date) -> Bool {
+        ((try? ApnsPayloadEncoding.encoder.encode(contentState(at: date)))?.count ?? .max) <= Self.encodedByteBudget
+    }
+
+    func fittingEncodedBudget(at date: Date) -> LiveActivitySnapshot {
+        var fitted = self
+        for drop in LiveActivityContentState.Highlight.droppedToFitBudget {
+            guard !fitted.fitsEncodedBudget(at: date), var highlight = fitted.highlight else { break }
+            drop(&highlight)
+            fitted.highlight = highlight
+        }
+        return fitted
     }
 
     func priority(since sent: LiveActivitySnapshot) -> ApnsPriority? {
@@ -44,7 +59,9 @@ struct LiveActivityStatusTracker: Sendable {
 
     private var entries: [AgentID: Entry] = [:]
 
-    mutating func snapshot(of agents: [AgentSummary], pending requests: [PendingRequest], at now: Date, titleLimit: Int) -> LiveActivitySnapshot {
+    mutating func snapshot(of input: LiveActivityInput, at now: Date, titleLimit: Int) -> LiveActivitySnapshot {
+        let agents = input.agents
+        let requests = input.pending
         let pendingAgents = Set(requests.map(\.agentId))
         var tracked: [AgentID: Entry] = [:]
         var busy: [(agent: AgentSummary, entry: Entry)] = []
@@ -65,11 +82,12 @@ struct LiveActivityStatusTracker: Sendable {
         let chosen = requester ?? waiting.min(by: oldest) ?? working.min(by: oldest)
         let highlight = chosen.map { agent, entry in
             LiveActivityContentState.Highlight(
-                agentId: agent.id,
-                title: String(agent.title.prefix(titleLimit)),
-                workspaceLabel: agent.workspaceLabel,
-                status: entry.status.rawValue,
-                since: entry.since
+                agent,
+                status: entry.status,
+                since: entry.since,
+                tabTitle: input.tabTitles[agent.id],
+                titleLimit: titleLimit,
+                showsProgress: request == nil
             )
         }
         return LiveActivitySnapshot(
@@ -77,7 +95,7 @@ struct LiveActivityStatusTracker: Sendable {
             waiting: waiting.count,
             highlight: highlight,
             pending: request.map { LiveActivityContentState.Pending($0) }
-        )
+        ).fittingEncodedBudget(at: now)
     }
 
     private static func effectiveStatus(of agent: AgentSummary, hasPending: Bool) -> AgentStatus? {

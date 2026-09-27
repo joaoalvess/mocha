@@ -116,6 +116,7 @@ struct SessionHubLiveActivityTests {
             }
             #expect(working.foregroundDevices == [helloOk.deviceId])
             #expect(working.agents.map(\.id) == ["w1:p1", "w1:p2"])
+            #expect(working.tabTitles == ["w1:p1": "Claude", "w1:p2": "Codex"])
 
             #expect(try await reply(socket, to: .setForeground(agentId: nil, isActive: false), id: "c-2") == .ack())
             _ = try await eventually { recorder.input?.foregroundDevices.isEmpty == true ? true : nil }
