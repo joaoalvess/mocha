@@ -354,8 +354,13 @@ struct TranscriptHomeMetaTests {
                     return nil
                 }
                 let parsedToolUses = parsed.effects.compactMap { effect -> String? in
-                    if case .item(let item) = effect, case .toolCall(let call) = item.kind { return call.toolUseId }
-                    return nil
+                    guard case .item(let item) = effect else { return nil }
+                    switch item.kind {
+                    case .toolCall(let call): return call.toolUseId
+                    case .subagent(let call): return call.toolUseId
+                    case .workflow(let call): return call.toolUseId
+                    default: return nil
+                    }
                 }
                 #expect((outline?.toolResults ?? []) == parsedResults)
                 #expect((outline?.toolUseIds ?? []) == parsedToolUses)

@@ -1,0 +1,83 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-26T21:00:01.000Z",
+      "id" : "ef1b4e32-bb1d-514a-9416-d40e54774567",
+      "imageCount" : 0,
+      "text" : "Roda a onda 1 com o workflow de implementar e verificar.",
+      "type" : "userPrompt"
+    },
+    {
+      "at" : "2026-09-26T21:00:03.000Z",
+      "id" : "4e653e2c-8beb-5849-ae18-2a7a43ca9e61",
+      "type" : "thinking"
+    },
+    {
+      "agentCount" : 2,
+      "at" : "2026-09-26T21:00:04.000Z",
+      "durationMs" : 616000,
+      "id" : "434c7c28-d6dd-58e0-b719-7cb0a1e62c87",
+      "name" : "demo-wave",
+      "phases" : [
+
+      ],
+      "runId" : "wf_0a1b2c3d-4e5",
+      "startedAt" : "2026-09-26T21:00:04.000Z",
+      "status" : "completed",
+      "toolUseId" : "toolu_01FIXTUREWORKFLOW0000001",
+      "toolUses" : 3,
+      "type" : "workflow"
+    },
+    {
+      "at" : "2026-09-26T21:00:06.000Z",
+      "id" : "f4151578-5d3b-5261-aa80-0edec3505acd",
+      "markdown" : "Lancei o workflow demo-wave; aviso quando terminar.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-26T21:00:06.500Z",
+      "durationMs" : 5500,
+      "id" : "e7edc25a-fc7b-59de-b1b1-5387e9fc76ed",
+      "type" : "turnFooter"
+    },
+    {
+      "at" : "2026-09-26T21:10:22.000Z",
+      "id" : "6b29bda0-404f-55a5-966e-6fe043fae983",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-26T21:10:24.000Z",
+      "id" : "2ba40bd6-010a-592e-a9ba-dae9478d10cf",
+      "markdown" : "O workflow terminou: a tarefa A foi implementada e verificada.",
+      "type" : "assistantText"
+    },
+    {
+      "at" : "2026-09-26T21:10:24.500Z",
+      "durationMs" : 4400,
+      "id" : "6960733e-5ab0-5377-bbf3-0beb0b544456",
+      "type" : "turnFooter"
+    }
+  ],
+  "meta" : {
+    "activity" : null,
+    "branch" : "main",
+    "contextTokens" : 19212,
+    "model" : "claude-opus-5-5",
+    "permissionMode" : "default",
+    "preview" : {
+      "author" : "assistant",
+      "text" : "O workflow terminou: a tarefa A foi implementada e verificada."
+    },
+    "sessionStartedAt" : "2026-09-26T21:00:01.000Z",
+    "title" : null,
+    "turnEndedAt" : "2026-09-26T21:10:24.500Z",
+    "turnStartedAt" : "2026-09-26T21:00:01.000Z"
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

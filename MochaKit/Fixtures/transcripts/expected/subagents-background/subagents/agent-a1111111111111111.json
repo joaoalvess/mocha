@@ -1,0 +1,93 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-26T21:00:08.000Z",
+      "id" : "7a310a02-7a3b-56fd-850f-2d71152baa6f",
+      "text" : "Revise o README e devolva um relatório curto.",
+      "type" : "task"
+    },
+    {
+      "at" : "2026-09-26T21:00:14.000Z",
+      "id" : "17152a1d-8327-5aa9-bc70-b15461125bc9",
+      "type" : "thinking"
+    },
+    {
+      "at" : "2026-09-26T21:00:15.000Z",
+      "id" : "1cbf5039-7615-50bf-803a-e1017b8d4762",
+      "inputJSON" : "{\"file_path\":\"/Users/dev/projects/demo-app/README.md\"}",
+      "name" : "Read",
+      "resultPreview" : "# demo-app\n\n## Instalação\n…",
+      "status" : "succeeded",
+      "summary" : "README.md",
+      "toolUseId" : "toolu_01FIXTUREAREAD0000000001",
+      "type" : "toolCall"
+    },
+    {
+      "agentId" : "a6666666666666666",
+      "agentType" : "code-reviewer",
+      "at" : "2026-09-26T21:00:20.000Z",
+      "description" : "Checar links",
+      "durationMs" : 29050,
+      "id" : "34f18c67-3787-56ed-b4f3-e6db7d6c5112",
+      "status" : "completed",
+      "toolUseId" : "toolu_01FIXTUREGAGENT00000000001",
+      "toolUses" : 1,
+      "type" : "subagent"
+    },
+    {
+      "agentId" : "a5555555555555555",
+      "agentType" : "fork",
+      "at" : "2026-09-26T21:00:22.000Z",
+      "description" : "Comparar com o CHANGELOG",
+      "durationMs" : 37050,
+      "id" : "062c87ec-b071-5a98-82fc-66b65c7095aa",
+      "status" : "completed",
+      "toolUseId" : "toolu_01FIXTUREEAGENT00000000001",
+      "toolUses" : 1,
+      "type" : "subagent"
+    },
+    {
+      "at" : "2026-09-26T21:01:10.000Z",
+      "id" : "5b0b53c5-d6a9-5c9a-9b11-0f67cdcc48ad",
+      "inputJSON" : "{\"message\":\"## Relatório\\n- Dois links quebrados na seção Instalação.\"}",
+      "name" : "SubagentHandback",
+      "resultPreview" : "Report delivered to your caller.",
+      "status" : "succeeded",
+      "summary" : "## Relatório",
+      "toolUseId" : "toolu_01FIXTUREAHAND0000000001",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-26T21:01:15.000Z",
+      "id" : "6d179530-237d-5c27-a2e3-0cd78d266ed4",
+      "markdown" : "Relatório entregue.",
+      "type" : "assistantText"
+    }
+  ],
+  "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "## Relatório",
+      "toolName" : "SubagentHandback"
+    },
+    "branch" : "main",
+    "contextTokens" : 19212,
+    "model" : "claude-opus-5-5",
+    "permissionMode" : null,
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Relatório entregue."
+    },
+    "sessionStartedAt" : "2026-09-26T21:00:08.000Z",
+    "title" : null,
+    "turnEndedAt" : null,
+    "turnStartedAt" : null
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

@@ -10,7 +10,7 @@ struct TranscriptSnapshotTests {
         ProcessInfo.processInfo.environment["MOCHA_UPDATE_SNAPSHOTS"] == "1"
     }
 
-    @Test(arguments: TranscriptFixtures.names)
+    @Test(arguments: TranscriptFixtures.snapshotNames)
     func fixtureMatchesExpectedSnapshot(_ name: String) throws {
         let snapshot = TranscriptSnapshot(document: try TranscriptFixtures.document(name))
         if Self.isUpdating {
@@ -27,7 +27,7 @@ struct TranscriptSnapshotTests {
         }
     }
 
-    @Test(arguments: TranscriptFixtures.names)
+    @Test(arguments: TranscriptFixtures.snapshotNames)
     func snapshotSequenceMatchesReadme(_ name: String) throws {
         let row = try #require(try FixtureReadme.rows()["\(name).jsonl"])
         let items = try TranscriptFixtures.expectedSnapshot(name).items
@@ -39,7 +39,7 @@ struct TranscriptSnapshotTests {
         }
     }
 
-    @Test(arguments: TranscriptFixtures.names)
+    @Test(arguments: TranscriptFixtures.snapshotNames)
     func snapshotMetaMatchesReadme(_ name: String) throws {
         let row = try #require(try FixtureReadme.rows()["\(name).jsonl"])
         let meta = try TranscriptFixtures.expectedSnapshot(name).meta

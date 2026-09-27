@@ -1,0 +1,55 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-26T21:08:50.000Z",
+      "id" : "cec178f3-f1fd-5053-b470-65cc41a8ff49",
+      "text" : "Verifique a tarefa A.",
+      "type" : "task"
+    },
+    {
+      "at" : "2026-09-26T21:09:00.000Z",
+      "id" : "96ee1250-4a9b-517f-a237-57ba580dfbd4",
+      "inputJSON" : "{\"command\":\"npm test\"}",
+      "name" : "Bash",
+      "resultPreview" : "PASS tests/a.test.ts",
+      "status" : "succeeded",
+      "summary" : "npm test",
+      "toolUseId" : "toolu_01FIXTUREW3TEST000000001",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-26T21:10:00.000Z",
+      "id" : "fc0a1d51-53e9-5f83-9134-f24b6f987b7c",
+      "inputJSON" : "{\"passed\":true,\"failures\":[],\"summary\":\"Testes verdes.\"}",
+      "name" : "StructuredOutput",
+      "resultPreview" : "Structured output provided successfully",
+      "status" : "succeeded",
+      "summary" : "Testes verdes.",
+      "toolUseId" : "toolu_01FIXTUREW3OUT0000000001",
+      "type" : "toolCall"
+    }
+  ],
+  "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "Testes verdes.",
+      "toolName" : "StructuredOutput"
+    },
+    "branch" : "main",
+    "contextTokens" : 19212,
+    "model" : "claude-opus-5-5",
+    "permissionMode" : null,
+    "preview" : null,
+    "sessionStartedAt" : "2026-09-26T21:08:50.000Z",
+    "title" : null,
+    "turnEndedAt" : null,
+    "turnStartedAt" : null
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

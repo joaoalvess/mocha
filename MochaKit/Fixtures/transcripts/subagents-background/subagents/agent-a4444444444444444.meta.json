@@ -1,0 +1,1 @@
+{"agentType": "fork", "isFork": true, "description": "Investigar ramo B", "toolUseId": "toolu_01FIXTUREDAGENT00000000001", "spawnDepth": 1, "requestShape": "background", "requestNonInteractive": false, "model": "inherit"}
