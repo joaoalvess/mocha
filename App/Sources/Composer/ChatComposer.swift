@@ -15,6 +15,8 @@ struct ChatComposer: View {
     @State private var isCameraPresented = false
     @State private var pickedPhotos: [PhotosPickerItem] = []
     @State private var pasteboardHasImages = false
+    @State private var dictation = DictationController()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         composer
@@ -41,11 +43,19 @@ struct ChatComposer: View {
                 attach(items.map(ComposerImageSources.loader(for:)))
             }
             .onChange(of: isExpanded) { _, expanded in
-                if !expanded { closeMenus() }
+                if !expanded {
+                    closeMenus()
+                    dictation.stop()
+                }
             }
             .onChange(of: draft) {
                 closeMenus()
             }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { dictation.stop() }
+            }
+            .task { await dictation.resolveAvailability() }
+            .onDisappear { dictation.cancel() }
     }
 
     @ViewBuilder
@@ -53,18 +63,22 @@ struct ChatComposer: View {
         if isExpanded {
             ExpandedComposer(
                 canSend: canSend,
-                buttons: [.attach, .slashMenu],
-                activeButtons: isSlashMenuOpen ? .slashMenu : [],
+                buttons: expandedButtons,
+                activeButtons: activeButtons,
                 onAttach: toggleAttachMenu,
                 onSlashMenu: toggleSlashMenu,
-                onSend: onSend
+                onMicrophone: toggleDictation,
+                onSend: send
             ) {
                 VStack(alignment: .leading, spacing: AttachmentLayout.stripBottomSpacing) {
                     if !attachments.isEmpty {
                         AttachmentStrip(attachments: attachments.items) { attachments.remove($0) }
                     }
-                    ComposerTextField(text: $draft)
-                        .focused(isFocused)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ComposerTextField(text: $draft)
+                            .focused(isFocused)
+                        DictationLineView(line: dictation.line)
+                    }
                 }
             }
             .overlay(alignment: .topLeading) { attachMenu }
@@ -76,7 +90,7 @@ struct ChatComposer: View {
                 openMenusForDebugLaunch()
             }
         } else {
-            CollapsedComposer(draft: collapsedDraft, onExpand: { isExpanded = true }, onSend: onSend)
+            CollapsedComposer(draft: collapsedDraft, onExpand: { isExpanded = true }, onSend: send)
         }
     }
 
@@ -122,7 +136,19 @@ struct ChatComposer: View {
     }
 
     private var canSend: Bool {
-        !attachments.isProcessing && (!ComposerDraft.trimmed(draft).isEmpty || !attachments.isEmpty)
+        !attachments.isProcessing
+            && (!ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty)
+    }
+
+    private var expandedButtons: ComposerButtons {
+        dictation.phase.showsMicrophone ? [.attach, .slashMenu, .microphone] : [.attach, .slashMenu]
+    }
+
+    private var activeButtons: ComposerButtons {
+        var active: ComposerButtons = []
+        if isSlashMenuOpen { active.insert(.slashMenu) }
+        if dictation.phase.isListening { active.insert(.microphone) }
+        return active
     }
 
     private var collapsedDraft: String {
@@ -146,6 +172,18 @@ struct ChatComposer: View {
     private func closeMenus() {
         isAttachMenuOpen = false
         isSlashMenuOpen = false
+    }
+
+    private func toggleDictation() {
+        closeMenus()
+        dictation.toggle { [draft = $draft] text in
+            draft.wrappedValue = DictationText.appending(text, to: draft.wrappedValue)
+        }
+    }
+
+    private func send() {
+        dictation.commitPartialAndCancel()
+        onSend()
     }
 
     private func attach(_ loaders: [ComposerImageLoader]) {
