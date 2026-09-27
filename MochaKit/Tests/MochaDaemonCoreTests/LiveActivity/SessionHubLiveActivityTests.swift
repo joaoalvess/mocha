@@ -126,4 +126,37 @@ struct SessionHubLiveActivityTests {
             _ = try await eventually { recorder.input?.foregroundDevices.isEmpty == true ? true : nil }
         }
     }
+
+    @Test func aPendingRequestReachesTheLiveActivityInputsWhenCreatedAndWhenResolved() async throws {
+        try await withPendingHub { hub, pending in
+            let recorder = LiveActivityInputRecorder()
+            let updates = hub.hub.liveActivityUpdates
+            let collector = Task {
+                for await input in updates {
+                    recorder.record(input)
+                }
+            }
+            defer { collector.cancel() }
+
+            let held = try await pending.hold("PermissionRequest.bash.json")
+            let request = try #require(await pending.store.requests.first)
+            _ = try await eventually { await hub.hub.pendingRequests == [request] ? true : nil }
+            try await hub.advanceTreeDebounce()
+            let created = try await eventually { () -> LiveActivityInput? in
+                guard let input = recorder.input, input.pending == [request] else { return nil }
+                return input
+            }
+            #expect(created.agents.first { $0.id == PendingSample.agent }?.pendingCount == 1)
+
+            try await pending.store.respond(to: held.requestId, with: .allow)
+            _ = try await eventually { await hub.hub.pendingRequests.isEmpty ? true : nil }
+            try await hub.advanceTreeDebounce()
+            let resolved = try await eventually { () -> LiveActivityInput? in
+                guard let input = recorder.input, input.pending.isEmpty else { return nil }
+                return input
+            }
+            #expect(resolved.agents.first { $0.id == PendingSample.agent }?.pendingCount == 0)
+            #expect(try OrderedJSON.parse(await held.response().body) == PendingHookReply.allow())
+        }
+    }
 }
