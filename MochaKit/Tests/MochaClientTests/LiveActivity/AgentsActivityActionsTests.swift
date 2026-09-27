@@ -17,6 +17,14 @@ struct AgentsActivityActionsTests {
         #expect(actions.map(\.choice.response) == [.deny(reason: nil), .allow])
     }
 
+    @Test func planOffersDenyThenApprove() {
+        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .permission, text: "Criar o arquivo f.txt", toolName: "ExitPlanMode"), agentId: "w17:p1")
+        #expect(actions == [
+            AgentsActivityAction(requestId: "req-1", agentId: "w17:p1", role: .deny, title: "Negar", choice: .deny),
+            AgentsActivityAction(requestId: "req-1", agentId: "w17:p1", role: .allow, title: "Aprovar", choice: .allow),
+        ])
+    }
+
     @Test func questionWithOptionsAnswersWithTheExactQuestionAndLabel() {
         let question = "Qual formato de feed você quer publicar? "
         let actions = AgentsActivityActions.actions(for: Self.pending(kind: .question, text: question, options: ["RSS 2.0", " Atom", "Os dois"]), agentId: "w17:p1")
@@ -66,7 +74,7 @@ struct AgentsActivityActionsTests {
     }
 
     @Test func refusedAndUnreachableRepliesShowTheNotificationNotice() {
-        #expect(PendingText.failureNotice(for: .gone) == nil)
+        #expect(PendingText.failureNotice(for: .gone)?.title == "Esse pedido já foi resolvido no Mac")
         #expect(PendingText.failureNotice(for: .refused)?.title == "O Mac recusou a resposta")
         #expect(PendingText.failureNotice(for: .unreachable)?.title == "Não consegui falar com o Mac")
     }

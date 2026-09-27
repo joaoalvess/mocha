@@ -27,6 +27,7 @@ enum PushAlertText {
     static let secondaryBody = "Esperando uma resposta no terminal."
     static let permissionCategory = "PERMISSION"
     static let questionCategory = "QUESTION"
+    static let planCategory = "PLAN"
 
     static func title(_ kind: PushAlertKind, workspaceLabel: String?) -> String {
         let base = switch kind {
@@ -49,6 +50,7 @@ enum PushAlertText {
     static let inlineQuestionByteLimit = 2_000
 
     static func pendingCategory(_ request: PermissionRequestHook) -> String {
+        if request.toolName == PendingRequestFactory.planToolName { return planCategory }
         guard request.toolName == PendingRequestFactory.questionToolName else { return permissionCategory }
         return inlineQuestion(request) == nil ? PushAlertKind.needsInput.category : questionCategory
     }
@@ -92,8 +94,8 @@ enum PushAlertText {
             return nonEmpty(input["description"])
         case "AskUserQuestion":
             return nonEmpty(input["questions"]?.arrayValue?.first?["question"])
-        case "ExitPlanMode":
-            return nonEmpty(input["plan"])
+        case PendingRequestFactory.planToolName:
+            return nonEmpty(input["plan"]).map { PlainText.preview(fromMarkdown: firstNonEmptyLine($0)) }
         case "Skill":
             return nonEmpty(input["skill"])
         case "TaskOutput", "TaskStop":

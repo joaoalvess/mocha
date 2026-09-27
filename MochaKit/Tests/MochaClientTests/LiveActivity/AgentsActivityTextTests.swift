@@ -17,6 +17,7 @@ struct AgentsActivityTextTests {
         pending: AgentsActivityContent.Pending? = nil
     ) -> AgentsActivityContent {
         AgentsActivityContent(
+            agentId: "w1:p1",
             status: status.rawValue,
             title: "Refatorar o parser",
             workspaceLabel: workspaceLabel,
@@ -89,6 +90,11 @@ struct AgentsActivityTextTests {
         let headline = AgentsActivityText.permissionHeadline(toolName: "Bash")
         #expect(lines == AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: .command("$ npm run build")))
         #expect(AgentsActivityText.permissionHeadline(toolName: " ").verb == AgentsActivityText.permissionFallbackVerb)
+    }
+
+    @Test func aPlanAsksToFollowThePlanWithItsFirstLine() {
+        let lines = AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.permission("ExitPlanMode", text: "Criar o arquivo f.txt")))
+        #expect(lines == AgentsActivityLines(headline: "Claude quer seguir o plano", detail: .text("Criar o arquivo f.txt")))
     }
 
     @Test func aQuestionFillsBothLinesUnlessItsButtonsNeedTwoRows() {
