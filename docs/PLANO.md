@@ -903,8 +903,8 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I14 | feito (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Presentation/SubagentText.swift`, textos e tempos "1m 02s" do mock, reaproveitado pelo I15; `AppSession` guarda a pilha de chats com gerações por rota; nome da ferramenta na atividade do card sem negrito, como no mock) | 9db9da6, 81aef9d, 5edf9d0, merge 61b355b |
 | WP-I15 | feito (sem capturas: o João pediu só testes e build; "N RODANDO" em caixa alta, como o `.dlab` do mock) | 48c7139, 57712b9, merge b187453 |
 | WP-X6 | pulado por decisão do João (2026-09-27): checklist fica para o teste do app com ele | |
-| WP-M7 | todo | |
-| WP-M8 | todo | |
+| WP-M7 | feito (a rota `respond` fica no `Gateway` ao lado da `live-activity`; sem `PendingStore`, `respond` devolve `unknownType`; pushes secundários calados enquanto há pedido pendente; `blocked` só conta depois da criação do pedido; pedido de subagente não vigia o transcript principal; decisões para o João revisar) | 11ef79a, 61443c3, ebf141d, merge 1964e95 |
+| WP-M8 | parcial (worktree `.claude/worktrees/M8` aberto, sem commit: faltam testes da máquina de estados, content-state em segundos desde 2001, WS `registerLiveActivity`, `sendLiveActivity`, `scripts/test.sh`; no merge, `DaemonRuntime` passa o `LiveActivityService` ao `Gateway(liveActivities:)` e `invalidToken` vira 400) | |
 | S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 4de4248 |
 | WP-I8 | todo | |
 | WP-I9 | todo | |
