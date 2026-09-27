@@ -76,12 +76,12 @@ struct AgentsActivityTextTests {
         #expect(lines == AgentsActivityLines(headline: "20 s de 60.", detail: .text("Você: Faz dnv")))
         #expect(AgentsActivityText.lines(of: Self.content(.blocked, prompt: "Faz dnv")).detail == .text("Você: Faz dnv"))
         #expect(AgentsActivityText.lines(of: Self.content(preview: "20 s de 60.", prompt: " \n ")).detail == .continuation)
-        #expect(AgentsActivityText.lines(of: Self.content(.idle, preview: "Feito.", prompt: "Faz dnv")) == AgentsActivityLines(headline: "Pronto", detail: .text("Feito.")))
     }
 
-    @Test func anIdleAgentIsReadyWithItsLastPreview() {
-        #expect(AgentsActivityText.lines(of: Self.content(.idle, preview: "Rodei os testes.")) == AgentsActivityLines(headline: "Pronto", detail: .text("Rodei os testes.")))
-        #expect(AgentsActivityText.lines(of: Self.content(.idle)) == AgentsActivityLines(headline: "Pronto", detail: nil))
+    @Test func anIdleAgentShowsItsLastMessageAndPromptLikeABusyOne() {
+        let lines = AgentsActivityText.lines(of: Self.content(.idle, preview: "Rodei os testes.", prompt: "Roda os testes"))
+        #expect(lines == AgentsActivityLines(headline: "Rodei os testes.", detail: .text("Você: Roda os testes")))
+        #expect(AgentsActivityText.lines(of: Self.content(.idle)) == AgentsActivityLines(headline: "Refatorar o parser", detail: .continuation))
     }
 
     @Test func aPermissionShowsWhatTheToolWantsAndTheCommand() {

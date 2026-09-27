@@ -64,7 +64,6 @@ public struct AgentsActivityLines: Sendable, Equatable {
 }
 
 public enum AgentsActivityText {
-    public static let idle = "Pronto"
     public static let appName = "Mocha"
     public static let staleNote = "sem notícias do Mac"
     public static let open = "Abrir"
@@ -100,9 +99,6 @@ public enum AgentsActivityText {
     public static func lines(of content: AgentsActivityContent) -> AgentsActivityLines {
         if let pending = content.pending {
             return pendingLines(pending)
-        }
-        guard content.isBusy else {
-            return AgentsActivityLines(headline: idle, detail: singleLine(content.preview).map(AgentsActivityLines.Detail.text))
         }
         let headline = singleLine(content.preview) ?? singleLine(content.activity).map(activityText) ?? singleLine(content.title)
         let prompt = singleLine(content.prompt).map { AgentsActivityLines.Detail.text(promptPrefix + $0) }

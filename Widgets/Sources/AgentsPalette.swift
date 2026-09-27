@@ -4,8 +4,9 @@ import SwiftUI
 enum AgentsPalette {
     static let background = Color(hex: 0x010102)
     static let textPrimary = Color(hex: 0xFCFCFC)
-    static let textSecondary = Color(hex: 0xA3A3A3)
-    static let separator = Color(hex: 0x55595F)
+    static let textSecondary = Color(hex: 0xA9A9A9)
+    static let headerSecondary = Color(hex: 0xD4D4D4)
+    static let separator = Color(hex: 0x555555)
     static let claude = Color(hex: 0xCA7B5D)
     static let statusOk = Color(hex: 0x9AF768)
     static let onStatusOk = Color(hex: 0x021402)
@@ -36,6 +37,7 @@ enum AgentsPalette {
 extension Color {
     init(hex: UInt32) {
         self.init(
+            .displayP3,
             red: Double((hex >> 16) & 0xFF) / 255,
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255

@@ -61,7 +61,7 @@ struct AgentsCardTitle: View {
             if let model = header.model {
                 separator
                 Text(model)
-                    .foregroundStyle(AgentsPalette.textSecondary)
+                    .foregroundStyle(AgentsPalette.headerSecondary)
                     .layoutPriority(1)
             }
         }
