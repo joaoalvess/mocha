@@ -1764,6 +1764,7 @@ public struct ContentState: Codable, Hashable {
     public var working: Int
     public var waiting: Int                 // blocked
     public var highlight: Highlight?        // o mais urgente: blocked > working mais antigo
+    public var pending: Pending?            // o pedido pendente mais antigo (§8)
     public var updatedAt: Date
     public struct Highlight: Codable, Hashable {
         public var agentId: String
@@ -1772,12 +1773,33 @@ public struct ContentState: Codable, Hashable {
         public var status: String
         public var since: Date
     }
+    public struct Pending: Codable, Hashable {
+        public enum Kind: String, Codable, Hashable { case permission, question }
+        public var requestId: String
+        public var agentId: String
+        public var kind: Kind
+        public var toolName: String?        // só em permission
+        public var text: String
+        public var options: [String]        // sempre presente; vazio quando não há resposta inline
+    }
 }
 ```
+
+- **`pending`**: o pedido pendente mais antigo entre os agentes; quando existe, o `highlight` é o agente dele. Omitido quando não há pedido.
+  - Permissão: `toolName` e `text` = o `summary` do pedido (§3.2.2, ≤ 120 caracteres); `options` vazio.
+  - Pergunta que se responde na atividade (uma pergunta, sem `multiSelect`, texto ≤ 1.000 bytes, 1 a 4 opções com rótulos ≤ 60 caracteres): `text` = o texto exato da pergunta e `options` = os rótulos exatos, na ordem. O app responde com `answers` = `{text: rótulo}`.
+  - Outra pergunta: `text` = a prévia de `questions[0].question` (180 caracteres, sem markdown) e `options` vazio.
+  - Um `pending` que aparece, some ou troca de `requestId` é atualização de prioridade 10.
 
 - **Codificação**: o sistema decodifica o `content-state` com as estratégias **padrão** do `JSONDecoder`. `Date` é um número em segundos desde 2001-01-01 (`timeIntervalSinceReferenceDate`), nunca ISO-8601 nem `ProtocolDate`. O daemon usa o espelho `LiveActivityContentState` (`MochaDaemonCore/Push`), que codifica as datas assim, com `highlight` omitido quando nulo. Já `timestamp`, `stale-date` e `dismissal-date` do `aps` são **segundos Unix** (1970).
 - **Tela bloqueada**: "2 trabalhando · 1 esperando você" e a linha do destaque, com timer desde `since`.
 - **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link, também em `widgetURL`). O `alert` do push-to-start mostra a apresentação expandida sozinha. No simulador, a captura precisa de `xcrun simctl io <udid> screenshot --mask=black`.
+- **Ações** (tela bloqueada e Dynamic Island expandida), com `pending`:
+  - permissão: o que o agente quer fazer ("Shell quer rodar" + `text`) e os botões "Negar" e "Permitir";
+  - pergunta com `options`: a pergunta e um botão por opção;
+  - pergunta sem `options`: a prévia e o toque abre o chat com o card (deep link do agente).
+  - Os botões são `Button(intent:)` com `LiveActivityIntent`: o sistema roda o intent no processo do app, sem abri-lo, e o app faz `POST /v1/respond` (Bearer, §5.5). "Permitir" tem `authenticationPolicy = .requiresAuthentication` (Face ID); "Negar" e as opções usam o padrão, que roda com o iPhone travado.
+  - Depois de uma resposta aceita, o app atualiza a atividade localmente sem o `pending`; a atualização do daemon vem em seguida. Uma resposta recusada (400/404) ou sem conexão deixa o `pending` e mostra o motivo numa notificação local, como nas ações de notificação (§7.2).
 - **Headers**: `apns-push-type: liveactivity`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-id`. `apns-expiration` e `apns-collapse-id` são aceitos, mas não são necessários.
 - **Ciclo de vida**:
   - **Início**: quando algum agente passa a `working` e não há atividade ativa.

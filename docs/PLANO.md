@@ -806,9 +806,20 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Depende de**: WP-M8.
 - **SPEC**: §7.3.
 - **Faz**: parte do protótipo `App/Sources/LiveActivity/` (`AgentsActivityController`, `LiveActivityTokenStore`) e de `Widgets/Sources/AgentsLiveActivity.swift`. O gancho no `AppDelegate` já existe. Quando o app é acordado em background por push-to-start, manda o token com `POST /v1/live-activity` (Bearer), porque não há WebSocket aberto. Em primeiro plano, manda `registerLiveActivity` pelo WS. O visual segue a §7.3 e os prints (a linha "atualizado às … há …" é só da sonda). No fim do WP, apaga `App/Sources/Debug/PushProbe*` e o caso `push` do `DebugProbe` em `AppShell/RootView.swift`. Push-to-start e token de update só testáveis no iPhone. Dynamic Island capturada no simulador com `simctl io … screenshot --mask=black`.
+- **Ações na atividade** (pedido do João em 2026-09-27): com `pending` no `ContentState` (§7.3), "Negar"/"Permitir" e as opções de pergunta como `Button(intent:)` com `LiveActivityIntent`, que fazem `POST /v1/respond`. Exceção de dono nesta onda: `project.yml` (intent compilado no app e no widget).
 - **Aceite**:
   - [ ] Tela bloqueada capturada no device, e Dynamic Island (compacta, mínima e expandida) capturada no simulador (iPhone 18 Pro), porque o iPhone 14 do João não tem Dynamic Island.
   - [ ] Início por push-to-start com o app encerrado.
+  - [ ] Permitir (com Face ID), Negar e responder uma pergunta pela atividade na tela bloqueada.
+
+### WP-M15: pedido pendente na Live Activity
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, `Push/LiveActivityPush.swift`.
+- **Depende de**: WP-M7, WP-M8.
+- **SPEC**: §7.3 (`pending`).
+- **Faz**: o espelho `LiveActivityContentState` ganha `pending`; o snapshot do `LiveActivityService` leva o pedido pendente mais antigo (com o `highlight` no agente dele) e as regras de `text`/`options` da §7.3; `pending` que aparece, some ou troca de `requestId` é prioridade 10.
+- **Aceite**:
+  - [ ] Testes: permissão, pergunta inline (texto e rótulos exatos), pergunta não inline, pedido resolvido, prioridade 10, `options` sempre codificado e o `content-state` decodificável pelo `JSONDecoder` padrão.
 
 ### WP-I10: voz
 
@@ -908,6 +919,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 4de4248 |
 | WP-I8 | feito sem device (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Pending/`, com testes de contrato contra o `PendingHookReply` real; sino só com pedido pendente e conexão; sem `cwd:` na caixa do comando porque o `PendingRequest` não tem o campo; verbos "quer ler/editar/…" escolhidos pelo subagente; o `MochaDemo` não manda `pending`; o orquestrador alinhou o push de pergunta à §7.2 em `69d7b16`) | 3b2c6b9, 2e8440a, 89e815d, a418d63, merge 0b3d3b7, 69d7b16 |
 | WP-I9 | todo | |
+| WP-M15 | todo | |
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
