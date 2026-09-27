@@ -4,13 +4,38 @@ public struct LiveActivityContentState: Codable, Sendable, Equatable {
     public var working: Int
     public var waiting: Int
     public var highlight: Highlight?
+    public var pending: Pending?
     public var updatedAt: Date
 
-    public init(working: Int, waiting: Int, highlight: Highlight?, updatedAt: Date) {
+    public init(working: Int, waiting: Int, highlight: Highlight?, pending: Pending? = nil, updatedAt: Date) {
         self.working = working
         self.waiting = waiting
         self.highlight = highlight
+        self.pending = pending
         self.updatedAt = updatedAt
+    }
+
+    public struct Pending: Codable, Sendable, Equatable {
+        public enum Kind: String, Codable, Sendable, Equatable {
+            case permission
+            case question
+        }
+
+        public var requestId: String
+        public var agentId: String
+        public var kind: Kind
+        public var toolName: String?
+        public var text: String
+        public var options: [String]
+
+        public init(requestId: String, agentId: String, kind: Kind, toolName: String?, text: String, options: [String]) {
+            self.requestId = requestId
+            self.agentId = agentId
+            self.kind = kind
+            self.toolName = toolName
+            self.text = text
+            self.options = options
+        }
     }
 
     public struct Highlight: Codable, Sendable, Equatable {
@@ -52,7 +77,7 @@ public struct LiveActivityContentState: Codable, Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case working, waiting, highlight, updatedAt
+        case working, waiting, highlight, pending, updatedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -60,6 +85,7 @@ public struct LiveActivityContentState: Codable, Sendable, Equatable {
         working = try container.decode(Int.self, forKey: .working)
         waiting = try container.decode(Int.self, forKey: .waiting)
         highlight = try container.decodeIfPresent(Highlight.self, forKey: .highlight)
+        pending = try container.decodeIfPresent(Pending.self, forKey: .pending)
         updatedAt = Date(timeIntervalSinceReferenceDate: try container.decode(Double.self, forKey: .updatedAt))
     }
 
@@ -68,6 +94,7 @@ public struct LiveActivityContentState: Codable, Sendable, Equatable {
         try container.encode(working, forKey: .working)
         try container.encode(waiting, forKey: .waiting)
         try container.encodeIfPresent(highlight, forKey: .highlight)
+        try container.encodeIfPresent(pending, forKey: .pending)
         try container.encode(updatedAt.timeIntervalSinceReferenceDate, forKey: .updatedAt)
     }
 }

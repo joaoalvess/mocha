@@ -118,7 +118,7 @@ public actor LiveActivityService: LiveActivityRegistering {
         let now = clock.now()
         hasInput = true
         foreground = input.foregroundDevices
-        snapshot = tracker.snapshot(of: input.agents, at: now, titleLimit: configuration.titleLimit)
+        snapshot = tracker.snapshot(of: input.agents, pending: input.pending, at: now, titleLimit: configuration.titleLimit)
         if snapshot.isBusy {
             idleSince = nil
         } else {
