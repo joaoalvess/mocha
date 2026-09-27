@@ -6,12 +6,12 @@ import WidgetKit
 
 struct AgentsLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: MochaAgentsAttributes.self) { context in
+        ActivityConfiguration(for: MochaAgentAttributes.self) { context in
             let content = AgentsActivityContent(context.state)
-            AgentsLockScreenView(content: content, isStale: context.isStale)
+            AgentsLockScreenView(content: content, agentId: context.attributes.agentId, isStale: context.isStale)
                 .activityBackgroundTint(AgentsPalette.background)
                 .activitySystemActionForegroundColor(AgentsPalette.textPrimary)
-                .widgetURL(AgentsActivityText.deepLink(for: content))
+                .widgetURL(AgentsActivityText.deepLink(forAgent: context.attributes.agentId))
         } dynamicIsland: { context in
             let content = AgentsActivityContent(context.state)
             let header = AgentsActivityText.header(of: content)
@@ -27,26 +27,21 @@ struct AgentsLiveActivity: Widget {
                         .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    AgentsIslandBody(content: content, isStale: context.isStale)
+                    AgentsIslandBody(content: content, agentId: context.attributes.agentId, isStale: context.isStale)
                         .padding(.horizontal, 6)
                 }
             } compactLeading: {
                 ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
             } compactTrailing: {
-                if let count = AgentsActivityText.compactCount(of: content) {
-                    Text(count)
-                        .font(.system(size: 15, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(AgentsPalette.color(for: tone))
-                } else {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(AgentsPalette.statusOk)
-                }
+                Text(header.project)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AgentsPalette.labelColor(for: tone))
+                    .lineLimit(1)
+                    .frame(maxWidth: 64)
             } minimal: {
                 ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
             }
-            .widgetURL(AgentsActivityText.deepLink(for: content))
+            .widgetURL(AgentsActivityText.deepLink(forAgent: context.attributes.agentId))
             .keylineTint(AgentsPalette.color(for: tone))
         }
     }
@@ -54,6 +49,7 @@ struct AgentsLiveActivity: Widget {
 
 struct AgentsLockScreenView: View {
     let content: AgentsActivityContent
+    let agentId: String
     let isStale: Bool
 
     private let metrics = AgentsCardMetrics.lockScreen
@@ -62,11 +58,11 @@ struct AgentsLockScreenView: View {
         VStack(alignment: .leading, spacing: metrics.lineSpacing) {
             AgentsCardHeader(header: AgentsActivityText.header(of: content), metrics: metrics)
             AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
-            if let footnote = AgentsActivityText.footnote(of: content, isStale: isStale) {
-                AgentsCardFootnote(footnote: footnote, metrics: metrics)
+            if let footnote = AgentsActivityText.footnote(isStale: isStale) {
+                AgentsCardFootnote(text: footnote, metrics: metrics)
             }
             if let pending = content.pending {
-                PendingActivityControls(pending: pending, metrics: metrics)
+                PendingActivityControls(pending: pending, agentId: agentId, metrics: metrics)
                     .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
             }
         }
@@ -77,25 +73,26 @@ struct AgentsLockScreenView: View {
 
 struct AgentsIslandBody: View {
     let content: AgentsActivityContent
+    let agentId: String
     let isStale: Bool
 
     private let metrics = AgentsCardMetrics.island
 
     var body: some View {
-        let footnote = AgentsActivityText.footnote(of: content, isStale: isStale)
-        let openURL = AgentsActivityText.deepLink(for: content)
+        let footnote = AgentsActivityText.footnote(isStale: isStale)
+        let openURL = AgentsActivityText.deepLink(forAgent: agentId)
         VStack(alignment: .leading, spacing: metrics.lineSpacing) {
             AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
             if let pending = content.pending {
                 if let footnote {
-                    AgentsCardFootnote(footnote: footnote, metrics: metrics)
+                    AgentsCardFootnote(text: footnote, metrics: metrics)
                 }
-                PendingActivityControls(pending: pending, metrics: metrics)
+                PendingActivityControls(pending: pending, agentId: agentId, metrics: metrics)
                     .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
             } else if footnote != nil || openURL != nil {
                 HStack(spacing: 8) {
                     if let footnote {
-                        AgentsCardFootnote(footnote: footnote, metrics: metrics)
+                        AgentsCardFootnote(text: footnote, metrics: metrics)
                     }
                     Spacer(minLength: 8)
                     if let openURL {

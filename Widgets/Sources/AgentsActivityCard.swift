@@ -52,12 +52,17 @@ struct AgentsCardTitle: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Text(header.label)
+            Text(header.project)
+                .fontWeight(.bold)
                 .foregroundStyle(AgentsPalette.labelColor(for: header.tone))
+                .layoutPriority(2)
+            if let tab = header.tab {
+                separator
+                Text(tab)
+                    .foregroundStyle(AgentsPalette.textSecondary)
+            }
             if let model = header.model {
-                Text("·")
-                    .foregroundStyle(AgentsPalette.separator)
-                    .fixedSize()
+                separator
                 Text(model)
                     .foregroundStyle(AgentsPalette.textSecondary)
                     .layoutPriority(1)
@@ -65,6 +70,12 @@ struct AgentsCardTitle: View {
         }
         .font(.system(size: metrics.headerSize))
         .lineLimit(1)
+    }
+
+    private var separator: some View {
+        Text("·")
+            .foregroundStyle(AgentsPalette.separator)
+            .fixedSize()
     }
 }
 
@@ -118,6 +129,11 @@ struct AgentsCardLines: View {
                     headline
                     detail(command, size: metrics.commandSize, design: .monospaced)
                 }
+            case .text(let text):
+                VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+                    headline
+                    detail(text, size: metrics.detailSize, design: .default)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -139,29 +155,13 @@ struct AgentsCardLines: View {
 }
 
 struct AgentsCardFootnote: View {
-    let footnote: AgentsActivityFootnote
+    let text: String
     let metrics: AgentsCardMetrics
 
     var body: some View {
-        text
+        Text(text)
             .font(.system(size: metrics.footnoteSize))
             .foregroundStyle(AgentsPalette.textSecondary)
             .lineLimit(1)
-    }
-
-    private var text: Text {
-        var parts: [Text] = []
-        if let working = footnote.working {
-            parts.append(Text(working))
-        }
-        if let waiting = footnote.waiting {
-            parts.append(Text(waiting).foregroundStyle(AgentsPalette.waiting))
-        }
-        if let stale = footnote.stale {
-            parts.append(Text(stale))
-        }
-        return parts.dropFirst().reduce(parts.first ?? Text(footnote.text)) {
-            Text("\($0)\(AgentsActivityText.separator)\($1)")
-        }
     }
 }

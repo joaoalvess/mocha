@@ -4,14 +4,14 @@ import SwiftUI
 enum AgentsPalette {
     static let background = Color(hex: 0x010102)
     static let textPrimary = Color(hex: 0xFCFCFC)
-    static let textSecondary = Color(hex: 0x98A0A8)
+    static let textSecondary = Color(hex: 0xA3A3A3)
     static let separator = Color(hex: 0x55595F)
-    static let claude = Color(hex: 0xD87454)
-    static let statusOk = Color(hex: 0x00FF00)
+    static let claude = Color(hex: 0xCA7B5D)
+    static let statusOk = Color(hex: 0x9AF768)
     static let onStatusOk = Color(hex: 0x021402)
     static let waiting = Color(hex: 0xF4B450)
     static let controlBg = Color(hex: 0x202225)
-    static let contextTrack = Color(hex: 0x2F3032)
+    static let contextTrack = Color(hex: 0x463B38)
 
     static func color(for tone: AgentsActivityTone) -> Color {
         switch tone {
