@@ -8,36 +8,29 @@ public enum LiveActivityRegistrationError: Error, Sendable, Equatable {
     case invalidToken
 }
 
-public actor LiveActivityService: LiveActivityRegistering {
-    struct Activity: Sendable, Equatable {
+public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHolding {
+    struct Card: Sendable, Equatable {
         var activityId: String?
         var updateToken: String?
         var environment: ApnsEnvironment
         var startedAt: Date
         var sent: AgentActivitySnapshot?
         var sentAt: Date?
+        var alerted: [AgentID: Int] = [:]
     }
 
     struct Device: Sendable {
         var pushToStart: ApnsRegistration?
-        var activities: [AgentID: Activity] = [:]
+        var card: Card?
+        var focus: AgentID?
         var starts: [Date] = []
-        var retryAt: [AgentID: Date] = [:]
-        var sending: Set<AgentID> = []
-        var ending: Set<AgentID> = []
-        var dismissed: Set<AgentID> = []
+        var retryAt: Date?
+        var isSending = false
+        var isDismissed = false
         var retired: [String] = []
 
-        var startsInFlight: Int {
-            sending.filter { activities[$0] == nil }.count
-        }
-
-        var occupied: Int {
-            activities.count + startsInFlight
-        }
-
-        func isReady(_ agentId: AgentID) -> Bool {
-            !sending.contains(agentId) && retryAt[agentId] == nil
+        var isReady: Bool {
+            !isSending && retryAt == nil
         }
 
         func isRetired(_ registration: LiveActivityRegistration) -> Bool {
@@ -48,12 +41,23 @@ public actor LiveActivityService: LiveActivityRegistering {
 
     struct Stored: Sendable, Equatable {
         var pushToStart: LiveActivityRegistration?
-        var agentActivities: [LiveActivityRegistration]
+        var feedActivity: LiveActivityRegistration?
+    }
+
+    private struct Update {
+        let snapshot: AgentActivitySnapshot
+        let alertKind: PushAlertKind?
+        let priority: ApnsPriority
+    }
+
+    private struct RetriedAlert: Sendable {
+        let agentId: AgentID
+        let generation: Int?
     }
 
     private enum Sent {
         case start(AgentActivitySnapshot, environment: ApnsEnvironment, at: Date)
-        case update(AgentActivitySnapshot, token: String, at: Date)
+        case update(AgentActivitySnapshot, token: String, at: Date, retriedAlert: RetriedAlert?)
         case end(token: String, activityId: String?)
     }
 
@@ -89,6 +93,7 @@ public actor LiveActivityService: LiveActivityRegistering {
     private var wake: Wake?
     private var sends: [UUID: Task<Void, Never>] = [:]
     private var inputTask: Task<Void, Never>?
+    private var alertFallback: (any LiveActivityAlertFallback)?
     private var isShutDown = false
 
     public init(
@@ -132,7 +137,16 @@ public actor LiveActivityService: LiveActivityRegistering {
         hasInput = true
         foreground = input.foregroundDevices
         snapshots = tracker.snapshots(of: input, at: clock.now(), titleLimit: configuration.titleLimit)
+        settleAlertsOutsideTheCard()
         evaluate()
+    }
+
+    public func cardHolder() -> AgentID? {
+        tracker.holder
+    }
+
+    public func attachAlertFallback(_ fallback: any LiveActivityAlertFallback) {
+        alertFallback = fallback
     }
 
     public func register(_ registration: LiveActivityRegistration, from deviceId: DeviceID) async throws {
@@ -144,16 +158,16 @@ public actor LiveActivityService: LiveActivityRegistering {
         } else if device.pushToStart?.env != registration.env {
             device.pushToStart = nil
         }
-        if let token = registration.updateToken, let agentId = registration.agentId, !device.isRetired(registration) {
-            device.activities[agentId] = adopt(registration, token: token, into: device.activities[agentId])
-            device.dismissed.remove(agentId)
+        if let token = registration.updateToken, registration.agentId == nil, !device.isRetired(registration) {
+            device.card = adopt(registration, token: token, into: device.card)
+            device.isDismissed = false
         }
         for id in Array(states.keys) where id != deviceId {
             release(registration, from: id)
         }
         states[deviceId] = device
         let stored = Self.stored(device)
-        if try await devices.setLiveActivities(pushToStart: stored.pushToStart, agentActivities: stored.agentActivities, for: deviceId) == false {
+        if try await devices.setLiveActivities(pushToStart: stored.pushToStart, feedActivity: stored.feedActivity, for: deviceId) == false {
             liveActivityLogger.error("ignored a live activity registration from unknown device \(deviceId, privacy: .public)")
             states[deviceId] = nil
         }
@@ -162,6 +176,10 @@ public actor LiveActivityService: LiveActivityRegistering {
 
     var nextWake: Date? {
         wake?.deadline
+    }
+
+    func focus(on deviceId: DeviceID) -> AgentID? {
+        states[deviceId]?.focus
     }
 
     func waitForSends() async {
@@ -184,30 +202,29 @@ public actor LiveActivityService: LiveActivityRegistering {
             if let registration = record.liveActivity.flatMap({ try? Self.normalized($0) }) {
                 device.pushToStart = registration.pushToStartToken.map { ApnsRegistration(token: $0, env: registration.env) }
             }
-            for registration in record.agentActivities.compactMap({ try? Self.normalized($0) }) {
-                guard let agentId = registration.agentId, let token = registration.updateToken else { continue }
-                device.activities[agentId] = Activity(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: now)
+            if let registration = record.feedActivity.flatMap({ try? Self.normalized($0) }), registration.agentId == nil, let token = registration.updateToken {
+                device.card = Card(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: now)
             }
-            guard device.pushToStart != nil || !device.activities.isEmpty else { continue }
+            guard device.pushToStart != nil || device.card != nil else { continue }
             states[record.id] = device
         }
         evaluate()
     }
 
-    private func adopt(_ registration: LiveActivityRegistration, token: String, into current: Activity?) -> Activity {
-        guard var activity = current else {
-            return Activity(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: clock.now())
+    private func adopt(_ registration: LiveActivityRegistration, token: String, into current: Card?) -> Card {
+        guard var card = current else {
+            return Card(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: clock.now())
         }
-        let sameActivity = activity.updateToken == token
-            || activity.updateToken == nil
-            || (registration.activityId != nil && registration.activityId == activity.activityId)
+        let sameActivity = card.updateToken == token
+            || card.updateToken == nil
+            || (registration.activityId != nil && registration.activityId == card.activityId)
         guard sameActivity else {
-            return Activity(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: clock.now())
+            return Card(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: clock.now())
         }
-        activity.activityId = registration.activityId ?? activity.activityId
-        activity.updateToken = token
-        activity.environment = registration.env
-        return activity
+        card.activityId = registration.activityId ?? card.activityId
+        card.updateToken = token
+        card.environment = registration.env
+        return card
     }
 
     private func release(_ registration: LiveActivityRegistration, from id: DeviceID) {
@@ -215,10 +232,57 @@ public actor LiveActivityService: LiveActivityRegistering {
         if let token = registration.pushToStartToken, device.pushToStart?.token == token {
             device.pushToStart = nil
         }
-        if let token = registration.updateToken {
-            device.activities = device.activities.filter { $0.value.updateToken != token }
+        if let token = registration.updateToken, registration.agentId == nil, device.card?.updateToken == token {
+            device.card = nil
         }
         states[id] = device
+    }
+
+    private func settleAlertsOutsideTheCard() {
+        for id in states.keys.sorted() {
+            guard var card = states[id]?.card else { continue }
+            guard card.updateToken != nil else {
+                for (agentId, alert) in tracker.alerts {
+                    card.alerted[agentId] = max(card.alerted[agentId] ?? 0, alert.generation)
+                }
+                states[id]?.card = card
+                continue
+            }
+            for dropped in tracker.droppedAlerts {
+                report(dropped.alert, of: dropped.agentId, on: id, card: &card, wasShown: false)
+            }
+            if let holder = tracker.holder {
+                for (agentId, alert) in tracker.alerts where agentId != holder {
+                    report(alert, of: agentId, on: id, card: &card, wasShown: false)
+                }
+            }
+            states[id]?.card = card
+        }
+    }
+
+    private func reportUnshownAlerts(on id: DeviceID, card: inout Card, except shown: AgentID?) {
+        for (agentId, alert) in tracker.alerts.sorted(by: { $0.key < $1.key }) where agentId != shown {
+            report(alert, of: agentId, on: id, card: &card, wasShown: false)
+        }
+    }
+
+    private func report(_ alert: AgentFeedAlert, of agentId: AgentID, on id: DeviceID, card: inout Card, wasShown: Bool) {
+        guard alert.generation > card.alerted[agentId] ?? 0 else { return }
+        card.alerted[agentId] = alert.generation
+        guard let fallback = alertFallback else { return }
+        let taskId = UUID()
+        sends[taskId] = Task { [weak self] in
+            await fallback.cardAlert(alert.kind, of: agentId, on: id, wasShown: wasShown)
+            await self?.reportFinished(taskId)
+        }
+    }
+
+    private func reportFinished(_ taskId: UUID) {
+        sends[taskId] = nil
+    }
+
+    private var anyBusy: Bool {
+        snapshots.values.contains { $0.isBusy }
     }
 
     private func evaluate() {
@@ -233,116 +297,123 @@ public actor LiveActivityService: LiveActivityRegistering {
     private func evaluate(_ id: DeviceID, at now: Date) {
         guard var device = states[id] else { return }
         device.starts.removeAll { isDue($0.addingTimeInterval(configuration.pushToStartWindow), at: now) }
-        device.retryAt = device.retryAt.filter { !isDue($0.value, at: now) }
-        device.dismissed = device.dismissed.filter { snapshots[$0]?.isBusy == true }
-        states[id] = device
-        for agentId in device.activities.keys.sorted() where device.isReady(agentId) {
-            evaluateActivity(of: agentId, on: id, at: now)
+        if let retryAt = device.retryAt, isDue(retryAt, at: now) {
+            device.retryAt = nil
         }
-        startActivities(on: id, at: now)
+        if !anyBusy {
+            device.isDismissed = false
+        }
+        device.focus = tracker.focus(among: snapshots, current: device.focus ?? device.card?.sent?.agent.agentId)
+        states[id] = device
+        if var card = device.card, card.updateToken != nil, let focus = device.focus, let alert = tracker.alerts[focus], snapshots[focus] == card.sent {
+            report(alert, of: focus, on: id, card: &card, wasShown: true)
+            states[id]?.card = card
+        }
+        guard let device = states[id] else { return }
+        guard device.isReady else { return }
+        if device.card != nil {
+            evaluateCard(on: id, at: now)
+        }
+        if let device = states[id], device.card == nil, device.isReady {
+            startCard(on: id, at: now)
+        }
     }
 
-    private func evaluateActivity(of agentId: AgentID, on id: DeviceID, at now: Date) {
-        guard let activity = states[id]?.activities[agentId] else { return }
-        let snapshot = snapshots[agentId]
-        let isGoneOrIdle = snapshot.map { !$0.isBusy && isIdle(agentId, activity: activity, at: now) } ?? true
-        let shouldEnd = isGoneOrIdle || isExpired(activity, at: now)
-        guard let token = activity.updateToken else {
+    private func evaluateCard(on id: DeviceID, at now: Date) {
+        guard let device = states[id], let card = device.card else { return }
+        let shouldEnd = isIdle(card, at: now) || isExpired(card, at: now)
+        guard let token = card.updateToken else {
             if shouldEnd {
-                liveActivityLogger.info("gave up waiting for the update token of \(agentId, privacy: .public) on device \(id, privacy: .public)")
-                states[id]?.activities[agentId] = nil
+                liveActivityLogger.info("gave up waiting for the update token of the card on device \(id, privacy: .public)")
+                states[id]?.card = nil
             }
             return
         }
-        if let sentAt = activity.sentAt, !isDue(sentAt.addingTimeInterval(configuration.updateInterval), at: now) {
+        if let sentAt = card.sentAt, !isDue(sentAt.addingTimeInterval(configuration.updateInterval), at: now) {
             return
         }
-        guard let snapshot, !shouldEnd else {
-            end(agentId, token: token, activity: activity, on: id, at: now)
+        guard !shouldEnd else {
+            end(token: token, card: card, on: id, at: now)
             return
         }
-        guard let priority = updatePriority(of: snapshot, for: activity, at: now) else { return }
-        let alertKind = foreground.contains(id) ? nil : snapshot.alert(since: activity.sent)
+        guard let update = pendingUpdate(for: device, id: id, card: card) ?? refresh(for: device, card: card, at: now) else { return }
+        let snapshot = update.snapshot
+        let alertKind = update.alertKind
         let push = snapshot.push({ .update(alert: alertKind.map($0.alertContent)) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
-        let effective = alertKind == nil ? priority : .high
-        send(push, as: .update(snapshot, token: token, at: now), alertKind: alertKind, to: token, environment: activity.environment, priority: effective, agent: agentId, device: id)
+        let focus = snapshot.agent.agentId
+        let retriedAlert = alertKind.map { _ in RetriedAlert(agentId: focus, generation: card.alerted[focus]) }
+        var reported = card
+        if let alert = tracker.alerts[focus] {
+            report(alert, of: focus, on: id, card: &reported, wasShown: alertKind != nil)
+        }
+        reportUnshownAlerts(on: id, card: &reported, except: focus)
+        states[id]?.card = reported
+        let sent = Sent.update(snapshot, token: token, at: now, retriedAlert: retriedAlert)
+        send(push, as: sent, alertKind: alertKind, to: token, environment: card.environment, priority: update.priority, device: id)
     }
 
-    private func end(_ agentId: AgentID, token: String, activity: Activity, on id: DeviceID, at now: Date) {
-        let snapshot = (snapshots[agentId] ?? activity.sent ?? .gone(agentId, at: now)).ended
+    private func pendingUpdate(for device: Device, id: DeviceID, card: Card) -> Update? {
+        guard let snapshot = device.focus.flatMap({ snapshots[$0] }), snapshot != card.sent else { return nil }
+        if let alert = tracker.alerts[snapshot.agent.agentId], alert.generation > card.alerted[snapshot.agent.agentId] ?? 0 {
+            return Update(snapshot: snapshot, alertKind: foreground.contains(id) ? nil : alert.kind, priority: .high)
+        }
+        guard let priority = snapshot.priority(since: card.sent) else { return nil }
+        return Update(snapshot: snapshot, alertKind: nil, priority: priority)
+    }
+
+    private func refresh(for device: Device, card: Card, at now: Date) -> Update? {
+        guard anyBusy, let sentAt = card.sentAt, isDue(sentAt.addingTimeInterval(configuration.refreshInterval), at: now),
+              let snapshot = device.focus.flatMap({ snapshots[$0] }) ?? card.sent
+        else { return nil }
+        return Update(snapshot: snapshot, alertKind: nil, priority: .low)
+    }
+
+    private func end(token: String, card: Card, on id: DeviceID, at now: Date) {
+        let focus = states[id]?.focus
+        let snapshot = (focus.flatMap { snapshots[$0] } ?? card.sent ?? .gone(focus ?? "", at: now)).ended
         let dismissalDate = now.addingTimeInterval(configuration.dismissalDelay)
         let push = snapshot.push({ _ in .end(dismissalDate: dismissalDate) }, at: now, staleDate: nil)
-        states[id]?.ending.insert(agentId)
-        send(push, as: .end(token: token, activityId: activity.activityId), alertKind: nil, to: token, environment: activity.environment, priority: .high, agent: agentId, device: id)
+        var reported = card
+        reportUnshownAlerts(on: id, card: &reported, except: nil)
+        states[id]?.card = reported
+        send(push, as: .end(token: token, activityId: card.activityId), alertKind: nil, to: token, environment: card.environment, priority: .high, device: id)
     }
 
-    private func startActivities(on id: DeviceID, at now: Date) {
-        guard !foreground.contains(id), let pushToStart = states[id]?.pushToStart else { return }
-        for (agentId, snapshot) in startCandidates(on: id) {
-            guard let device = states[id], hasStartBudget(device) else { return }
-            if device.occupied >= configuration.activityLimit {
-                guard snapshot.isBlocked, device.ending.isEmpty else { continue }
-                evict(on: id, at: now)
-                return
-            }
-            let push = snapshot.push({ .start(alert: $0.startAlert) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
-            send(
-                push,
-                as: .start(snapshot, environment: pushToStart.env, at: now),
-                alertKind: nil,
-                to: pushToStart.token,
-                environment: pushToStart.env,
-                priority: .high,
-                agent: agentId,
-                device: id
-            )
-        }
+    private func startCard(on id: DeviceID, at now: Date) {
+        guard let device = states[id], canStart(device, id: id), hasStartBudget(device), let pushToStart = device.pushToStart,
+              let snapshot = device.focus.flatMap({ snapshots[$0] })
+        else { return }
+        let push = snapshot.push({ .start(alert: $0.startAlert) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
+        send(
+            push,
+            as: .start(snapshot, environment: pushToStart.env, at: now),
+            alertKind: nil,
+            to: pushToStart.token,
+            environment: pushToStart.env,
+            priority: .high,
+            device: id
+        )
     }
 
-    private func startCandidates(on id: DeviceID) -> [(AgentID, AgentActivitySnapshot)] {
-        guard let device = states[id] else { return [] }
-        return snapshots
-            .filter { agentId, snapshot in
-                snapshot.isBusy && device.activities[agentId] == nil && device.isReady(agentId) && !device.dismissed.contains(agentId)
-            }
-            .sorted { ($0.value.isBlocked ? 0 : 1, $0.value.agent.since, $0.key) < ($1.value.isBlocked ? 0 : 1, $1.value.agent.since, $1.key) }
+    private func canStart(_ device: Device, id: DeviceID) -> Bool {
+        device.card == nil && device.pushToStart != nil && !device.isDismissed && !foreground.contains(id) && anyBusy
     }
 
-    private func evict(on id: DeviceID, at now: Date) {
-        guard let device = states[id] else { return }
-        let idle = device.activities.filter { agentId, _ in snapshots[agentId]?.isBusy != true && device.isReady(agentId) }
-        guard let (agentId, activity) = idle.min(by: { lastBusy($0.key, $0.value) < lastBusy($1.key, $1.value) }) else { return }
-        liveActivityLogger.info("evicting the live activity of \(agentId, privacy: .public) on device \(id, privacy: .public)")
-        guard let token = activity.updateToken else {
-            states[id]?.activities[agentId] = nil
-            startActivities(on: id, at: now)
-            return
-        }
-        end(agentId, token: token, activity: activity, on: id, at: now)
+    private func isIdle(_ card: Card, at now: Date) -> Bool {
+        guard !anyBusy else { return false }
+        return isDue(idleDeadline(of: card), at: now)
     }
 
-    private func lastBusy(_ agentId: AgentID, _ activity: Activity) -> Date {
-        tracker.lastBusyAt[agentId] ?? activity.startedAt
+    private func idleDeadline(of card: Card) -> Date {
+        max(tracker.lastBusyAt ?? card.startedAt, card.startedAt).addingTimeInterval(configuration.idleTimeout)
     }
 
-    private func isIdle(_ agentId: AgentID, activity: Activity, at now: Date) -> Bool {
-        isDue(lastBusy(agentId, activity).addingTimeInterval(configuration.idleTimeout), at: now)
-    }
-
-    private func isExpired(_ activity: Activity, at now: Date) -> Bool {
-        isDue(activity.startedAt.addingTimeInterval(configuration.renewalAge), at: now)
+    private func isExpired(_ card: Card, at now: Date) -> Bool {
+        isDue(card.startedAt.addingTimeInterval(configuration.renewalAge), at: now)
     }
 
     private func hasStartBudget(_ device: Device) -> Bool {
-        device.starts.count + device.startsInFlight < configuration.pushToStartLimit
-    }
-
-    private func updatePriority(of snapshot: AgentActivitySnapshot, for activity: Activity, at now: Date) -> ApnsPriority? {
-        if let priority = snapshot.priority(since: activity.sent) {
-            return priority
-        }
-        guard snapshot.isBusy, let sentAt = activity.sentAt, isDue(sentAt.addingTimeInterval(configuration.refreshInterval), at: now) else { return nil }
-        return .low
+        device.starts.count < configuration.pushToStartLimit
     }
 
     private func send(
@@ -352,10 +423,9 @@ public actor LiveActivityService: LiveActivityRegistering {
         to token: String,
         environment: ApnsEnvironment,
         priority: ApnsPriority,
-        agent agentId: AgentID,
         device id: DeviceID
     ) {
-        states[id]?.sending.insert(agentId)
+        states[id]?.isSending = true
         let taskId = UUID()
         let sender = sender
         let devices = devices
@@ -371,7 +441,7 @@ public actor LiveActivityService: LiveActivityRegistering {
                 }
                 outcome = .delivery(await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority))
             }
-            await self?.finish(sent, outcome: outcome, agent: agentId, device: id, taskId: taskId)
+            await self?.finish(sent, outcome: outcome, device: id, taskId: taskId)
         }
     }
 
@@ -385,13 +455,12 @@ public actor LiveActivityService: LiveActivityRegistering {
         }
     }
 
-    private func finish(_ sent: Sent, outcome: Outcome, agent agentId: AgentID, device id: DeviceID, taskId: UUID) async {
+    private func finish(_ sent: Sent, outcome: Outcome, device id: DeviceID, taskId: UUID) async {
         defer { sends[taskId] = nil }
         guard !isShutDown, var device = states[id] else { return }
-        device.sending.remove(agentId)
-        device.ending.remove(agentId)
+        device.isSending = false
         guard case .delivery(let delivery) = outcome else {
-            liveActivityLogger.info("dropped the live activities of removed device \(id, privacy: .public)")
+            liveActivityLogger.info("dropped the live activity of removed device \(id, privacy: .public)")
             states[id] = nil
             evaluate()
             return
@@ -400,42 +469,47 @@ public actor LiveActivityService: LiveActivityRegistering {
         let now = clock.now()
         switch (sent, delivery) {
         case (_, .failed(let retryable)):
-            device.retryAt[agentId] = now.addingTimeInterval(retryable ? configuration.retryDelay : configuration.configurationRetryDelay)
+            device.retryAt = now.addingTimeInterval(retryable ? configuration.retryDelay : configuration.configurationRetryDelay)
+            if case .update(_, let token, _, let retriedAlert?) = sent, device.card?.updateToken == token {
+                device.card?.alerted[retriedAlert.agentId] = retriedAlert.generation
+            }
         case (.start(let snapshot, let environment, let at), .delivered):
-            liveActivityLogger.info("started the live activity of \(agentId, privacy: .public) on device \(id, privacy: .public) by push-to-start")
+            liveActivityLogger.info("started the card of \(snapshot.agent.agentId, privacy: .public) on device \(id, privacy: .public) by push-to-start")
             device.starts.append(at)
-            if device.activities[agentId] == nil {
-                device.activities[agentId] = Activity(environment: environment, startedAt: at, sent: snapshot, sentAt: at)
+            if device.card == nil {
+                device.card = Card(environment: environment, startedAt: at, sent: snapshot, sentAt: at, alerted: tracker.alerts.mapValues(\.generation))
             }
         case (.start, .invalidToken):
             liveActivityLogger.info("APNs refused the push-to-start token of device \(id, privacy: .public)")
             device.pushToStart = nil
-        case (.update(let snapshot, let token, let at), .delivered):
-            if device.activities[agentId]?.updateToken == token {
-                device.activities[agentId]?.sent = snapshot
-                device.activities[agentId]?.sentAt = at
+        case (.update(let snapshot, let token, let at, _), .delivered):
+            if var card = device.card, card.updateToken == token {
+                card.sent = snapshot
+                card.sentAt = at
+                device.card = card
             }
-        case (.update(_, let token, _), .invalidToken):
-            liveActivityLogger.info("APNs refused the update token of \(agentId, privacy: .public) on device \(id, privacy: .public)")
-            if device.activities[agentId]?.updateToken == token {
-                device.activities[agentId] = nil
-                device.dismissed.insert(agentId)
+        case (.update(_, let token, _, _), .invalidToken):
+            liveActivityLogger.info("APNs refused the update token of the card on device \(id, privacy: .public)")
+            if var card = device.card, card.updateToken == token {
+                reportUnshownAlerts(on: id, card: &card, except: nil)
+                device.card = nil
+                device.isDismissed = true
             }
         case (.end(let token, let activityId), .delivered), (.end(let token, let activityId), .invalidToken):
-            liveActivityLogger.info("ended the live activity of \(agentId, privacy: .public) on device \(id, privacy: .public)")
+            liveActivityLogger.info("ended the card on device \(id, privacy: .public)")
             device.retired.append(contentsOf: [token] + (activityId.map { [$0] } ?? []))
             device.retired = Array(device.retired.suffix(Self.retiredLimit))
-            if device.activities[agentId]?.updateToken == token {
-                device.activities[agentId] = nil
+            if device.card?.updateToken == token {
+                device.card = nil
             }
         }
         states[id] = device
         let after = Self.stored(device)
         if after != before {
             do {
-                _ = try await devices.setLiveActivities(pushToStart: after.pushToStart, agentActivities: after.agentActivities, for: id)
+                _ = try await devices.setLiveActivities(pushToStart: after.pushToStart, feedActivity: after.feedActivity, for: id)
             } catch {
-                liveActivityLogger.error("failed to save the live activities of device \(id, privacy: .public): \(PushService.describe(error), privacy: .public)")
+                liveActivityLogger.error("failed to save the live activity of device \(id, privacy: .public): \(PushService.describe(error), privacy: .public)")
             }
         }
         evaluate()
@@ -466,37 +540,31 @@ public actor LiveActivityService: LiveActivityRegistering {
     }
 
     private func nextDeadline(for device: Device, id: DeviceID, at now: Date) -> Date? {
-        var deadlines: [Date] = []
-        for (agentId, activity) in device.activities where !device.sending.contains(agentId) {
-            guard let deadline = nextDeadline(for: activity, of: agentId, at: now) else { continue }
-            deadlines.append(device.retryAt[agentId].map { max($0, deadline) } ?? deadline)
+        guard !device.isSending else { return nil }
+        let deadline: Date?
+        if let card = device.card {
+            deadline = nextDeadline(for: card, of: device, id: id, at: now)
+        } else if canStart(device, id: id), device.focus != nil {
+            deadline = hasStartBudget(device) ? now : device.starts.min()?.addingTimeInterval(configuration.pushToStartWindow) ?? now
+        } else {
+            deadline = nil
         }
-        if !foreground.contains(id), device.pushToStart != nil, device.occupied < configuration.activityLimit {
-            let pending = snapshots.keys.filter { agentId in
-                snapshots[agentId]?.isBusy == true && device.activities[agentId] == nil && !device.sending.contains(agentId) && !device.dismissed.contains(agentId)
-            }
-            for agentId in pending {
-                let start = hasStartBudget(device) ? now : device.starts.min()?.addingTimeInterval(configuration.pushToStartWindow) ?? now
-                deadlines.append(device.retryAt[agentId].map { max($0, start) } ?? start)
-            }
-        }
-        return deadlines.min()
+        guard let deadline else { return nil }
+        return device.retryAt.map { max($0, deadline) } ?? deadline
     }
 
-    private func nextDeadline(for activity: Activity, of agentId: AgentID, at now: Date) -> Date? {
-        let gate = activity.updateToken == nil ? nil : activity.sentAt.map { $0.addingTimeInterval(configuration.updateInterval) }
-        guard let snapshot = snapshots[agentId] else { return max(gate ?? now, now) }
-        var candidates = [activity.startedAt.addingTimeInterval(configuration.renewalAge)]
-        if !snapshot.isBusy {
-            candidates.append(lastBusy(agentId, activity).addingTimeInterval(configuration.idleTimeout))
+    private func nextDeadline(for card: Card, of device: Device, id: DeviceID, at now: Date) -> Date? {
+        var candidates = [card.startedAt.addingTimeInterval(configuration.renewalAge)]
+        if !anyBusy {
+            candidates.append(idleDeadline(of: card))
         }
-        guard activity.updateToken != nil else { return candidates.min() }
-        guard let gate, let sentAt = activity.sentAt else { return now }
-        if snapshot.isBusy {
-            candidates.append(sentAt.addingTimeInterval(configuration.refreshInterval))
-        }
-        if snapshot.priority(since: activity.sent) != nil {
+        guard card.updateToken != nil else { return candidates.min() }
+        let gate = card.sentAt.map { $0.addingTimeInterval(configuration.updateInterval) } ?? now
+        if pendingUpdate(for: device, id: id, card: card) != nil {
             candidates.append(gate)
+        }
+        if anyBusy, let sentAt = card.sentAt {
+            candidates.append(sentAt.addingTimeInterval(configuration.refreshInterval))
         }
         return candidates.min().map { max($0, gate) }
     }
@@ -521,9 +589,8 @@ public actor LiveActivityService: LiveActivityRegistering {
     static func stored(_ device: Device) -> Stored {
         Stored(
             pushToStart: device.pushToStart.map { LiveActivityRegistration(pushToStartToken: $0.token, env: $0.env) },
-            agentActivities: device.activities.keys.sorted().compactMap { agentId in
-                guard let activity = device.activities[agentId], let token = activity.updateToken else { return nil }
-                return LiveActivityRegistration(activityId: activity.activityId, updateToken: token, agentId: agentId, env: activity.environment)
+            feedActivity: device.card.flatMap { card in
+                card.updateToken.map { LiveActivityRegistration(activityId: card.activityId, updateToken: $0, env: card.environment) }
             }
         )
     }

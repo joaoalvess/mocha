@@ -21,7 +21,7 @@ struct LiveActivityServiceTests {
         return device
     }
 
-    @Test func pushToStartBeginsAnActivityForEachAgentThatStartsWorking() async throws {
+    @Test func pushToStartBeginsOneCardWhenAnAgentStartsWorking() async throws {
         try await withLiveActivity { harness in
             _ = try await harness.pairWithPushToStart()
             try await harness.agents(idle)
@@ -47,22 +47,23 @@ struct LiveActivityServiceTests {
             #expect(start.push.relevanceScore == 50)
             let aps = try harness.aps(start)
             #expect(aps["event"] as? String == "start")
-            #expect(aps["attributes-type"] as? String == "MochaAgentAttributes")
-            #expect(aps["attributes"] as? [String: String] == ["agentId": "w1:p1"])
+            #expect(aps["attributes-type"] as? String == "MochaFeedAttributes")
+            #expect((aps["attributes"] as? [String: Any])?.isEmpty == true)
             #expect(aps["input-push-token"] as? Int == 1)
             #expect(aps["relevance-score"] as? Double == 50)
+            #expect(try LiveActivityAppContentState.decoding(start.push).agentId == "w1:p1")
             let alert = try #require(aps["alert"] as? [String: Any])
             #expect(alert["title"] as? String == "Claude trabalhando · demo-app")
             #expect(alert["body"] as? String == "Refatorar o parser")
             #expect(alert["sound"] == nil)
 
-            try await harness.agents(working + [LiveActivitySample.agent("w2:p1", .working, title: "Escrever testes")])
-            #expect(harness.sent.map(\.push.agentId) == ["w1:p1", "w2:p1"])
-            #expect(try harness.last().push.event == .start(alert: AgentActivityAlert(title: "Claude trabalhando · demo-app", body: "Escrever testes", sound: nil)))
+            try await harness.agents(working + (2...8).map { LiveActivitySample.agent("w\($0):p1", .working, title: "Escrever testes") })
+            try await harness.advance(3600)
+            #expect(harness.sent.map(\.push.event.name) == ["start"])
         }
     }
 
-    @Test func onlyBusyClaudeAgentsGetAnActivity() async throws {
+    @Test func onlyBusyClaudeAgentsStartTheCard() async throws {
         try await withLiveActivity { harness in
             _ = try await harness.pairWithPushToStart()
             try await harness.agents([LiveActivitySample.agent("w1:p2", .working, kind: "codex"), LiveActivitySample.agent("w1:p1", .idle)])
@@ -107,13 +108,15 @@ struct LiveActivityServiceTests {
             #expect(update.push.timestamp == at(35))
             #expect(update.push.staleDate == at(35 + 15 * 60))
             #expect(try await harness.storedPushToStart(device) == pushToStart)
-            #expect(try await harness.storedActivities(device) == [
-                LiveActivityRegistration(activityId: LiveActivitySample.activityId, updateToken: LiveActivitySample.updateToken, agentId: "w1:p1", env: .sandbox),
-            ])
+            #expect(try await harness.storedCard(device) == LiveActivityRegistration(
+                activityId: LiveActivitySample.activityId,
+                updateToken: LiveActivitySample.updateToken,
+                env: .sandbox
+            ))
         }
     }
 
-    @Test func anUpdateTokenWithoutAnAgentIsIgnored() async throws {
+    @Test func theUpdateTokenOfAnOldPerAgentActivityIsIgnored() async throws {
         try await withLiveActivity { harness in
             let device = try await harness.pair()
             try await harness.service.register(
@@ -121,13 +124,15 @@ struct LiveActivityServiceTests {
                     pushToStartToken: LiveActivitySample.pushToStartToken,
                     activityId: LiveActivitySample.activityId,
                     updateToken: LiveActivitySample.updateToken,
+                    agentId: "w1:p1",
                     env: .sandbox
                 ),
                 from: device
             )
             try await harness.agents(working)
             #expect(harness.sent.map(\.token) == [LiveActivitySample.pushToStartToken])
-            #expect(try await harness.storedActivities(device).isEmpty)
+            #expect(try await harness.storedCard(device) == nil)
+            #expect(try await harness.storedPushToStart(device) == pushToStart)
         }
     }
 
@@ -159,29 +164,28 @@ struct LiveActivityServiceTests {
         }
     }
 
-    @Test func eachActivityIsLimitedToOneUpdateEveryTenSecondsWithTheLatestState() async throws {
+    @Test func theCardIsLimitedToOneUpdateEveryTenSecondsWithTheLatestState() async throws {
         try await withLiveActivity { harness in
             let device = try await harness.pair()
-            try await harness.registerUpdateToken(LiveActivitySample.token(1), activityId: "a1", agent: "w1:p1", for: device)
-            try await harness.registerUpdateToken(LiveActivitySample.token(2), activityId: "a2", agent: "w2:p1", for: device)
+            try await harness.registerUpdateToken(for: device)
             let tests = LiveActivitySample.agent("w2:p1", .working, title: "Escrever testes")
             func parser(_ title: String) -> AgentSummary {
                 LiveActivitySample.agent("w1:p1", .working, title: title)
             }
 
             try await harness.agents([parser("Refatorar o parser"), tests])
-            #expect(Set(harness.sent.map(\.token)) == [LiveActivitySample.token(1), LiveActivitySample.token(2)])
+            #expect(harness.sent.map(\.token) == [LiveActivitySample.updateToken])
+            #expect(try harness.last().push.agentId == "w1:p1")
             try await harness.advance(3)
             try await harness.agents([parser("Refatorar o lexer"), tests])
             try await harness.advance(3)
             try await harness.agents([parser("Refatorar o scanner"), tests])
             try await harness.advance(3)
-            #expect(harness.sent.count == 2)
+            #expect(harness.sent.count == 1)
 
             try await harness.advance(1)
-            #expect(harness.sent.count == 3)
+            #expect(harness.sent.count == 2)
             let update = try harness.last()
-            #expect(update.token == LiveActivitySample.token(1))
             #expect(update.priority == .low)
             #expect(update.push.contentState.agent.title == "Refatorar o scanner")
             #expect(update.push.timestamp == at(10))
@@ -190,11 +194,16 @@ struct LiveActivityServiceTests {
             var blockedTests = tests
             blockedTests.status = .blocked
             try await harness.agents([parser("Refatorar o scanner"), blockedTests])
-            #expect(harness.sent.count == 4)
+            try await harness.advance(7)
+            #expect(harness.sent.count == 2)
+
+            try await harness.advance(1)
+            #expect(harness.sent.count == 3)
             let blocked = try harness.last()
-            #expect(blocked.token == LiveActivitySample.token(2))
+            #expect(blocked.token == LiveActivitySample.updateToken)
             #expect(blocked.priority == .high)
-            #expect(blocked.push.timestamp == at(12))
+            #expect(blocked.push.agentId == "w2:p1")
+            #expect(blocked.push.timestamp == at(20))
             #expect(blocked.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "Esperando uma resposta no terminal.")))
             #expect(blocked.push.relevanceScore == 100)
         }
@@ -208,36 +217,45 @@ struct LiveActivityServiceTests {
         }
     }
 
-    @Test func endsThirtyMinutesAfterTheAgentStopsAndLeavesAtOnce() async throws {
+    @Test func endsThirtyMinutesAfterTheLastAgentStops() async throws {
         try await withLiveActivity { harness in
-            let device = try await appStartedActivity(harness, agents: working)
+            let tests = LiveActivitySample.agent("w2:p1", .working, title: "Escrever testes")
+            let device = try await appStartedActivity(harness, agents: working + [tests])
             try await harness.advance(20)
-            try await harness.agents(idle)
+            try await harness.agents(idle + [tests])
             #expect(harness.sent.count == 2)
-            let done = try harness.last()
-            #expect(done.priority == .high)
-            #expect(done.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
-            #expect(done.push.contentState.agent.status == "idle")
-            #expect(done.push.relevanceScore == 10)
+            let parserDone = try harness.last()
+            #expect(parserDone.priority == .high)
+            #expect(parserDone.push.agentId == "w1:p1")
+            #expect(parserDone.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
+            #expect(parserDone.push.contentState.agent.status == "idle")
+            #expect(parserDone.push.relevanceScore == 10)
+
+            try await harness.advance(20)
+            try await harness.agents(idle + [LiveActivitySample.agent("w2:p1", .idle, title: "Escrever testes")])
+            #expect(harness.sent.count == 3)
+            #expect(try harness.last().push.agentId == "w2:p1")
+            #expect(try harness.last().push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
             try await harness.advance(1799)
-            #expect(harness.sent.count == 2)
+            #expect(harness.sent.count == 3)
 
             try await harness.advance(1)
-            #expect(harness.sent.count == 3)
+            #expect(harness.sent.count == 4)
             let end = try harness.last()
             #expect(end.token == LiveActivitySample.updateToken)
             #expect(end.priority == .high)
-            #expect(end.push.event == .end(dismissalDate: at(1820)))
+            #expect(end.push.event == .end(dismissalDate: at(1840)))
+            #expect(end.push.agentId == "w2:p1")
             #expect(end.push.contentState.agent.status == "idle")
             #expect(end.push.staleDate == nil)
-            #expect(try await harness.storedActivities(device).isEmpty)
+            #expect(try await harness.storedCard(device) == nil)
             #expect(try await harness.storedPushToStart(device) == pushToStart)
 
             try await harness.registerUpdateToken(for: device)
             try await harness.advance(3600)
-            #expect(harness.sent.count == 3)
+            #expect(harness.sent.count == 4)
             try await harness.agents(working)
-            #expect(harness.sent.map(\.push.event.name) == ["update", "update", "end", "start"])
+            #expect(harness.sent.map(\.push.event.name) == ["update", "update", "update", "end", "start"])
             #expect(try harness.last().token == LiveActivitySample.pushToStartToken)
         }
     }
@@ -257,19 +275,29 @@ struct LiveActivityServiceTests {
         }
     }
 
-    @Test func anAgentThatLeavesTheTreeEndsItsActivity() async throws {
+    @Test func anAgentThatLeavesTheTreeLosesTheFocusAndAnEmptyTreeKeepsTheLastState() async throws {
         try await withLiveActivity { harness in
-            let device = try await appStartedActivity(harness, agents: working)
-            try await harness.advance(4)
-            try await harness.agents([])
-            #expect(harness.sent.count == 1)
-
-            try await harness.advance(6)
+            let tests = LiveActivitySample.agent("w2:p1", .working, title: "Escrever testes")
+            let device = try await appStartedActivity(harness, agents: working + [tests])
+            try await harness.advance(10)
+            try await harness.agents([tests])
             #expect(harness.sent.count == 2)
+            #expect(try harness.last().priority == .high)
+            #expect(try harness.last().push.agentId == "w2:p1")
+            #expect(await harness.service.focus(on: device) == "w2:p1")
+
+            try await harness.advance(10)
+            try await harness.agents([])
+            #expect(await harness.service.focus(on: device) == nil)
+            try await harness.advance(1799)
+            #expect(harness.sent.count == 2)
+
+            try await harness.advance(1)
+            #expect(harness.sent.count == 3)
             let end = try harness.last()
-            #expect(end.push.event == .end(dismissalDate: at(10)))
-            #expect(end.push.contentState.agent.title == "Refatorar o parser")
-            #expect(try await harness.storedActivities(device).isEmpty)
+            #expect(end.push.event == .end(dismissalDate: at(1820)))
+            #expect(end.push.contentState.agent.title == "Escrever testes")
+            #expect(try await harness.storedCard(device) == nil)
         }
     }
 
@@ -349,56 +377,21 @@ struct LiveActivityServiceTests {
     }
 
     @Test func atMostTenPushToStartsPerHour() async throws {
-        try await withLiveActivity(configuration: LiveActivityConfiguration(activityLimit: 20)) { harness in
+        try await withLiveActivity(configuration: LiveActivityConfiguration(renewalAge: 60)) { harness in
             _ = try await harness.pairWithPushToStart()
-            var agents: [AgentSummary] = []
-            for index in 0..<11 {
-                agents.append(LiveActivitySample.agent("w\(index):p1", .working))
-                try await harness.agents(agents)
-                #expect(harness.sent.count == min(index + 1, 10))
+            try await harness.agents(working)
+            for index in 1..<10 {
                 try await harness.advance(60)
+                #expect(harness.sent.count == index + 1)
             }
-            try await harness.advance(2939)
+            try await harness.advance(60)
+            try await harness.advance(2999)
             #expect(harness.sent.count == 10)
 
             try await harness.advance(1)
             #expect(harness.sent.count == 11)
             #expect(harness.sent.allSatisfy { $0.push.event.name == "start" && $0.token == LiveActivitySample.pushToStartToken })
-            #expect(try harness.last().push.agentId == "w10:p1")
             #expect(try harness.last().push.timestamp == at(3600))
-        }
-    }
-
-    @Test func atMostFiveActivitiesAndABlockedAgentTakesTheSlotOfTheOldestIdleOne() async throws {
-        try await withLiveActivity { harness in
-            let device = try await harness.pairWithPushToStart()
-            let ids = (1...7).map { "w\($0):p1" }
-            func agents(_ statuses: [AgentStatus]) -> [AgentSummary] {
-                zip(ids, statuses).map { LiveActivitySample.agent($0, $1) }
-            }
-
-            try await harness.agents(agents(Array(repeating: .working, count: 6)))
-            #expect(harness.sent.map(\.push.agentId).sorted() == Array(ids.prefix(5)))
-            for (index, id) in ids.prefix(5).enumerated() {
-                try await harness.registerUpdateToken(LiveActivitySample.token(index + 1), activityId: "a\(index + 1)", agent: id, for: device)
-            }
-            try await harness.advance(20)
-            try await harness.agents(agents([.idle, .working, .working, .working, .working, .working]))
-            try await harness.advance(10)
-            try await harness.agents(agents([.idle, .idle, .working, .working, .working, .working]))
-            try await harness.advance(10)
-            #expect(harness.sent.count == 7)
-
-            try await harness.agents(agents([.idle, .idle, .working, .working, .working, .blocked, .working]))
-            let tail = Array(harness.sent.dropFirst(7))
-            #expect(tail.map(\.push.event.name) == ["end", "start"])
-            #expect(tail.map(\.push.agentId) == ["w1:p1", "w6:p1"])
-            #expect(tail.first?.token == LiveActivitySample.token(1))
-            #expect(tail.last?.push.relevanceScore == 100)
-
-            try await harness.advance(60)
-            #expect(!harness.sent.contains { $0.push.agentId == "w7:p1" })
-            #expect(try await harness.storedActivities(device).compactMap(\.agentId) == ["w2:p1", "w3:p1", "w4:p1", "w5:p1"])
         }
     }
 
@@ -496,7 +489,7 @@ struct LiveActivityServiceTests {
             try await harness.agents(working)
             try await harness.advance(60)
             #expect(harness.sent.map(\.push.event.name) == ["update"])
-            #expect(try await harness.storedActivities(device).isEmpty)
+            #expect(try await harness.storedCard(device) == nil)
             #expect(try await harness.storedPushToStart(device) == pushToStart)
 
             try await harness.agents(idle)
@@ -506,7 +499,7 @@ struct LiveActivityServiceTests {
         }
     }
 
-    @Test func activitiesSavedInDevicesJsonAreAdoptedOnStart() async throws {
+    @Test func theCardSavedInDevicesJsonIsAdoptedOnStart() async throws {
         try await withLiveActivity { harness in
             let device = try await harness.pair()
             #expect(try await harness.devices.setLiveActivities(
@@ -516,9 +509,7 @@ struct LiveActivityServiceTests {
                     updateToken: LiveActivitySample.otherUpdateToken,
                     env: .production
                 ),
-                agentActivities: [
-                    LiveActivityRegistration(activityId: LiveActivitySample.activityId, updateToken: LiveActivitySample.updateToken, agentId: "w1:p1", env: .production),
-                ],
+                feedActivity: LiveActivityRegistration(activityId: LiveActivitySample.activityId, updateToken: LiveActivitySample.updateToken, env: .production),
                 for: device
             ))
             let (inputs, continuation) = AsyncStream.makeStream(of: LiveActivityInput.self)
@@ -542,15 +533,15 @@ struct LiveActivityServiceTests {
             let device = try await harness.pair()
             for registration in [
                 LiveActivityRegistration(pushToStartToken: "zz", env: .sandbox),
-                LiveActivityRegistration(activityId: "a", updateToken: "abc", agentId: "w1:p1", env: .sandbox),
-                LiveActivityRegistration(pushToStartToken: LiveActivitySample.pushToStartToken, updateToken: "", agentId: "w1:p1", env: .sandbox),
+                LiveActivityRegistration(activityId: "a", updateToken: "abc", env: .sandbox),
+                LiveActivityRegistration(pushToStartToken: LiveActivitySample.pushToStartToken, updateToken: "", env: .sandbox),
             ] {
                 await #expect(throws: LiveActivityRegistrationError.invalidToken) {
                     try await harness.service.register(registration, from: device)
                 }
             }
             #expect(try await harness.storedPushToStart(device) == nil)
-            #expect(try await harness.storedActivities(device).isEmpty)
+            #expect(try await harness.storedCard(device) == nil)
         }
     }
 
@@ -562,15 +553,12 @@ struct LiveActivityServiceTests {
                     pushToStartToken: LiveActivitySample.pushToStartToken.uppercased(),
                     activityId: "",
                     updateToken: LiveActivitySample.updateToken.uppercased(),
-                    agentId: "w1:p1",
                     env: .sandbox
                 ),
                 from: device
             )
             #expect(try await harness.storedPushToStart(device) == pushToStart)
-            #expect(try await harness.storedActivities(device) == [
-                LiveActivityRegistration(updateToken: LiveActivitySample.updateToken, agentId: "w1:p1", env: .sandbox),
-            ])
+            #expect(try await harness.storedCard(device) == LiveActivityRegistration(updateToken: LiveActivitySample.updateToken, env: .sandbox))
 
             try await harness.service.register(LiveActivityRegistration(pushToStartToken: "0a", env: .sandbox), from: "sumiu")
             #expect(try await harness.devices.devices().map(\.id) == [device])
@@ -584,9 +572,9 @@ struct LiveActivityServiceTests {
             let pad = try await harness.pair("iPad")
             try await harness.registerUpdateToken(for: pad)
             #expect(try await harness.storedPushToStart(phone) == nil)
-            #expect(try await harness.storedActivities(phone).isEmpty)
+            #expect(try await harness.storedCard(phone) == nil)
             #expect(try await harness.storedPushToStart(pad) == pushToStart)
-            #expect(try await harness.storedActivities(pad).map(\.agentId) == ["w1:p1"])
+            #expect(try await harness.storedCard(pad)?.updateToken == LiveActivitySample.updateToken)
 
             try await harness.agents(working)
             #expect(harness.sent.count == 1)
