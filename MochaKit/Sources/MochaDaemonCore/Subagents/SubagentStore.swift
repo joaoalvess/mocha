@@ -436,7 +436,10 @@ public actor SubagentStore: SubagentProviding {
     }
 
     private func runningCount(in sessionId: String) -> Int {
-        guard let record = sessions[sessionId] else { return 0 }
+        sessions[sessionId].map(runningCount(of:)) ?? 0
+    }
+
+    private func runningCount(of record: SessionRecord) -> Int {
         var count = 0
         for file in record.agents.values where !(file.meta?.isSkill ?? false) {
             if let runId = file.runId {
@@ -466,7 +469,7 @@ public actor SubagentStore: SubagentProviding {
             for workflow in record.workflows.values where workflowState(of: workflow, in: record).status == .running {
                 targets[workflow.journalPath] = Self.fileEvents
             }
-            if runningCount(in: record.sessionId) > 0 || record.workflows.values.contains(where: { workflowState(of: $0, in: record).status == .running }),
+            if runningCount(of: record) > 0 || record.workflows.values.contains(where: { workflowState(of: $0, in: record).status == .running }),
                let mainPath = record.mainPath {
                 targets[mainPath] = Self.fileEvents
             }

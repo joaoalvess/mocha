@@ -184,6 +184,85 @@ enum SubagentEventWaiter {
         #expect(workflow.phases.map(\.title) == ["Implementar", "Verificar"])
         #expect(workflow.agentCount == 2)
         #expect(workflow.phases.last?.agents.map(\.agentId) == ["abbbbbbbbbbbbbbbb"])
+        #expect(workflow.status == .completed)
+    }
+
+    @Test func workflowPhasesComeFromTheScriptPathOrFallBackToTheJournal() async throws {
+        for (script, expected) in [
+            ("export const meta = { name: 'onda', phases: [{ title: 'Planejar' }, { title: 'Implementar' }, { title: 'Verificar' }] }", ["Planejar", "Implementar", "Verificar"]),
+            ("export const meta = { phases: [{ title: `x${y}` }] }", ["Implementar", "Verificar"]),
+        ] {
+            let projects = try SubagentProjects()
+            defer { projects.remove() }
+            try projects.install(fixture: "workflow", session: SubagentProjects.workflowSession)
+            let session = projects.sessionDirectory(SubagentProjects.workflowSession)
+            try FileManager.default.removeItem(at: session.appending(path: "workflows/wf_0a1b2c3d-4e5.json"))
+            let scriptURL = session.appending(path: "workflows/scripts/onda-wf_0a1b2c3d-4e5.js")
+            try FileManager.default.createDirectory(at: scriptURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(script.utf8).write(to: scriptURL)
+            let mainURL = projects.project.appending(path: "\(SubagentProjects.workflowSession).jsonl")
+            let lines = try String(contentsOf: mainURL, encoding: .utf8).split(separator: "\n").map { line -> String in
+                guard line.contains("\"name\":\"Workflow\""),
+                      var object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                      var message = object["message"] as? [String: Any],
+                      var content = message["content"] as? [[String: Any]] else {
+                    return String(line)
+                }
+                for index in content.indices where content[index]["name"] as? String == "Workflow" {
+                    content[index]["input"] = ["args": [:], "scriptPath": scriptURL.path(percentEncoded: false)]
+                }
+                message["content"] = content
+                object["message"] = message
+                return SubagentLines.json(object)
+            }
+            try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: mainURL)
+            let store = SubagentStore(projectsRoot: projects.rootPath)
+            await store.observe(sessions: [SubagentProjects.workflowSession])
+            let workflow = try #require(await store.workflow("wf_0a1b2c3d-4e5"))
+            #expect(workflow.phases.map(\.title) == expected)
+            #expect(workflow.phases.first { $0.title == "Planejar" }.map(\.status) ?? .pending == .pending)
+        }
+    }
+
+    @Test func interimNotificationKeepsTheAgentRunningUntilTheFinalOne() async throws {
+        let projects = try SubagentProjects()
+        defer { projects.remove() }
+        let sessionId = UUID().uuidString.lowercased()
+        let agentId = "a00000000000000bb"
+        let subagents = projects.subagentsDirectory(sessionId)
+        try FileManager.default.createDirectory(at: subagents, withIntermediateDirectories: true)
+        let transcript = subagents.appending(path: "agent-\(agentId).jsonl")
+        let finished = SubagentLines.json([
+            "type": "assistant", "isSidechain": true, "uuid": UUID().uuidString, "timestamp": "2026-09-27T01:00:10.000Z",
+            "message": ["role": "assistant", "model": "claude-opus-5-5", "stop_reason": "end_turn", "content": [["type": "text", "text": "Pronto."]]],
+        ])
+        try Data((SubagentLines.task("Rodar") + "\n" + finished + "\n").utf8).write(to: transcript)
+        func enqueue(_ note: String?, at time: String, usage: String = "") -> String {
+            let noteTag = note.map { "<note>\($0)</note>" } ?? ""
+            return SubagentLines.json([
+                "type": "queue-operation", "operation": "enqueue", "timestamp": time,
+                "content": "<task-notification>\n<task-id>\(agentId)</task-id>\n<status>completed</status>\n<summary>Agent \"Rodar\" completed</summary>\(noteTag)\(usage)\n</task-notification>",
+            ])
+        }
+        let main = projects.project.appending(path: "\(sessionId).jsonl")
+        try Data((enqueue("Agent stopped with background work of its own still running.", at: "2026-09-27T01:00:11.000Z") + "\n").utf8).write(to: main)
+
+        let store = SubagentStore(projectsRoot: projects.rootPath)
+        let events = store.events()
+        await store.observe(sessions: [sessionId])
+        #expect(await store.state(agentId)?.status == .running)
+        #expect(await store.runningCount(session: sessionId) == 1)
+
+        try projects.append(enqueue(nil, at: "2026-09-27T01:02:00.000Z", usage: "<usage><tool_uses>4</tool_uses><duration_ms>120000</duration_ms></usage>"), to: main)
+        let completed = await SubagentEventWaiter.first(events) { event in
+            guard case .subagent(let state) = event else { return false }
+            return state.agentId == agentId && state.status == .completed
+        }
+        guard case .subagent(let state) = completed else {
+            Issue.record("the final notification did not complete the agent")
+            return
+        }
+        #expect(state.durationMs == 120000)
     }
 
     @Test func symlinkedWorkflowIsCountedOnce() async throws {
