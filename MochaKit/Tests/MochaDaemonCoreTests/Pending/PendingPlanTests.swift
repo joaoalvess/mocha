@@ -72,11 +72,11 @@ struct PendingPlanTests {
 
     @Test func aRequestReplacesOnlyTheOneOfTheSameSubagent() async throws {
         try await withPendingStore { harness in
-            let main = try await Self.send(Self.body("PermissionRequest.write.json"), to: harness)
+            let main = try await Self.send(Self.body("PermissionRequest.bash.json"), to: harness)
             let first = try await Self.send(Self.body("PermissionRequest.bash.json", subagent: Self.subagent), to: harness)
             let other = try await Self.send(Self.body("PermissionRequest.bash.json", subagent: "a0123456789abcdef"), to: harness)
 
-            let second = try await Self.send(Self.body("PermissionRequest.write.json", subagent: Self.subagent), to: harness)
+            let second = try await Self.send(Self.body("PermissionRequest.bash.json", subagent: Self.subagent), to: harness)
 
             #expect(String(decoding: await first.response().body, as: UTF8.self) == "{}")
             #expect(try await harness.resolution(of: first.requestId).reason == .sessionHook(.permissionRequest))
