@@ -150,7 +150,7 @@ struct AgentsCardLines: View {
     private func detail(_ text: String, size: CGFloat, design: Font.Design) -> some View {
         Text(text)
             .font(.system(size: size, design: design))
-            .foregroundStyle(lines.emphasizesDetail ? AgentsPalette.waiting : AgentsPalette.textSecondary)
+            .foregroundStyle(lines.emphasizesDetail ? AgentsPalette.request : AgentsPalette.textSecondary)
             .lineLimit(1)
             .minimumScaleFactor(Self.detailMinimumScale)
     }

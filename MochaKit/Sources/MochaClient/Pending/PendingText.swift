@@ -38,7 +38,7 @@ public enum PendingText {
     public static let deny = "Negar"
     public static let approve = "Aprovar"
     public static let planToolName = "ExitPlanMode"
-    public static let planTitle = "Sair do modo plano"
+    public static let planTitle = "Exit plan mode"
     public static let answer = "Responder"
     public static let otherPlaceholder = "Outro…"
     public static let answerPlaceholder = "Sua resposta"
