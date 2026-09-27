@@ -128,6 +128,42 @@ struct DeviceStoreTests {
         }
     }
 
+    @Test func liveActivityTokensBelongToOneDevice() async throws {
+        try await withStore { store, _ in
+            let pushToStart = String(repeating: "a1", count: 40)
+            let update = String(repeating: "b2", count: 40)
+            let apns = ApnsRegistration(token: String(repeating: "ab", count: 32), env: .sandbox)
+            let phone = try await store.register(name: "iPhone", token: "t1", at: start, apns: apns)
+            let pad = try await store.register(name: "iPad", token: "t2", at: start)
+            let watch = try await store.register(name: "Outro", token: "t3", at: start)
+            let full = LiveActivityRegistration(pushToStartToken: pushToStart, activityId: "act-1", updateToken: update, env: .sandbox)
+            let other = LiveActivityRegistration(pushToStartToken: String(repeating: "c3", count: 40), env: .production)
+
+            #expect(try await store.setLiveActivity(full, for: phone.id))
+            #expect(try await store.setLiveActivity(other, for: watch.id))
+            #expect(try await store.setLiveActivity(full, for: "sumiu") == false)
+            #expect(try await store.devices().first { $0.id == phone.id }?.liveActivity == full)
+
+            #expect(try await store.setLiveActivity(LiveActivityRegistration(updateToken: update.uppercased(), env: .sandbox), for: pad.id))
+            var records = try await store.devices()
+            #expect(records.first { $0.id == phone.id }?.liveActivity == LiveActivityRegistration(pushToStartToken: pushToStart, env: .sandbox))
+            #expect(records.first { $0.id == phone.id }?.apns == apns)
+            #expect(records.first { $0.id == watch.id }?.liveActivity == other)
+
+            #expect(try await store.setLiveActivity(LiveActivityRegistration(pushToStartToken: pushToStart.uppercased(), env: .sandbox), for: pad.id))
+            records = try await store.devices()
+            #expect(records.first { $0.id == phone.id }?.liveActivity == nil)
+            #expect(records.first { $0.id == pad.id }?.liveActivity == LiveActivityRegistration(pushToStartToken: pushToStart.uppercased(), env: .sandbox))
+            #expect(records.first { $0.id == watch.id }?.liveActivity == other)
+
+            #expect(try await store.setLiveActivity(nil, for: pad.id))
+            records = try await store.devices()
+            #expect(records.first { $0.id == pad.id }?.liveActivity == nil)
+            #expect(records.first { $0.id == watch.id }?.liveActivity == other)
+            #expect(records.map(\.name) == ["iPhone", "iPad", "Outro"])
+        }
+    }
+
     @Test func recordsKeepPreferencesAndOptionalRegistrations() async throws {
         try await withStore { store, fileURL in
             let record = try await store.register(name: "iPhone", token: SecureToken.generate(), at: start)

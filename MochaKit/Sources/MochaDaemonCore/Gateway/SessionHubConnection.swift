@@ -85,6 +85,9 @@ extension SessionHub {
             chat.cancel()
         }
         publishOpenChats()
+        if client.foreground?.isActive == true {
+            publishLiveActivityInput()
+        }
     }
 
     private func receive(_ message: WebSocketMessage, from clientId: UUID) async {
@@ -227,6 +230,7 @@ extension SessionHub {
             }
             clients[clientId]?.foreground = Foreground(agentId: resolved, isActive: isActive)
             send(.ack(), id: id, to: clientId)
+            publishLiveActivityInput()
         case .unpair:
             await unpair(clientId, id: id)
         case .ping:
@@ -243,7 +247,9 @@ extension SessionHub {
             await listSubagents(agentId, id: id, clientId: clientId)
         case .respond(let requestId, let response) where pending != nil:
             await respond(to: requestId, with: response, id: id, clientId: clientId)
-        case .respond, .registerLiveActivity, .unknown:
+        case .registerLiveActivity(let registration):
+            await registerLiveActivity(registration, id: id, clientId: clientId)
+        case .respond, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }

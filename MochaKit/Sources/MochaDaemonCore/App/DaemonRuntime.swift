@@ -62,6 +62,7 @@ public actor DaemonRuntime {
     private var hookRouter: HookRouter?
     private var push: PushService?
     private var pending: PendingStore?
+    private var liveActivity: LiveActivityService?
     private var uploadCleanup: Task<Void, Never>?
 
     public init(options: DaemonOptions = DaemonOptions(), events: @escaping Gateway.EventSink = { _ in }) {
@@ -98,9 +99,11 @@ public actor DaemonRuntime {
             credentials: options.apnsCredentials ?? ApnsCredentials.loader(configFile: paths.configFile),
             transport: options.apnsTransport ?? URLSessionApnsTransport()
         )
+        let liveActivity = LiveActivityService(devices: devices, sender: push)
+        await hub.attachLiveActivity(liveActivity)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
-        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, events: events)
+        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, liveActivities: liveActivity, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let configFile = paths.configFile
         let hookPort = options.hookPort ?? preparation.config.hookPort
@@ -131,6 +134,7 @@ public actor DaemonRuntime {
         self.gateway = gateway
         self.push = push
         self.pending = pending
+        self.liveActivity = liveActivity
         self.hookRouter = hookRouter
         uploads.removeExpired(now: Date())
         let clock = SystemGatewayClock()
@@ -141,6 +145,7 @@ public actor DaemonRuntime {
         await herdr.start()
         await hub.start()
         await pending.start()
+        await liveActivity.start(inputs: hub.liveActivityUpdates)
         await hookRouter.start(hooks: hookEvents.events())
         do {
             try await gatewayServer.start()
@@ -184,6 +189,8 @@ public actor DaemonRuntime {
         hookEvents.finish()
         await hookRouter?.stop()
         hookRouter = nil
+        await liveActivity?.shutdown()
+        liveActivity = nil
         await push?.shutdown()
         push = nil
         await gateway?.shutdown()
