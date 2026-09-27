@@ -20,7 +20,8 @@ struct AgentDetailSheet: View {
                     usage: session.usage,
                     now: context.date,
                     subagents: subagents,
-                    onOpenSubagent: { session.openChat($0) }
+                    onOpenSubagent: { session.openChat($0) },
+                    onRespond: pendingAgentId.map { agentId in { session.revealPendingRequest(of: agentId) } }
                 )
                 .padding(.horizontal, Metrics.contentMargin)
                 .padding(.top, Self.contentTop)
@@ -35,6 +36,11 @@ struct AgentDetailSheet: View {
             .padding(.top, Self.closeInset)
         }
         .task(id: subagentListKey) { await loadSubagents() }
+    }
+
+    private var pendingAgentId: AgentID? {
+        guard case .agent(let agentId) = target, session.pending.request(forAgent: agentId) != nil else { return nil }
+        return agentId
     }
 
     private var subagentListKey: SubagentListKey? {
@@ -123,10 +129,15 @@ private struct AgentDetailContent: View {
     let now: Date
     let subagents: [SubagentSummary]
     let onOpenSubagent: (ChatTarget) -> Void
+    let onRespond: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             AgentDetailHero(info: info, hostName: hostName, now: now)
+            if let onRespond {
+                RespondButton(action: onRespond)
+                    .padding(.top, 20.3)
+            }
             if info.isAgent, let sessionId = info.sessionId, !subagents.isEmpty {
                 AgentSubagentsSection(items: subagents, sessionId: sessionId, onOpen: onOpenSubagent)
             }

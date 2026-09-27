@@ -53,6 +53,9 @@ struct ChatConversation: View {
             .onChange(of: isFieldFocused) { _, isFocused in
                 if !isFocused { isComposing = false }
             }
+            .onChange(of: session.pendingReveal, initial: true) { _, agentId in
+                revealPendingRequest(agentId)
+            }
             .task { await runDebugLaunch() }
     }
 
@@ -90,6 +93,11 @@ struct ChatConversation: View {
                 }
                 ForEach(list.pending.bubbles) { bubble in
                     PendingBubbleRow(bubble: bubble) { list.discardPending(bubble.id) }
+                        .padding(.horizontal, Metrics.contentMargin)
+                        .padding(.bottom, ChatRowSpacing.standard)
+                }
+                if let pendingRequest {
+                    PendingChatCard(session: session, request: pendingRequest)
                         .padding(.horizontal, Metrics.contentMargin)
                         .padding(.bottom, ChatRowSpacing.standard)
                 }
@@ -283,7 +291,13 @@ struct ChatConversation: View {
     private var indicator: StatusIndicator {
         guard isConnected else { return .disconnected }
         if isReadOnly { return .archived }
+        if pendingRequest != nil { return .agent(.blocked) }
         return .agent(status)
+    }
+
+    private var pendingRequest: PendingRequest? {
+        guard case .agent(let agentId) = liveTarget else { return nil }
+        return session.pending.request(forAgent: agentId)
     }
 
     private var title: String {
@@ -350,6 +364,13 @@ struct ChatConversation: View {
 
     private func scrollToBottom() {
         position.scrollTo(id: ChatScreenLayout.bottomAnchorId, anchor: .bottom)
+    }
+
+    private func revealPendingRequest(_ agentId: AgentID?) {
+        guard let agentId, liveTarget == .agent(agentId) else { return }
+        session.consumePendingReveal()
+        dismissComposer()
+        jumpToBottom()
     }
 
     private func loadOlderItems() {

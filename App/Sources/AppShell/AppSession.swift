@@ -73,7 +73,10 @@ final class AppSession {
     private(set) var isDrawerOpen = false
     private(set) var pairing = PairingGate()
     private(set) var pairedAt: Date?
+    private(set) var pending = PendingInbox()
+    private(set) var pendingReveal: AgentID?
     var sheet: AppSheet?
+    var isInboxOpen = false
 
     @ObservationIgnored private let connection: any ServerConnection
     @ObservationIgnored private let uploader: any ImageUploading
@@ -202,6 +205,7 @@ final class AppSession {
     func openChat(_ target: ChatTarget) {
         isDrawerOpen = false
         sheet = nil
+        isInboxOpen = false
         navigate(ChatNavigation.open(target, stack: stackEntries))
     }
 
@@ -248,6 +252,37 @@ final class AppSession {
 
     func dismissSheet() {
         sheet = nil
+    }
+
+    func showInbox() {
+        isDrawerOpen = false
+        sheet = nil
+        isInboxOpen = true
+    }
+
+    func revealPendingRequest(of agentId: AgentID) {
+        pendingReveal = agentId
+        openChat(.agent(agentId))
+    }
+
+    func consumePendingReveal() {
+        pendingReveal = nil
+    }
+
+    func respond(to requestId: RequestID, with response: PendingResponse) {
+        guard pending.beginSending(requestId) else { return }
+        Task {
+            let outcome: PendingSendOutcome
+            do {
+                try await request(.respond(requestId: requestId, response: response))
+                outcome = .accepted
+            } catch AppSessionError.server(let code, _) where code == .requestNotFound {
+                outcome = .gone
+            } catch {
+                outcome = .failed(Self.sessionError(from: error).message)
+            }
+            pending.finishSending(requestId, outcome: outcome)
+        }
     }
 
     func setTurnDoneAlerts(_ isOn: Bool) async throws {
@@ -425,6 +460,7 @@ final class AppSession {
     private func coverWithPairing() {
         sheet = nil
         isDrawerOpen = false
+        isInboxOpen = false
     }
 
     private func recordPairing() {
@@ -473,7 +509,9 @@ final class AppSession {
             updateChat(target: target, items: items)
         case .chatMeta(let target, let meta):
             updateChats(target: target) { $0.meta = meta }
-        case .chatPage, .subagentList, .pending, .ack, .pong, .error, .unknown:
+        case .pending(let requests):
+            pending.replace(with: requests)
+        case .chatPage, .subagentList, .ack, .pong, .error, .unknown:
             break
         }
     }

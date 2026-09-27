@@ -12,7 +12,7 @@ enum AppNotifications {
         center.delegate = delegate
         center.setNotificationCategories(Set(AlertCategory.all.map {
             UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [])
-        }))
+        }).union(PendingNotificationCategories.make()))
         PushRegistration.shared.registerAtLaunch()
         #if DEBUG
         NotificationTapDebugLaunch.schedule()
