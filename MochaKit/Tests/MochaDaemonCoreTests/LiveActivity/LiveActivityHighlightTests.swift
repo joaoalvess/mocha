@@ -33,19 +33,17 @@ struct LiveActivityHighlightTests {
         TabNode(id: id, title: title, agents: agents)
     }
 
-    private func snapshot(_ input: LiveActivityInput, at date: Date = Sample.start) -> LiveActivitySnapshot {
-        var tracker = LiveActivityStatusTracker()
-        return tracker.snapshot(of: input, at: date, titleLimit: LiveActivityConfiguration().titleLimit)
+    private func snapshots(_ input: LiveActivityInput, at date: Date = Sample.start) -> [AgentID: AgentActivitySnapshot] {
+        var tracker = AgentActivityTracker()
+        return tracker.snapshots(of: input, at: date, titleLimit: LiveActivityConfiguration().titleLimit)
     }
 
-    private func highlight(_ tree: [WorkspaceNode], pending: [PendingRequest] = []) -> LiveActivityContentState.Highlight? {
-        snapshot(LiveActivitySample.input(tree, pending: pending)).highlight
+    private func highlight(_ tree: [WorkspaceNode], pending: [PendingRequest] = [], of agentId: AgentID = "w1:p1") -> LiveActivityContentState.Highlight? {
+        snapshots(LiveActivitySample.input(tree, pending: pending))[agentId]?.agent
     }
 
-    private func encodedHighlight(_ highlight: LiveActivityContentState.Highlight?) throws -> [String: Any] {
-        let state = LiveActivityContentState(working: 1, waiting: 0, highlight: highlight, updatedAt: Sample.start)
-        let object = try PushTestData.jsonObject(try ApnsPayloadEncoding.encoder.encode(state))
-        return try #require(object["highlight"] as? [String: Any])
+    private func encodedHighlight(_ highlight: LiveActivityContentState.Highlight) throws -> [String: Any] {
+        try PushTestData.jsonObject(try ApnsPayloadEncoding.encoder.encode(highlight))
     }
 
     @Test func theHighlightIsFilledFromTheAgentAndItsTab() throws {
@@ -72,7 +70,7 @@ struct LiveActivityHighlightTests {
         )
         let nested = LiveActivitySample.tree([tab("shell", [])], children: [child])
         #expect(LiveActivityInput.tabTitles(in: nested) == ["w2:p1": "", "w2:p2": "lexer"])
-        #expect(highlight(nested)?.tabTitle == "lexer")
+        #expect(highlight(nested, of: "w2:p2")?.tabTitle == "lexer")
     }
 
     @Test func withoutATabTitleAPreviewOrMetadataThoseFieldsAreOmitted() throws {
@@ -86,7 +84,7 @@ struct LiveActivityHighlightTests {
         )
         #expect(highlight(LiveActivitySample.tree([tab("", [bare])])) == expected)
         #expect(highlight(LiveActivitySample.tree([tab(" \n ", [bare])])) == expected)
-        #expect(snapshot(LiveActivityInput(agents: [bare])).highlight == expected)
+        #expect(snapshots(LiveActivityInput(agents: [bare]))["w1:p1"]?.agent == expected)
         #expect(highlight(LiveActivitySample.tree([tab("parser", [agent(preview: "  \n\n ")])]))?.preview == nil)
         #expect(highlight(LiveActivitySample.tree([tab("parser", [agent(preview: "```\n```")])]))?.preview == nil)
         #expect(Set(try encodedHighlight(expected).keys) == ["agentId", "title", "workspaceLabel", "status", "since"])
@@ -124,11 +122,12 @@ struct LiveActivityHighlightTests {
         #expect(cut.hasPrefix("Olá ação 👍🏽 Olá"))
     }
 
-    @Test func aPendingRequestOmitsThePreviewAndTheActivity() throws {
+    @Test func aPendingRequestOmitsThePreviewAndTheActivityOfItsAgentOnly() throws {
         let tree = LiveActivitySample.tree([tab("parser", [agent("w1:p1", .blocked), agent("w1:p2")])])
         let request = LiveActivitySample.permission("req-1", agent: "w1:p1")
-        let snapshot = snapshot(LiveActivitySample.input(tree, pending: [request]))
-        let highlight = try #require(snapshot.highlight)
+        let snapshots = snapshots(LiveActivitySample.input(tree, pending: [request]))
+        let snapshot = try #require(snapshots["w1:p1"])
+        let highlight = snapshot.agent
         #expect(snapshot.pending?.requestId == "req-1")
         #expect(highlight.agentId == "w1:p1")
         #expect(highlight.tabTitle == "parser")
@@ -139,46 +138,50 @@ struct LiveActivityHighlightTests {
         let keys = Set(try encodedHighlight(highlight).keys)
         #expect(keys == ["agentId", "title", "workspaceLabel", "status", "since", "tabTitle", "model", "contextLeftPercent"])
 
-        let withoutPending = self.snapshot(LiveActivitySample.input(tree))
-        #expect(withoutPending.highlight?.preview == "Pronto: rodei os testes.")
-        #expect(withoutPending.highlight?.activity == "Bash: npm run build")
+        #expect(snapshots["w1:p2"]?.pending == nil)
+        #expect(snapshots["w1:p2"]?.agent.preview == "Pronto: rodei os testes.")
+        #expect(snapshots["w1:p2"]?.agent.activity == "Bash: npm run build")
+
+        let withoutPending = self.snapshots(LiveActivitySample.input(tree))["w1:p1"]
+        #expect(withoutPending?.agent.preview == "Pronto: rodei os testes.")
+        #expect(withoutPending?.agent.activity == "Bash: npm run build")
     }
 
     @Test func theContentStateDecodesWithTheDefaultDecoderLikeTheApp() throws {
-        let snapshot = snapshot(LiveActivitySample.input(LiveActivitySample.tree([tab("parser", [agent()])])))
-        let push = LiveActivityPush(event: .update, contentState: snapshot.contentState(at: at(5)), timestamp: at(5), staleDate: at(905))
+        let snapshot = try #require(snapshots(LiveActivitySample.input(LiveActivitySample.tree([tab("parser", [agent()])])))["w1:p1"])
+        let push = snapshot.push({ _ in .update(alert: nil) }, at: at(5), staleDate: at(905))
         #expect(try LiveActivityAppContentState.decoding(push) == LiveActivityAppContentState(
-            working: 1,
-            waiting: 0,
-            highlight: .init(
-                agentId: "w1:p1",
-                title: "Refatorar o parser",
-                workspaceLabel: "demo-app",
-                status: "working",
-                since: Sample.start,
-                tabTitle: "parser",
-                model: "claude-opus-4-1",
-                contextLeftPercent: 42,
-                preview: "Pronto: rodei os testes.",
-                activity: "Bash: npm run build"
-            ),
+            status: "working",
+            title: "Refatorar o parser",
+            workspaceLabel: "demo-app",
+            since: Sample.start,
+            tabTitle: "parser",
+            model: "claude-opus-4-1",
+            contextLeftPercent: 42,
+            preview: "Pronto: rodei os testes.",
+            activity: "Bash: npm run build",
             pending: nil,
             updatedAt: at(5)
         ))
-        let data = try ApnsPayloadEncoding.encoder.encode(push.contentState)
-        #expect(try JSONDecoder().decode(LiveActivityContentState.self, from: data) == push.contentState)
+        let data = try ApnsPayloadEncoding.encoder.encode(push.contentState.agent)
+        #expect(try JSONDecoder().decode(LiveActivityContentState.Highlight.self, from: data) == push.contentState.agent)
 
-        let bare = LiveActivityContentState(
-            working: 1,
-            waiting: 0,
-            highlight: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "working", since: Sample.start),
+        let bare = AgentActivityContentState(
+            agent: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "working", since: Sample.start),
+            pending: nil,
             updatedAt: at(5)
         )
-        let decoded = try LiveActivityAppContentState.decoding(LiveActivityPush(event: .update, contentState: bare, timestamp: at(5)))
-        #expect(decoded.highlight == .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "working", since: Sample.start))
+        let decoded = try LiveActivityAppContentState.decoding(AgentActivityPush(agentId: "w1:p1", event: .update(alert: nil), contentState: bare, timestamp: at(5)))
+        #expect(decoded == LiveActivityAppContentState(
+            status: "working",
+            title: "Refatorar o parser",
+            workspaceLabel: "demo-app",
+            since: Sample.start,
+            updatedAt: at(5)
+        ))
     }
 
-    @Test func onlyAHighlightSwitchACountOrAPendingIsPriorityTen() async throws {
+    @Test func onlyAStatusOrPendingChangeIsPriorityTen() async throws {
         try await withLiveActivity { harness in
             let device = try await harness.pair()
             try await harness.registerUpdateToken(for: device)
@@ -205,26 +208,25 @@ struct LiveActivityHighlightTests {
             try await send([parser, LiveActivitySample.agent("w1:p2", .idle)], tabTitle: "lexer")
             try await send([parser], tabTitle: "lexer", pending: [LiveActivitySample.permission("req-1", agent: "w1:p1")])
 
-            #expect(harness.sent.map(\.priority) == [.high, .low, .low, .low, .low, .low, .low, .high, .high, .high])
-            #expect(harness.sent.map { $0.push.contentState.highlight?.agentId } == [
-                "w1:p1", "w1:p1", "w1:p1", "w1:p1", "w1:p1", "w1:p1", "w1:p1", "w1:p2", "w1:p1", "w1:p1",
-            ])
-            let highlights = harness.sent.compactMap(\.push.contentState.highlight)
+            let sent = harness.sent(to: LiveActivitySample.updateToken)
+            #expect(sent.map(\.priority) == [.high, .low, .low, .low, .low, .low, .low, .high])
+            #expect(sent.allSatisfy { $0.push.agentId == "w1:p1" && $0.push.contentState.agent.agentId == "w1:p1" })
+            let highlights = sent.map(\.push.contentState.agent)
             #expect(highlights.map(\.preview) == [
                 "Pronto: rodei os testes.", "Rodando os testes", "Rodando os testes", "Rodando os testes", "Rodando os testes",
-                "Rodando os testes", "Rodando os testes", "Outro", "Rodando os testes", nil,
+                "Rodando os testes", "Rodando os testes", nil,
             ])
             #expect(highlights.map(\.activity) == [
                 "Bash: npm run build", "Bash: npm run build", "Read: Package.swift", "Read: Package.swift", "Read: Package.swift",
-                "Read: Package.swift", nil, "Bash: npm run build", nil, nil,
+                "Read: Package.swift", nil, nil,
             ])
-            #expect(highlights.map(\.contextLeftPercent) == [42, 42, 42, 30, 30, 30, 30, 42, 30, 30])
+            #expect(highlights.map(\.contextLeftPercent) == [42, 42, 42, 30, 30, 30, 30, 30])
             #expect(highlights.map(\.model) == [
                 "claude-opus-4-1", "claude-opus-4-1", "claude-opus-4-1", "claude-opus-4-1", "claude-sonnet-4-5",
-                "claude-sonnet-4-5", "claude-sonnet-4-5", "claude-opus-4-1", "claude-sonnet-4-5", "claude-sonnet-4-5",
+                "claude-sonnet-4-5", "claude-sonnet-4-5", "claude-sonnet-4-5",
             ])
-            #expect(highlights.map(\.tabTitle) == ["parser", "parser", "parser", "parser", "parser", "lexer", "lexer", "lexer", "lexer", "lexer"])
-            #expect(harness.sent.last?.push.contentState.pending?.requestId == "req-1")
+            #expect(highlights.map(\.tabTitle) == ["parser", "parser", "parser", "parser", "parser", "lexer", "lexer", "lexer"])
+            #expect(sent.last?.push.contentState.pending?.requestId == "req-1")
         }
     }
 
@@ -242,7 +244,7 @@ struct LiveActivityHighlightTests {
             try await harness.advance(5)
             #expect(harness.sent.map(\.push.timestamp) == [at(0), at(10), at(20), at(30)])
             #expect(harness.sent.map(\.priority) == [.high, .low, .low, .low])
-            #expect(harness.sent.map { $0.push.contentState.highlight?.preview } == ["Pronto: rodei os testes.", "Token 9", "Token 19", "Token 25"])
+            #expect(harness.sent.map(\.push.contentState.agent.preview) == ["Pronto: rodei os testes.", "Token 9", "Token 19", "Token 25"])
 
             try await harness.advance(599)
             #expect(harness.sent.count == 4)
@@ -250,7 +252,7 @@ struct LiveActivityHighlightTests {
             #expect(harness.sent.count == 5)
             #expect(try harness.last().priority == .low)
             #expect(try harness.last().push.timestamp == at(630))
-            #expect(try harness.last().push.contentState.highlight?.preview == "Token 25")
+            #expect(try harness.last().push.contentState.agent.preview == "Token 25")
         }
     }
 
@@ -260,15 +262,15 @@ struct LiveActivityHighlightTests {
             try await harness.tree(LiveActivitySample.tree([tab("parser", [agent()])]))
             let start = try harness.last()
             #expect(start.push.event.name == "start")
-            #expect(start.push.contentState.highlight?.tabTitle == "parser")
-            #expect(start.push.contentState.highlight?.activity == "Bash: npm run build")
+            #expect(start.push.contentState.agent.tabTitle == "parser")
+            #expect(start.push.contentState.agent.activity == "Bash: npm run build")
         }
     }
 
     @Test(arguments: ["ç", "😀", "👍🏽", "👨‍👩‍👧‍👦", "\"", "\u{1}"])
-    func theWorstCasePayloadFitsInFourKilobytes(unit: String) throws {
+    func theWorstCasePayloadWithItsAlertFitsInFourKilobytes(unit: String) throws {
         let now = Date(timeIntervalSince1970: 1_790_000_000.123456)
-        var highlighted = agent(
+        var worst = agent(
             "w9999:p9999",
             .blocked,
             model: "claude-sonnet-4-5-20250929[1m]",
@@ -276,30 +278,28 @@ struct LiveActivityHighlightTests {
             preview: String(repeating: unit, count: 500),
             tool: ToolActivity(toolName: "mcp__claude_ai_Claude_Docs__batch", summary: String(repeating: unit, count: 300), status: .running)
         )
-        highlighted.title = String(repeating: "😀", count: 200)
-        highlighted.workspaceLabel = String(repeating: "😀", count: 60)
-        let others = (0..<98).map { agent("x\($0):p1", .blocked) } + (0..<99).map { agent("y\($0):p1", .working) }
-        let tree = LiveActivitySample.tree([tab(String(repeating: unit, count: 200), [highlighted] + others)])
+        worst.title = String(repeating: "😀", count: 200)
+        worst.workspaceLabel = String(repeating: "😀", count: 60)
+        let tree = LiveActivitySample.tree([tab(String(repeating: unit, count: 200), [worst])])
 
-        func payloads(_ snapshot: LiveActivitySnapshot) throws -> [Int] {
-            let state = snapshot.contentState(at: now)
-            let start = LiveActivityPush(event: .start(alert: .init(title: "Mocha", body: snapshot.summary)), contentState: state, timestamp: now)
-            let update = LiveActivityPush(event: .update, contentState: state, timestamp: now, staleDate: now.addingTimeInterval(900))
-            return [try start.payload().count, try update.payload().count]
+        func pushes(_ snapshot: AgentActivitySnapshot) -> [AgentActivityPush] {
+            let staleDate = now.addingTimeInterval(900)
+            return [
+                snapshot.push({ .start(alert: $0.startAlert) }, at: now, staleDate: staleDate),
+                snapshot.push({ .update(alert: $0.alertContent(.needsInput)) }, at: now, staleDate: staleDate),
+                snapshot.push({ .update(alert: $0.alertContent(.turnDone)) }, at: now, staleDate: staleDate),
+                snapshot.push({ _ in .update(alert: nil) }, at: now, staleDate: staleDate),
+                snapshot.push({ _ in .end(dismissalDate: now) }, at: now, staleDate: nil),
+            ]
         }
 
-        let free = snapshot(LiveActivitySample.input(tree), at: now)
-        #expect(free.summary == "99 trabalhando · 99 esperando você")
-        #expect(free.highlight?.agentId == "w9999:p9999")
+        let free = try #require(snapshots(LiveActivitySample.input(tree), at: now)["w9999:p9999"])
         #expect(free.pending == nil)
-        #expect(try payloads(free).allSatisfy { $0 <= ApnsRequest.maxPayloadBytes })
-        #expect(free.fitsEncodedBudget(at: now))
-        if unit.utf8.count <= 8 {
-            #expect(free.highlight?.preview?.count == 180)
-            #expect(free.highlight?.activity?.count == 120)
-            #expect(free.highlight?.tabTitle?.count == 60)
-        } else {
-            #expect(free.highlight?.preview == nil)
+        #expect(free.agent.preview?.count == 180)
+        #expect(free.agent.activity?.count == 120)
+        #expect(free.agent.tabTitle?.count == 60)
+        for push in pushes(free) {
+            #expect(try push.payload().count <= ApnsRequest.maxPayloadBytes)
         }
 
         let requestId = UUID().uuidString.lowercased()
@@ -309,12 +309,14 @@ struct LiveActivityHighlightTests {
             agent: "w9999:p9999",
             questions: [LiveActivitySample.singleQuestion(text, labels: Array(repeating: String(repeating: "😀", count: 60), count: 4))]
         )
-        let held = snapshot(LiveActivitySample.input(tree, pending: [request]), at: now)
+        let held = try #require(snapshots(LiveActivitySample.input(tree, pending: [request]), at: now)["w9999:p9999"])
         #expect(held.pending?.options.count == 4)
-        #expect(held.highlight?.agentId == "w9999:p9999")
-        #expect(held.highlight?.preview == nil)
-        #expect(held.highlight?.activity == nil)
-        #expect(try payloads(held).allSatisfy { $0 <= ApnsRequest.maxPayloadBytes })
+        #expect(held.agent.preview == nil)
+        #expect(held.agent.activity == nil)
+        for push in pushes(held) {
+            #expect(try push.payload().count <= ApnsRequest.maxPayloadBytes)
+            #expect(push.contentState.pending?.requestId == requestId)
+        }
     }
 
     private func maximalInlineQuestion(requestId: RequestID) -> String {

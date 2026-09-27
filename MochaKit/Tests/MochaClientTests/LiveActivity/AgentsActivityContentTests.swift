@@ -1,5 +1,4 @@
 import Foundation
-import MochaDaemonCore
 import Testing
 @testable import MochaClient
 
@@ -143,24 +142,6 @@ struct AgentsActivityContentTests {
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(AgentsActivityContent.self, from: Data(json.utf8))
         }
-    }
-
-    @Test func decodesWhatTheDaemonMirrorEncodes() throws {
-        let since = Date(timeIntervalSinceReferenceDate: 780_000_000.75)
-        let updatedAt = Date(timeIntervalSinceReferenceDate: 780_000_100.5)
-        let daemon = LiveActivityContentState(
-            working: 3,
-            waiting: 0,
-            highlight: .init(agentId: "w1:p4", title: "Refatora o parser", workspaceLabel: "mocha", status: "working", since: since),
-            updatedAt: updatedAt
-        )
-        let content = try JSONDecoder().decode(AgentsActivityContent.self, from: JSONEncoder().encode(daemon))
-        #expect(content == AgentsActivityContent(
-            working: 3,
-            waiting: 0,
-            highlight: .init(agentId: "w1:p4", title: "Refatora o parser", workspaceLabel: "mocha", status: "working", since: since),
-            updatedAt: updatedAt
-        ))
     }
 
     @Test func encodesDatesAsSecondsSinceReferenceDateLikeActivityKit() throws {

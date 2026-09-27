@@ -47,6 +47,18 @@ extension LiveActivityContentState.Pending {
         }
     }
 
+    var withoutOptions: Self {
+        guard !options.isEmpty else { return self }
+        return Self(
+            requestId: requestId,
+            agentId: agentId,
+            kind: kind,
+            toolName: toolName,
+            text: PlainText.preview(fromMarkdown: text, limit: PushAlertText.bodyLimit),
+            options: []
+        )
+    }
+
     static func inlineQuestion(in questions: [PendingQuestion]) -> PendingQuestion? {
         guard questions.count == 1, let question = questions.first, !question.multiSelect,
               question.question.utf8.count <= inlineQuestionByteLimit,

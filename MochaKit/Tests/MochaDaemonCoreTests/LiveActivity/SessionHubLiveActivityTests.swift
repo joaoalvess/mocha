@@ -23,6 +23,7 @@ struct SessionHubLiveActivityTests {
         pushToStartToken: LiveActivitySample.pushToStartToken,
         activityId: LiveActivitySample.activityId,
         updateToken: LiveActivitySample.updateToken,
+        agentId: "w1:p1",
         env: .sandbox
     )
 
@@ -75,7 +76,11 @@ struct SessionHubLiveActivityTests {
             #expect(try await harness.devices.devices().first?.liveActivity == nil)
 
             #expect(try await socket.reply(to: .registerLiveActivity(Self.registration), id: "c-2") == .ack())
-            #expect(try await harness.devices.devices().first { $0.id == helloOk.deviceId }?.liveActivity == Self.registration)
+            let record = try #require(try await harness.devices.devices().first { $0.id == helloOk.deviceId })
+            #expect(record.liveActivity == LiveActivityRegistration(pushToStartToken: LiveActivitySample.pushToStartToken, env: .sandbox))
+            #expect(record.agentActivities == [
+                LiveActivityRegistration(activityId: LiveActivitySample.activityId, updateToken: LiveActivitySample.updateToken, agentId: "w1:p1", env: .sandbox),
+            ])
             await service.shutdown()
         }
     }

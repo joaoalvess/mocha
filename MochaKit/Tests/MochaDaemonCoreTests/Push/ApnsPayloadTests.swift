@@ -5,17 +5,16 @@ import Testing
 struct ApnsPayloadTests {
     private let sentAt = Date(timeIntervalSince1970: 1_790_000_000.123)
 
-    private var state: LiveActivityContentState {
-        LiveActivityContentState(
-            working: 2,
-            waiting: 1,
-            highlight: .init(
+    private var state: AgentActivityContentState {
+        AgentActivityContentState(
+            agent: .init(
                 agentId: "w17:p1",
                 title: "roda os testes",
                 workspaceLabel: "demo-app",
                 status: "blocked",
                 since: Date(timeIntervalSince1970: 1_789_999_900)
             ),
+            pending: nil,
             updatedAt: sentAt
         )
     }
@@ -63,8 +62,7 @@ struct ApnsPayloadTests {
     @Test func contentStateEncodesDatesAsSecondsSinceReferenceDate() throws {
         let object = try PushTestData.jsonObject(try JSONEncoder().encode(state))
         #expect(object["updatedAt"] as? Double == sentAt.timeIntervalSinceReferenceDate)
-        let highlight = try #require(object["highlight"] as? [String: Any])
-        #expect(highlight["since"] as? Double == Date(timeIntervalSince1970: 1_789_999_900).timeIntervalSinceReferenceDate)
+        #expect(object["since"] as? Double == Date(timeIntervalSince1970: 1_789_999_900).timeIntervalSinceReferenceDate)
         let plain = JSONEncoder()
         plain.outputFormatting = [.sortedKeys]
         let iso = JSONEncoder()
@@ -73,46 +71,77 @@ struct ApnsPayloadTests {
         #expect(try plain.encode(state) == iso.encode(state))
     }
 
-    @Test func contentStateDecodesWithDefaultDecoderLikeActivityKit() throws {
-        let decoded = try JSONDecoder().decode(LiveActivityContentState.self, from: try JSONEncoder().encode(state))
-        #expect(decoded == state)
-        let withoutHighlight = LiveActivityContentState(working: 0, waiting: 0, highlight: nil, updatedAt: sentAt)
-        let object = try PushTestData.jsonObject(try JSONEncoder().encode(withoutHighlight))
-        #expect(object["highlight"] == nil)
+    @Test func contentStateFlattensTheAgentAndDecodesWithDefaultDecoderLikeActivityKit() throws {
+        let object = try PushTestData.jsonObject(try JSONEncoder().encode(state))
+        #expect(Set(object.keys) == ["agentId", "title", "workspaceLabel", "status", "since", "updatedAt"])
+        let decoded = try JSONDecoder().decode(LiveActivityAppContentState.self, from: try JSONEncoder().encode(state))
+        #expect(decoded == LiveActivityAppContentState(
+            status: "blocked",
+            title: "roda os testes",
+            workspaceLabel: "demo-app",
+            since: Date(timeIntervalSince1970: 1_789_999_900),
+            updatedAt: sentAt
+        ))
     }
 
-    @Test func updatePayloadHasEventTimestampAndContentState() throws {
-        let push = LiveActivityPush(event: .update, contentState: state, timestamp: sentAt, staleDate: Date(timeIntervalSince1970: 1_790_000_900))
+    @Test func updatePayloadHasEventTimestampContentStateAndRelevance() throws {
+        let push = AgentActivityPush(
+            agentId: "w17:p1",
+            event: .update(alert: nil),
+            contentState: state,
+            timestamp: sentAt,
+            staleDate: Date(timeIntervalSince1970: 1_790_000_900),
+            relevanceScore: 100
+        )
         let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
         #expect(aps["event"] as? String == "update")
         #expect(aps["timestamp"] as? Int64 == 1_790_000_000)
         #expect(aps["stale-date"] as? Int64 == 1_790_000_900)
+        #expect(aps["relevance-score"] as? Double == 100)
         #expect(aps["content-state"] is [String: Any])
-        #expect(Set(aps.keys) == ["event", "timestamp", "stale-date", "content-state"])
+        #expect(Set(aps.keys) == ["event", "timestamp", "stale-date", "relevance-score", "content-state"])
     }
 
-    @Test func startPayloadHasAttributesAlertAndInputPushToken() throws {
-        let push = LiveActivityPush(
-            event: .start(alert: LiveActivityStartAlert(title: "Mocha", body: "2 agentes trabalhando")),
+    @Test func anUpdateCanCarryAnAlertWithSound() throws {
+        let push = AgentActivityPush(
+            agentId: "w17:p1",
+            event: .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "rm -rf build")),
+            contentState: state,
+            timestamp: sentAt
+        )
+        let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
+        let alert = try #require(aps["alert"] as? [String: Any])
+        #expect(alert["title"] as? String == "Claude precisa de você · demo-app")
+        #expect(alert["body"] as? String == "rm -rf build")
+        #expect(alert["sound"] as? String == "default")
+        #expect(aps["attributes-type"] == nil)
+        #expect(aps["input-push-token"] == nil)
+    }
+
+    @Test func startPayloadHasTheAgentAttributesAlertAndInputPushToken() throws {
+        let push = AgentActivityPush(
+            agentId: "w17:p1",
+            event: .start(alert: AgentActivityAlert(title: "Claude trabalhando · demo-app", body: "roda os testes", sound: nil)),
             contentState: state,
             timestamp: sentAt
         )
         let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
         #expect(aps["event"] as? String == "start")
-        #expect(aps["attributes-type"] as? String == "MochaAgentsAttributes")
-        #expect((aps["attributes"] as? [String: Any])?.isEmpty == true)
+        #expect(aps["attributes-type"] as? String == "MochaAgentAttributes")
+        #expect(aps["attributes"] as? [String: String] == ["agentId": "w17:p1"])
         #expect(aps["input-push-token"] as? Int == 1)
         let alert = try #require(aps["alert"] as? [String: Any])
-        #expect(alert["title"] as? String == "Mocha")
-        #expect(alert["body"] as? String == "2 agentes trabalhando")
+        #expect(alert["title"] as? String == "Claude trabalhando · demo-app")
+        #expect(alert["body"] as? String == "roda os testes")
         #expect(alert["sound"] == nil)
         #expect(aps["dismissal-date"] == nil)
     }
 
     @Test func endPayloadHasDismissalDate() throws {
-        let push = LiveActivityPush(
+        let push = AgentActivityPush(
+            agentId: "w17:p1",
             event: .end(dismissalDate: Date(timeIntervalSince1970: 1_790_000_900)),
-            contentState: LiveActivityContentState(working: 0, waiting: 0, highlight: nil, updatedAt: sentAt),
+            contentState: state,
             timestamp: sentAt
         )
         let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
@@ -124,8 +153,9 @@ struct ApnsPayloadTests {
 
     @Test func liveActivityPayloadFitsInFourKilobytesWithLongTitle() throws {
         var longState = state
-        longState.highlight?.title = String(repeating: "título longo ", count: 5)
-        let push = LiveActivityPush(event: .start(alert: .init(title: "Mocha", body: "texto")), contentState: longState, timestamp: sentAt)
+        longState.agent.title = String(repeating: "título longo ", count: 5)
+        let push = AgentActivityPush(agentId: "w17:p1", event: .start(alert: .init(title: "Mocha", body: "texto")), contentState: longState, timestamp: sentAt)
+        #expect(push.fitsPayloadLimit)
         #expect(try push.payload().count < ApnsRequest.maxPayloadBytes)
     }
 }

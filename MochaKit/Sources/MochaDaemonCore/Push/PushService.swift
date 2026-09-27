@@ -155,7 +155,7 @@ public actor PushService {
     }
 
     public func sendLiveActivity(
-        _ push: LiveActivityPush,
+        _ push: AgentActivityPush,
         to token: String,
         environment: ApnsEnvironment,
         priority: ApnsPriority
@@ -177,7 +177,7 @@ public actor PushService {
             return .failed(retryable: false)
         }
         let apnsId = request.apnsId.uuidString.lowercased()
-        let label = "live activity \(event) p\(priority.rawValue) apns-id \(apnsId) (\(environment.rawValue))"
+        let label = "live activity \(event) of \(push.agentId) p\(priority.rawValue) apns-id \(apnsId) (\(environment.rawValue))"
         let response: ApnsResponse
         do {
             response = try await sender.client.send(request)

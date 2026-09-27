@@ -8,7 +8,7 @@ public enum LiveActivityDelivery: Sendable, Equatable {
 
 public protocol LiveActivityPushSending: Sendable {
     func sendLiveActivity(
-        _ push: LiveActivityPush,
+        _ push: AgentActivityPush,
         to token: String,
         environment: ApnsEnvironment,
         priority: ApnsPriority

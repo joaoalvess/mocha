@@ -67,17 +67,6 @@ public actor DeviceStore {
         return true
     }
 
-    public func setLiveActivity(_ liveActivity: LiveActivityRegistration?, for id: DeviceID) throws -> Bool {
-        var records = try read()
-        guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
-        for other in records.indices where other != index {
-            records[other].liveActivity = Self.releasing(liveActivity, from: records[other].liveActivity)
-        }
-        records[index].liveActivity = liveActivity
-        try write(records)
-        return true
-    }
-
     public func setLiveActivities(pushToStart: LiveActivityRegistration?, agentActivities: [LiveActivityRegistration], for id: DeviceID) throws -> Bool {
         var records = try read()
         guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
