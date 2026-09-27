@@ -830,6 +830,25 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Aceite**:
   - [ ] Testes dos textos (linha 1/linha 2, modelo, contagem) e build; conferência no iPhone com o João.
 
+### WP-M17: uma Live Activity por agente (daemon)
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, `Push/`, `Devices/`, `mochad/ApnsCommand.swift`.
+- **Depende de**: WP-M16.
+- **SPEC**: §7.4.
+- **Faz**: `devices.json` guarda uma atividade por agente; o serviço inicia, atualiza e encerra uma atividade por agente (máx. 5, `blocked` ocupa a vaga da parada mais antiga, fim após 30 min parado ou quando o agente some); o alerta vai no update da atividade e o `PushService` não manda a notificação da §7.1 a um aparelho com a atividade do agente; o payload inteiro cabe em 4 KB.
+- **Aceite**:
+  - [x] Testes: ciclo por agente, alertas e supressão, limite de 5 com despejo, fim em 30 min, payload ≤ 4 KB com alerta.
+
+### WP-I17: uma Live Activity por agente (app e widget)
+
+- **Dono**: `Widgets/`, `App/Sources/LiveActivity/`, `MochaKit/Sources/MochaClient/LiveActivity/`.
+- **Depende de**: WP-I16 (paralelo ao WP-M17, pelo contrato da §7.4).
+- **SPEC**: §7.4.
+- **Faz**: widget em `MochaAgentAttributes` com cabeçalho "**projeto** · tab · modelo" e paleta do Moshi; o app inicia a atividade do agente em primeiro plano, manda o token com `agentId`, encerra duplicadas e as agregadas antigas.
+- **Aceite**:
+  - [x] Testes dos textos, do rastreador, dos tokens e do contrato com o daemon; build do iPhone.
+  - [ ] Conferência no iPhone com o João.
+
 ### WP-M15: pedido pendente na Live Activity
 
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, `Push/LiveActivityPush.swift`.
@@ -940,6 +959,8 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M15 | feito (agente com pedido conta como `blocked`; pedido de agente fora da árvore é ignorado; o `start` também leva o `pending`; o orquestrador acrescentou o orçamento de 3.200 bytes para o `pending` codificado: acima disso a pergunta vai como prévia sem opções) | 7942c30, 87c2b64, merge 1d1ed12 |
 | WP-M16 | feito (`preview` só do assistente, ajuste do orquestrador; orçamento de 3.840 bytes com descarte dos campos opcionais; resta o caso extremo de `title`/`workspaceLabel` com emoji de 8 bytes somados a um `pending` perto de 3.200 bytes, que passa de 4 KB) | cd2b311, c925b30, merge d96e192 |
 | WP-I16 | feito (linha 2 repete o texto em cinza quando a linha 1 corta; cores da SPEC, mais fortes que as do Moshi; atividade iniciada pelo app só ganha modelo/contexto no primeiro update do daemon; base visual do card por agente) | 1e1b4f6, ca6f061, 8a15786, merge 06c9352 |
+| WP-M17 | feito (alerta também em `blocked` sem pedido; encaixe do payload inteiro em 4 KB fecha o caso extremo do WP-M16; token recusado espera o próximo turno para reiniciar) | 1e7a0ae, 4bb7670, 804f6b4, b2bfa88, merge 844d58a |
+| WP-I17 | feito (`MochaAgentsAttributes` fica só para encerrar atividades agregadas antigas; compacta mostra o projeto; conferência no iPhone pendente) | e0a6228, 0985dc1, bcdd56d, merge 844d58a |
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
