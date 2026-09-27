@@ -895,7 +895,7 @@ Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contr
 
 - **Dono**: `docs/spikes/S7.md` e laboratório `~/Developer/mocha-lab/S7/`, em workspace Herdr `mocha-lab-S7`. Não tocar sessões Codex existentes nem configuração real em `~/.codex`.
 - Validar com CLI `codex --remote` e dois clientes App Server na mesma thread: associação pane–thread, histórico e eventos, retomada após queda, prompt, interrupção e permissão respondida no terminal ou no outro cliente. Testar pergunta estruturada nos modos em que a API permitir; no Default, a ausência dessa ferramenta é limitação aceita pelo João em 2026-09-27. Verificar formato e limites de `account/rateLimits/read`, imagem e subagentes. Registrar versão, comandos, payloads redigidos, resultados e mudanças necessárias na §13.
-- **Gate**: se uma decisão ou o estado da thread não puder ser compartilhado com segurança, parar após o relatório e pedir decisão arquitetural ao João. Não usar `agent.send_keys` para reproduzir ações.
+- **Gate**: passou para chat/aprovações no Default e perguntas no Plan, conforme `docs/spikes/S7.md`. Não usar `agent.send_keys` para reproduzir ações. Casos secundários não testados no spike passam ao WP-XC.
 
 ### WP-C1: protocolo v2 e fixtures Codex
 
@@ -914,7 +914,7 @@ Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contr
 
 ### WP-XC: integração do CLI
 
-- **Checklist do João**: uma tab Codex criada no Herdr; conversa única entre terminal e iPhone; prompt e imagem; interrupção; aprovação e pergunta vencidas ora no terminal, ora no iPhone; queda e volta do App Server; uso, push e Live Activity; Claude segue funcionando. Usar `scripts/test.sh`, `scripts/build-app.sh` e `scripts/build-device.sh` (este último após oferta de teste no iPhone).
+- **Checklist do João**: uma tab Codex criada no Herdr com associação pane–thread comprovada; conversa única entre terminal e iPhone; prompt e imagem; interrupção; aprovação nos dois sentidos e pergunta em Plan mode vencidas ora no terminal, ora no iPhone; queda e volta do App Server, inclusive com ação em trânsito; uso, subagentes, push e Live Activity; Claude segue funcionando. Usar `scripts/test.sh`, `scripts/build-app.sh` e `scripts/build-device.sh` (este último após oferta de teste no iPhone).
 
 ### WP-CD: leitura do Codex desktop
 
@@ -999,7 +999,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
-| S7 | todo | |
+| S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | 26067bd, merge e704dcb |
 | WP-C1 | todo | |
 | WP-C2 | todo | |
 | WP-C3 | todo | |
