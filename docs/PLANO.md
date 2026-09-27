@@ -897,7 +897,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M12 | feito (o `+` real, contra o Herdr, no checklist do WP-X2) | bd8cecf, 1dacb64, merge d97c1da |
 | WP-X2 | feito (aprovado pelo João no iPhone em 2026-09-26) | 0c5e708 |
 | Mock dos subagentes | feito | 95f2616, 0829b2f, merge 67347d0 |
-| WP-M13 | todo | |
+| WP-M13 | feito | b4074ea, 95aed66, d83465c, merge 8a9388e |
 | WP-D3 | todo | |
 | WP-M14 | todo | |
 | WP-I14 | todo | |
