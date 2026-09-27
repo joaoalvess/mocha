@@ -17,6 +17,8 @@ public actor DemoServerConnection: ServerConnection {
     static let repeatedHelloMessage = "O hello já foi feito nesta conexão."
     static let invalidSessionMessage = "Id de sessão inválido."
     static let sessionNotFoundMessage = "Sessão não encontrada."
+    static let invalidSubagentMessage = "Id de subagente inválido."
+    static let subagentNotFoundMessage = "Subagente não encontrado"
     static let agentBlockedMessage = "O agente está esperando uma resposta no terminal."
     static let clearCommand = "/clear"
     static let replyMarkdown = """
@@ -55,9 +57,11 @@ public actor DemoServerConnection: ServerConnection {
     private var chats: [AgentID: DemoChat]
     private var sessionChats: [String: DemoSessionChat]
     private var archived: [ArchivedSession]
+    private var subagents: [DemoSubagent]
     private var movedAgents: [AgentID: AgentID] = [:]
     private var openChats: Set<AgentID> = []
     private var openSessions: Set<String> = []
+    private var openSubagents: Set<ChatTarget> = []
     private var preferences = DevicePreferences()
     private var handshakeCount = 0
     private var connectionTask: Task<Void, Never>?
@@ -85,6 +89,7 @@ public actor DemoServerConnection: ServerConnection {
         self.chats = Dictionary(dataset.chats.map { ($0.agentId, $0) }, uniquingKeysWith: { first, _ in first })
         self.sessionChats = Dictionary(dataset.sessionChats.map { ($0.session.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.archived = dataset.archived
+        self.subagents = dataset.subagents
     }
 
     deinit {
@@ -182,6 +187,7 @@ public actor DemoServerConnection: ServerConnection {
     private func closeAllChats() {
         openChats = []
         openSessions = []
+        openSubagents = []
     }
 
     private func setState(_ newState: ConnectionState) {
@@ -205,8 +211,14 @@ public actor DemoServerConnection: ServerConnection {
             guard sessionSource(sessionId, replyingTo: id) != nil else { return }
             openSessions.remove(sessionId)
             reply(id, .ack())
-        case .openChat(.subagent, _, _), .closeChat(.subagent):
-            fail(id, .sessionNotFound, Self.sessionNotFoundMessage)
+        case .openChat(.subagent(let sessionId, let agentId), let before, let limit):
+            openSubagentChat(sessionId: sessionId, agentId: agentId, before: before, limit: limit, id: id)
+        case .closeChat(.subagent(let sessionId, let agentId)):
+            guard subagent(sessionId: sessionId, agentId: agentId, replyingTo: id) != nil else { return }
+            openSubagents.remove(.subagent(sessionId: sessionId, agentId: agentId))
+            reply(id, .ack())
+        case .listSubagents(let agentId):
+            listSubagents(agentId: agentId, id: id)
         case .archive(let sessionId):
             archive(sessionId: sessionId, id: id)
         case .sendPrompt(let agentId, let text):
@@ -231,7 +243,7 @@ public actor DemoServerConnection: ServerConnection {
             fail(id, .requestNotFound, "Pedido não encontrado.")
         case .newAgentTab(let workspaceId):
             newAgentTab(in: workspaceId, id: id)
-        case .listSubagents, .unknown:
+        case .unknown:
             fail(id, .unknownType, "Tipo de mensagem desconhecido: \(message.type).")
         }
     }
@@ -294,6 +306,67 @@ public actor DemoServerConnection: ServerConnection {
         }
         openSessions.insert(sessionId)
         reply(id, .chatPage(page))
+    }
+
+    private func subagent(sessionId: String, agentId: String, replyingTo id: String) -> DemoSubagent? {
+        guard UUID(uuidString: sessionId) != nil else {
+            fail(id, .invalidPayload, Self.invalidSessionMessage)
+            return nil
+        }
+        guard Self.isValidSubagentId(agentId) else {
+            fail(id, .invalidPayload, Self.invalidSubagentMessage)
+            return nil
+        }
+        guard let subagent = subagents.subagent(sessionId: sessionId, agentId: agentId) else {
+            fail(id, .sessionNotFound, Self.subagentNotFoundMessage)
+            return nil
+        }
+        return subagent
+    }
+
+    private func openSubagentChat(sessionId: String, agentId: String, before: String?, limit: Int?, id: String) {
+        guard let subagent = subagent(sessionId: sessionId, agentId: agentId, replyingTo: id) else { return }
+        let target = ChatTarget.subagent(sessionId: sessionId, agentId: agentId)
+        guard let page = page(of: subagent.items, target: target, meta: meta(of: subagent), before: before, limit: limit, id: id) else {
+            return
+        }
+        openSubagents.insert(target)
+        reply(id, .chatPage(page))
+    }
+
+    private func meta(of subagent: DemoSubagent) -> ChatMeta {
+        let parentMeta = sessionMeta(subagent.sessionId)
+        let parentTitle = subagent.parentAgentId
+            .flatMap { subagents.subagent(sessionId: subagent.sessionId, agentId: $0)?.description }
+            ?? parentMeta?.title
+            ?? ""
+        return ChatMeta(
+            title: subagent.description,
+            workspaceLabel: parentMeta?.workspaceLabel ?? "",
+            model: parentMeta?.model,
+            branch: parentMeta?.branch,
+            status: .unknown,
+            subagent: subagent.chatInfo(parentTitle: parentTitle)
+        )
+    }
+
+    private func sessionMeta(_ sessionId: String) -> ChatMeta? {
+        if let agent = workspaces.agent(withSessionId: sessionId), let chat = chats[agent.id] {
+            return chat.meta
+        }
+        return sessionChats[sessionId]?.meta
+    }
+
+    private func listSubagents(agentId: AgentID, id: String) {
+        let current = currentId(for: agentId)
+        guard let agent = workspaces.agent(withId: current) else {
+            return fail(id, .agentNotFound, Self.agentNotFoundMessage)
+        }
+        guard agent.kind == "claude" else {
+            return fail(id, .invalidPayload, Self.claudeOnlyMessage)
+        }
+        let items = agent.sessionId.map { subagents.summaries(inSession: $0) } ?? []
+        reply(id, .subagentList(agentId: current, items: items))
     }
 
     private func page(of items: [ChatItem], target: ChatTarget, meta: ChatMeta, before: String?, limit: Int?, id: String) -> ChatPage? {
@@ -457,6 +530,53 @@ public actor DemoServerConnection: ServerConnection {
         emitChatEvent(for: agentId) { .chatUpdate(target: $0, items: [item]) }
     }
 
+    private func finishSubagent(sessionId: String, agentId: String, at date: Date) {
+        guard let index = subagents.firstIndex(where: { $0.sessionId == sessionId && $0.agentId == agentId }),
+              subagents[index].status == .running,
+              !subagents[index].isWorkflowAgent
+        else { return }
+        let finish = subagents[index].finished(at: date, answer: DemoSubagents.loadTestAnswer, result: DemoSubagents.loadTestResult)
+        subagents[index] = finish.subagent
+        replaceCard(of: finish.subagent)
+        let target = ChatTarget.subagent(sessionId: sessionId, agentId: agentId)
+        if openSubagents.contains(target) {
+            if !finish.updated.isEmpty {
+                emit(.chatUpdate(target: target, items: finish.updated))
+            }
+            emit(.chatAppend(target: target, items: finish.appended))
+            emit(.chatMeta(target: target, meta: meta(of: finish.subagent)))
+        }
+        guard let agent = workspaces.agent(withSessionId: sessionId) else { return }
+        let running = subagents.runningSubagents(inSession: sessionId)
+        workspaces.updateAgent(withId: agent.id) { $0.runningSubagents = running }
+        emitTree()
+    }
+
+    private func replaceCard(of subagent: DemoSubagent) {
+        if let parentAgentId = subagent.parentAgentId {
+            guard let parent = subagents.firstIndex(where: { $0.sessionId == subagent.sessionId && $0.agentId == parentAgentId }),
+                  let card = subagents[parent].items.firstIndex(where: { $0.id == subagent.cardId })
+            else { return }
+            subagents[parent].items[card].kind = .subagent(subagent.call)
+            let target = ChatTarget.subagent(sessionId: subagent.sessionId, agentId: parentAgentId)
+            if openSubagents.contains(target) {
+                emit(.chatUpdate(target: target, items: [subagents[parent].items[card]]))
+            }
+            return
+        }
+        if let agent = workspaces.agent(withSessionId: subagent.sessionId),
+           let card = chats[agent.id]?.items.firstIndex(where: { $0.id == subagent.cardId }) {
+            chats[agent.id]?.items[card].kind = .subagent(subagent.call)
+            guard let item = chats[agent.id]?.items[card] else { return }
+            emitChatEvent(for: agent.id) { .chatUpdate(target: $0, items: [item]) }
+            return
+        }
+        guard let card = sessionChats[subagent.sessionId]?.items.firstIndex(where: { $0.id == subagent.cardId }) else { return }
+        sessionChats[subagent.sessionId]?.items[card].kind = .subagent(subagent.call)
+        guard let item = sessionChats[subagent.sessionId]?.items[card], openSessions.contains(subagent.sessionId) else { return }
+        emit(.chatUpdate(target: .session(subagent.sessionId), items: [item]))
+    }
+
     private func refreshHomeFields(of agentId: AgentID) {
         guard let items = chats[agentId]?.items else { return }
         workspaces.updateAgent(withId: agentId) { $0.refreshHomeFields(from: items) }
@@ -568,6 +688,8 @@ public actor DemoServerConnection: ServerConnection {
             moveAgent(from: currentId(for: DemoScript.movedAgentId), to: DemoScript.movedAgentNewId)
         case .finishWorkingAgent:
             finishWorkingAgent(currentId(for: DemoScript.finishingAgentId), at: now)
+        case .finishSubagent:
+            finishSubagent(sessionId: DemoScript.finishingSubagentSessionId, agentId: DemoScript.finishingSubagentId, at: now)
         case .disconnectHerdr:
             setHerdrConnected(false)
         case .reconnectHerdr:
@@ -615,8 +737,10 @@ public actor DemoServerConnection: ServerConnection {
         archived = (archived.filter { $0.id != previousSessionId } + [session]).sortedByRecency()
         let items = [clearItem]
         chats[agentId]?.items = items
+        let running = subagents.runningSubagents(inSession: sessionId)
         workspaces.updateAgent(withId: agentId) { agent in
             agent.sessionId = sessionId
+            agent.runningSubagents = running
             agent.contextLeftPercent = Self.freshContextLeftPercent
             agent.archivedAt = nil
             agent.refreshHomeFields(from: items)
@@ -656,6 +780,10 @@ public actor DemoServerConnection: ServerConnection {
 
     static func isClear(_ command: String) -> Bool {
         command.split(whereSeparator: \.isWhitespace).first == Substring(clearCommand)
+    }
+
+    static func isValidSubagentId(_ agentId: String) -> Bool {
+        agentId.wholeMatch(of: /[A-Za-z0-9_-]{1,64}/) != nil
     }
 
     static func cursor(forIndex index: Int) -> String {
