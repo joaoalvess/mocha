@@ -1787,7 +1787,7 @@ public struct ContentState: Codable, Hashable {
 
 - **`pending`**: o pedido pendente mais antigo entre os agentes; quando existe, o `highlight` é o agente dele. Omitido quando não há pedido.
   - Permissão: `toolName` e `text` = o `summary` do pedido (§3.2.2, ≤ 120 caracteres); `options` vazio.
-  - Pergunta que se responde na atividade (uma pergunta, sem `multiSelect`, texto ≤ 1.000 bytes, 1 a 4 opções com rótulos ≤ 60 caracteres): `text` = o texto exato da pergunta e `options` = os rótulos exatos, na ordem. O app responde com `answers` = `{text: rótulo}`.
+  - Pergunta que se responde na atividade (uma pergunta, sem `multiSelect`, texto ≤ 1.000 bytes, 1 a 4 opções com rótulos ≤ 60 caracteres, e o `pending` codificado ≤ 3.200 bytes para o payload caber em 4 KB): `text` = o texto exato da pergunta e `options` = os rótulos exatos, na ordem. O app responde com `answers` = `{text: rótulo}`.
   - Outra pergunta: `text` = a prévia de `questions[0].question` (180 caracteres, sem markdown) e `options` vazio.
   - Um `pending` que aparece, some ou troca de `requestId` é atualização de prioridade 10.
 
