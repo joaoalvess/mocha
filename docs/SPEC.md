@@ -1853,7 +1853,7 @@ Decisão do João em 2026-09-27, depois de comparar com o Moshi com vários agen
 - **Payload**: start, update e end (com o `alert`) cabem nos 4 KB do APNs. Se não couber, o daemon tira, nesta ordem: `preview`, `activity`, `tabTitle`, `model`, `contextLeftPercent`, as opções do `pending` (vira a prévia de 180 caracteres) e, por fim, corta `title` e `workspaceLabel` em 20 caracteres.
 - **Fim**: 30 min sem `working`/`blocked`, ou o agente some da árvore → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start do mesmo agente.
 - **Tokens**: o push-to-start é um token do app para o tipo `MochaAgentAttributes`; cada atividade manda o seu token de update com `activityId` e `agentId` no `LiveActivityRegistration` (WS em primeiro plano, `POST /v1/live-activity` em background). O daemon guarda as atividades por aparelho e por agente em `devices.json`.
-- **Transição**: o tipo agregado `MochaAgentsAttributes` sai do app e do daemon nos WPs M17/I17; o app encerra atividades agregadas que encontrar.
+- **Transição**: o daemon e o widget deixam o tipo agregado nos WPs M17/I17. `MochaAgentsAttributes` fica no protocolo só para o app encerrar, ao abrir, as atividades agregadas que encontrar.
 
 ---
 
