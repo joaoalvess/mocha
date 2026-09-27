@@ -909,7 +909,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I8 | todo | |
 | WP-I9 | todo | |
 | WP-I10 | todo | |
-| WP-M9 | todo | |
+| WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
