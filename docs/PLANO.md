@@ -908,7 +908,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 4de4248 |
 | WP-I8 | todo | |
 | WP-I9 | todo | |
-| WP-I10 | todo | |
+| WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
 | WP-T1 | todo | |
