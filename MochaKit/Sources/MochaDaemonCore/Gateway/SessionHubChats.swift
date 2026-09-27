@@ -30,6 +30,9 @@ extension SessionHub {
             }
             target = requested
             sessionId = requestedSessionId
+        case .subagent:
+            send(.sessionNotFound, id: id, to: clientId)
+            return
         }
         if let before {
             await sendOlderPage(target, sessionId: sessionId, before: before, limit: limit, id: id, clientId: clientId)
@@ -56,6 +59,9 @@ extension SessionHub {
                 return
             }
             removeChat(at: target, clientId: clientId)
+        case .subagent:
+            send(.sessionNotFound, id: id, to: clientId)
+            return
         }
         send(.ack(), id: id, to: clientId)
     }
@@ -213,7 +219,7 @@ extension SessionHub {
         switch target {
         case .agent(let agentId):
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta)
-        case .session:
+        case .session, .subagent:
             return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
         }
     }

@@ -205,6 +205,8 @@ public actor DemoServerConnection: ServerConnection {
             guard sessionSource(sessionId, replyingTo: id) != nil else { return }
             openSessions.remove(sessionId)
             reply(id, .ack())
+        case .openChat(.subagent, _, _), .closeChat(.subagent):
+            fail(id, .sessionNotFound, Self.sessionNotFoundMessage)
         case .archive(let sessionId):
             archive(sessionId: sessionId, id: id)
         case .sendPrompt(let agentId, let text):
@@ -229,8 +231,8 @@ public actor DemoServerConnection: ServerConnection {
             fail(id, .requestNotFound, "Pedido não encontrado.")
         case .newAgentTab(let workspaceId):
             newAgentTab(in: workspaceId, id: id)
-        case .unknown(let type):
-            fail(id, .unknownType, "Tipo de mensagem desconhecido: \(type).")
+        case .listSubagents, .unknown:
+            fail(id, .unknownType, "Tipo de mensagem desconhecido: \(message.type).")
         }
     }
 

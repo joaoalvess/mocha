@@ -1,0 +1,14 @@
+{
+  "id": "f5c2…",
+  "at": "2026-09-26T13:50:02.000Z",
+  "type": "subagent",
+  "toolUseId": "toolu_01PL…",
+  "agentId": "a89abcdef01234567",
+  "agentType": "Plan",
+  "description": "Revisar o índice de receitas",
+  "status": "failed",
+  "toolUses": 3,
+  "startedAt": "2026-09-26T13:50:03.000Z",
+  "durationMs": 48000,
+  "failureReason": "Agent terminated early due to an API error: …"
+}

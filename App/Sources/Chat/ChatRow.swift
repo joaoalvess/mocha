@@ -95,7 +95,7 @@ final class ChatRowBuilder {
             rows.append(ChatRow(id: item.id, content: .recap(text), spacingBelow: ChatRowSpacing.standard))
         case .notice(let text):
             rows.append(ChatRow(id: item.id, content: .notice(text), spacingBelow: ChatRowSpacing.standard))
-        case .thinking, .toolCall, .unsupported:
+        case .thinking, .toolCall, .subagent, .workflow, .task, .unsupported:
             break
         }
     }

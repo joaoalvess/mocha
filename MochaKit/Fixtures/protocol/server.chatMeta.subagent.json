@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "type": "chatMeta",
+  "payload": {
+    "sessionId": "0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64",
+    "subagentId": "a0123456789abcdef",
+    "meta": {
+      "title": "Teste de carga /receitas",
+      "workspaceLabel": "receitas-api",
+      "model": "claude-opus-5-5",
+      "branch": "development",
+      "status": "unknown",
+      "subagent": {
+        "parentTitle": "Paginação com cursor em /receitas",
+        "agentType": "general-purpose",
+        "status": "completed",
+        "startedAt": "2026-09-26T13:52:11.000Z",
+        "durationMs": 231000,
+        "toolUses": 12
+      }
+    }
+  }
+}
