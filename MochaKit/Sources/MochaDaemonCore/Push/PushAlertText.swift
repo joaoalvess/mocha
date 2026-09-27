@@ -25,6 +25,8 @@ enum PushAlertText {
     static let summaryLimit = 120
     static let turnDoneFallback = "Turno concluído."
     static let secondaryBody = "Esperando uma resposta no terminal."
+    static let permissionCategory = "PERMISSION"
+    static let questionCategory = "QUESTION"
 
     static func title(_ kind: PushAlertKind, workspaceLabel: String?) -> String {
         let base = switch kind {
@@ -38,6 +40,10 @@ enum PushAlertText {
     static func turnDoneBody(_ lastAssistantMessage: String?) -> String {
         let preview = PlainText.preview(fromMarkdown: lastAssistantMessage ?? "", limit: bodyLimit)
         return preview.isEmpty ? turnDoneFallback : preview
+    }
+
+    static func pendingCategory(_ request: PermissionRequestHook) -> String {
+        request.toolName == PendingRequestFactory.questionToolName ? questionCategory : permissionCategory
     }
 
     static func needsInputBody(_ request: PermissionRequestHook) -> String {

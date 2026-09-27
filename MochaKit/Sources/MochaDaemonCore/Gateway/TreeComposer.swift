@@ -10,9 +10,12 @@ enum TreeComposer {
         metas: [String: TranscriptMeta],
         contexts: [String: Double] = [:],
         archivedAts: [String: Date] = [:],
-        runningSubagents: [String: Int] = [:]
+        runningSubagents: [String: Int] = [:],
+        pendingCounts: [AgentID: Int] = [:]
     ) -> [WorkspaceNode] {
         mapAgents(tree) { agent in
+            var agent = agent
+            agent.pendingCount = pendingCounts[agent.id] ?? 0
             guard let sessionId = agent.sessionId else { return agent }
             return summary(
                 agent,

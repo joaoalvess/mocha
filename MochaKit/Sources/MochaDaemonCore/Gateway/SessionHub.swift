@@ -119,6 +119,7 @@ public actor SessionHub {
     let usage: any UsageProviding
     let archive: any SessionArchiving
     let subagents: (any SubagentProviding)?
+    let pending: (any PendingProviding)?
     let clock: any GatewayClock
     let configuration: SessionHubConfiguration
     let encoder = JSONEncoder()
@@ -145,6 +146,7 @@ public actor SessionHub {
     var cardThrottles: [String: CardThrottle] = [:]
     var metaThrottles: [UUID: MetaThrottle] = [:]
     var subagentTasks: [Task<Void, Never>] = []
+    var pendingRequests: [PendingRequest] = []
     let observedSessionUpdates: AsyncStream<Set<String>>
     let observedSessionContinuation: AsyncStream<Set<String>>.Continuation
 
@@ -167,6 +169,7 @@ public actor SessionHub {
         usage: any UsageProviding,
         archive: any SessionArchiving,
         subagents: (any SubagentProviding)? = nil,
+        pending: (any PendingProviding)? = nil,
         clock: any GatewayClock = SystemGatewayClock(),
         configuration: SessionHubConfiguration = SessionHubConfiguration()
     ) {
@@ -177,6 +180,7 @@ public actor SessionHub {
         self.usage = usage
         self.archive = archive
         self.subagents = subagents
+        self.pending = pending
         self.clock = clock
         self.configuration = configuration
         let (updates, continuation) = AsyncStream.makeStream(of: Set<AgentID>.self)
@@ -190,6 +194,7 @@ public actor SessionHub {
     public func start() async {
         guard eventsTask == nil, !isShuttingDown else { return }
         await startSessionServices()
+        await startPendingUpdates()
         startSubagentServices()
         let updates = openChatUpdates
         openChatPublisher = Task { [herdr] in
@@ -294,7 +299,14 @@ public actor SessionHub {
     }
 
     func composedTree() -> [WorkspaceNode] {
-        TreeComposer.compose(baseTree, metas: metas, contexts: pluginContexts, archivedAts: archivedAts, runningSubagents: runningSubagentCounts)
+        TreeComposer.compose(
+            baseTree,
+            metas: metas,
+            contexts: pluginContexts,
+            archivedAts: archivedAts,
+            runningSubagents: runningSubagentCounts,
+            pendingCounts: pendingCounts()
+        )
     }
 
     func composedAgent(_ id: AgentID) -> AgentSummary? {
@@ -303,6 +315,8 @@ public actor SessionHub {
     }
 
     func composedSummary(_ agent: AgentSummary) -> AgentSummary {
+        var agent = agent
+        agent.pendingCount = pendingRequests.count { $0.agentId == agent.id }
         guard let sessionId = agent.sessionId else { return agent }
         return TreeComposer.summary(
             agent,
