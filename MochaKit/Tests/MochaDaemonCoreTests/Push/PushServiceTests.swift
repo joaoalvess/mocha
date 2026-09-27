@@ -94,6 +94,23 @@ struct PushServiceTests {
         }
     }
 
+    @Test func aDeviceWithALiveActivityOfTheAgentGetsNoAlert() async throws {
+        try await withPush { harness in
+            let covered = try await harness.device("iPhone")
+            try await harness.device("iPad", token: PushHarness.otherToken)
+            let activity = LiveActivityRegistration(updateToken: String(repeating: "b2", count: 40), agentId: "w1:p1", env: .sandbox)
+            #expect(try await harness.devices.setLiveActivities(pushToStart: nil, agentActivities: [activity], for: covered.id))
+
+            await harness.deliver(PushHooks.stop())
+            await harness.deliver(try PushHooks.fixture(.permissionRequest, "PermissionRequest.bash.json"))
+            #expect(harness.transport.requests.compactMap { $0.url?.lastPathComponent } == [PushHarness.otherToken, PushHarness.otherToken])
+
+            await harness.deliver(PushHooks.stop(), agent: "w9:p9")
+            let others = harness.transport.requests.dropFirst(2).compactMap { $0.url?.lastPathComponent }
+            #expect(Set(others) == [PushTestData.deviceToken, PushHarness.otherToken])
+        }
+    }
+
     @Test func turnDoneRespectsThePreferenceButNeedsInputAlwaysGoes() async throws {
         try await withPush { harness in
             try await harness.device(turnDoneAlerts: false)

@@ -305,7 +305,7 @@ public actor PushService {
             return []
         }
         let candidates = records.filter { record in
-            record.apns != nil && (kind != .turnDone || record.preferences.turnDoneAlerts)
+            record.apns != nil && (kind != .turnDone || record.preferences.turnDoneAlerts) && !record.hasLiveActivity(for: agentId)
         }
         guard !candidates.isEmpty else { return [] }
         let foreground = await audience.foregroundDevices(for: agentId)
