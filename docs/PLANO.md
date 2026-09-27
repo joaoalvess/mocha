@@ -832,7 +832,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 - **Checklist do João**:
   - [ ] Aprovação e pergunta pelo inbox e pela notificação.
   - [ ] Live Activity com 2 agentes trabalhando e 1 bloqueado.
-  - [ ] Ditado em pt-BR.
+  - [ ] Ditado em pt-BR, conferindo no iPhone o `supportedLocales`, o download do modelo e a latência dos parciais (resto do S6).
   - [ ] Imagem.
   - [ ] Um dia inteiro de uso sem abrir o Moshi.
 
@@ -905,7 +905,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-X6 | pulado por decisão do João (2026-09-27): checklist fica para o teste do app com ele | |
 | WP-M7 | todo | |
 | WP-M8 | todo | |
-| S6 | todo | |
+| S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 4de4248 |
 | WP-I8 | todo | |
 | WP-I9 | todo | |
 | WP-I10 | todo | |

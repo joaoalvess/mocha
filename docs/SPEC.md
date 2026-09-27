@@ -1703,7 +1703,8 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 ### §6.4 Voz (1b)
 
 - `SpeechAnalyzer` + `SpeechTranscriber` com locale `pt-BR`, on-device.
-- Antes de habilitar o microfone, conferir `SpeechTranscriber.supportedLocales` e baixar o modelo via `AssetInventory` se preciso.
+- Antes de habilitar o microfone, conferir `SpeechTranscriber.supportedLocale(equivalentTo:)` e baixar o modelo via `AssetInventory` se preciso: com `AssetInventory.status(forModules:)` abaixo de `.installed`, `assetInstallationRequest(supporting:)` + `downloadAndInstall()`, com o progresso no composer (S6: no Mac, `.supported` aparece mesmo com o modelo já presente, e a requisição devolve `nil` quando não há nada a baixar).
+- Preset `.progressiveTranscription` (resultados voláteis e rápidos). Áudio do `AVAudioEngine` convertido para `SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith:)` (16 kHz mono Int16 no Mac) e entregue por `start(inputSequence:)`; `finalizeAndFinishThroughEndOfInput()` ao parar.
 - Toque no microfone inicia e toque de novo para. O texto parcial aparece no campo em `textSecondary` e o final substitui o parcial. Nada é enviado sozinho.
 
 ### §6.5 Imagem (1a-core)
