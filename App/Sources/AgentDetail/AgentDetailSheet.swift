@@ -64,6 +64,14 @@ struct AgentDetailInfo {
             model = archived?.model
             tabTitle = archived?.agentId.flatMap { session.workspaces.tab(containingAgent: $0)?.title }
             self.sessionId = sessionId
+        case .subagent:
+            title = HomeSections.title(for: nil)
+            workspace = Self.missing
+            activityAt = nil
+            badge = Self.badge(for: .unknown)
+            model = nil
+            tabTitle = nil
+            sessionId = nil
         }
     }
 

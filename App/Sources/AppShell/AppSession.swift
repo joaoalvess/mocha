@@ -355,6 +355,7 @@ final class AppSession {
         switch target {
         case .agent(let agentId): workspaces.agent(withId: agentId)?.sessionId
         case .session(let sessionId): sessionId
+        case .subagent(let sessionId, _): sessionId
         }
     }
 
@@ -431,7 +432,7 @@ final class AppSession {
         case .chatMeta(let target, let meta):
             guard chat?.target == target else { return }
             chat?.meta = meta
-        case .chatPage, .pending, .ack, .pong, .error, .unknown:
+        case .chatPage, .subagentList, .pending, .ack, .pong, .error, .unknown:
             break
         }
     }
