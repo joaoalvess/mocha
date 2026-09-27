@@ -14,6 +14,13 @@ struct HomeScreen: View {
             offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
         }
         .task { await runDebugLaunch() }
+        .sheet(isPresented: $session.isInboxOpen) {
+            InboxSheet(session: session)
+                .presentationDetents([InboxSheet.detent])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(Palette.drawerBg)
+                .presentationCornerRadius(Metrics.sheetCornerRadius)
+        }
     }
 
     private func runDebugLaunch() async {
@@ -77,6 +84,13 @@ private struct HomeContent: View {
                     session.openDrawer()
                 }
                 Spacer()
+                if showsInbox {
+                    InboxButton(count: session.pending.count) {
+                        session.showInbox()
+                    }
+                    .padding(.trailing, InboxButton.spacing)
+                    .transition(.opacity)
+                }
                 GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
                     session.showSettings()
                 }
@@ -91,6 +105,11 @@ private struct HomeContent: View {
         .padding(.horizontal, Metrics.homeButtonSide)
         .padding(.top, Metrics.homeButtonTopInset)
         .animation(.smooth(duration: 0.25), value: offlineMessage)
+        .animation(.smooth(duration: 0.25), value: showsInbox)
+    }
+
+    private var showsInbox: Bool {
+        session.pending.count > 0 && offlineMessage == nil
     }
 }
 
