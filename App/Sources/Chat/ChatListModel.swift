@@ -13,6 +13,7 @@ final class ChatListModel {
     @ObservationIgnored private var itemIds: [String] = []
     @ObservationIgnored private var items: [ChatItem] = []
     @ObservationIgnored private var rowIdByItemId: [String: String] = [:]
+    @ObservationIgnored private var expandedByDefault: Set<String> = []
     @ObservationIgnored private let builder = ChatRowBuilder()
 
     @discardableResult
@@ -54,7 +55,7 @@ final class ChatListModel {
     }
 
     func isExpanded(_ rowId: String) -> Bool {
-        expandedRowIds.contains(rowId)
+        expandedRowIds.contains(rowId) != expandedByDefault.contains(rowId)
     }
 
     var prefetchRowId: String? {
@@ -75,7 +76,8 @@ final class ChatListModel {
     }
 
     func expand(_ rowId: String) {
-        expandedRowIds.insert(rowId)
+        guard !isExpanded(rowId) else { return }
+        toggleExpansion(rowId)
     }
 
     func rowId(forItem itemId: String) -> String? {
@@ -98,5 +100,6 @@ final class ChatListModel {
             }
         }
         rowIdByItemId = index
+        expandedByDefault = Set(rows.filter(\.isExpandedByDefault).map(\.id))
     }
 }

@@ -33,29 +33,29 @@ struct NotificationTapTests {
     }
 
     @Test func tapWithTheAppClosedOpensTheChatOverHome() {
-        let step = ChatNavigation.open(.agent("w17:p1"), visibleRoute: nil, visibleTarget: nil)
-        #expect(step == .show(path: [.agent("w17:p1")], closing: nil))
+        let step = ChatNavigation.open(.agent("w17:p1"), stack: [])
+        #expect(step == .show(path: [.agent("w17:p1")], closing: []))
     }
 
     @Test func tapWithAnotherChatOpenReplacesIt() {
-        let step = ChatNavigation.open(.agent("w17:p1"), visibleRoute: .agent("w3:p2"), visibleTarget: .agent("w3:p2"))
-        #expect(step == .show(path: [.agent("w17:p1")], closing: .agent("w3:p2")))
+        let step = ChatNavigation.open(.agent("w17:p1"), stack: [ChatStackEntry(route: .agent("w3:p2"), target: .agent("w3:p2"))])
+        #expect(step == .show(path: [.agent("w17:p1")], closing: [.agent("w3:p2")]))
     }
 
     @Test func tapWithAnArchivedSessionOpenReplacesIt() {
         let session = ChatTarget.session("9d1c1e4a-2b7f-4f3e-9d51-0a4c9b0f6c11")
-        let step = ChatNavigation.open(.agent("w17:p1"), visibleRoute: session, visibleTarget: session)
-        #expect(step == .show(path: [.agent("w17:p1")], closing: session))
+        let step = ChatNavigation.open(.agent("w17:p1"), stack: [ChatStackEntry(route: session, target: session)])
+        #expect(step == .show(path: [.agent("w17:p1")], closing: [session]))
     }
 
     @Test func tapForTheVisibleChatKeepsIt() {
-        let step = ChatNavigation.open(.agent("w17:p1"), visibleRoute: .agent("w17:p1"), visibleTarget: .agent("w17:p1"))
+        let step = ChatNavigation.open(.agent("w17:p1"), stack: [ChatStackEntry(route: .agent("w17:p1"), target: .agent("w17:p1"))])
         #expect(step == .stay)
     }
 
     @Test func tapWithTheOldIdOfTheVisibleChatKeepsIt() {
-        #expect(ChatNavigation.open(.agent("w1:p1"), visibleRoute: .agent("w1:p1"), visibleTarget: .agent("w9:p4")) == .stay)
-        #expect(ChatNavigation.open(.agent("w9:p4"), visibleRoute: .agent("w1:p1"), visibleTarget: .agent("w9:p4")) == .stay)
+        #expect(ChatNavigation.open(.agent("w1:p1"), stack: [ChatStackEntry(route: .agent("w1:p1"), target: .agent("w9:p4"))]) == .stay)
+        #expect(ChatNavigation.open(.agent("w9:p4"), stack: [ChatStackEntry(route: .agent("w1:p1"), target: .agent("w9:p4"))]) == .stay)
     }
 
     @Test func tapPayloadGoesThroughTheRelayAsADeepLink() throws {
@@ -65,8 +65,8 @@ struct NotificationTapTests {
         var opened: [ChatNavigationStep] = []
         relay.attach { link in
             guard case .agent(let agentId) = link else { return }
-            opened.append(ChatNavigation.open(.agent(agentId), visibleRoute: .agent("w3:p2"), visibleTarget: .agent("w3:p2")))
+            opened.append(ChatNavigation.open(.agent(agentId), stack: [ChatStackEntry(route: .agent("w3:p2"), target: .agent("w3:p2"))]))
         }
-        #expect(opened == [.show(path: [.agent("w17:p1")], closing: .agent("w3:p2"))])
+        #expect(opened == [.show(path: [.agent("w17:p1")], closing: [.agent("w3:p2")])])
     }
 }

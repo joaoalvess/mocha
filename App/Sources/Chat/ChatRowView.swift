@@ -7,6 +7,7 @@ struct ChatRowView: View {
     let model: String?
     let isExpanded: Bool
     let onToggle: () -> Void
+    var onOpenSubagent: (String) -> Void = { _ in }
 
     var body: some View {
         content
@@ -38,6 +39,12 @@ struct ChatRowView: View {
                 .foregroundStyle(Palette.textSecondary)
         case .notice(let text):
             ChatNoticeText(text: text)
+        case .subagent(let call):
+            SubagentCard(call: call, onOpen: onOpenSubagent)
+        case .workflow(let call):
+            WorkflowCard(call: call, isExpanded: isExpanded, onToggle: onToggle, onOpen: onOpenSubagent)
+        case .task(let text):
+            TaskCard(text: text, isExpanded: isExpanded, onToggle: onToggle)
         }
     }
 }
