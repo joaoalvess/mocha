@@ -79,6 +79,7 @@ struct PendingStoreTests {
                 try await harness.store.respond(to: "desconhecido", with: .allow)
             }
             #expect(try OrderedJSON.parse(await held.response().body) == PendingHookReply.allow())
+            #expect(Array(await harness.store.decisions.values) == [PendingDecision(requestId: held.requestId, outcome: .allowed)])
         }
     }
 

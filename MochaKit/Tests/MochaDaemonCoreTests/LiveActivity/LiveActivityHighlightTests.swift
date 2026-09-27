@@ -344,4 +344,25 @@ struct LiveActivityHighlightTests {
         }
         return best
     }
+
+    @Test func aPhoneDecisionShowsItsOutcomeUntilThePreviewChanges() {
+        var tracker = AgentActivityTracker()
+        let limit = LiveActivityConfiguration().titleLimit
+        let request = LiveActivitySample.permission("req-1", agent: "w1:p1")
+        func outcome(preview: String, pending: [PendingRequest] = [], decisions: [AgentID: PendingDecision] = [:]) -> String? {
+            let tree = LiveActivitySample.tree([tab("parser", [agent(preview: preview)])])
+            var input = LiveActivitySample.input(tree, pending: pending)
+            input.decisions = decisions
+            return tracker.snapshots(of: input, at: Sample.start, titleLimit: limit)["w1:p1"]?.agent.outcome
+        }
+        let allowed = ["w1:p1": PendingDecision(requestId: "req-1", outcome: .allowed)]
+
+        #expect(outcome(preview: "Plano pronto.", pending: [request]) == nil)
+        #expect(outcome(preview: "Plano pronto.", decisions: allowed) == "allowed")
+        #expect(outcome(preview: "Plano pronto.", decisions: allowed) == "allowed")
+        #expect(outcome(preview: "Criei o arquivo.", decisions: allowed) == nil)
+        #expect(outcome(preview: "Plano pronto.", decisions: allowed) == nil)
+        #expect(outcome(preview: "Outro plano.", decisions: ["w1:p1": PendingDecision(requestId: "req-2", outcome: .denied)]) == "denied")
+        #expect(outcome(preview: "Outro plano.", pending: [LiveActivitySample.permission("req-3", agent: "w1:p1")]) == nil)
+    }
 }

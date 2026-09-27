@@ -23,7 +23,8 @@ extension SessionHub {
                 agents: agents,
                 pending: pendingRequests,
                 foregroundDevices: activeDevices(),
-                prompts: prompts(of: agents)
+                prompts: prompts(of: agents),
+                decisions: pendingDecisions
             )
         )
     }

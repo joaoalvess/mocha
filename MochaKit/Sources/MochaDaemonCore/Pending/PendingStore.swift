@@ -8,6 +8,37 @@ public protocol PendingProviding: Sendable {
     var requests: [PendingRequest] { get async }
     func updates() -> AsyncStream<[PendingRequest]>
     func respond(to requestId: RequestID, with response: PendingResponse) async throws(PendingRespondError)
+    var decisions: [AgentID: PendingDecision] { get async }
+}
+
+extension PendingProviding {
+    public var decisions: [AgentID: PendingDecision] {
+        get async { [:] }
+    }
+}
+
+public enum PendingOutcome: String, Sendable, Equatable {
+    case allowed
+    case denied
+    case answered
+
+    init(_ response: PendingResponse) {
+        switch response {
+        case .allow: self = .allowed
+        case .deny: self = .denied
+        case .answers: self = .answered
+        }
+    }
+}
+
+public struct PendingDecision: Sendable, Equatable {
+    public let requestId: RequestID
+    public let outcome: PendingOutcome
+
+    public init(requestId: RequestID, outcome: PendingOutcome) {
+        self.requestId = requestId
+        self.outcome = outcome
+    }
 }
 
 public struct PendingStoreConfiguration: Sendable {
@@ -87,6 +118,7 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
     private var isShutDown = false
     private(set) var observedEvents = 0
     private(set) var recentResolutions: [PendingResolution] = []
+    public private(set) var decisions: [AgentID: PendingDecision] = [:]
 
     public init(
         herdr: any HerdrBridging,
@@ -182,6 +214,7 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
     public func respond(to requestId: RequestID, with response: PendingResponse) throws(PendingRespondError) {
         guard let entry = entries[requestId] else { throw .requestNotFound }
         let reply = try PendingHookReply.reply(to: response, kind: entry.request.kind, toolInput: entry.toolInput)
+        decisions[entry.request.agentId] = PendingDecision(requestId: requestId, outcome: PendingOutcome(response))
         finish(requestId, reply: reply, reason: .phone, detail: response.type)
     }
 
