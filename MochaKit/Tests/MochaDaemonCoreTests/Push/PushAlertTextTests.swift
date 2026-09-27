@@ -45,4 +45,22 @@ struct PushAlertTextTests {
         }())
         #expect(!PushAlertText.needsInputBody(request).isEmpty)
     }
+
+    @Test func singleQuestionIsAnsweredInlineWithItsExactText() throws {
+        let question = "Qual **banco** usar? " + String(repeating: "x", count: 300)
+        let request = try Self.request("AskUserQuestion", #"{"questions": [{"question": "\#(question)", "multiSelect": false}]}"#)
+        #expect(PushAlertText.pendingCategory(request) == PushAlertText.questionCategory)
+        #expect(PushAlertText.needsInputBody(request) == question)
+    }
+
+    @Test func questionsThatCannotBeAnsweredInlineOpenTheApp() throws {
+        let multiple = try Self.request("AskUserQuestion", #"{"questions": [{"question": "Qual banco?"}, {"question": "Outra?"}]}"#)
+        let multiSelect = try Self.request("AskUserQuestion", #"{"questions": [{"question": "Quais?", "multiSelect": true}]}"#)
+        let long = try Self.request("AskUserQuestion", #"{"questions": [{"question": "\#(String(repeating: "ç", count: 1_001))"}]}"#)
+        for request in [multiple, multiSelect, long] {
+            #expect(PushAlertText.pendingCategory(request) == PushAlertKind.needsInput.category)
+            #expect(PushAlertText.needsInputBody(request).count <= PushAlertText.bodyLimit)
+        }
+        #expect(PushAlertText.pendingCategory(try Self.request("Bash", #"{"command": "ls"}"#)) == PushAlertText.permissionCategory)
+    }
 }

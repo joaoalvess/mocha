@@ -23,7 +23,7 @@ struct PendingPushTests {
             #expect(harness.transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "apns-collapse-id") == "w1:p1" })
             let payloads = try harness.payloads()
             let aps = payloads.compactMap { $0["aps"] as? [String: Any] }
-            #expect(aps.map { $0["category"] as? String } == ["PERMISSION", "QUESTION"])
+            #expect(aps.map { $0["category"] as? String } == ["PERMISSION", "NEEDS_INPUT"])
             #expect(aps.allSatisfy { $0["interruption-level"] as? String == "time-sensitive" })
             #expect(aps.map { ($0["alert"] as? [String: Any])?["body"] as? String } == ["touch f.txt", "Qual editor?"])
             #expect(aps.map { ($0["alert"] as? [String: Any])?["title"] as? String } == ["Claude precisa de você · Core", "Claude precisa de você · Core"])

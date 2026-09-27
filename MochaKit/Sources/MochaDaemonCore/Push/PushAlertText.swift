@@ -42,11 +42,24 @@ enum PushAlertText {
         return preview.isEmpty ? turnDoneFallback : preview
     }
 
+    static let inlineQuestionByteLimit = 2_000
+
     static func pendingCategory(_ request: PermissionRequestHook) -> String {
-        request.toolName == PendingRequestFactory.questionToolName ? questionCategory : permissionCategory
+        guard request.toolName == PendingRequestFactory.questionToolName else { return permissionCategory }
+        return inlineQuestion(request) == nil ? PushAlertKind.needsInput.category : questionCategory
+    }
+
+    static func inlineQuestion(_ request: PermissionRequestHook) -> String? {
+        guard request.toolName == PendingRequestFactory.questionToolName,
+              let questions = request.toolInput["questions"]?.arrayValue, questions.count == 1,
+              questions[0]["multiSelect"]?.boolValue != true,
+              let question = nonEmpty(questions[0]["question"]), question.utf8.count <= inlineQuestionByteLimit
+        else { return nil }
+        return question
     }
 
     static func needsInputBody(_ request: PermissionRequestHook) -> String {
+        if let question = inlineQuestion(request) { return question }
         if request.toolName == "AskUserQuestion", let question = nonEmpty(request.toolInput["questions"]?.arrayValue?.first?["question"]) {
             return PlainText.preview(fromMarkdown: question, limit: bodyLimit)
         }
