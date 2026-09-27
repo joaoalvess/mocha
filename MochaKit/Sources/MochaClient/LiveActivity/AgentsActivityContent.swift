@@ -21,13 +21,34 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
         public var workspaceLabel: String
         public var status: String
         public var since: Date
+        public var tabTitle: String?
+        public var model: String?
+        public var contextLeftPercent: Int?
+        public var preview: String?
+        public var activity: String?
 
-        public init(agentId: String, title: String, workspaceLabel: String, status: String, since: Date) {
+        public init(
+            agentId: String,
+            title: String,
+            workspaceLabel: String,
+            status: String,
+            since: Date,
+            tabTitle: String? = nil,
+            model: String? = nil,
+            contextLeftPercent: Int? = nil,
+            preview: String? = nil,
+            activity: String? = nil
+        ) {
             self.agentId = agentId
             self.title = title
             self.workspaceLabel = workspaceLabel
             self.status = status
             self.since = since
+            self.tabTitle = tabTitle
+            self.model = model
+            self.contextLeftPercent = contextLeftPercent
+            self.preview = preview
+            self.activity = activity
         }
     }
 
