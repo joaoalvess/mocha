@@ -88,6 +88,9 @@ public actor SessionHub {
         var subscription: TranscriptSubscription?
         var forwarder: Task<Void, Never>?
         var lastMeta: ChatMeta?
+        var subagent: SubagentTranscript?
+        var subagentMeta: TranscriptMeta?
+        var cards: [String: ChatItem] = [:]
 
         func cancel() {
             subscription?.cancel()
@@ -115,6 +118,7 @@ public actor SessionHub {
     let pairing: Pairing
     let usage: any UsageProviding
     let archive: any SessionArchiving
+    let subagents: (any SubagentProviding)?
     let clock: any GatewayClock
     let configuration: SessionHubConfiguration
     let encoder = JSONEncoder()
@@ -134,6 +138,15 @@ public actor SessionHub {
     var sessionServiceTasks: [Task<Void, Never>] = []
     var transcriptPaths: [String: String] = [:]
     var transcriptPathOrder: [String] = []
+    var subagentStates: [String: SubagentState] = [:]
+    var workflowStates: [String: WorkflowState] = [:]
+    var runningSubagentCounts: [String: Int] = [:]
+    var observedSubagentSessions: Set<String> = []
+    var cardThrottles: [String: CardThrottle] = [:]
+    var metaThrottles: [UUID: MetaThrottle] = [:]
+    var subagentTasks: [Task<Void, Never>] = []
+    let observedSessionUpdates: AsyncStream<Set<String>>
+    let observedSessionContinuation: AsyncStream<Set<String>>.Continuation
 
     private var lastSentTree: [WorkspaceNode] = []
     private var liveFollows: [AgentID: LiveFollow] = [:]
@@ -153,6 +166,7 @@ public actor SessionHub {
         pairing: Pairing,
         usage: any UsageProviding,
         archive: any SessionArchiving,
+        subagents: (any SubagentProviding)? = nil,
         clock: any GatewayClock = SystemGatewayClock(),
         configuration: SessionHubConfiguration = SessionHubConfiguration()
     ) {
@@ -162,16 +176,21 @@ public actor SessionHub {
         self.pairing = pairing
         self.usage = usage
         self.archive = archive
+        self.subagents = subagents
         self.clock = clock
         self.configuration = configuration
         let (updates, continuation) = AsyncStream.makeStream(of: Set<AgentID>.self)
         openChatUpdates = updates
         openChatContinuation = continuation
+        let (sessionUpdates, sessionContinuation) = AsyncStream.makeStream(of: Set<String>.self, bufferingPolicy: .bufferingNewest(1))
+        observedSessionUpdates = sessionUpdates
+        observedSessionContinuation = sessionContinuation
     }
 
     public func start() async {
         guard eventsTask == nil, !isShuttingDown else { return }
         await startSessionServices()
+        startSubagentServices()
         let updates = openChatUpdates
         openChatPublisher = Task { [herdr] in
             for await ids in updates {
@@ -206,6 +225,19 @@ public actor SessionHub {
             task.cancel()
         }
         sessionServiceTasks.removeAll()
+        for task in subagentTasks {
+            task.cancel()
+        }
+        subagentTasks.removeAll()
+        observedSessionContinuation.finish()
+        for throttle in cardThrottles.values {
+            throttle.pending?.cancel()
+        }
+        cardThrottles.removeAll()
+        for throttle in metaThrottles.values {
+            throttle.pending?.cancel()
+        }
+        metaThrottles.removeAll()
         for follow in liveFollows.values {
             follow.cancel()
         }
@@ -262,7 +294,7 @@ public actor SessionHub {
     }
 
     func composedTree() -> [WorkspaceNode] {
-        TreeComposer.compose(baseTree, metas: metas, contexts: pluginContexts, archivedAts: archivedAts)
+        TreeComposer.compose(baseTree, metas: metas, contexts: pluginContexts, archivedAts: archivedAts, runningSubagents: runningSubagentCounts)
     }
 
     func composedAgent(_ id: AgentID) -> AgentSummary? {
@@ -276,7 +308,8 @@ public actor SessionHub {
             agent,
             meta: metas[sessionId],
             contextUsedPercent: pluginContexts[sessionId],
-            archivedAt: archivedAts[sessionId]
+            archivedAt: archivedAts[sessionId],
+            runningSubagents: runningSubagentCounts[sessionId]
         )
     }
 
@@ -296,6 +329,7 @@ public actor SessionHub {
     }
 
     func publishOpenChats() {
+        publishObservedSessions()
         var ids: Set<AgentID> = []
         for client in clients.values {
             for target in client.chats.keys {
@@ -403,6 +437,7 @@ public actor SessionHub {
     private func flushTree() async {
         await refreshUnfollowedMetas()
         pruneMetas()
+        publishObservedSessions()
         await refreshSessionState()
         let tree = composedTree()
         if tree != lastSentTree {
@@ -452,12 +487,12 @@ public actor SessionHub {
         metaSources = metaSources.filter { referenced.contains($0.key) }
     }
 
-    private func updateLiveFollows() {
+    func updateLiveFollows() {
         guard !isShuttingDown else { return }
         var wanted: [AgentID: String] = [:]
-        for agent in TreeComposer.agents(in: baseTree)
-        where agent.kind == TreeComposer.claudeKind && (agent.status == .working || agent.status == .blocked) {
-            if let sessionId = agent.sessionId {
+        for agent in TreeComposer.agents(in: baseTree) where agent.kind == TreeComposer.claudeKind {
+            guard let sessionId = agent.sessionId else { continue }
+            if agent.status == .working || agent.status == .blocked || runningSubagentCounts[sessionId, default: 0] > 0 {
                 wanted[agent.id] = sessionId
             }
         }

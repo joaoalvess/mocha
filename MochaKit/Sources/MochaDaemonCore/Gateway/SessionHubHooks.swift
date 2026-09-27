@@ -33,4 +33,9 @@ extension SessionHub: PushAudience {
     func transcriptSession(_ sessionId: String) -> TranscriptSession {
         TranscriptSession(sessionId: sessionId, transcriptPath: transcriptPaths[sessionId])
     }
+
+    func transcriptSession(_ sessionId: String, subagent: SubagentTranscript?) -> TranscriptSession {
+        guard let subagent else { return transcriptSession(sessionId) }
+        return TranscriptSession(sessionId: sessionId, subagent: subagent)
+    }
 }
