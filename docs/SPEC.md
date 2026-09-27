@@ -1788,6 +1788,7 @@ public struct ContentState: Codable, Hashable {
     - `apns-priority: 10` em toda mudança que o usuário precisa ver: contagem de `working`/`waiting`, troca do destaque e fim. Medido: 0,6–0,7 s.
     - `apns-priority: 5` só para mudanças que podem esperar ou se perder (ex.: só o título do destaque). Medido com o iPhone em uso: 45 s e 84 s, e uma se perdeu, coalescida pela seguinte.
     - No máximo uma atualização a cada 10 s, sempre com o estado mais recente.
+    - Enquanto algum agente está `working`/`blocked` sem mudança, uma atualização de prioridade 5 a cada 10 min renova o `stale-date`, para a atividade não ficar `stale` num turno longo.
   - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com prioridade 10, o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min. A atividade some na `dismissal-date`.
   - **Limite de 8 h**: ao completar 7 h 50 min, o daemon encerra e inicia outra com push-to-start.
 - **Orçamentos** (`liveactivitiesd`, visto no simulador e reavaliado a cada hora): 10 push-to-starts e ~60 updates de prioridade 10 por hora, por app. Com o limite de 10 s e a regra de prioridade acima, o Mocha fica abaixo disso em uso normal. Se não ficar, a alternativa é `NSSupportsLiveActivitiesFrequentUpdates` no Info.plist.
