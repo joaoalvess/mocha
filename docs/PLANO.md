@@ -894,7 +894,7 @@ Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contr
 ### S7: App Server compartilhado no laboratório
 
 - **Dono**: `docs/spikes/S7.md` e laboratório `~/Developer/mocha-lab/S7/`, em workspace Herdr `mocha-lab-S7`. Não tocar sessões Codex existentes nem configuração real em `~/.codex`.
-- Validar com CLI `codex --remote` e dois clientes App Server na mesma thread: associação pane–thread, histórico e eventos, retomada após queda, prompt, interrupção, permissão e pergunta respondidas no terminal ou no outro cliente. Verificar formato e limites de `account/rateLimits/read`, imagem e subagentes. Registrar versão, comandos, payloads redigidos, resultados e mudanças necessárias na §13.
+- Validar com CLI `codex --remote` e dois clientes App Server na mesma thread: associação pane–thread, histórico e eventos, retomada após queda, prompt, interrupção e permissão respondida no terminal ou no outro cliente. Testar pergunta estruturada nos modos em que a API permitir; no Default, a ausência dessa ferramenta é limitação aceita pelo João em 2026-09-27. Verificar formato e limites de `account/rateLimits/read`, imagem e subagentes. Registrar versão, comandos, payloads redigidos, resultados e mudanças necessárias na §13.
 - **Gate**: se uma decisão ou o estado da thread não puder ser compartilhado com segurança, parar após o relatório e pedir decisão arquitetural ao João. Não usar `agent.send_keys` para reproduzir ações.
 
 ### WP-C1: protocolo v2 e fixtures Codex
