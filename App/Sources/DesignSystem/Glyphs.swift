@@ -44,15 +44,24 @@ enum LineIcon {
     case copy
     case sidebar
     case laptop
+    case agent
+    case flow
+    case stopCircle
 }
 
 struct LineIconShape: Shape {
+    enum Layer {
+        case outline
+        case fill
+    }
+
     let icon: LineIcon
+    var layer: Layer = .outline
 
     func path(in rect: CGRect) -> Path {
         let scale = CGAffineTransform(translationX: rect.minX, y: rect.minY)
             .scaledBy(x: rect.width / 24, y: rect.height / 24)
-        return viewBoxPath.applying(scale)
+        return (layer == .outline ? viewBoxPath : viewBoxFillPath).applying(scale)
     }
 
     private var viewBoxPath: Path {
@@ -131,6 +140,33 @@ struct LineIconShape: Shape {
         case .laptop:
             path.addRoundedRect(in: CGRect(x: 4.5, y: 5, width: 15, height: 10.6), cornerSize: CGSize(width: 1.7, height: 1.7), style: .circular)
             path.addLines([CGPoint(x: 2.4, y: 18.8), CGPoint(x: 21.6, y: 18.8)])
+        case .agent:
+            path.addRoundedRect(in: CGRect(x: 3.5, y: 3.5, width: 7.2, height: 7.2), cornerSize: CGSize(width: 1.9, height: 1.9), style: .circular)
+            path.addRoundedRect(in: CGRect(x: 13.3, y: 13.3, width: 7.2, height: 7.2), cornerSize: CGSize(width: 1.9, height: 1.9), style: .circular)
+            path.move(to: CGPoint(x: 7.1, y: 10.7))
+            path.addArc(tangent1End: CGPoint(x: 7.1, y: 17.1), tangent2End: CGPoint(x: 13.3, y: 17.1), radius: 2.9)
+            path.addLine(to: CGPoint(x: 13.3, y: 17.1))
+        case .flow:
+            path.addRoundedRect(in: CGRect(x: 3.5, y: 3.5, width: 6, height: 6), cornerSize: CGSize(width: 1.6, height: 1.6), style: .circular)
+            path.addRoundedRect(in: CGRect(x: 14.5, y: 9, width: 6, height: 6), cornerSize: CGSize(width: 1.6, height: 1.6), style: .circular)
+            path.addRoundedRect(in: CGRect(x: 3.5, y: 14.5, width: 6, height: 6), cornerSize: CGSize(width: 1.6, height: 1.6), style: .circular)
+            path.move(to: CGPoint(x: 9.5, y: 6.5))
+            path.addArc(tangent1End: CGPoint(x: 13.5, y: 6.5), tangent2End: CGPoint(x: 13.5, y: 12), radius: 1.6)
+            path.addLine(to: CGPoint(x: 13.5, y: 12))
+            path.addLine(to: CGPoint(x: 14.5, y: 12))
+            path.move(to: CGPoint(x: 9.5, y: 17.5))
+            path.addArc(tangent1End: CGPoint(x: 13.5, y: 17.5), tangent2End: CGPoint(x: 13.5, y: 12), radius: 1.6)
+            path.addLine(to: CGPoint(x: 13.5, y: 12))
+        case .stopCircle:
+            path.addEllipse(in: CGRect(x: 3.1, y: 3.1, width: 17.8, height: 17.8))
+        }
+        return path
+    }
+
+    private var viewBoxFillPath: Path {
+        var path = Path()
+        if icon == .stopCircle {
+            path.addRoundedRect(in: CGRect(x: 8.9, y: 8.9, width: 6.2, height: 6.2), cornerSize: CGSize(width: 1.3, height: 1.3), style: .circular)
         }
         return path
     }
@@ -143,10 +179,14 @@ struct LineIconView: View {
     var color: Color
 
     var body: some View {
-        LineIconShape(icon: icon)
-            .stroke(color, style: StrokeStyle(lineWidth: size * strokeWidth / 24, lineCap: .round, lineJoin: .round))
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        ZStack {
+            LineIconShape(icon: icon)
+                .stroke(color, style: StrokeStyle(lineWidth: size * strokeWidth / 24, lineCap: .round, lineJoin: .round))
+            LineIconShape(icon: icon, layer: .fill)
+                .fill(color)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
