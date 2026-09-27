@@ -4,7 +4,7 @@ import Synchronization
 
 public final class FakeLiveActivitySender: LiveActivityPushSending {
     public struct Sent: Sendable, Equatable {
-        public let push: LiveActivityPush
+        public let push: AgentActivityPush
         public let token: String
         public let environment: ApnsEnvironment
         public let priority: ApnsPriority
@@ -28,7 +28,7 @@ public final class FakeLiveActivitySender: LiveActivityPushSending {
     }
 
     public func sendLiveActivity(
-        _ push: LiveActivityPush,
+        _ push: AgentActivityPush,
         to token: String,
         environment: ApnsEnvironment,
         priority: ApnsPriority

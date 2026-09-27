@@ -33,6 +33,10 @@ enum PushAlertText {
         case .turnDone: "Claude terminou"
         case .needsInput: "Claude precisa de você"
         }
+        return title(base, workspaceLabel: workspaceLabel)
+    }
+
+    static func title(_ base: String, workspaceLabel: String?) -> String {
         guard let label = workspaceLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty else { return base }
         return base + " · " + label
     }

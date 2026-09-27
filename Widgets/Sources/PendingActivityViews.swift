@@ -4,10 +4,11 @@ import SwiftUI
 
 struct PendingActivityControls: View {
     let pending: AgentsActivityContent.Pending
+    let agentId: String
     let metrics: AgentsCardMetrics
 
     var body: some View {
-        let actions = AgentsActivityActions.actions(for: pending)
+        let actions = AgentsActivityActions.actions(for: pending, agentId: agentId)
         if actions.isEmpty {
             questionHint
         } else {

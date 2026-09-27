@@ -29,24 +29,25 @@ struct LiveActivityPendingTests {
         )
     }
 
-    private func state(_ pending: LiveActivityContentState.Pending?) -> LiveActivityContentState {
-        LiveActivityContentState(
-            working: 1,
-            waiting: 1,
-            highlight: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "blocked", since: sentAt),
+    private func state(_ pending: LiveActivityContentState.Pending?) -> AgentActivityContentState {
+        AgentActivityContentState(
+            agent: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "blocked", since: sentAt),
             pending: pending,
             updatedAt: sentAt
         )
     }
 
-    private func contentState(of push: LiveActivityPush) throws -> [String: Any] {
+    private func update(_ pending: LiveActivityContentState.Pending?) -> AgentActivityPush {
+        AgentActivityPush(agentId: "w1:p1", event: .update(alert: nil), contentState: state(pending), timestamp: sentAt, staleDate: sentAt.addingTimeInterval(900))
+    }
+
+    private func contentState(of push: AgentActivityPush) throws -> [String: Any] {
         let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
         return try #require(aps["content-state"] as? [String: Any])
     }
 
     private func encodedPending(_ pending: LiveActivityContentState.Pending) throws -> [String: Any] {
-        let push = LiveActivityPush(event: .update, contentState: state(pending), timestamp: sentAt, staleDate: sentAt.addingTimeInterval(900))
-        return try #require(try contentState(of: push)["pending"] as? [String: Any])
+        try #require(try contentState(of: update(pending))["pending"] as? [String: Any])
     }
 
     @Test func aPermissionCarriesTheToolAndTheSummaryWithoutOptions() throws {
@@ -140,23 +141,19 @@ struct LiveActivityPendingTests {
         let single = try encodedPending(try fromHook("PermissionRequest.AskUserQuestion.single.json"))
         #expect(single["options"] as? [String] == ["Postgres", "SQLite", "MySQL"])
 
-        let withoutPending = LiveActivityPush(event: .update, contentState: state(nil), timestamp: sentAt)
-        #expect(try contentState(of: withoutPending)["pending"] == nil)
+        #expect(try contentState(of: update(nil))["pending"] == nil)
     }
 
     @Test func theContentStateDecodesWithTheDefaultDecoderLikeTheApp() throws {
         for file in ["PermissionRequest.bash.json", "PermissionRequest.AskUserQuestion.single.json", "PermissionRequest.AskUserQuestion.multi.json"] {
             let pending = try fromHook(file)
-            let push = LiveActivityPush(event: .update, contentState: state(pending), timestamp: sentAt, staleDate: sentAt.addingTimeInterval(900))
-            let data = try JSONSerialization.data(withJSONObject: try contentState(of: push))
-            let decoded = try JSONDecoder().decode(LiveActivityAppContentState.self, from: data)
-            #expect(decoded == LiveActivityAppContentState(
-                working: 1,
-                waiting: 1,
-                highlight: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "blocked", since: sentAt),
+            #expect(try LiveActivityAppContentState.decoding(update(pending)) == LiveActivityAppContentState(
+                status: "blocked",
+                title: "Refatorar o parser",
+                workspaceLabel: "demo-app",
+                since: sentAt,
                 pending: .init(
                     requestId: pending.requestId,
-                    agentId: pending.agentId,
                     kind: pending.kind == .permission ? .permission : .question,
                     toolName: pending.toolName,
                     text: pending.text,
@@ -164,13 +161,11 @@ struct LiveActivityPendingTests {
                 ),
                 updatedAt: sentAt
             ))
-            #expect(try JSONDecoder().decode(LiveActivityContentState.self, from: data) == state(pending))
         }
-        let data = try JSONSerialization.data(withJSONObject: try contentState(of: LiveActivityPush(event: .update, contentState: state(nil), timestamp: sentAt)))
-        #expect(try JSONDecoder().decode(LiveActivityAppContentState.self, from: data).pending == nil)
+        #expect(try LiveActivityAppContentState.decoding(update(nil)).pending == nil)
     }
 
-    @Test func anInlineUpdateInTheWorstCaseFitsInFourKilobytes() throws {
+    @Test func anInlineUpdateWithItsAlertInTheWorstCaseFitsInFourKilobytes() throws {
         let text = String(repeating: "\"", count: 1_000)
         let labels = Array(repeating: String(repeating: "😀", count: 60), count: 4)
         let request = LiveActivitySample.question(
@@ -181,10 +176,8 @@ struct LiveActivityPendingTests {
         let pending = LiveActivityContentState.Pending(request)
         #expect(pending.text == text)
         #expect(pending.options == labels)
-        let state = LiveActivityContentState(
-            working: 99,
-            waiting: 99,
-            highlight: .init(
+        let snapshot = AgentActivitySnapshot(
+            agent: .init(
                 agentId: "w9999:p9999",
                 title: String(repeating: "😀", count: 60),
                 workspaceLabel: String(repeating: "😀", count: 60),
@@ -192,12 +185,20 @@ struct LiveActivityPendingTests {
                 since: sentAt
             ),
             pending: pending,
-            updatedAt: sentAt
+            status: .blocked
         )
-        let update = LiveActivityPush(event: .update, contentState: state, timestamp: sentAt, staleDate: sentAt.addingTimeInterval(900))
-        #expect(try update.payload().count <= ApnsRequest.maxPayloadBytes)
-        let start = LiveActivityPush(event: .start(alert: .init(title: "Mocha", body: "99 trabalhando · 99 esperando você")), contentState: state, timestamp: sentAt)
-        #expect(try start.payload().count <= ApnsRequest.maxPayloadBytes)
+        let staleDate = sentAt.addingTimeInterval(900)
+        let pushes = [
+            snapshot.push({ .update(alert: $0.alertContent(.needsInput)) }, at: sentAt, staleDate: staleDate),
+            snapshot.push({ .start(alert: $0.startAlert) }, at: sentAt, staleDate: staleDate),
+            snapshot.push({ _ in .update(alert: nil) }, at: sentAt, staleDate: staleDate),
+        ]
+        for push in pushes {
+            #expect(try push.payload().count <= ApnsRequest.maxPayloadBytes)
+            #expect(push.contentState.pending?.requestId == pending.requestId)
+        }
+        #expect(pushes[2].contentState.pending == pending)
+        #expect(pushes[2].contentState.agent == snapshot.agent)
     }
 
     @Test func anInlineQuestionOverTheEncodedBudgetFallsBackToThePreview() throws {

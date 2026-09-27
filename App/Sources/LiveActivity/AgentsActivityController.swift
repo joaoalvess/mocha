@@ -23,7 +23,7 @@ final class AgentsActivityController {
 
     func startObserving() {
         guard isEnabled, tokens == nil else { return }
-        let live = Activity<MochaAgentsAttributes>.activities.filter { Self.isLive($0.activityState) }
+        let live = Activity<MochaAgentAttributes>.activities.filter { Self.isLive($0.activityState) }
         tokens = AgentsActivityTokenSync(
             environment: PushRegistration.shared.environment.environment,
             liveActivityIds: Set(live.map(\.id)),
@@ -33,16 +33,20 @@ final class AgentsActivityController {
         for activity in live {
             observe(activity)
         }
-        if let kept = live.last {
-            Task { await Self.endActivities(except: kept.id) }
+        let newest = Dictionary(live.map { ($0.attributes.agentId, $0.id) }) { _, last in last }
+        Task {
+            for (agentId, keptId) in newest {
+                await Self.endActivities(of: agentId, except: keptId)
+            }
+            await Self.endAggregatedActivities()
         }
         Task { [weak self] in
-            for await activity in Activity<MochaAgentsAttributes>.activityUpdates {
+            for await activity in Activity<MochaAgentAttributes>.activityUpdates {
                 self?.adopt(activity)
             }
         }
         Task { [weak self] in
-            for await token in Activity<MochaAgentsAttributes>.pushToStartTokenUpdates {
+            for await token in Activity<MochaAgentAttributes>.pushToStartTokenUpdates {
                 self?.receivePushToStartToken(token)
             }
         }
@@ -60,18 +64,20 @@ final class AgentsActivityController {
     func agentsChanged(_ agents: [AgentSummary]) {
         guard isEnabled else { return }
         let now = Date()
-        let agentBecameWorking = tracker.update(agents, at: now)
-        guard AgentsActivityStartPolicy.shouldStart(
-            agentBecameWorking: agentBecameWorking,
-            isForeground: UIApplication.shared.applicationState == .active,
-            hasOngoingActivity: Activity<MochaAgentsAttributes>.activities.contains { Self.isLive($0.activityState) },
-            activitiesEnabled: authorization.areActivitiesEnabled
-        ) else { return }
-        start(tracker.content(at: now))
+        let becameBusy = tracker.update(agents, at: now)
+        let isForeground = UIApplication.shared.applicationState == .active
+        for agentId in becameBusy.sorted() {
+            guard AgentsActivityStartPolicy.shouldStart(
+                isForeground: isForeground,
+                hasActivityForAgent: Self.hasLiveActivity(for: agentId),
+                activitiesEnabled: authorization.areActivitiesEnabled
+            ), let content = tracker.content(for: agentId, at: now) else { continue }
+            start(content, agentId: agentId)
+        }
     }
 
     nonisolated static func clearPending(_ requestId: String) async {
-        for activity in Activity<MochaAgentsAttributes>.activities where isLive(activity.activityState) {
+        for activity in Activity<MochaAgentAttributes>.activities where isLive(activity.activityState) {
             let current = activity.content
             guard let cleared = AgentsActivityContent(current.state).clearingPending(requestId) else { continue }
             await activity.update(
@@ -82,34 +88,35 @@ final class AgentsActivityController {
         }
     }
 
-    private func start(_ content: AgentsActivityContent) {
+    private func start(_ content: AgentsActivityContent, agentId: String) {
         do {
             let activity = try Activity.request(
-                attributes: MochaAgentsAttributes(),
+                attributes: MochaAgentAttributes(agentId: agentId),
                 content: ActivityContent(state: content.attributesState, staleDate: content.updatedAt.addingTimeInterval(Self.staleInterval)),
                 pushType: .token
             )
-            Self.logger.info("started the live activity locally")
+            Self.logger.info("started the live activity of \(agentId, privacy: .public) locally")
             adopt(activity)
         } catch {
-            Self.logger.error("failed to start the live activity: \(String(describing: error), privacy: .public)")
+            Self.logger.error("failed to start the live activity of \(agentId, privacy: .public): \(String(describing: error), privacy: .public)")
         }
     }
 
-    private func adopt(_ activity: Activity<MochaAgentsAttributes>) {
+    private func adopt(_ activity: Activity<MochaAgentAttributes>) {
         observe(activity)
-        Task { await Self.endActivities(except: activity.id) }
+        Task { await Self.endActivities(of: activity.attributes.agentId, except: activity.id) }
     }
 
-    private func observe(_ activity: Activity<MochaAgentsAttributes>) {
+    private func observe(_ activity: Activity<MochaAgentAttributes>) {
         let id = activity.id
+        let agentId = activity.attributes.agentId
         guard observedIds.insert(id).inserted else { return }
         if let token = activity.pushToken {
-            receiveUpdateToken(token, activityId: id)
+            receiveUpdateToken(token, activityId: id, agentId: agentId)
         }
         Task { [weak self] in
             for await token in activity.pushTokenUpdates {
-                self?.receiveUpdateToken(token, activityId: id)
+                self?.receiveUpdateToken(token, activityId: id, agentId: agentId)
             }
         }
         Task { [weak self] in
@@ -124,9 +131,9 @@ final class AgentsActivityController {
         deliver { await $0.recordPushToStartToken(token) }
     }
 
-    private func receiveUpdateToken(_ data: Data, activityId: String) {
+    private func receiveUpdateToken(_ data: Data, activityId: String, agentId: String) {
         let token = Self.hex(data)
-        deliver { await $0.recordUpdateToken(token, activityId: activityId) }
+        deliver { await $0.recordUpdateToken(token, activityId: activityId, agentId: agentId) }
     }
 
     private func forget(activityId: String) {
@@ -142,10 +149,20 @@ final class AgentsActivityController {
         }
     }
 
-    private nonisolated static func endActivities(except keptId: String) async {
-        for activity in Activity<MochaAgentsAttributes>.activities where activity.id != keptId {
+    private nonisolated static func endActivities(of agentId: String, except keptId: String) async {
+        for activity in Activity<MochaAgentAttributes>.activities where activity.attributes.agentId == agentId && activity.id != keptId {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
+    }
+
+    private nonisolated static func endAggregatedActivities() async {
+        for activity in Activity<MochaAgentsAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
+    private static func hasLiveActivity(for agentId: String) -> Bool {
+        Activity<MochaAgentAttributes>.activities.contains { $0.attributes.agentId == agentId && isLive($0.activityState) }
     }
 
     private nonisolated static func isLive(_ state: ActivityState) -> Bool {

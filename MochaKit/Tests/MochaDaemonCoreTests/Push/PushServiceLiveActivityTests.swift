@@ -6,9 +6,14 @@ import Testing
 @Suite(.timeLimit(.minutes(1)))
 struct PushServiceLiveActivityTests {
     private static let token = String(repeating: "b2", count: 40)
-    private static let push = LiveActivityPush(
-        event: .update,
-        contentState: LiveActivityContentState(working: 1, waiting: 0, highlight: nil, updatedAt: Sample.start),
+    private static let push = AgentActivityPush(
+        agentId: "w1:p1",
+        event: .update(alert: nil),
+        contentState: AgentActivityContentState(
+            agent: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "working", since: Sample.start),
+            pending: nil,
+            updatedAt: Sample.start
+        ),
         timestamp: Sample.start,
         staleDate: Sample.start.addingTimeInterval(15 * 60)
     )

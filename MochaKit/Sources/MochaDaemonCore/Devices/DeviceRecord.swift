@@ -10,6 +10,7 @@ public struct DeviceRecord: Codable, Sendable, Equatable, Identifiable {
     public var apns: ApnsRegistration?
     public var preferences: DevicePreferences
     public var liveActivity: LiveActivityRegistration?
+    public var agentActivities: [LiveActivityRegistration]
 
     public init(
         id: DeviceID,
@@ -19,7 +20,8 @@ public struct DeviceRecord: Codable, Sendable, Equatable, Identifiable {
         lastSeenAt: Date,
         apns: ApnsRegistration? = nil,
         preferences: DevicePreferences = DevicePreferences(),
-        liveActivity: LiveActivityRegistration? = nil
+        liveActivity: LiveActivityRegistration? = nil,
+        agentActivities: [LiveActivityRegistration] = []
     ) {
         self.id = id
         self.name = name
@@ -29,10 +31,15 @@ public struct DeviceRecord: Codable, Sendable, Equatable, Identifiable {
         self.apns = apns
         self.preferences = preferences
         self.liveActivity = liveActivity
+        self.agentActivities = agentActivities
+    }
+
+    public func hasLiveActivity(for agentId: AgentID) -> Bool {
+        agentActivities.contains { $0.agentId == agentId && $0.updateToken != nil }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, tokenSha256, createdAt, lastSeenAt, apns, preferences, liveActivity
+        case id, name, tokenSha256, createdAt, lastSeenAt, apns, preferences, liveActivity, agentActivities
     }
 
     public init(from decoder: any Decoder) throws {
@@ -45,6 +52,7 @@ public struct DeviceRecord: Codable, Sendable, Equatable, Identifiable {
         apns = try container.decodeIfPresent(ApnsRegistration.self, forKey: .apns)
         preferences = try container.decodeIfPresent(DevicePreferences.self, forKey: .preferences) ?? DevicePreferences()
         liveActivity = try container.decodeIfPresent(LiveActivityRegistration.self, forKey: .liveActivity)
+        agentActivities = try container.decodeIfPresent([LiveActivityRegistration].self, forKey: .agentActivities) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -57,6 +65,9 @@ public struct DeviceRecord: Codable, Sendable, Equatable, Identifiable {
         try container.encodeIfPresent(apns, forKey: .apns)
         try container.encode(preferences, forKey: .preferences)
         try container.encodeIfPresent(liveActivity, forKey: .liveActivity)
+        if !agentActivities.isEmpty {
+            try container.encode(agentActivities, forKey: .agentActivities)
+        }
     }
 
     private static func decodeDate(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) throws -> Date {

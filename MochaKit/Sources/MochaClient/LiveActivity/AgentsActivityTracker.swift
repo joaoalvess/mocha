@@ -7,8 +7,7 @@ public struct AgentsActivityTracker: Sendable, Equatable {
     private struct Entry: Sendable, Equatable {
         let status: AgentStatus
         let since: Date
-        let title: String
-        let workspaceLabel: String
+        let agent: AgentSummary
     }
 
     private var entries: [AgentID: Entry] = [:]
@@ -16,36 +15,33 @@ public struct AgentsActivityTracker: Sendable, Equatable {
     public init() {}
 
     @discardableResult
-    public mutating func update(_ agents: [AgentSummary], at now: Date) -> Bool {
+    public mutating func update(_ agents: [AgentSummary], at now: Date) -> Set<AgentID> {
         var next: [AgentID: Entry] = [:]
-        var agentBecameWorking = false
+        var becameBusy: Set<AgentID> = []
         for agent in agents where agent.kind == HomeSections.claudeKind && next[agent.id] == nil {
             guard let status = Self.effectiveStatus(of: agent) else { continue }
             let previous = entries[agent.id]
-            if status == .working, previous?.status != .working {
-                agentBecameWorking = true
+            if previous == nil {
+                becameBusy.insert(agent.id)
             }
             let since = previous.flatMap { $0.status == status ? $0.since : nil } ?? Self.since(of: agent, status: status, now: now)
-            next[agent.id] = Entry(status: status, since: since, title: agent.title, workspaceLabel: agent.workspaceLabel)
+            next[agent.id] = Entry(status: status, since: since, agent: agent)
         }
         entries = next
-        return agentBecameWorking
+        return becameBusy
     }
 
-    public func content(at now: Date) -> AgentsActivityContent {
-        let busy = entries.sorted { ($0.value.since, $0.key) < ($1.value.since, $1.key) }
-        let waiting = busy.filter { $0.value.status == .blocked }
-        let working = busy.filter { $0.value.status == .working }
-        let highlight = (waiting.first ?? working.first).map { agentId, entry in
-            AgentsActivityContent.Highlight(
-                agentId: agentId,
-                title: String(entry.title.prefix(Self.titleLimit)),
-                workspaceLabel: entry.workspaceLabel,
-                status: entry.status.rawValue,
-                since: entry.since
-            )
-        }
-        return AgentsActivityContent(working: working.count, waiting: waiting.count, highlight: highlight, updatedAt: now)
+    public func content(for agentId: AgentID, at now: Date) -> AgentsActivityContent? {
+        guard let entry = entries[agentId] else { return nil }
+        return AgentsActivityContent(
+            status: entry.status.rawValue,
+            title: String(entry.agent.title.prefix(Self.titleLimit)),
+            workspaceLabel: entry.agent.workspaceLabel,
+            since: entry.since,
+            model: entry.agent.model,
+            contextLeftPercent: entry.agent.contextLeftPercent,
+            updatedAt: now
+        )
     }
 
     private static func effectiveStatus(of agent: AgentSummary) -> AgentStatus? {
@@ -62,7 +58,7 @@ public struct AgentsActivityTracker: Sendable, Equatable {
 }
 
 public enum AgentsActivityStartPolicy {
-    public static func shouldStart(agentBecameWorking: Bool, isForeground: Bool, hasOngoingActivity: Bool, activitiesEnabled: Bool) -> Bool {
-        agentBecameWorking && isForeground && !hasOngoingActivity && activitiesEnabled
+    public static func shouldStart(isForeground: Bool, hasActivityForAgent: Bool, activitiesEnabled: Bool) -> Bool {
+        isForeground && !hasActivityForAgent && activitiesEnabled
     }
 }

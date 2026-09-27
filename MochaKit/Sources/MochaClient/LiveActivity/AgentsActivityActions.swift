@@ -40,19 +40,19 @@ public struct AgentsActivityAction: Sendable, Hashable {
 public enum AgentsActivityActions {
     public static let optionLimit = 4
 
-    public static func actions(for pending: AgentsActivityContent.Pending) -> [AgentsActivityAction] {
+    public static func actions(for pending: AgentsActivityContent.Pending, agentId: String) -> [AgentsActivityAction] {
         switch pending.kind {
         case .permission:
             return [
-                AgentsActivityAction(requestId: pending.requestId, agentId: pending.agentId, role: .deny, title: PendingText.deny, choice: .deny),
-                AgentsActivityAction(requestId: pending.requestId, agentId: pending.agentId, role: .allow, title: PendingText.allow, choice: .allow),
+                AgentsActivityAction(requestId: pending.requestId, agentId: agentId, role: .deny, title: PendingText.deny, choice: .deny),
+                AgentsActivityAction(requestId: pending.requestId, agentId: agentId, role: .allow, title: PendingText.allow, choice: .allow),
             ]
         case .question:
             guard !pending.text.isEmpty, (1...optionLimit).contains(pending.options.count) else { return [] }
             return pending.options.map {
                 AgentsActivityAction(
                     requestId: pending.requestId,
-                    agentId: pending.agentId,
+                    agentId: agentId,
                     role: .option,
                     title: $0,
                     choice: .answer(question: pending.text, label: $0)

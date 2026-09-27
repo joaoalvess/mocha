@@ -14,18 +14,31 @@ public actor LiveActivityService: LiveActivityRegistering {
         var updateToken: String?
         var environment: ApnsEnvironment
         var startedAt: Date
-        var sent: LiveActivitySnapshot?
+        var sent: AgentActivitySnapshot?
         var sentAt: Date?
     }
 
     struct Device: Sendable {
         var pushToStart: ApnsRegistration?
-        var activity: Activity?
+        var activities: [AgentID: Activity] = [:]
         var starts: [Date] = []
-        var retryAt: Date?
-        var isSending = false
-        var restartAfterEnd = false
+        var retryAt: [AgentID: Date] = [:]
+        var sending: Set<AgentID> = []
+        var ending: Set<AgentID> = []
+        var dismissed: Set<AgentID> = []
         var retired: [String] = []
+
+        var startsInFlight: Int {
+            sending.filter { activities[$0] == nil }.count
+        }
+
+        var occupied: Int {
+            activities.count + startsInFlight
+        }
+
+        func isReady(_ agentId: AgentID) -> Bool {
+            !sending.contains(agentId) && retryAt[agentId] == nil
+        }
 
         func isRetired(_ registration: LiveActivityRegistration) -> Bool {
             guard let token = registration.updateToken else { return false }
@@ -33,22 +46,25 @@ public actor LiveActivityService: LiveActivityRegistering {
         }
     }
 
-    private enum Action {
-        case start(token: String, environment: ApnsEnvironment)
-        case update(token: String, environment: ApnsEnvironment, priority: ApnsPriority)
-        case end(token: String, environment: ApnsEnvironment, restart: Bool)
-        case abandon(restart: Bool)
+    struct Stored: Sendable, Equatable {
+        var pushToStart: LiveActivityRegistration?
+        var agentActivities: [LiveActivityRegistration]
     }
 
     private enum Sent {
-        case start(LiveActivitySnapshot, environment: ApnsEnvironment, at: Date)
-        case update(LiveActivitySnapshot, token: String, at: Date)
-        case end(token: String, activityId: String?, restart: Bool)
+        case start(AgentActivitySnapshot, environment: ApnsEnvironment, at: Date)
+        case update(AgentActivitySnapshot, token: String, at: Date)
+        case end(token: String, activityId: String?)
     }
 
     private enum Outcome {
         case delivery(LiveActivityDelivery)
         case deviceGone
+    }
+
+    private enum Lookup {
+        case paired(DevicePreferences)
+        case gone
     }
 
     private struct Wake {
@@ -58,17 +74,16 @@ public actor LiveActivityService: LiveActivityRegistering {
     }
 
     private static let tolerance: TimeInterval = 0.001
-    private static let retiredLimit = 16
+    private static let retiredLimit = 64
 
     private let devices: DeviceStore
     private let sender: any LiveActivityPushSending
     private let clock: any GatewayClock
     private let configuration: LiveActivityConfiguration
 
-    private var tracker = LiveActivityStatusTracker()
-    private var snapshot = LiveActivitySnapshot.allDone
+    private var tracker = AgentActivityTracker()
+    private var snapshots: [AgentID: AgentActivitySnapshot] = [:]
     private var hasInput = false
-    private var idleSince: Date?
     private var foreground: Set<DeviceID> = []
     private var states: [DeviceID: Device] = [:]
     private var wake: Wake?
@@ -90,7 +105,6 @@ public actor LiveActivityService: LiveActivityRegistering {
 
     public func start(inputs: AsyncStream<LiveActivityInput>) async {
         guard inputTask == nil, !isShutDown else { return }
-        idleSince = idleSince ?? clock.now()
         await loadRegistrations()
         inputTask = Task { [weak self] in
             for await input in inputs {
@@ -115,18 +129,9 @@ public actor LiveActivityService: LiveActivityRegistering {
 
     public func apply(_ input: LiveActivityInput) {
         guard !isShutDown else { return }
-        let now = clock.now()
         hasInput = true
         foreground = input.foregroundDevices
-        snapshot = tracker.snapshot(of: input, at: now, titleLimit: configuration.titleLimit)
-        if snapshot.isBusy {
-            idleSince = nil
-        } else {
-            idleSince = idleSince ?? now
-            for id in Array(states.keys) {
-                states[id]?.restartAfterEnd = false
-            }
-        }
+        snapshots = tracker.snapshots(of: input, at: clock.now(), titleLimit: configuration.titleLimit)
         evaluate()
     }
 
@@ -139,15 +144,16 @@ public actor LiveActivityService: LiveActivityRegistering {
         } else if device.pushToStart?.env != registration.env {
             device.pushToStart = nil
         }
-        if let token = registration.updateToken, !device.isRetired(registration) {
-            device.activity = adopt(registration, token: token, into: device.activity)
+        if let token = registration.updateToken, let agentId = registration.agentId, !device.isRetired(registration) {
+            device.activities[agentId] = adopt(registration, token: token, into: device.activities[agentId])
+            device.dismissed.remove(agentId)
         }
         for id in Array(states.keys) where id != deviceId {
             release(registration, from: id)
         }
         states[deviceId] = device
         let stored = Self.stored(device)
-        if try await devices.setLiveActivity(stored, for: deviceId) == false {
+        if try await devices.setLiveActivities(pushToStart: stored.pushToStart, agentActivities: stored.agentActivities, for: deviceId) == false {
             liveActivityLogger.error("ignored a live activity registration from unknown device \(deviceId, privacy: .public)")
             states[deviceId] = nil
         }
@@ -173,15 +179,16 @@ public actor LiveActivityService: LiveActivityRegistering {
             return
         }
         let now = clock.now()
-        for record in records {
-            guard let registration = record.liveActivity, let normalized = try? Self.normalized(registration), states[record.id] == nil else {
-                continue
-            }
+        for record in records where states[record.id] == nil {
             var device = Device()
-            device.pushToStart = normalized.pushToStartToken.map { ApnsRegistration(token: $0, env: normalized.env) }
-            if let token = normalized.updateToken {
-                device.activity = Activity(activityId: normalized.activityId, updateToken: token, environment: normalized.env, startedAt: now)
+            if let registration = record.liveActivity.flatMap({ try? Self.normalized($0) }) {
+                device.pushToStart = registration.pushToStartToken.map { ApnsRegistration(token: $0, env: registration.env) }
             }
+            for registration in record.agentActivities.compactMap({ try? Self.normalized($0) }) {
+                guard let agentId = registration.agentId, let token = registration.updateToken else { continue }
+                device.activities[agentId] = Activity(activityId: registration.activityId, updateToken: token, environment: registration.env, startedAt: now)
+            }
+            guard device.pushToStart != nil || !device.activities.isEmpty else { continue }
             states[record.id] = device
         }
         evaluate()
@@ -208,8 +215,8 @@ public actor LiveActivityService: LiveActivityRegistering {
         if let token = registration.pushToStartToken, device.pushToStart?.token == token {
             device.pushToStart = nil
         }
-        if let token = registration.updateToken, device.activity?.updateToken == token {
-            device.activity = nil
+        if let token = registration.updateToken {
+            device.activities = device.activities.filter { $0.value.updateToken != token }
         }
         states[id] = device
     }
@@ -224,124 +231,167 @@ public actor LiveActivityService: LiveActivityRegistering {
     }
 
     private func evaluate(_ id: DeviceID, at now: Date) {
-        guard var device = states[id], !device.isSending else { return }
-        if let retryAt = device.retryAt {
-            guard isDue(retryAt, at: now) else { return }
-            device.retryAt = nil
-        }
+        guard var device = states[id] else { return }
         device.starts.removeAll { isDue($0.addingTimeInterval(configuration.pushToStartWindow), at: now) }
+        device.retryAt = device.retryAt.filter { !isDue($0.value, at: now) }
+        device.dismissed = device.dismissed.filter { snapshots[$0]?.isBusy == true }
         states[id] = device
-        guard let action = action(for: device, id: id, at: now) else { return }
-        switch action {
-        case .abandon(let restart):
-            liveActivityLogger.info("gave up waiting for the update token of device \(id, privacy: .public)")
-            states[id]?.activity = nil
-            states[id]?.restartAfterEnd = restart
-            evaluate(id, at: now)
-        case .start(let token, let environment):
-            let sent = snapshot
-            let push = LiveActivityPush(
-                event: .start(alert: LiveActivityStartAlert(title: configuration.alertTitle, body: sent.summary)),
-                contentState: sent.contentState(at: now),
-                timestamp: now
-            )
-            send(push, as: .start(sent, environment: environment, at: now), to: token, environment: environment, priority: .high, device: id)
-        case .update(let token, let environment, let priority):
-            let sent = snapshot
-            let push = LiveActivityPush(
-                event: .update,
-                contentState: sent.contentState(at: now),
-                timestamp: now,
-                staleDate: now.addingTimeInterval(configuration.staleInterval)
-            )
-            send(push, as: .update(sent, token: token, at: now), to: token, environment: environment, priority: priority, device: id)
-        case .end(let token, let environment, let restart):
-            let push = LiveActivityPush(
-                event: .end(dismissalDate: now.addingTimeInterval(configuration.dismissalDelay)),
-                contentState: LiveActivitySnapshot.allDone.contentState(at: now),
-                timestamp: now
-            )
-            let activityId = device.activity?.activityId
-            send(push, as: .end(token: token, activityId: activityId, restart: restart), to: token, environment: environment, priority: .high, device: id)
+        for agentId in device.activities.keys.sorted() where device.isReady(agentId) {
+            evaluateActivity(of: agentId, on: id, at: now)
         }
+        startActivities(on: id, at: now)
     }
 
-    private func action(for device: Device, id: DeviceID, at now: Date) -> Action? {
-        guard let activity = device.activity else {
-            guard wantsStart(device, id: id), let pushToStart = device.pushToStart, hasStartBudget(device) else { return nil }
-            return .start(token: pushToStart.token, environment: pushToStart.env)
-        }
-        let isIdle = idleSince.map { isDue($0.addingTimeInterval(configuration.idleTimeout), at: now) } ?? false
-        let isExpired = isDue(activity.startedAt.addingTimeInterval(configuration.renewalAge), at: now)
+    private func evaluateActivity(of agentId: AgentID, on id: DeviceID, at now: Date) {
+        guard let activity = states[id]?.activities[agentId] else { return }
+        let snapshot = snapshots[agentId]
+        let isGoneOrIdle = snapshot.map { !$0.isBusy && isIdle(agentId, activity: activity, at: now) } ?? true
+        let shouldEnd = isGoneOrIdle || isExpired(activity, at: now)
         guard let token = activity.updateToken else {
-            if isExpired {
-                return .abandon(restart: true)
+            if shouldEnd {
+                liveActivityLogger.info("gave up waiting for the update token of \(agentId, privacy: .public) on device \(id, privacy: .public)")
+                states[id]?.activities[agentId] = nil
             }
-            return isIdle ? .abandon(restart: false) : nil
+            return
         }
         if let sentAt = activity.sentAt, !isDue(sentAt.addingTimeInterval(configuration.updateInterval), at: now) {
-            return nil
+            return
         }
-        if isIdle {
-            return .end(token: token, environment: activity.environment, restart: false)
+        guard let snapshot, !shouldEnd else {
+            end(agentId, token: token, activity: activity, on: id, at: now)
+            return
         }
-        if isExpired {
-            return .end(token: token, environment: activity.environment, restart: true)
-        }
-        if let priority = pendingPriority(of: activity) {
-            return .update(token: token, environment: activity.environment, priority: priority)
-        }
-        if snapshot.isBusy, let sentAt = activity.sentAt, isDue(sentAt.addingTimeInterval(configuration.refreshInterval), at: now) {
-            return .update(token: token, environment: activity.environment, priority: .low)
-        }
-        return nil
+        guard let priority = updatePriority(of: snapshot, for: activity, at: now) else { return }
+        let alertKind = foreground.contains(id) ? nil : snapshot.alert(since: activity.sent)
+        let push = snapshot.push({ .update(alert: alertKind.map($0.alertContent)) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
+        let effective = alertKind == nil ? priority : .high
+        send(push, as: .update(snapshot, token: token, at: now), alertKind: alertKind, to: token, environment: activity.environment, priority: effective, agent: agentId, device: id)
     }
 
-    private func wantsStart(_ device: Device, id: DeviceID) -> Bool {
-        guard !foreground.contains(id) else { return false }
-        return snapshot.working > 0 || (device.restartAfterEnd && snapshot.isBusy)
+    private func end(_ agentId: AgentID, token: String, activity: Activity, on id: DeviceID, at now: Date) {
+        let snapshot = (snapshots[agentId] ?? activity.sent ?? .gone(agentId, at: now)).ended
+        let dismissalDate = now.addingTimeInterval(configuration.dismissalDelay)
+        let push = snapshot.push({ _ in .end(dismissalDate: dismissalDate) }, at: now, staleDate: nil)
+        states[id]?.ending.insert(agentId)
+        send(push, as: .end(token: token, activityId: activity.activityId), alertKind: nil, to: token, environment: activity.environment, priority: .high, agent: agentId, device: id)
+    }
+
+    private func startActivities(on id: DeviceID, at now: Date) {
+        guard !foreground.contains(id), let pushToStart = states[id]?.pushToStart else { return }
+        for (agentId, snapshot) in startCandidates(on: id) {
+            guard let device = states[id], hasStartBudget(device) else { return }
+            if device.occupied >= configuration.activityLimit {
+                guard snapshot.isBlocked, device.ending.isEmpty else { continue }
+                evict(on: id, at: now)
+                return
+            }
+            let push = snapshot.push({ .start(alert: $0.startAlert) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
+            send(
+                push,
+                as: .start(snapshot, environment: pushToStart.env, at: now),
+                alertKind: nil,
+                to: pushToStart.token,
+                environment: pushToStart.env,
+                priority: .high,
+                agent: agentId,
+                device: id
+            )
+        }
+    }
+
+    private func startCandidates(on id: DeviceID) -> [(AgentID, AgentActivitySnapshot)] {
+        guard let device = states[id] else { return [] }
+        return snapshots
+            .filter { agentId, snapshot in
+                snapshot.isBusy && device.activities[agentId] == nil && device.isReady(agentId) && !device.dismissed.contains(agentId)
+            }
+            .sorted { ($0.value.isBlocked ? 0 : 1, $0.value.agent.since, $0.key) < ($1.value.isBlocked ? 0 : 1, $1.value.agent.since, $1.key) }
+    }
+
+    private func evict(on id: DeviceID, at now: Date) {
+        guard let device = states[id] else { return }
+        let idle = device.activities.filter { agentId, _ in snapshots[agentId]?.isBusy != true && device.isReady(agentId) }
+        guard let (agentId, activity) = idle.min(by: { lastBusy($0.key, $0.value) < lastBusy($1.key, $1.value) }) else { return }
+        liveActivityLogger.info("evicting the live activity of \(agentId, privacy: .public) on device \(id, privacy: .public)")
+        guard let token = activity.updateToken else {
+            states[id]?.activities[agentId] = nil
+            startActivities(on: id, at: now)
+            return
+        }
+        end(agentId, token: token, activity: activity, on: id, at: now)
+    }
+
+    private func lastBusy(_ agentId: AgentID, _ activity: Activity) -> Date {
+        tracker.lastBusyAt[agentId] ?? activity.startedAt
+    }
+
+    private func isIdle(_ agentId: AgentID, activity: Activity, at now: Date) -> Bool {
+        isDue(lastBusy(agentId, activity).addingTimeInterval(configuration.idleTimeout), at: now)
+    }
+
+    private func isExpired(_ activity: Activity, at now: Date) -> Bool {
+        isDue(activity.startedAt.addingTimeInterval(configuration.renewalAge), at: now)
     }
 
     private func hasStartBudget(_ device: Device) -> Bool {
-        device.starts.count < configuration.pushToStartLimit
+        device.starts.count + device.startsInFlight < configuration.pushToStartLimit
     }
 
-    private func pendingPriority(of activity: Activity) -> ApnsPriority? {
-        guard let sent = activity.sent else { return .high }
-        return snapshot.priority(since: sent)
+    private func updatePriority(of snapshot: AgentActivitySnapshot, for activity: Activity, at now: Date) -> ApnsPriority? {
+        if let priority = snapshot.priority(since: activity.sent) {
+            return priority
+        }
+        guard snapshot.isBusy, let sentAt = activity.sentAt, isDue(sentAt.addingTimeInterval(configuration.refreshInterval), at: now) else { return nil }
+        return .low
     }
 
-    private func send(_ push: LiveActivityPush, as sent: Sent, to token: String, environment: ApnsEnvironment, priority: ApnsPriority, device id: DeviceID) {
-        states[id]?.isSending = true
+    private func send(
+        _ push: AgentActivityPush,
+        as sent: Sent,
+        alertKind: PushAlertKind?,
+        to token: String,
+        environment: ApnsEnvironment,
+        priority: ApnsPriority,
+        agent agentId: AgentID,
+        device id: DeviceID
+    ) {
+        states[id]?.sending.insert(agentId)
         let taskId = UUID()
         let sender = sender
         let devices = devices
         sends[taskId] = Task { [weak self] in
             let outcome: Outcome
-            if await Self.isPaired(id, in: devices) {
-                outcome = .delivery(await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority))
-            } else {
+            switch await Self.lookup(id, in: devices) {
+            case .gone:
                 outcome = .deviceGone
+            case .paired(let preferences):
+                var push = push
+                if alertKind == .turnDone, !preferences.turnDoneAlerts {
+                    push.event = .update(alert: nil)
+                }
+                outcome = .delivery(await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority))
             }
-            await self?.finish(sent, outcome: outcome, device: id, taskId: taskId)
+            await self?.finish(sent, outcome: outcome, agent: agentId, device: id, taskId: taskId)
         }
     }
 
-    private static func isPaired(_ id: DeviceID, in devices: DeviceStore) async -> Bool {
+    private static func lookup(_ id: DeviceID, in devices: DeviceStore) async -> Lookup {
         do {
-            return try await devices.devices().contains { $0.id == id }
+            guard let record = try await devices.devices().first(where: { $0.id == id }) else { return .gone }
+            return .paired(record.preferences)
         } catch {
             liveActivityLogger.error("failed to read devices: \(PushService.describe(error), privacy: .public)")
-            return true
+            return .paired(DevicePreferences())
         }
     }
 
-    private func finish(_ sent: Sent, outcome: Outcome, device id: DeviceID, taskId: UUID) async {
+    private func finish(_ sent: Sent, outcome: Outcome, agent agentId: AgentID, device id: DeviceID, taskId: UUID) async {
         defer { sends[taskId] = nil }
         guard !isShutDown, var device = states[id] else { return }
-        device.isSending = false
+        device.sending.remove(agentId)
+        device.ending.remove(agentId)
         guard case .delivery(let delivery) = outcome else {
-            liveActivityLogger.info("dropped the live activity of removed device \(id, privacy: .public)")
+            liveActivityLogger.info("dropped the live activities of removed device \(id, privacy: .public)")
             states[id] = nil
             evaluate()
             return
@@ -350,50 +400,49 @@ public actor LiveActivityService: LiveActivityRegistering {
         let now = clock.now()
         switch (sent, delivery) {
         case (_, .failed(let retryable)):
-            device.retryAt = now.addingTimeInterval(retryable ? configuration.retryDelay : configuration.configurationRetryDelay)
+            device.retryAt[agentId] = now.addingTimeInterval(retryable ? configuration.retryDelay : configuration.configurationRetryDelay)
         case (.start(let snapshot, let environment, let at), .delivered):
-            liveActivityLogger.info("started a live activity on device \(id, privacy: .public) by push-to-start")
+            liveActivityLogger.info("started the live activity of \(agentId, privacy: .public) on device \(id, privacy: .public) by push-to-start")
             device.starts.append(at)
-            device.restartAfterEnd = false
-            if device.activity == nil {
-                device.activity = Activity(environment: environment, startedAt: at, sent: snapshot, sentAt: at)
+            if device.activities[agentId] == nil {
+                device.activities[agentId] = Activity(environment: environment, startedAt: at, sent: snapshot, sentAt: at)
             }
         case (.start, .invalidToken):
             liveActivityLogger.info("APNs refused the push-to-start token of device \(id, privacy: .public)")
             device.pushToStart = nil
         case (.update(let snapshot, let token, let at), .delivered):
-            if device.activity?.updateToken == token {
-                device.activity?.sent = snapshot
-                device.activity?.sentAt = at
+            if device.activities[agentId]?.updateToken == token {
+                device.activities[agentId]?.sent = snapshot
+                device.activities[agentId]?.sentAt = at
             }
         case (.update(_, let token, _), .invalidToken):
-            liveActivityLogger.info("APNs refused the update token of device \(id, privacy: .public)")
-            if device.activity?.updateToken == token {
-                device.activity = nil
+            liveActivityLogger.info("APNs refused the update token of \(agentId, privacy: .public) on device \(id, privacy: .public)")
+            if device.activities[agentId]?.updateToken == token {
+                device.activities[agentId] = nil
+                device.dismissed.insert(agentId)
             }
-        case (.end(let token, let activityId, let restart), .delivered), (.end(let token, let activityId, let restart), .invalidToken):
-            liveActivityLogger.info("ended the live activity of device \(id, privacy: .public)")
+        case (.end(let token, let activityId), .delivered), (.end(let token, let activityId), .invalidToken):
+            liveActivityLogger.info("ended the live activity of \(agentId, privacy: .public) on device \(id, privacy: .public)")
             device.retired.append(contentsOf: [token] + (activityId.map { [$0] } ?? []))
             device.retired = Array(device.retired.suffix(Self.retiredLimit))
-            if device.activity?.updateToken == token {
-                device.activity = nil
-                device.restartAfterEnd = restart && snapshot.isBusy
+            if device.activities[agentId]?.updateToken == token {
+                device.activities[agentId] = nil
             }
         }
         states[id] = device
         let after = Self.stored(device)
         if after != before {
             do {
-                _ = try await devices.setLiveActivity(after, for: id)
+                _ = try await devices.setLiveActivities(pushToStart: after.pushToStart, agentActivities: after.agentActivities, for: id)
             } catch {
-                liveActivityLogger.error("failed to save the live activity of device \(id, privacy: .public): \(PushService.describe(error), privacy: .public)")
+                liveActivityLogger.error("failed to save the live activities of device \(id, privacy: .public): \(PushService.describe(error), privacy: .public)")
             }
         }
         evaluate()
     }
 
     private func scheduleWake(at now: Date) {
-        let deadline = states.compactMap { nextDeadline(for: $0.value, id: $0.key) }.min()
+        let deadline = states.compactMap { nextDeadline(for: $0.value, id: $0.key, at: now) }.min()
         if let wake, let deadline, abs(wake.deadline.timeIntervalSince(deadline)) < Self.tolerance {
             return
         }
@@ -416,32 +465,37 @@ public actor LiveActivityService: LiveActivityRegistering {
         evaluate()
     }
 
-    private func nextDeadline(for device: Device, id: DeviceID) -> Date? {
-        guard !device.isSending else { return nil }
-        let deadline: Date?
-        if let activity = device.activity {
-            deadline = nextDeadline(for: activity)
-        } else if wantsStart(device, id: id), device.pushToStart != nil {
-            deadline = hasStartBudget(device) ? clock.now() : device.starts.min()?.addingTimeInterval(configuration.pushToStartWindow)
-        } else {
-            deadline = nil
+    private func nextDeadline(for device: Device, id: DeviceID, at now: Date) -> Date? {
+        var deadlines: [Date] = []
+        for (agentId, activity) in device.activities where !device.sending.contains(agentId) {
+            guard let deadline = nextDeadline(for: activity, of: agentId, at: now) else { continue }
+            deadlines.append(device.retryAt[agentId].map { max($0, deadline) } ?? deadline)
         }
-        guard let deadline else { return nil }
-        return device.retryAt.map { max($0, deadline) } ?? deadline
+        if !foreground.contains(id), device.pushToStart != nil, device.occupied < configuration.activityLimit {
+            let pending = snapshots.keys.filter { agentId in
+                snapshots[agentId]?.isBusy == true && device.activities[agentId] == nil && !device.sending.contains(agentId) && !device.dismissed.contains(agentId)
+            }
+            for agentId in pending {
+                let start = hasStartBudget(device) ? now : device.starts.min()?.addingTimeInterval(configuration.pushToStartWindow) ?? now
+                deadlines.append(device.retryAt[agentId].map { max($0, start) } ?? start)
+            }
+        }
+        return deadlines.min()
     }
 
-    private func nextDeadline(for activity: Activity) -> Date? {
+    private func nextDeadline(for activity: Activity, of agentId: AgentID, at now: Date) -> Date? {
+        let gate = activity.updateToken == nil ? nil : activity.sentAt.map { $0.addingTimeInterval(configuration.updateInterval) }
+        guard let snapshot = snapshots[agentId] else { return max(gate ?? now, now) }
         var candidates = [activity.startedAt.addingTimeInterval(configuration.renewalAge)]
-        if let idleSince {
-            candidates.append(idleSince.addingTimeInterval(configuration.idleTimeout))
+        if !snapshot.isBusy {
+            candidates.append(lastBusy(agentId, activity).addingTimeInterval(configuration.idleTimeout))
         }
         guard activity.updateToken != nil else { return candidates.min() }
-        guard let sentAt = activity.sentAt else { return clock.now() }
-        let gate = sentAt.addingTimeInterval(configuration.updateInterval)
+        guard let gate, let sentAt = activity.sentAt else { return now }
         if snapshot.isBusy {
             candidates.append(sentAt.addingTimeInterval(configuration.refreshInterval))
         }
-        if pendingPriority(of: activity) != nil {
+        if snapshot.priority(since: activity.sent) != nil {
             candidates.append(gate)
         }
         return candidates.min().map { max($0, gate) }
@@ -455,7 +509,8 @@ public actor LiveActivityService: LiveActivityRegistering {
         let pushToStart = try registration.pushToStartToken.map(validToken)
         let update = try registration.updateToken.map(validToken)
         let activityId = registration.activityId.flatMap { $0.isEmpty ? nil : $0 }
-        return LiveActivityRegistration(pushToStartToken: pushToStart, activityId: activityId, updateToken: update, env: registration.env)
+        let agentId = registration.agentId.flatMap { $0.isEmpty ? nil : $0 }
+        return LiveActivityRegistration(pushToStartToken: pushToStart, activityId: activityId, updateToken: update, agentId: agentId, env: registration.env)
     }
 
     private static func validToken(_ token: String) throws -> String {
@@ -463,14 +518,13 @@ public actor LiveActivityService: LiveActivityRegistering {
         return token.lowercased()
     }
 
-    private static func stored(_ device: Device) -> LiveActivityRegistration? {
-        let activity = device.activity.flatMap { $0.updateToken == nil ? nil : $0 }
-        guard let environment = activity?.environment ?? device.pushToStart?.env else { return nil }
-        return LiveActivityRegistration(
-            pushToStartToken: device.pushToStart?.env == environment ? device.pushToStart?.token : nil,
-            activityId: activity?.activityId,
-            updateToken: activity?.updateToken,
-            env: environment
+    static func stored(_ device: Device) -> Stored {
+        Stored(
+            pushToStart: device.pushToStart.map { LiveActivityRegistration(pushToStartToken: $0.token, env: $0.env) },
+            agentActivities: device.activities.keys.sorted().compactMap { agentId in
+                guard let activity = device.activities[agentId], let token = activity.updateToken else { return nil }
+                return LiveActivityRegistration(activityId: activity.activityId, updateToken: token, agentId: agentId, env: activity.environment)
+            }
         )
     }
 }

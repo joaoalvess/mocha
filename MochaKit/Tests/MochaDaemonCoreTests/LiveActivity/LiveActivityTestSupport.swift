@@ -10,6 +10,10 @@ enum LiveActivitySample {
     static let otherUpdateToken = String(repeating: "c3", count: 40)
     static let activityId = "B4F1C2D3-9E8A-4B7C-A6D5-E4F3A2B1C0D9"
 
+    static func token(_ index: Int) -> String {
+        String(repeating: String(format: "%02x", index), count: 40)
+    }
+
     static func agent(
         _ id: AgentID,
         _ status: AgentStatus,
@@ -54,19 +58,6 @@ enum LiveActivitySample {
 }
 
 struct LiveActivityAppContentState: Decodable, Equatable {
-    struct Highlight: Decodable, Equatable {
-        var agentId: String
-        var title: String
-        var workspaceLabel: String
-        var status: String
-        var since: Date
-        var tabTitle: String?
-        var model: String?
-        var contextLeftPercent: Int?
-        var preview: String?
-        var activity: String?
-    }
-
     struct Pending: Decodable, Equatable {
         enum Kind: String, Decodable, Equatable {
             case permission
@@ -74,20 +65,25 @@ struct LiveActivityAppContentState: Decodable, Equatable {
         }
 
         var requestId: String
-        var agentId: String
         var kind: Kind
         var toolName: String?
         var text: String
         var options: [String]
     }
 
-    var working: Int
-    var waiting: Int
-    var highlight: Highlight?
+    var status: String
+    var title: String
+    var workspaceLabel: String
+    var since: Date
+    var tabTitle: String?
+    var model: String?
+    var contextLeftPercent: Int?
+    var preview: String?
+    var activity: String?
     var pending: Pending?
     var updatedAt: Date
 
-    static func decoding(_ push: LiveActivityPush) throws -> LiveActivityAppContentState {
+    static func decoding(_ push: AgentActivityPush) throws -> LiveActivityAppContentState {
         let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
         let data = try JSONSerialization.data(withJSONObject: try #require(aps["content-state"] as? [String: Any]))
         return try JSONDecoder().decode(LiveActivityAppContentState.self, from: data)
@@ -113,6 +109,7 @@ struct LiveActivityHarness {
     func registerUpdateToken(
         _ token: String = LiveActivitySample.updateToken,
         activityId: String = LiveActivitySample.activityId,
+        agent: AgentID = "w1:p1",
         for device: DeviceID
     ) async throws {
         try await service.register(
@@ -120,6 +117,7 @@ struct LiveActivityHarness {
                 pushToStartToken: LiveActivitySample.pushToStartToken,
                 activityId: activityId,
                 updateToken: token,
+                agentId: agent,
                 env: .sandbox
             ),
             from: device
@@ -167,8 +165,16 @@ struct LiveActivityHarness {
         try #require(try PushTestData.jsonObject(try sent.push.payload())["aps"] as? [String: Any])
     }
 
-    func storedRegistration(_ device: DeviceID) async throws -> LiveActivityRegistration? {
+    func storedPushToStart(_ device: DeviceID) async throws -> LiveActivityRegistration? {
         try await devices.devices().first { $0.id == device }?.liveActivity
+    }
+
+    func storedActivities(_ device: DeviceID) async throws -> [LiveActivityRegistration] {
+        try await devices.devices().first { $0.id == device }?.agentActivities ?? []
+    }
+
+    func sent(to token: String) -> [FakeLiveActivitySender.Sent] {
+        sender.sent.filter { $0.token == token }
     }
 }
 

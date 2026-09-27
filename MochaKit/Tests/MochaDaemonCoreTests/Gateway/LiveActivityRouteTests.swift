@@ -13,7 +13,7 @@ struct LiveActivityRouteTests {
         let registrar: FakeLiveActivityRegistrar
     }
 
-    private static let registration = LiveActivityRegistration(activityId: "act-1", updateToken: "80f1c2", env: .sandbox)
+    private static let registration = LiveActivityRegistration(activityId: "act-1", updateToken: "80f1c2", agentId: "w1:p1", env: .sandbox)
 
     private func withLiveActivityGateway(_ body: (Harness) async throws -> Void) async throws {
         try await withHub { hub in
@@ -90,11 +90,11 @@ struct LiveActivityRouteTests {
                 let invalid = Data(#"{"activityId":"act-1","updateToken":"não-é-hex","env":"sandbox"}"#.utf8)
                 let refused = try await sendRequest("POST", port: port, target: Gateway.liveActivityPath, headers: headers, body: invalid)
                 #expect(refused.status == 400)
-                #expect(try await hub.devices.devices().first?.liveActivity == nil)
+                #expect(try await hub.devices.devices().first?.agentActivities.isEmpty == true)
 
                 let accepted = try await sendRequest("POST", port: port, target: Gateway.liveActivityPath, headers: headers, body: try JSONEncoder().encode(Self.registration))
                 #expect(accepted.status == 200)
-                #expect(try await hub.devices.devices().first { $0.id == device.id }?.liveActivity == Self.registration)
+                #expect(try await hub.devices.devices().first { $0.id == device.id }?.agentActivities == [Self.registration])
             }
             await service.shutdown()
         }
