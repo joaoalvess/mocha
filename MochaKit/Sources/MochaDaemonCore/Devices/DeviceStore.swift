@@ -78,6 +78,22 @@ public actor DeviceStore {
         return true
     }
 
+    public func setLiveActivities(pushToStart: LiveActivityRegistration?, agentActivities: [LiveActivityRegistration], for id: DeviceID) throws -> Bool {
+        var records = try read()
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
+        let claimed = [pushToStart].compactMap { $0 } + agentActivities
+        for other in records.indices where other != index {
+            for registration in claimed {
+                records[other].liveActivity = Self.releasing(registration, from: records[other].liveActivity)
+                records[other].agentActivities = records[other].agentActivities.compactMap { Self.releasing(registration, from: $0) }
+            }
+        }
+        records[index].liveActivity = pushToStart
+        records[index].agentActivities = agentActivities
+        try write(records)
+        return true
+    }
+
     public func removeApnsToken(_ token: String, from id: DeviceID) throws -> Bool {
         var records = try read()
         guard let index = records.firstIndex(where: { $0.id == id }), records[index].apns?.token.lowercased() == token.lowercased() else {
