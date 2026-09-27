@@ -7,7 +7,18 @@ extension AgentsActivityContent {
             working: state.working,
             waiting: state.waiting,
             highlight: state.highlight.map {
-                Highlight(agentId: $0.agentId, title: $0.title, workspaceLabel: $0.workspaceLabel, status: $0.status, since: $0.since)
+                Highlight(
+                    agentId: $0.agentId,
+                    title: $0.title,
+                    workspaceLabel: $0.workspaceLabel,
+                    status: $0.status,
+                    since: $0.since,
+                    tabTitle: $0.tabTitle,
+                    model: $0.model,
+                    contextLeftPercent: $0.contextLeftPercent,
+                    preview: $0.preview,
+                    activity: $0.activity
+                )
             },
             pending: state.pending.map {
                 Pending(requestId: $0.requestId, agentId: $0.agentId, kind: Pending.Kind($0.kind), toolName: $0.toolName, text: $0.text, options: $0.options)
@@ -26,7 +37,12 @@ extension AgentsActivityContent {
                     title: $0.title,
                     workspaceLabel: $0.workspaceLabel,
                     status: $0.status,
-                    since: $0.since
+                    since: $0.since,
+                    tabTitle: $0.tabTitle,
+                    model: $0.model,
+                    contextLeftPercent: $0.contextLeftPercent,
+                    preview: $0.preview,
+                    activity: $0.activity
                 )
             },
             pending: pending.map {
