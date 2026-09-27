@@ -68,7 +68,12 @@ struct ExpandedComposer<Field: View>: View {
                 }
                 Spacer(minLength: 0)
                 if buttons.contains(.microphone) {
-                    ComposerIconButton(systemImage: "mic", accessibilityLabel: "Ditado", action: onMicrophone)
+                    ComposerIconButton(
+                        systemImage: "mic",
+                        accessibilityLabel: activeButtons.contains(.microphone) ? "Parar ditado" : "Ditado",
+                        isActive: activeButtons.contains(.microphone),
+                        action: onMicrophone
+                    )
                 }
                 SendButton(isEnabled: canSend, action: onSend)
                     .padding(.leading, 4)
