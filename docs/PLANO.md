@@ -33,10 +33,11 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | 1a-final | Push de turno concluído e de agente bloqueado; slash commands; nova tab | WP-X2 |
 | subagentes | Subagentes e workflows no app: card do subagente no chat com o transcript dele, selo na Home, lista no Detalhe e card de workflow | WP-X6 |
 | 1b | Inbox e ações na notificação, Live Activity, voz | WP-X3 |
+| codex | Codex CLI no Herdr com chat e ações; desktop como leitura posterior | WP-XC |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
-A `main` só recebe uma fase depois do checklist do WP de integração dela. Enquanto isso, a branch da fase seguinte sai da branch da fase anterior (`fase/1a-final` a partir de `fase/1a-core`, e assim por diante), e o merge em `main` segue a mesma ordem.
+A `main` só recebe uma fase depois do checklist do WP de integração dela. Enquanto isso, a branch da fase seguinte sai da branch da fase anterior (`fase/1a-final` a partir de `fase/1a-core`, e assim por diante), e o merge em `main` segue a mesma ordem. A fase Codex é a exceção de início: sai de `main` após o merge de 1b, antes do checklist WP-X3, por decisão do João em 2026-09-27.
 
 ## Bloqueios externos (ações do João)
 
@@ -886,6 +887,40 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ---
 
+## Fase Codex: CLI no Herdr, desktop como complemento
+
+Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contrato desta fase. Ondas: S7 → WP-C1 → WP-C2 ∥ WP-C3 → WP-XC → WP-CD. O desktop não bloqueia o aceite do CLI. Bloqueios do João: nenhum para S7 e os testes locais; revisar a configuração real do App Server e dos hooks antes da instalação, e validar no iPhone no WP-XC.
+
+### S7: App Server compartilhado no laboratório
+
+- **Dono**: `docs/spikes/S7.md` e laboratório `~/Developer/mocha-lab/S7/`, em workspace Herdr `mocha-lab-S7`. Não tocar sessões Codex existentes nem configuração real em `~/.codex`.
+- Validar com CLI `codex --remote` e dois clientes App Server na mesma thread: associação pane–thread, histórico e eventos, retomada após queda, prompt, interrupção, permissão e pergunta respondidas no terminal ou no outro cliente. Verificar formato e limites de `account/rateLimits/read`, imagem e subagentes. Registrar versão, comandos, payloads redigidos, resultados e mudanças necessárias na §13.
+- **Gate**: se uma decisão ou o estado da thread não puder ser compartilhado com segurança, parar após o relatório e pedir decisão arquitetural ao João. Não usar `agent.send_keys` para reproduzir ações.
+
+### WP-C1: protocolo v2 e fixtures Codex
+
+- **Dono**: `MochaKit/Sources/MochaProtocol/`, `MochaKit/Fixtures/protocol/`, `MochaKit/Tests/MochaProtocolTests/` (exceção de dono compartilhado nesta onda: o orquestrador implementa).
+- Identificar provedor em sessão e arquivo com migração dos registros Claude, suportar nova tab Codex, janelas de uso com duração da API, chat e pedidos Codex. Atualizar `MochaDemo` em WP-C3. Aceite: round-trip v2, rejeição explícita de versão incompatível e fixtures antigas Claude decodificadas.
+
+### WP-C2: integração Codex no daemon
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/`, adaptação de `Gateway/`, `Herdr/`, `Pending/`, `Push/` e `LiveActivity/` necessária à §13; testes em `MochaKit/Tests/MochaDaemonCoreTests/Codex/` e fixtures em `MochaKit/Fixtures/codex/`.
+- Cliente App Server em actor, reconciliação pane–thread, conversão de itens/eventos, ações, decisões, uso, arquivos, subagentes e diagnóstico. O daemon usa socket local, não JSONL. Aceite: fixtures unitárias sem rede, Herdr ou Codex reais; integração real somente com tag `.integration`.
+
+### WP-C3: Codex no app e no demo
+
+- **Dono**: `App/Sources/`, `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaDemo/`, `docs/design/` e testes correspondentes. Mudanças em `project.yml` e `MochaProtocol` são propostas ao orquestrador.
+- Estender o mock em `docs/design/` antes da UI, com imagens de referência 3x. Mostrar Codex na Home, gaveta, Detalhe, chat, nova tab, Uso, inbox, alertas e Live Activity, inclusive estado indisponível e capacidade limitada do CLI antigo. Aceite: capturas comparadas ao mock e testes de navegação e apresentação.
+
+### WP-XC: integração do CLI
+
+- **Checklist do João**: uma tab Codex criada no Herdr; conversa única entre terminal e iPhone; prompt e imagem; interrupção; aprovação e pergunta vencidas ora no terminal, ora no iPhone; queda e volta do App Server; uso, push e Live Activity; Claude segue funcionando. Usar `scripts/test.sh`, `scripts/build-app.sh` e `scripts/build-device.sh` (este último após oferta de teste no iPhone).
+
+### WP-CD: leitura do Codex desktop
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/`, `App/Sources/Home/`, `App/Sources/Drawer/`, `App/Sources/Chat/` e testes correspondentes. Propor alterações no protocolo ao orquestrador.
+- Listar e paginar threads desktop sem retomá-las, até 20 recentes na Home e todas na gaveta. Estado desconhecido quando o App Server não comprova atividade. Preparar o diff exato dos hooks para revisão do João antes de instalar; a leitura funciona sem eles. Aceite: nenhuma ação de controle aparece para conversa desktop.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -964,6 +999,12 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
+| S7 | todo | |
+| WP-C1 | todo | |
+| WP-C2 | todo | |
+| WP-C3 | todo | |
+| WP-XC | todo | |
+| WP-CD | todo | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |
