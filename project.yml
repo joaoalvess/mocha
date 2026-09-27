@@ -29,6 +29,7 @@ targets:
     sources:
       - App/Sources
       - App/Resources
+      - Shared/LiveActivity
     configFiles:
       Debug: Config/Signing.xcconfig
       Release: Config/Signing.xcconfig
@@ -56,6 +57,8 @@ targets:
     platform: iOS
     sources:
       - Widgets/Sources
+      - Widgets/Resources
+      - Shared/LiveActivity
     configFiles:
       Debug: Config/Signing.xcconfig
       Release: Config/Signing.xcconfig
@@ -63,9 +66,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.mocha.widgets
         INFOPLIST_FILE: Widgets/Info.plist
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) MOCHA_WIDGETS
     dependencies:
       - package: MochaKit
         product: MochaProtocol
+      - package: MochaKit
+        product: MochaClient
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
 
