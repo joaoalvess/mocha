@@ -812,6 +812,24 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
   - [ ] Início por push-to-start com o app encerrado.
   - [ ] Permitir (com Face ID), Negar e responder uma pergunta pela atividade na tela bloqueada.
 
+### WP-M16: destaque da Live Activity no estilo do Moshi (daemon)
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, `Push/LiveActivityPush.swift`.
+- **Depende de**: WP-M15.
+- **SPEC**: §7.3 (campos do `highlight`).
+- **Faz**: o espelho `LiveActivityContentState.Highlight` ganha `tabTitle`, `model`, `contextLeftPercent`, `preview` e `activity`, preenchidos da árvore; omitidos quando nulos; `preview`/`activity` omitidos com `pending`. Mudança só em `preview`/`activity`/`contextLeftPercent` é prioridade 5; troca de destaque continua 10.
+- **Aceite**:
+  - [ ] Testes: campos preenchidos da árvore, omitidos com `pending`, prioridades e payload ≤ 4 KB no pior caso.
+
+### WP-I16: Live Activity no estilo do Moshi (widget)
+
+- **Dono**: `Widgets/`, `MochaKit/Sources/MochaClient/LiveActivity/`.
+- **Depende de**: WP-I9 (paralelo ao WP-M16, pelo contrato da §7.3).
+- **SPEC**: §7.3 (tela bloqueada), referência `docs/referencias/moshi/live-activity.jpg`.
+- **Faz**: o card da tela bloqueada e a Dynamic Island expandida no layout do Moshi, com as ações do WP-I9 no mesmo card.
+- **Aceite**:
+  - [ ] Testes dos textos (linha 1/linha 2, modelo, contagem) e build; conferência no iPhone com o João.
+
 ### WP-M15: pedido pendente na Live Activity
 
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, `Push/LiveActivityPush.swift`.
@@ -920,6 +938,8 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I8 | feito sem device (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Pending/`, com testes de contrato contra o `PendingHookReply` real; sino só com pedido pendente e conexão; sem `cwd:` na caixa do comando porque o `PendingRequest` não tem o campo; verbos "quer ler/editar/…" escolhidos pelo subagente; o `MochaDemo` não manda `pending`; o orquestrador alinhou o push de pergunta à §7.2 em `69d7b16`) | 3b2c6b9, 2e8440a, 89e815d, a418d63, merge 0b3d3b7, 69d7b16 |
 | WP-I9 | feito sem device, com as ações da atividade (sem capturas: o João pediu só testes e build; exceções de dono: `project.yml` com `Shared/LiveActivity` nos dois alvos, `MOCHA_WIDGETS` e o widget ligado ao `MochaClient`, e `MochaClient/LiveActivity/`; subtítulo só "Mocha", porque o `ContentState` não traz o host; timer em SF Mono no widget; Dynamic Island só no simulador de um Pro) | 9e4beb6, 1314097, a548b8a, c88d363, 885f7c3, merge 47dc9a4 |
 | WP-M15 | feito (agente com pedido conta como `blocked`; pedido de agente fora da árvore é ignorado; o `start` também leva o `pending`; o orquestrador acrescentou o orçamento de 3.200 bytes para o `pending` codificado: acima disso a pergunta vai como prévia sem opções) | 7942c30, 87c2b64, merge 1d1ed12 |
+| WP-M16 | todo | |
+| WP-I16 | todo | |
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |

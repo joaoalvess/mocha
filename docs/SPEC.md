@@ -1772,6 +1772,11 @@ public struct ContentState: Codable, Hashable {
         public var workspaceLabel: String
         public var status: String
         public var since: Date
+        public var tabTitle: String?        // título da tab do Herdr
+        public var model: String?
+        public var contextLeftPercent: Int?
+        public var preview: String?         // última mensagem do agente, sem markdown
+        public var activity: String?        // ferramenta rodando, ex.: "Shell: npm run build"
     }
     public struct Pending: Codable, Hashable {
         public enum Kind: String, Codable, Hashable { case permission, question }
@@ -1792,7 +1797,14 @@ public struct ContentState: Codable, Hashable {
   - Um `pending` que aparece, some ou troca de `requestId` é atualização de prioridade 10.
 
 - **Codificação**: o sistema decodifica o `content-state` com as estratégias **padrão** do `JSONDecoder`. `Date` é um número em segundos desde 2001-01-01 (`timeIntervalSinceReferenceDate`), nunca ISO-8601 nem `ProtocolDate`. O daemon usa o espelho `LiveActivityContentState` (`MochaDaemonCore/Push`), que codifica as datas assim, com `highlight` omitido quando nulo. Já `timestamp`, `stale-date` e `dismissal-date` do `aps` são **segundos Unix** (1970).
-- **Tela bloqueada**: "2 trabalhando · 1 esperando você" e a linha do destaque, com timer desde `since`.
+- **Campos do `highlight`** (da árvore, §5.3): `tabTitle` = título da tab do agente (sem tab, omitido); `model` e `contextLeftPercent` do `AgentSummary`; `preview` = `PlainText.preview` do texto do `preview` do agente (180 caracteres) e `activity` = "<ferramenta>: <summary>" da `ToolActivity` em andamento (120 caracteres). Com `pending`, `preview` e `activity` são omitidos (o card mostra o pedido), e o orçamento do `pending` (3.200 bytes) continua valendo.
+- **Tela bloqueada** (layout da Live Activity do Moshi, `docs/referencias/moshi/live-activity.jpg`; um card só):
+  - topo à esquerda: `tabTitle` (ou `workspaceLabel`) na cor do status do destaque · o modelo em cinza, sem o prefixo `claude-`;
+  - topo à direita: a barra de contexto (mesma regra de cor da Home) e o tile do Claude;
+  - linha 1, negrito, uma linha: sem `pending`, a `activity` ou a `preview` (ou o `title`); com `pending`, "<Ferramenta> quer <verbo>" ou a pergunta;
+  - linha 2, cinza, uma linha: a continuação do texto da linha 1 (ou o comando do pedido);
+  - contagem discreta dos outros agentes (ex.: "+2 trabalhando · 1 esperando você") e, com `pending`, os botões das Ações abaixo;
+  - no fim, "Tudo pronto" no lugar da linha 1.
 - **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link, também em `widgetURL`). O `alert` do push-to-start mostra a apresentação expandida sozinha. No simulador, a captura precisa de `xcrun simctl io <udid> screenshot --mask=black`.
 - **Ações** (tela bloqueada e Dynamic Island expandida), com `pending`:
   - permissão: o que o agente quer fazer ("Shell quer rodar" + `text`) e os botões "Negar" e "Permitir";
