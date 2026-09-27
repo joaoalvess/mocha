@@ -14,6 +14,7 @@ extension AgentsActivityContent {
             preview: state.preview,
             activity: state.activity,
             prompt: state.prompt,
+            outcome: state.outcome,
             pending: state.pending.map {
                 Pending(requestId: $0.requestId, kind: Pending.Kind($0.kind), toolName: $0.toolName, text: $0.text, options: $0.options)
             },
@@ -33,6 +34,7 @@ extension AgentsActivityContent {
             preview: preview,
             activity: activity,
             prompt: prompt,
+            outcome: outcome,
             pending: pending.map {
                 MochaFeedAttributes.ContentState.Pending(
                     requestId: $0.requestId,

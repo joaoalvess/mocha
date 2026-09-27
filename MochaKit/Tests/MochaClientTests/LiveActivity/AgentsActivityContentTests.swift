@@ -100,11 +100,13 @@ struct AgentsActivityContentTests {
 
     @Test func clearingPendingOnlyRemovesTheMatchingRequest() throws {
         let content = try JSONDecoder().decode(AgentsActivityContent.self, from: Data(Self.permissionState.utf8))
-        #expect(content.clearingPending("outro") == nil)
-        let cleared = try #require(content.clearingPending("5e3b0000-0000-4000-8000-000000000001"))
+        #expect(content.clearingPending("outro", outcome: .allowed) == nil)
+        let cleared = try #require(content.clearingPending("5e3b0000-0000-4000-8000-000000000001", outcome: .allowed))
         var expected = content
         expected.pending = nil
+        expected.outcome = "allowed"
         #expect(cleared == expected)
-        #expect(expected.clearingPending("5e3b0000-0000-4000-8000-000000000001") == nil)
+        #expect(expected.clearingPending("5e3b0000-0000-4000-8000-000000000001", outcome: .allowed) == nil)
+        #expect(try #require(content.clearingPending("5e3b0000-0000-4000-8000-000000000001", outcome: nil)).outcome == nil)
     }
 }

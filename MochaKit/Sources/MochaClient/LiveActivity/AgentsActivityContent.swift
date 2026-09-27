@@ -12,6 +12,7 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
     public var preview: String?
     public var activity: String?
     public var prompt: String?
+    public var outcome: String?
     public var pending: Pending?
     public var updatedAt: Date
 
@@ -26,6 +27,7 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
         preview: String? = nil,
         activity: String? = nil,
         prompt: String? = nil,
+        outcome: String? = nil,
         pending: Pending? = nil,
         updatedAt: Date
     ) {
@@ -39,6 +41,7 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
         self.preview = preview
         self.activity = activity
         self.prompt = prompt
+        self.outcome = outcome
         self.pending = pending
         self.updatedAt = updatedAt
     }
@@ -69,10 +72,11 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
         return status == .working || status == .blocked || pending != nil
     }
 
-    public func clearingPending(_ requestId: String) -> AgentsActivityContent? {
+    public func clearingPending(_ requestId: String, outcome: AgentsActivityOutcome?) -> AgentsActivityContent? {
         guard pending?.requestId == requestId else { return nil }
         var cleared = self
         cleared.pending = nil
+        cleared.outcome = outcome?.rawValue
         return cleared
     }
 }

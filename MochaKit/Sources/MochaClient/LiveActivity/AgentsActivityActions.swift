@@ -1,6 +1,12 @@
 import Foundation
 import MochaProtocol
 
+public enum AgentsActivityOutcome: String, Sendable, Hashable {
+    case allowed
+    case denied
+    case answered
+}
+
 public enum AgentsActivityChoice: Sendable, Hashable {
     case allow
     case deny
@@ -11,6 +17,14 @@ public enum AgentsActivityChoice: Sendable, Hashable {
         case .allow: .allow
         case .deny: .deny(reason: nil)
         case .answer(let question, let label): .answers([question: [label]])
+        }
+    }
+
+    public var outcome: AgentsActivityOutcome {
+        switch self {
+        case .allow: .allowed
+        case .deny: .denied
+        case .answer: .answered
         }
     }
 }
@@ -76,5 +90,9 @@ public enum AgentsActivityReply {
         case .refused, .unauthorized, .notPaired, .unreachable, .unexpectedStatus:
             false
         }
+    }
+
+    public static func outcome(of choice: AgentsActivityChoice, after result: PendingRespondResult) -> AgentsActivityOutcome? {
+        result == .accepted ? choice.outcome : nil
     }
 }

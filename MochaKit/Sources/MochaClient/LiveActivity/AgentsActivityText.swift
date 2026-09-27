@@ -56,10 +56,12 @@ public struct AgentsActivityLines: Sendable, Equatable {
 
     public var headline: String
     public var detail: Detail?
+    public var emphasizesDetail: Bool
 
-    public init(headline: String, detail: Detail?) {
+    public init(headline: String, detail: Detail?, emphasizesDetail: Bool = false) {
         self.headline = headline
         self.detail = detail
+        self.emphasizesDetail = emphasizesDetail
     }
 }
 
@@ -74,6 +76,9 @@ public enum AgentsActivityText {
     public static let activitySeparator = ": "
     public static let promptPrefix = "Você: "
     public static let singleRowActionLimit = 2
+    public static let allowedOutcome = "Aprovado"
+    public static let deniedOutcome = "Negado"
+    public static let answeredOutcome = "Respondido"
 
     public static func tone(of content: AgentsActivityContent) -> AgentsActivityTone {
         if content.pending != nil {
@@ -87,7 +92,7 @@ public enum AgentsActivityText {
     }
 
     public static func header(of content: AgentsActivityContent) -> AgentsActivityHeader {
-        let tone = tone(of: content)
+        let tone = content.pending == nil ? tone(of: content) : .working
         let project = singleLine(content.workspaceLabel) ?? appName
         let model = singleLine(content.model).map(ModelName.abbreviated).flatMap(singleLine)
         let context = content.contextLeftPercent.map {
@@ -100,9 +105,20 @@ public enum AgentsActivityText {
         if let pending = content.pending {
             return pendingLines(pending)
         }
-        let headline = singleLine(content.preview) ?? singleLine(content.activity).map(activityText) ?? singleLine(content.title)
         let prompt = singleLine(content.prompt).map { AgentsActivityLines.Detail.text(promptPrefix + $0) }
+        if let outcome = content.outcome.flatMap(AgentsActivityOutcome.init(rawValue:)) {
+            return AgentsActivityLines(headline: outcomeText(outcome), detail: prompt)
+        }
+        let headline = singleLine(content.preview) ?? singleLine(content.activity).map(activityText) ?? singleLine(content.title)
         return AgentsActivityLines(headline: headline ?? appName, detail: prompt ?? .continuation)
+    }
+
+    public static func outcomeText(_ outcome: AgentsActivityOutcome) -> String {
+        switch outcome {
+        case .allowed: allowedOutcome
+        case .denied: deniedOutcome
+        case .answered: answeredOutcome
+        }
     }
 
     public static func footnote(isStale: Bool) -> String? {
@@ -129,16 +145,17 @@ public enum AgentsActivityText {
     private static func pendingLines(_ pending: AgentsActivityContent.Pending) -> AgentsActivityLines {
         switch pending.kind {
         case .permission where pending.toolName == PendingText.planToolName:
-            return AgentsActivityLines(headline: PendingText.planTitle, detail: singleLine(pending.text).map(AgentsActivityLines.Detail.text))
+            return AgentsActivityLines(headline: PendingText.planTitle, detail: singleLine(pending.text).map(AgentsActivityLines.Detail.text), emphasizesDetail: true)
         case .permission:
             let headline = permissionHeadline(toolName: pending.toolName)
             let command = singleLine(pending.text).map { headline.showsPrompt ? shellPrompt + $0 : $0 }
-            return AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: command.map(AgentsActivityLines.Detail.command))
+            return AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: command.map(AgentsActivityLines.Detail.command), emphasizesDetail: true)
         case .question:
             let hasTwoRowsOfActions = AgentsActivityActions.actions(for: pending, agentId: "").count > singleRowActionLimit
             return AgentsActivityLines(
                 headline: singleLine(pending.text) ?? PendingText.questionHeader,
-                detail: hasTwoRowsOfActions ? nil : .continuation
+                detail: hasTwoRowsOfActions ? nil : .continuation,
+                emphasizesDetail: true
             )
         }
     }
