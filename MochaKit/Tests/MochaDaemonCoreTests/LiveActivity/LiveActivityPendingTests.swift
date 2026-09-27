@@ -148,6 +148,7 @@ struct LiveActivityPendingTests {
         for file in ["PermissionRequest.bash.json", "PermissionRequest.AskUserQuestion.single.json", "PermissionRequest.AskUserQuestion.multi.json"] {
             let pending = try fromHook(file)
             #expect(try LiveActivityAppContentState.decoding(update(pending)) == LiveActivityAppContentState(
+                agentId: "w1:p1",
                 status: "blocked",
                 title: "Refatorar o parser",
                 workspaceLabel: "demo-app",

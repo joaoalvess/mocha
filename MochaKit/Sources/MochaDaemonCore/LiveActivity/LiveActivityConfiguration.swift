@@ -12,7 +12,6 @@ public struct LiveActivityConfiguration: Sendable {
     public var retryDelay: TimeInterval
     public var configurationRetryDelay: TimeInterval
     public var titleLimit: Int
-    public var activityLimit: Int
 
     public init(
         updateInterval: TimeInterval = 10,
@@ -25,8 +24,7 @@ public struct LiveActivityConfiguration: Sendable {
         pushToStartWindow: TimeInterval = 3600,
         retryDelay: TimeInterval = 10,
         configurationRetryDelay: TimeInterval = 5 * 60,
-        titleLimit: Int = 60,
-        activityLimit: Int = 5
+        titleLimit: Int = 60
     ) {
         self.updateInterval = updateInterval
         self.idleTimeout = idleTimeout
@@ -39,6 +37,5 @@ public struct LiveActivityConfiguration: Sendable {
         self.retryDelay = retryDelay
         self.configurationRetryDelay = configurationRetryDelay
         self.titleLimit = titleLimit
-        self.activityLimit = activityLimit
     }
 }
