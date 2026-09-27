@@ -91,6 +91,11 @@ struct AgentsActivityTextTests {
         #expect(AgentsActivityText.permissionHeadline(toolName: " ").verb == AgentsActivityText.permissionFallbackVerb)
     }
 
+    @Test func aPlanAsksToFollowThePlanWithItsFirstLine() {
+        let lines = AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.permission("ExitPlanMode", text: "Criar o arquivo f.txt")))
+        #expect(lines == AgentsActivityLines(headline: "Claude quer seguir o plano", detail: .text("Criar o arquivo f.txt")))
+    }
+
     @Test func aQuestionFillsBothLinesUnlessItsButtonsNeedTwoRows() {
         #expect(AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.question(["Postgres", "SQLite"]))).detail == .continuation)
         #expect(AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.question(["a", "b", "c"]))).detail == nil)
