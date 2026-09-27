@@ -899,7 +899,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | Mock dos subagentes | feito | 95f2616, 0829b2f, merge 67347d0 |
 | WP-M13 | feito | b4074ea, 95aed66, d83465c, merge 8a9388e |
 | WP-D3 | feito | 050f7f9, 3de4a2d, merge 9b12d42 |
-| WP-M14 | todo | |
+| WP-M14 | feito (exceção de dono: `MochaTranscript/Parsing/SubagentSignals.swift`, para o daemon reaproveitar o parser; o transcript principal é acompanhado enquanto a sessão tem subagente ou workflow rodando, com leitura incremental a cada evento de diretório da sessão) | 1d2c5f8, 4e1999b, 8f5a339, da14d05, c3bfd8b, 4ed4348, merge a877bdd |
 | WP-I14 | todo | |
 | WP-I15 | todo | |
 | WP-X6 | todo | |
