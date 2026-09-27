@@ -37,10 +37,16 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
     public var activityAt: Date?
     public var time: String
     public var archiveSessionId: String?
+    public var runningSubagents: Int
 
     public var id: ChatTarget { target }
 
     public var canArchive: Bool { archiveSessionId != nil }
+
+    public var subagentBadge: String? {
+        guard runningSubagents > 0 else { return nil }
+        return runningSubagents == 1 ? "1 subagente" : "\(runningSubagents) subagentes"
+    }
 
     public init(
         target: ChatTarget,
@@ -52,7 +58,8 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
         contextLeftPercent: Int? = nil,
         activityAt: Date? = nil,
         time: String,
-        archiveSessionId: String? = nil
+        archiveSessionId: String? = nil,
+        runningSubagents: Int = 0
     ) {
         self.target = target
         self.state = state
@@ -64,6 +71,7 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
         self.activityAt = activityAt
         self.time = time
         self.archiveSessionId = archiveSessionId
+        self.runningSubagents = runningSubagents
     }
 }
 
@@ -119,6 +127,9 @@ public enum HomeSections {
         if agent.archivedAt != nil {
             return true
         }
+        if (agent.runningSubagents ?? 0) > 0 {
+            return false
+        }
         if let startedAt = agent.sessionStartedAt, now.timeIntervalSince(startedAt) > sessionMaximumAge {
             return true
         }
@@ -158,7 +169,8 @@ public enum HomeSections {
             contextLeftPercent: agent.contextLeftPercent,
             activityAt: agent.lastActivityAt,
             time: timeText(agent.lastActivityAt, now: now),
-            archiveSessionId: kind == .done ? agent.sessionId : nil
+            archiveSessionId: kind == .done ? agent.sessionId : nil,
+            runningSubagents: max(0, agent.runningSubagents ?? 0)
         )
     }
 

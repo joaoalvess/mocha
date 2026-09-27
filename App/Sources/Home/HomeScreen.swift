@@ -13,6 +13,20 @@ struct HomeScreen: View {
         .onChange(of: session.connectionState, initial: true) { _, state in
             offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
         }
+        .task { await runDebugLaunch() }
+    }
+
+    private func runDebugLaunch() async {
+        #if DEBUG
+        guard let agentId = HomeDebugOptions.current().openDetailAgentId else { return }
+        while session.workspaces.agent(withId: agentId) == nil {
+            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        if HomeDebugLaunch.consume(HomeDebugOptions.openDetailKey) {
+            session.showDetail(.agent(agentId))
+        }
+        #endif
     }
 }
 
