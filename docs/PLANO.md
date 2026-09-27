@@ -900,9 +900,9 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-M13 | feito | b4074ea, 95aed66, d83465c, merge 8a9388e |
 | WP-D3 | feito | 050f7f9, 3de4a2d, merge 9b12d42 |
 | WP-M14 | feito (exceção de dono: `MochaTranscript/Parsing/SubagentSignals.swift`, para o daemon reaproveitar o parser; o transcript principal é acompanhado enquanto a sessão tem subagente ou workflow rodando, com leitura incremental a cada evento de diretório da sessão) | 1d2c5f8, 4e1999b, 8f5a339, da14d05, c3bfd8b, 4ed4348, merge a877bdd |
-| WP-I14 | todo | |
-| WP-I15 | todo | |
-| WP-X6 | todo | |
+| WP-I14 | feito (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Presentation/SubagentText.swift`, textos e tempos "1m 02s" do mock, reaproveitado pelo I15; `AppSession` guarda a pilha de chats com gerações por rota; nome da ferramenta na atividade do card sem negrito, como no mock) | 9db9da6, 81aef9d, 5edf9d0, merge 61b355b |
+| WP-I15 | feito (sem capturas: o João pediu só testes e build; "N RODANDO" em caixa alta, como o `.dlab` do mock) | 48c7139, 57712b9, merge b187453 |
+| WP-X6 | pulado por decisão do João (2026-09-27): checklist fica para o teste do app com ele | |
 | WP-M7 | todo | |
 | WP-M8 | todo | |
 | S6 | todo | |
