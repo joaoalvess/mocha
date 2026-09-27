@@ -154,6 +154,55 @@ public actor PushService {
         issues.values.sorted { $0.environment.rawValue < $1.environment.rawValue }
     }
 
+    public func sendLiveActivity(
+        _ push: LiveActivityPush,
+        to token: String,
+        environment: ApnsEnvironment,
+        priority: ApnsPriority
+    ) async -> LiveActivityDelivery {
+        guard !isShutDown, let sender = loadSender() else { return .failed(retryable: false) }
+        let event = push.event.name
+        let request: ApnsRequest
+        do {
+            request = ApnsRequest(
+                deviceToken: token,
+                environment: environment,
+                pushType: .liveactivity,
+                topic: ApnsTopic.liveActivity(bundleId: sender.config.bundleId),
+                priority: priority,
+                payload: try push.payload()
+            )
+        } catch {
+            pushLogger.error("failed to encode a live activity \(event, privacy: .public): \(Self.describe(error), privacy: .public)")
+            return .failed(retryable: false)
+        }
+        let apnsId = request.apnsId.uuidString.lowercased()
+        let label = "live activity \(event) p\(priority.rawValue) apns-id \(apnsId) (\(environment.rawValue))"
+        let response: ApnsResponse
+        do {
+            response = try await sender.client.send(request)
+        } catch {
+            pushLogger.error("\(label, privacy: .public) failed: \(Self.describe(error), privacy: .public)")
+            return .failed(retryable: !(error is ApnsError))
+        }
+        guard !response.isSuccess else {
+            issues[environment] = nil
+            pushLogger.info("\(label, privacy: .public) delivered, unique-id \(response.uniqueId ?? "-", privacy: .public)")
+            return .delivered
+        }
+        let reason = response.reason ?? ""
+        pushLogger.error("\(label, privacy: .public) refused: \(response.status, privacy: .public) \(reason, privacy: .public)")
+        if response.deviceTokenIsInvalid {
+            return .invalidToken
+        }
+        if ApnsReason.configuration.contains(reason) {
+            issues[environment] = ApnsConfigurationIssue(environment: environment, status: response.status, reason: reason, at: clock.now())
+            self.sender = nil
+            return .failed(retryable: false)
+        }
+        return .failed(retryable: response.status == 429 || response.status >= 500)
+    }
+
     public func shutdown() async {
         isShutDown = true
         for check in blockedChecks.values {
