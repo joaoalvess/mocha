@@ -26,8 +26,8 @@ struct AgentsCardMetrics {
         markSize: 17,
         headerSpacing: 4,
         lineSpacing: 2,
-        actionsSpacing: 8,
-        buttonHeight: 34,
+        actionsSpacing: 12,
+        buttonHeight: 39,
         gridButtonHeight: 27,
         gridSpacing: 5
     )
@@ -150,7 +150,7 @@ struct AgentsCardLines: View {
     private func detail(_ text: String, size: CGFloat, design: Font.Design) -> some View {
         Text(text)
             .font(.system(size: size, design: design))
-            .foregroundStyle(AgentsPalette.textSecondary)
+            .foregroundStyle(lines.emphasizesDetail ? AgentsPalette.waiting : AgentsPalette.textSecondary)
             .lineLimit(1)
             .minimumScaleFactor(Self.detailMinimumScale)
     }
