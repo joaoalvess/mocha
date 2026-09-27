@@ -21,6 +21,7 @@ Capturadas em 2026-09-25 no Claude Code 2.1.283 (`--model haiku`), dentro do lab
 | `Notification.idle_prompt.json` | ~60 s depois do fim do turno sem tecla |
 | `PreToolUse.bash.json`, `PermissionRequest.bash.json`, `PostToolUse.bash.json` | Os três hooks da mesma chamada de Bash (mesmo `tool_input`). O `PermissionRequest` não tem `tool_use_id` |
 | `PermissionRequest.write.json` | Pedido de `Write` (caminho absoluto, `content`) |
+| `PermissionRequest.ExitPlanMode.json` | **Sintetizada pela doc** (não capturada): pedido do `ExitPlanMode` com `plan` e `planFilePath`, que o Claude injeta no `tool_input`. Sem `permission_suggestions`, que ainda não foi visto num pedido real |
 | `PermissionRequest.AskUserQuestion.{single,multi}.json` | O seletor do AskUserQuestion também dispara `PermissionRequest` (sem `permission_suggestions`). `multi`: 3 perguntas, a 2ª com `multiSelect` |
 | `PreToolUse.AskUserQuestion.{single,multi}.json` | O `PreToolUse` do AskUserQuestion (mecanismo A, não adotado) |
 | `PostToolUse.AskUserQuestion.{single,multi}.json` | Respondidas no terminal: `tool_input`/`tool_response` com `answers` (`multiSelect` com rótulos unidos por `", "`, texto livre como está) e `annotations: {}` |
@@ -28,6 +29,7 @@ Capturadas em 2026-09-25 no Claude Code 2.1.283 (`--model haiku`), dentro do lab
 | `headers.interpolation.json` | `$HERDR_PANE_ID` e `${HERDR_PANE_ID}` interpolados; `X-Test-Unlisted` (`$HERDR_TAB_ID`, fora de `allowedEnvVars`) chega vazio |
 | `headers.command-curl.json` | Headers do `curl` do hook de comando |
 | `response.PermissionRequest.allow.json` | Resposta que aprova (vale para qualquer ferramenta) |
+| `response.PermissionRequest.ExitPlanMode.allow.json` | Aprova o plano: `allow` + `updatedInput` com o `tool_input` original sem mudança + `updatedPermissions` `setMode` `auto` na sessão (a doc diz que `allow` sozinho não basta para o `ExitPlanMode`) |
 | `response.PermissionRequest.deny.json` | Nega com mensagem; o Claude recebe a mensagem como `tool_result` de erro e **continua** o turno |
 | `response.PermissionRequest.deny-interrupt.json` | Nega com `interrupt: true`: o turno para, como o "No" do terminal |
 | `response.PermissionRequest.AskUserQuestion.{single,multi}.json` | Responde o AskUserQuestion: `allow` + `updatedInput` com as `questions` originais e `answers` (mecanismo C, adotado) |

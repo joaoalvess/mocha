@@ -1,0 +1,19 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "allow",
+      "updatedInput": {
+        "plan": "\n## **Criar** o arquivo `f.txt`\n\n1. Rodar `touch f.txt`\n2. Conferir com `ls`\n",
+        "planFilePath": "/Users/dev/.claude/plans/demo-plan.md"
+      },
+      "updatedPermissions": [
+        {
+          "type": "setMode",
+          "mode": "auto",
+          "destination": "session"
+        }
+      ]
+    }
+  }
+}

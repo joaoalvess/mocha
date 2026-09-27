@@ -62,7 +62,7 @@ struct PendingNotificationReplyTests {
     @Test func identifiersMatchTheSpec() {
         #expect(PendingNotificationCategory.permission == "PERMISSION")
         #expect(PendingNotificationCategory.question == "QUESTION")
-        #expect(PendingNotificationCategory.all == ["PERMISSION", "QUESTION"])
+        #expect(PendingNotificationCategory.all == ["PERMISSION", "QUESTION", "PLAN"])
         #expect(Set(PendingNotificationCategory.all).isDisjoint(with: AlertCategory.all))
         #expect(Set([PendingNotificationAction.allow, PendingNotificationAction.deny, PendingNotificationAction.answer]).count == 3)
     }

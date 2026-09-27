@@ -4,7 +4,8 @@ import MochaProtocol
 public enum PendingNotificationCategory {
     public static let permission = "PERMISSION"
     public static let question = "QUESTION"
-    public static let all = [permission, question]
+    public static let plan = "PLAN"
+    public static let all = [permission, question, plan]
 }
 
 public enum PendingNotificationAction {
