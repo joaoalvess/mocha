@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "type": "usage",
+  "payload": {
+    "provider": "codex",
+    "windows": [
+      {
+        "kind": "unknown",
+        "windowDurationMins": 300,
+        "usedPercent": 34,
+        "resetsAt": "2026-09-27T22:00:00.000Z"
+      }
+    ],
+    "fetchedAt": "2026-09-27T20:00:00.000Z"
+  }
+}
