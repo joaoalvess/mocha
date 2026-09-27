@@ -52,8 +52,8 @@ enum LiveActivitySample {
         [WorkspaceNode(id: "w1", label: "demo-app", number: 1, isDirty: false, agentStatus: .working, tabs: tabs, children: children)]
     }
 
-    static func input(_ tree: [WorkspaceNode], pending: [PendingRequest] = []) -> LiveActivityInput {
-        LiveActivityInput(agents: TreeComposer.agents(in: tree), pending: pending, tabTitles: LiveActivityInput.tabTitles(in: tree))
+    static func input(_ tree: [WorkspaceNode], pending: [PendingRequest] = [], prompts: [AgentID: String] = [:]) -> LiveActivityInput {
+        LiveActivityInput(agents: TreeComposer.agents(in: tree), pending: pending, prompts: prompts)
     }
 }
 
@@ -75,11 +75,11 @@ struct LiveActivityAppContentState: Decodable, Equatable {
     var title: String
     var workspaceLabel: String
     var since: Date
-    var tabTitle: String?
     var model: String?
     var contextLeftPercent: Int?
     var preview: String?
     var activity: String?
+    var prompt: String?
     var pending: Pending?
     var updatedAt: Date
 
@@ -130,8 +130,8 @@ struct LiveActivityHarness {
         try await settle()
     }
 
-    func tree(_ tree: [WorkspaceNode], pending: [PendingRequest] = []) async throws {
-        await service.apply(LiveActivitySample.input(tree, pending: pending))
+    func tree(_ tree: [WorkspaceNode], pending: [PendingRequest] = [], prompts: [AgentID: String] = [:]) async throws {
+        await service.apply(LiveActivitySample.input(tree, pending: pending, prompts: prompts))
         try await settle()
     }
 

@@ -24,6 +24,7 @@ extension TranscriptMeta {
             claudeVersion: header.claudeVersion,
             lastModified: lastModified,
             preview: header.preview,
+            prompt: header.prompt,
             activity: header.activity,
             contextTokens: header.contextTokens,
             sessionStartedAt: header.sessionStartedAt,

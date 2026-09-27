@@ -92,8 +92,12 @@ struct SessionHubLiveActivityTests {
         }
     }
 
-    @Test func foregroundAndAgentStatusReachTheLiveActivityInputs() async throws {
-        try await withHub { harness in
+    @Test func foregroundAgentStatusAndPromptReachTheLiveActivityInputs() async throws {
+        var meta = TranscriptMeta()
+        meta.prompt = "Faz dnv"
+        try await withHub(configure: { transcripts in
+            await transcripts.setMeta(meta, forSession: Sample.sessionA)
+        }) { harness in
             let recorder = LiveActivityInputRecorder()
             let updates = harness.hub.liveActivityUpdates
             let collector = Task {
@@ -121,7 +125,7 @@ struct SessionHubLiveActivityTests {
             }
             #expect(working.foregroundDevices == [helloOk.deviceId])
             #expect(working.agents.map(\.id) == ["w1:p1", "w1:p2"])
-            #expect(working.tabTitles == ["w1:p1": "Claude", "w1:p2": "Codex"])
+            #expect(working.prompts == ["w1:p1": "Faz dnv"])
 
             #expect(try await reply(socket, to: .setForeground(agentId: nil, isActive: false), id: "c-2") == .ack())
             _ = try await eventually { recorder.input?.foregroundDevices.isEmpty == true ? true : nil }

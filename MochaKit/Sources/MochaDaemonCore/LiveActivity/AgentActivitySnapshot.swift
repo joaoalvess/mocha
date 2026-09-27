@@ -137,7 +137,7 @@ struct AgentActivityTracker: Sendable {
                     agent,
                     status: status,
                     since: entry.since,
-                    tabTitle: input.tabTitles[agent.id],
+                    prompt: input.prompts[agent.id],
                     titleLimit: titleLimit,
                     showsProgress: request == nil
                 ),

@@ -64,6 +64,7 @@ public struct TranscriptMeta: Sendable, Equatable {
     public var claudeVersion: String?
     public var lastModified: Date?
     public var preview: MessagePreview?
+    public var prompt: String?
     public var activity: ToolActivity?
     public var contextTokens: Int?
     public var sessionStartedAt: Date?
@@ -78,6 +79,7 @@ public struct TranscriptMeta: Sendable, Equatable {
         claudeVersion: String? = nil,
         lastModified: Date? = nil,
         preview: MessagePreview? = nil,
+        prompt: String? = nil,
         activity: ToolActivity? = nil,
         contextTokens: Int? = nil,
         sessionStartedAt: Date? = nil,
@@ -91,6 +93,7 @@ public struct TranscriptMeta: Sendable, Equatable {
         self.claudeVersion = claudeVersion
         self.lastModified = lastModified
         self.preview = preview
+        self.prompt = prompt
         self.activity = activity
         self.contextTokens = contextTokens
         self.sessionStartedAt = sessionStartedAt

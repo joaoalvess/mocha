@@ -17,13 +17,13 @@ extension SessionHub {
 
     func publishLiveActivityInput(_ tree: [WorkspaceNode]? = nil) {
         guard !isShuttingDown else { return }
-        let tree = tree ?? composedTree()
+        let agents = TreeComposer.agents(in: tree ?? composedTree())
         liveActivityInputContinuation.yield(
             LiveActivityInput(
-                agents: TreeComposer.agents(in: tree),
+                agents: agents,
                 pending: pendingRequests,
                 foregroundDevices: activeDevices(),
-                tabTitles: LiveActivityInput.tabTitles(in: tree)
+                prompts: prompts(of: agents)
             )
         )
     }
@@ -43,6 +43,16 @@ extension SessionHub {
             gatewayLogger.error("failed to register a live activity: \(PushService.describe(error), privacy: .public)")
             send(.deviceStoreFailed, id: id, to: clientId)
         }
+    }
+
+    private func prompts(of agents: [AgentSummary]) -> [AgentID: String] {
+        var prompts: [AgentID: String] = [:]
+        for agent in agents {
+            if let sessionId = agent.sessionId, let prompt = metas[sessionId]?.prompt {
+                prompts[agent.id] = prompt
+            }
+        }
+        return prompts
     }
 
     private func activeDevices() -> Set<DeviceID> {

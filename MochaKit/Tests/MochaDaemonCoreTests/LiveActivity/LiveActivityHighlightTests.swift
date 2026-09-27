@@ -38,42 +38,38 @@ struct LiveActivityHighlightTests {
         return tracker.snapshots(of: input, at: date, titleLimit: LiveActivityConfiguration().titleLimit)
     }
 
-    private func highlight(_ tree: [WorkspaceNode], pending: [PendingRequest] = [], of agentId: AgentID = "w1:p1") -> LiveActivityContentState.Highlight? {
-        snapshots(LiveActivitySample.input(tree, pending: pending))[agentId]?.agent
+    private func highlight(
+        _ tree: [WorkspaceNode],
+        pending: [PendingRequest] = [],
+        prompts: [AgentID: String] = ["w1:p1": "Roda os testes"],
+        of agentId: AgentID = "w1:p1"
+    ) -> LiveActivityContentState.Highlight? {
+        snapshots(LiveActivitySample.input(tree, pending: pending, prompts: prompts))[agentId]?.agent
     }
 
     private func encodedHighlight(_ highlight: LiveActivityContentState.Highlight) throws -> [String: Any] {
         try PushTestData.jsonObject(try ApnsPayloadEncoding.encoder.encode(highlight))
     }
 
-    @Test func theHighlightIsFilledFromTheAgentAndItsTab() throws {
+    @Test func theHighlightIsFilledFromTheAgentAndItsPrompt() throws {
         #expect(highlight(LiveActivitySample.tree([tab("parser", [agent()])])) == LiveActivityContentState.Highlight(
             agentId: "w1:p1",
             title: "Refatorar o parser",
             workspaceLabel: "demo-app",
             status: "working",
             since: Sample.start,
-            tabTitle: "parser",
             model: "claude-opus-4-1",
             contextLeftPercent: 42,
             preview: "Pronto: rodei os testes.",
-            activity: "Bash: npm run build"
+            activity: "Bash: npm run build",
+            prompt: "Roda os testes"
         ))
-
-        let child = WorkspaceNode(
-            id: "w2",
-            label: "filho",
-            number: 2,
-            isDirty: false,
-            agentStatus: .working,
-            tabs: [tab("", [LiveActivitySample.agent("w2:p1", .idle)], id: "w2:t1"), tab("lexer", [agent("w2:p2")], id: "w2:t2")]
-        )
-        let nested = LiveActivitySample.tree([tab("shell", [])], children: [child])
-        #expect(LiveActivityInput.tabTitles(in: nested) == ["w2:p1": "", "w2:p2": "lexer"])
-        #expect(highlight(nested, of: "w2:p2")?.tabTitle == "lexer")
+        let tree = LiveActivitySample.tree([tab("parser", [agent(), agent("w1:p2")])])
+        #expect(highlight(tree, prompts: ["w1:p2": "Outro pedido"], of: "w1:p2")?.prompt == "Outro pedido")
+        #expect(highlight(tree, prompts: ["w1:p2": "Outro pedido"])?.prompt == nil)
     }
 
-    @Test func withoutATabTitleAPreviewOrMetadataThoseFieldsAreOmitted() throws {
+    @Test func withoutAPromptAPreviewOrMetadataThoseFieldsAreOmitted() throws {
         let bare = agent(model: nil, contextLeftPercent: nil, preview: nil, tool: nil)
         let expected = LiveActivityContentState.Highlight(
             agentId: "w1:p1",
@@ -82,8 +78,8 @@ struct LiveActivityHighlightTests {
             status: "working",
             since: Sample.start
         )
-        #expect(highlight(LiveActivitySample.tree([tab("", [bare])])) == expected)
-        #expect(highlight(LiveActivitySample.tree([tab(" \n ", [bare])])) == expected)
+        #expect(highlight(LiveActivitySample.tree([tab("parser", [bare])]), prompts: [:]) == expected)
+        #expect(highlight(LiveActivitySample.tree([tab("parser", [bare])]), prompts: ["w1:p1": " \n "]) == expected)
         #expect(snapshots(LiveActivityInput(agents: [bare]))["w1:p1"]?.agent == expected)
         #expect(highlight(LiveActivitySample.tree([tab("parser", [agent(preview: "  \n\n ")])]))?.preview == nil)
         #expect(highlight(LiveActivitySample.tree([tab("parser", [agent(preview: "```\n```")])]))?.preview == nil)
@@ -114,52 +110,60 @@ struct LiveActivityHighlightTests {
     @Test func textsAreCutAtTheirLimits() throws {
         let title = String(repeating: "Título 😀 ", count: 20)
         let preview = String(repeating: "**Olá** ação 👍🏽 ", count: 40)
-        let summary = highlight(LiveActivitySample.tree([tab(title, [agent(preview: preview)])]))
-        #expect(summary?.tabTitle == String(title.prefix(60)))
+        let prompt = String(repeating: "Pedido 😀 ", count: 20)
+        var titled = agent(preview: preview)
+        titled.title = title
+        let summary = highlight(LiveActivitySample.tree([tab("parser", [titled])]), prompts: ["w1:p1": prompt])
+        #expect(summary?.title == String(title.prefix(60)))
+        #expect(summary?.prompt == String(prompt.prefix(120)))
         let cut = try #require(summary?.preview)
         #expect(cut == PlainText.preview(fromMarkdown: preview, limit: 180))
         #expect((170...180).contains(cut.count))
         #expect(cut.hasPrefix("Olá ação 👍🏽 Olá"))
     }
 
-    @Test func aPendingRequestOmitsThePreviewAndTheActivityOfItsAgentOnly() throws {
+    @Test func aPendingRequestOmitsThePreviewTheActivityAndThePromptOfItsAgentOnly() throws {
         let tree = LiveActivitySample.tree([tab("parser", [agent("w1:p1", .blocked), agent("w1:p2")])])
         let request = LiveActivitySample.permission("req-1", agent: "w1:p1")
-        let snapshots = snapshots(LiveActivitySample.input(tree, pending: [request]))
+        let prompts: [AgentID: String] = ["w1:p1": "Roda os testes", "w1:p2": "Outro pedido"]
+        let snapshots = snapshots(LiveActivitySample.input(tree, pending: [request], prompts: prompts))
         let snapshot = try #require(snapshots["w1:p1"])
         let highlight = snapshot.agent
         #expect(snapshot.pending?.requestId == "req-1")
         #expect(highlight.agentId == "w1:p1")
-        #expect(highlight.tabTitle == "parser")
         #expect(highlight.model == "claude-opus-4-1")
         #expect(highlight.contextLeftPercent == 42)
         #expect(highlight.preview == nil)
         #expect(highlight.activity == nil)
+        #expect(highlight.prompt == nil)
         let keys = Set(try encodedHighlight(highlight).keys)
-        #expect(keys == ["agentId", "title", "workspaceLabel", "status", "since", "tabTitle", "model", "contextLeftPercent"])
+        #expect(keys == ["agentId", "title", "workspaceLabel", "status", "since", "model", "contextLeftPercent"])
 
         #expect(snapshots["w1:p2"]?.pending == nil)
         #expect(snapshots["w1:p2"]?.agent.preview == "Pronto: rodei os testes.")
         #expect(snapshots["w1:p2"]?.agent.activity == "Bash: npm run build")
+        #expect(snapshots["w1:p2"]?.agent.prompt == "Outro pedido")
 
-        let withoutPending = self.snapshots(LiveActivitySample.input(tree))["w1:p1"]
+        let withoutPending = self.snapshots(LiveActivitySample.input(tree, prompts: prompts))["w1:p1"]
         #expect(withoutPending?.agent.preview == "Pronto: rodei os testes.")
         #expect(withoutPending?.agent.activity == "Bash: npm run build")
+        #expect(withoutPending?.agent.prompt == "Roda os testes")
     }
 
     @Test func theContentStateDecodesWithTheDefaultDecoderLikeTheApp() throws {
-        let snapshot = try #require(snapshots(LiveActivitySample.input(LiveActivitySample.tree([tab("parser", [agent()])])))["w1:p1"])
+        let tree = LiveActivitySample.tree([tab("parser", [agent()])])
+        let snapshot = try #require(snapshots(LiveActivitySample.input(tree, prompts: ["w1:p1": "Roda os testes"]))["w1:p1"])
         let push = snapshot.push({ _ in .update(alert: nil) }, at: at(5), staleDate: at(905))
         #expect(try LiveActivityAppContentState.decoding(push) == LiveActivityAppContentState(
             status: "working",
             title: "Refatorar o parser",
             workspaceLabel: "demo-app",
             since: Sample.start,
-            tabTitle: "parser",
             model: "claude-opus-4-1",
             contextLeftPercent: 42,
             preview: "Pronto: rodei os testes.",
             activity: "Bash: npm run build",
+            prompt: "Roda os testes",
             pending: nil,
             updatedAt: at(5)
         ))
@@ -187,8 +191,8 @@ struct LiveActivityHighlightTests {
             try await harness.registerUpdateToken(for: device)
             var parser = agent()
             let other = agent("w1:p2", .blocked, preview: "Outro")
-            func send(_ agents: [AgentSummary], tabTitle: String = "parser", pending: [PendingRequest] = []) async throws {
-                try await harness.tree(LiveActivitySample.tree([tab(tabTitle, agents)]), pending: pending)
+            func send(_ agents: [AgentSummary], prompt: String = "Roda os testes", pending: [PendingRequest] = []) async throws {
+                try await harness.tree(LiveActivitySample.tree([tab("parser", agents)]), pending: pending, prompts: ["w1:p1": prompt])
                 try await harness.advance(10)
             }
 
@@ -201,12 +205,12 @@ struct LiveActivityHighlightTests {
             try await send([parser])
             parser.model = "claude-sonnet-4-5"
             try await send([parser])
-            try await send([parser], tabTitle: "lexer")
+            try await send([parser], prompt: "Faz dnv")
             parser.activity?.status = .succeeded
-            try await send([parser], tabTitle: "lexer")
-            try await send([parser, other], tabTitle: "lexer")
-            try await send([parser, LiveActivitySample.agent("w1:p2", .idle)], tabTitle: "lexer")
-            try await send([parser], tabTitle: "lexer", pending: [LiveActivitySample.permission("req-1", agent: "w1:p1")])
+            try await send([parser], prompt: "Faz dnv")
+            try await send([parser, other], prompt: "Faz dnv")
+            try await send([parser, LiveActivitySample.agent("w1:p2", .idle)], prompt: "Faz dnv")
+            try await send([parser], prompt: "Faz dnv", pending: [LiveActivitySample.permission("req-1", agent: "w1:p1")])
 
             let sent = harness.sent(to: LiveActivitySample.updateToken)
             #expect(sent.map(\.priority) == [.high, .low, .low, .low, .low, .low, .low, .high])
@@ -225,7 +229,9 @@ struct LiveActivityHighlightTests {
                 "claude-opus-4-1", "claude-opus-4-1", "claude-opus-4-1", "claude-opus-4-1", "claude-sonnet-4-5",
                 "claude-sonnet-4-5", "claude-sonnet-4-5", "claude-sonnet-4-5",
             ])
-            #expect(highlights.map(\.tabTitle) == ["parser", "parser", "parser", "parser", "parser", "lexer", "lexer", "lexer"])
+            #expect(highlights.map(\.prompt) == [
+                "Roda os testes", "Roda os testes", "Roda os testes", "Roda os testes", "Roda os testes", "Faz dnv", "Faz dnv", nil,
+            ])
             #expect(sent.last?.push.contentState.pending?.requestId == "req-1")
         }
     }
@@ -256,13 +262,13 @@ struct LiveActivityHighlightTests {
         }
     }
 
-    @Test func theTabTitleReachesTheServiceThroughTheInput() async throws {
+    @Test func thePromptReachesTheServiceThroughTheInput() async throws {
         try await withLiveActivity { harness in
             _ = try await harness.pairWithPushToStart()
-            try await harness.tree(LiveActivitySample.tree([tab("parser", [agent()])]))
+            try await harness.tree(LiveActivitySample.tree([tab("parser", [agent()])]), prompts: ["w1:p1": "Roda os testes"])
             let start = try harness.last()
             #expect(start.push.event.name == "start")
-            #expect(start.push.contentState.agent.tabTitle == "parser")
+            #expect(start.push.contentState.agent.prompt == "Roda os testes")
             #expect(start.push.contentState.agent.activity == "Bash: npm run build")
         }
     }
@@ -280,7 +286,8 @@ struct LiveActivityHighlightTests {
         )
         worst.title = String(repeating: "😀", count: 200)
         worst.workspaceLabel = String(repeating: "😀", count: 60)
-        let tree = LiveActivitySample.tree([tab(String(repeating: unit, count: 200), [worst])])
+        let tree = LiveActivitySample.tree([tab("parser", [worst])])
+        let prompts = ["w9999:p9999": String(repeating: unit, count: 200)]
 
         func pushes(_ snapshot: AgentActivitySnapshot) -> [AgentActivityPush] {
             let staleDate = now.addingTimeInterval(900)
@@ -293,11 +300,11 @@ struct LiveActivityHighlightTests {
             ]
         }
 
-        let free = try #require(snapshots(LiveActivitySample.input(tree), at: now)["w9999:p9999"])
+        let free = try #require(snapshots(LiveActivitySample.input(tree, prompts: prompts), at: now)["w9999:p9999"])
         #expect(free.pending == nil)
         #expect(free.agent.preview?.count == 180)
         #expect(free.agent.activity?.count == 120)
-        #expect(free.agent.tabTitle?.count == 60)
+        #expect(free.agent.prompt?.count == 120)
         for push in pushes(free) {
             #expect(try push.payload().count <= ApnsRequest.maxPayloadBytes)
         }
@@ -309,7 +316,7 @@ struct LiveActivityHighlightTests {
             agent: "w9999:p9999",
             questions: [LiveActivitySample.singleQuestion(text, labels: Array(repeating: String(repeating: "😀", count: 60), count: 4))]
         )
-        let held = try #require(snapshots(LiveActivitySample.input(tree, pending: [request]), at: now)["w9999:p9999"])
+        let held = try #require(snapshots(LiveActivitySample.input(tree, pending: [request], prompts: prompts), at: now)["w9999:p9999"])
         #expect(held.pending?.options.count == 4)
         #expect(held.agent.preview == nil)
         #expect(held.agent.activity == nil)
