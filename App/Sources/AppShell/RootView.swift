@@ -6,12 +6,7 @@ struct RootView: View {
 
     var body: some View {
         #if DEBUG
-        if let probe = launch.probe {
-            switch probe {
-            case .push:
-                PushProbeView()
-            }
-        } else if let preview = launch.preview {
+        if let preview = launch.preview {
             switch preview {
             case .designSystem:
                 DesignSystemPreviewScreen()

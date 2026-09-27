@@ -12,8 +12,6 @@ final class PushRegistration {
 
     let environment: DetectedApnsEnvironment
     let registrationSource: ApnsRegistrationBox
-    private(set) var deviceTokenHex: String?
-    private(set) var lastError: String?
     private(set) var authorization: UNAuthorizationStatus = .notDetermined
 
     private let defaults: UserDefaults
@@ -42,28 +40,18 @@ final class PushRegistration {
     }
 
     func requestAuthorizationAndRegister() async {
-        do {
-            _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
-        } catch {
-            lastError = error.localizedDescription
-        }
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
         await refreshAuthorization()
         UIApplication.shared.registerForRemoteNotifications()
     }
 
     func didRegister(deviceToken: Data) {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
-        deviceTokenHex = hex
-        lastError = nil
         let registration = ApnsRegistration(token: hex, env: environment.environment)
         registrationSource.update(registration)
         if let data = try? JSONEncoder().encode(registration) {
             defaults.set(data, forKey: Self.registrationKey)
         }
-    }
-
-    func didFailToRegister(error: any Error) {
-        lastError = error.localizedDescription
     }
 
     private static let registrationKey = "apns.registration"

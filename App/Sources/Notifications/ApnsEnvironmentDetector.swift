@@ -3,24 +3,20 @@ import MochaProtocol
 
 struct DetectedApnsEnvironment: Equatable, Sendable {
     let environment: ApnsEnvironment
-    let source: String
 }
 
 enum ApnsEnvironmentDetector {
     static func detect(bundle: Bundle = .main) -> DetectedApnsEnvironment {
         #if targetEnvironment(simulator)
-        return DetectedApnsEnvironment(environment: .sandbox, source: "simulador")
+        return DetectedApnsEnvironment(environment: .sandbox)
         #else
         guard let url = bundle.url(forResource: "embedded", withExtension: "mobileprovision") else {
-            return DetectedApnsEnvironment(environment: .production, source: "sem perfil embutido (TestFlight ou App Store)")
+            return DetectedApnsEnvironment(environment: .production)
         }
         guard let data = try? Data(contentsOf: url), let value = apsEnvironment(inProvisioningProfile: data) else {
-            return DetectedApnsEnvironment(environment: .production, source: "perfil embutido sem aps-environment")
+            return DetectedApnsEnvironment(environment: .production)
         }
-        return DetectedApnsEnvironment(
-            environment: value == "development" ? .sandbox : .production,
-            source: "perfil embutido: aps-environment = \(value)"
-        )
+        return DetectedApnsEnvironment(environment: value == "development" ? .sandbox : .production)
         #endif
     }
 
