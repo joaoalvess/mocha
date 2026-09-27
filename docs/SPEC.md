@@ -1755,7 +1755,9 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 - `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Com `QUESTION`, o corpo é o texto exato da pergunta (até 2.000 bytes), que o app usa como chave de `answers`. Várias perguntas, `multiSelect` ou uma pergunta maior vão com a categoria `NEEDS_INPUT`, sem ações, e o corpo é a prévia de `questions[0].question`: o toque abre o chat com o card.
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
 
-### §7.3 Live Activity agregada (1b)
+### §7.3 Live Activity agregada (1b, substituída pela §7.4)
+
+> Desde 2026-09-27 vale a §7.4 (uma atividade por agente). Desta seção continuam valendo: codificação do `content-state`, headers, regras do `pending` e dos campos do `highlight` (limites, orçamentos, `activity` com `toolName` cru), Ações (intents, Face ID só no Permitir), limite de 8 h, tokens e simulador.
 
 - Uma única atividade `MochaAgentsAttributes` (sem atributos estáticos relevantes), definida em `MochaProtocol` sob `#if os(iOS)` (o `ActivityAttributes` não existe no macOS), com `ContentState`:
 
@@ -1833,6 +1835,24 @@ public struct ContentState: Codable, Hashable {
   - sem conexão, reenvia na próxima.
 - Payload ≤ 4 KB: o título do destaque vai truncado em 60 caracteres (um `start` completo tem ~400 bytes).
 - **Simulador**: recebe push-to-start e updates reais do sandbox, mas **não entrega ao app o token de update de uma atividade iniciada por push**. Esse caminho só se testa no iPhone.
+
+
+### §7.4 Live Activity por agente (1b)
+
+Decisão do João em 2026-09-27, depois de comparar com o Moshi com vários agentes em paralelo: uma atividade por agente Claude, no layout do Moshi (`docs/referencias/moshi/live-activity.jpg`).
+
+- **Tipo**: `MochaAgentAttributes` (`MochaProtocol`, só iOS), atributo estático `agentId`; `attributes-type: "MochaAgentAttributes"` e `attributes: {"agentId": "<id>"}` no push-to-start. `ContentState`: `status`, `title`, `workspaceLabel`, `since`, `tabTitle?`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as mesmas regras de preenchimento, limites e orçamentos da §7.3 (sem contagens nem `agentId` no `pending`).
+- **Card** (tela bloqueada e Dynamic Island expandida): o card do WP-I16 sem a linha de contagem. Cabeçalho "**<workspaceLabel>** · <tabTitle> · <modelo>": o projeto (workspace do Herdr, ex.: "Core") em negrito na cor do status, a tab (omitida se nula ou igual ao projeto) e o modelo em cinza. Paleta do card no tom do Moshi: verde #9AF768, tile #CA7B5D, trilho da barra #463B38, cinza #A3A3A3 (âmbar e vermelho da §6.2); barra de contexto + tile; linha 1/linha 2; botões do `pending`. Parado: "Pronto" na cor neutra com a última `preview`. Compacta: asterisco na cor do status; mínima: asterisco. `widgetURL` = deep link do agente. `relevance-score`: `blocked` 100, `working` 50, parado 10.
+- **Início**: quando um agente passa a `working` e não tem atividade. App em primeiro plano: o app inicia (`Activity.request` com o `agentId`). Senão, push-to-start com `alert` `{"title": "Claude trabalhando · <rótulo>", "body": "<title>"}`.
+- **Limites**: no máximo 5 atividades por aparelho. Cheio: um agente que fica `blocked` encerra a atividade parada mais antiga e ocupa a vaga; senão fica sem atividade. O orçamento de 10 push-to-starts por hora é do app inteiro; esgotado, o agente fica sem atividade. Agente sem atividade recebe as notificações da §7.1.
+- **Atualização**: por atividade, no máximo uma a cada 10 s, sempre com o estado mais recente; prioridade 10 em mudança de `status` ou de `pending`, 5 no resto (texto, contexto, modelo); refresh 5 a cada 10 min enquanto `working`/`blocked`; `stale-date` = agora + 15 min.
+- **Alertas no lugar das notificações**: para um agente com atividade ativa e token de update conhecido no aparelho, o daemon **não** manda os alertas da §7.1 (turno concluído, precisa de você, sinais secundários). Em vez disso:
+  - `pending` novo → update prioridade 10 com `alert` `{"title": "Claude precisa de você · <rótulo>", "body": <mesmo corpo da §7.1>, "sound": "default"}`;
+  - turno concluído (`working` → parado) → update prioridade 10 com o estado parado e, se `preferences.turnDoneAlerts`, `alert` `{"title": "Claude terminou · <rótulo>", "body": <corpo da §7.1>, "sound": "default"}`.
+  - Antes do token de update chegar (2–40 s depois de um push-to-start), vale a §7.1.
+- **Fim**: 30 min sem `working`/`blocked`, ou o agente some da árvore → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start do mesmo agente.
+- **Tokens**: o push-to-start é um token do app para o tipo `MochaAgentAttributes`; cada atividade manda o seu token de update com `activityId` e `agentId` no `LiveActivityRegistration` (WS em primeiro plano, `POST /v1/live-activity` em background). O daemon guarda as atividades por aparelho e por agente em `devices.json`.
+- **Transição**: o tipo agregado `MochaAgentsAttributes` sai do app e do daemon nos WPs M17/I17; o app encerra atividades agregadas que encontrar.
 
 ---
 
