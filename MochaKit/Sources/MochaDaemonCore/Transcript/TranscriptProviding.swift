@@ -11,10 +11,12 @@ public protocol TranscriptProviding: Sendable {
 public struct TranscriptSession: Sendable, Hashable {
     public var sessionId: String
     public var transcriptPath: String?
+    public var subagent: SubagentTranscript?
 
-    public init(sessionId: String, transcriptPath: String? = nil) {
+    public init(sessionId: String, transcriptPath: String? = nil, subagent: SubagentTranscript? = nil) {
         self.sessionId = sessionId
         self.transcriptPath = transcriptPath
+        self.subagent = subagent
     }
 }
 
