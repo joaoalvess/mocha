@@ -919,7 +919,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 4de4248 |
 | WP-I8 | feito sem device (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Pending/`, com testes de contrato contra o `PendingHookReply` real; sino só com pedido pendente e conexão; sem `cwd:` na caixa do comando porque o `PendingRequest` não tem o campo; verbos "quer ler/editar/…" escolhidos pelo subagente; o `MochaDemo` não manda `pending`; o orquestrador alinhou o push de pergunta à §7.2 em `69d7b16`) | 3b2c6b9, 2e8440a, 89e815d, a418d63, merge 0b3d3b7, 69d7b16 |
 | WP-I9 | todo | |
-| WP-M15 | todo | |
+| WP-M15 | feito (agente com pedido conta como `blocked`; pedido de agente fora da árvore é ignorado; o `start` também leva o `pending`; o orquestrador acrescentou o orçamento de 3.200 bytes para o `pending` codificado: acima disso a pergunta vai como prévia sem opções) | 7942c30, 87c2b64, merge 1d1ed12 |
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
