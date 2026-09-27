@@ -30,11 +30,11 @@ struct AgentsActivityTokenBookTests {
         #expect(book.registrations(includingDelivered: true).isEmpty)
         book.recordPushToStartToken("aa01")
         #expect(book.registrations(includingDelivered: false) == [LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox)])
-        book.recordUpdateToken("bb02", activityId: "B")
-        book.recordUpdateToken("cc03", activityId: "A")
+        book.recordUpdateToken("bb02", activityId: "B", agentId: "agent-B")
+        book.recordUpdateToken("cc03", activityId: "A", agentId: "agent-A")
         #expect(book.registrations(includingDelivered: false) == [
-            LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "cc03", env: .sandbox),
-            LiveActivityRegistration(pushToStartToken: "aa01", activityId: "B", updateToken: "bb02", env: .sandbox),
+            LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "cc03", agentId: "agent-A", env: .sandbox),
+            LiveActivityRegistration(pushToStartToken: "aa01", activityId: "B", updateToken: "bb02", agentId: "agent-B", env: .sandbox),
         ])
     }
 
@@ -42,8 +42,8 @@ struct AgentsActivityTokenBookTests {
         var book = AgentsActivityTokenBook()
         book.use(.production)
         book.recordPushToStartToken("aa01")
-        book.recordUpdateToken("bb02", activityId: "A")
-        let registration = LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", env: .production)
+        book.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
+        let registration = LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", agentId: "agent-A", env: .production)
         let marked = book.markDelivered(registration)
         #expect(marked)
         #expect(!book.hasUndelivered)
@@ -54,9 +54,9 @@ struct AgentsActivityTokenBookTests {
     @Test func aTokenThatChangedWhileSendingStaysUndelivered() {
         var book = AgentsActivityTokenBook()
         book.use(.sandbox)
-        book.recordUpdateToken("bb02", activityId: "A")
+        book.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
         let sent = book.registrations(includingDelivered: false)
-        book.recordUpdateToken("dd04", activityId: "A")
+        book.recordUpdateToken("dd04", activityId: "A", agentId: "agent-A")
         let marked = book.markDelivered(sent[0])
         #expect(!marked)
         #expect(book.hasUndelivered)
@@ -91,8 +91,8 @@ struct AgentsActivityTokenBookTests {
     @Test func forgottenActivitiesAreNotSentAgain() {
         var book = AgentsActivityTokenBook()
         book.use(.sandbox)
-        book.recordUpdateToken("bb02", activityId: "A")
-        book.recordUpdateToken("cc03", activityId: "B")
+        book.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
+        book.recordUpdateToken("cc03", activityId: "B", agentId: "agent-B")
         let forgotA = book.forgetActivities(except: ["B"])
         let forgotNothing = book.forgetActivities(except: ["B"])
         #expect(forgotA)
@@ -113,7 +113,7 @@ struct AgentsActivityTokenBookTests {
         var book = AgentsActivityTokenBook()
         book.use(.sandbox)
         book.recordPushToStartToken("aa01")
-        book.recordUpdateToken("bb02", activityId: "A")
+        book.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
         book.markDelivered(LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox))
         try file.save(book)
         #expect(file.load() == book)
@@ -139,8 +139,8 @@ struct AgentsActivityTokenSyncTests {
         let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: gateway)
         await sync.recordPushToStartToken("aa01")
         #expect(gateway.calls == [LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox)])
-        await sync.recordUpdateToken("bb02", activityId: "A")
-        #expect(gateway.calls.last == LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", env: .sandbox))
+        await sync.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
+        #expect(gateway.calls.last == LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", agentId: "agent-A", env: .sandbox))
         #expect(!file.load().hasUndelivered)
         #expect(file.load().activities["A"]?.value == "bb02")
     }
@@ -149,14 +149,14 @@ struct AgentsActivityTokenSyncTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let gateway = FakeActivityRegistrar(.unreachable)
         let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: gateway)
-        await sync.recordUpdateToken("bb02", activityId: "A")
+        await sync.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
         #expect(gateway.calls.count == 1)
         #expect(file.load().hasUndelivered)
 
         let relaunchGateway = FakeActivityRegistrar()
         let relaunched = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: ["A"], file: file, gateway: relaunchGateway)
         await relaunched.deliverPending()
-        #expect(relaunchGateway.calls == [LiveActivityRegistration(activityId: "A", updateToken: "bb02", env: .sandbox)])
+        #expect(relaunchGateway.calls == [LiveActivityRegistration(activityId: "A", updateToken: "bb02", agentId: "agent-A", env: .sandbox)])
         #expect(!file.load().hasUndelivered)
         await relaunched.deliverPending()
         #expect(relaunchGateway.calls.count == 1)
@@ -166,9 +166,9 @@ struct AgentsActivityTokenSyncTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let socket = FakeActivityRegistrar(.delivered, .unreachable)
         let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: FakeActivityRegistrar(.unreachable, .unreachable, .unreachable))
-        await sync.recordUpdateToken("aa01", activityId: "A")
-        await sync.recordUpdateToken("bb02", activityId: "B")
-        await sync.recordUpdateToken("cc03", activityId: "C")
+        await sync.recordUpdateToken("aa01", activityId: "A", agentId: "agent-A")
+        await sync.recordUpdateToken("bb02", activityId: "B", agentId: "agent-B")
+        await sync.recordUpdateToken("cc03", activityId: "C", agentId: "agent-C")
         await sync.socketOpened(socket)
         #expect(socket.calls.map(\.activityId) == ["A", "B"])
         let tokens = await sync.tokens
@@ -187,12 +187,12 @@ struct AgentsActivityTokenSyncTests {
         let socket = FakeActivityRegistrar()
         await sync.socketOpened(socket)
         #expect(socket.calls == [LiveActivityRegistration(pushToStartToken: "aa01", env: .production)])
-        await sync.recordUpdateToken("bb02", activityId: "A")
-        #expect(socket.calls.last == LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", env: .production))
+        await sync.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
+        #expect(socket.calls.last == LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", agentId: "agent-A", env: .production))
         #expect(gateway.calls.count == 1)
 
         await sync.socketClosed()
-        await sync.recordUpdateToken("cc03", activityId: "A")
+        await sync.recordUpdateToken("cc03", activityId: "A", agentId: "agent-A")
         #expect(gateway.calls.last?.updateToken == "cc03")
         #expect(socket.calls.count == 2)
     }
@@ -201,12 +201,12 @@ struct AgentsActivityTokenSyncTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: FakeActivityRegistrar())
         await sync.recordPushToStartToken("aa01")
-        await sync.recordUpdateToken("bb02", activityId: "A")
-        await sync.recordUpdateToken("cc03", activityId: "B")
+        await sync.recordUpdateToken("bb02", activityId: "A", agentId: "agent-A")
+        await sync.recordUpdateToken("cc03", activityId: "B", agentId: "agent-B")
         await sync.forgetActivity("A")
         let socket = FakeActivityRegistrar()
         await sync.socketOpened(socket)
-        #expect(socket.calls == [LiveActivityRegistration(pushToStartToken: "aa01", activityId: "B", updateToken: "cc03", env: .sandbox)])
+        #expect(socket.calls == [LiveActivityRegistration(pushToStartToken: "aa01", activityId: "B", updateToken: "cc03", agentId: "agent-B", env: .sandbox)])
 
         let relaunched = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: FakeActivityRegistrar())
         #expect(file.load().activities.isEmpty)

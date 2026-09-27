@@ -7,21 +7,6 @@ public enum AgentsActivityTone: Sendable, Equatable {
     case done
 }
 
-public struct AgentsActivitySummary: Sendable, Equatable {
-    public var working: String?
-    public var waiting: String?
-
-    public init(working: String?, waiting: String?) {
-        self.working = working
-        self.waiting = waiting
-    }
-
-    public var text: String {
-        let parts = [working, waiting].compactMap { $0 }
-        return parts.isEmpty ? AgentsActivityText.allDone : parts.joined(separator: AgentsActivityText.separator)
-    }
-}
-
 public struct AgentsActivityPermissionHeadline: Sendable, Equatable {
     public var toolName: String
     public var verb: String
@@ -49,13 +34,15 @@ public struct AgentsActivityContext: Sendable, Equatable {
 }
 
 public struct AgentsActivityHeader: Sendable, Equatable {
-    public var label: String
+    public var project: String
+    public var tab: String?
     public var tone: AgentsActivityTone
     public var model: String?
     public var context: AgentsActivityContext?
 
-    public init(label: String, tone: AgentsActivityTone, model: String?, context: AgentsActivityContext?) {
-        self.label = label
+    public init(project: String, tab: String?, tone: AgentsActivityTone, model: String?, context: AgentsActivityContext?) {
+        self.project = project
+        self.tab = tab
         self.tone = tone
         self.model = model
         self.context = context
@@ -66,6 +53,7 @@ public struct AgentsActivityLines: Sendable, Equatable {
     public enum Detail: Sendable, Equatable {
         case continuation
         case command(String)
+        case text(String)
     }
 
     public var headline: String
@@ -77,63 +65,38 @@ public struct AgentsActivityLines: Sendable, Equatable {
     }
 }
 
-public struct AgentsActivityFootnote: Sendable, Equatable {
-    public var working: String?
-    public var waiting: String?
-    public var stale: String?
-
-    public init(working: String?, waiting: String?, stale: String?) {
-        self.working = working
-        self.waiting = waiting
-        self.stale = stale
-    }
-
-    public var text: String {
-        [working, waiting, stale].compactMap { $0 }.joined(separator: AgentsActivityText.separator)
-    }
-}
-
 public enum AgentsActivityText {
-    public static let allDone = "Tudo pronto"
+    public static let idle = "Pronto"
     public static let appName = "Mocha"
     public static let staleNote = "sem notícias do Mac"
     public static let open = "Abrir"
     public static let questionHint = "Toque para responder no Mocha"
     public static let permissionFallbackVerb = "quer permissão"
     public static let separator = " · "
-    public static let othersPrefix = "+"
     public static let shellPrompt = "$ "
     public static let activitySeparator = ": "
     public static let singleRowActionLimit = 2
 
-    public static func summary(of content: AgentsActivityContent) -> AgentsActivitySummary {
-        counts(working: content.working, waiting: content.waiting)
-    }
-
     public static func tone(of content: AgentsActivityContent) -> AgentsActivityTone {
-        if content.waiting > 0 || content.pending != nil {
+        if content.pending != nil {
             return .waiting
         }
-        return content.working > 0 ? .working : .done
-    }
-
-    public static func tone(of highlight: AgentsActivityContent.Highlight) -> AgentsActivityTone {
-        switch AgentStatus(rawValue: highlight.status) {
-        case .blocked: .waiting
-        case .working: .working
-        default: .done
+        switch AgentStatus(rawValue: content.status) {
+        case .blocked: return .waiting
+        case .working: return .working
+        default: return .done
         }
     }
 
     public static func header(of content: AgentsActivityContent) -> AgentsActivityHeader {
-        let highlight = content.highlight
-        let tone: AgentsActivityTone = content.pending != nil ? .waiting : highlight.map(tone(of:)) ?? .done
-        let label = singleLine(highlight?.tabTitle) ?? singleLine(highlight?.workspaceLabel) ?? appName
-        let model = singleLine(highlight?.model).map(ModelName.abbreviated).flatMap(singleLine)
-        let context = highlight?.contextLeftPercent.map {
+        let tone = tone(of: content)
+        let project = singleLine(content.workspaceLabel) ?? appName
+        let tab = singleLine(content.tabTitle).flatMap { $0 == project ? nil : $0 }
+        let model = singleLine(content.model).map(ModelName.abbreviated).flatMap(singleLine)
+        let context = content.contextLeftPercent.map {
             AgentsActivityContext(leftPercent: min(max($0, 0), 100), isBlocked: tone == .waiting)
         }
-        return AgentsActivityHeader(label: label, tone: tone, model: model, context: context)
+        return AgentsActivityHeader(project: project, tab: tab, tone: tone, model: model, context: context)
     }
 
     public static func lines(of content: AgentsActivityContent) -> AgentsActivityLines {
@@ -141,31 +104,18 @@ public enum AgentsActivityText {
             return pendingLines(pending)
         }
         guard content.isBusy else {
-            return AgentsActivityLines(headline: allDone, detail: nil)
+            return AgentsActivityLines(headline: idle, detail: singleLine(content.preview).map(AgentsActivityLines.Detail.text))
         }
-        guard let highlight = content.highlight else {
-            return AgentsActivityLines(headline: summary(of: content).text, detail: nil)
-        }
-        let headline = singleLine(highlight.activity).map(activityText) ?? singleLine(highlight.preview) ?? singleLine(highlight.title)
-        return AgentsActivityLines(headline: headline ?? summary(of: content).text, detail: .continuation)
+        let headline = singleLine(content.activity).map(activityText) ?? singleLine(content.preview) ?? singleLine(content.title)
+        return AgentsActivityLines(headline: headline ?? appName, detail: .continuation)
     }
 
-    public static func footnote(of content: AgentsActivityContent, isStale: Bool) -> AgentsActivityFootnote? {
-        let others = othersSummary(of: content)
-        let stale = isStale ? staleNote : nil
-        guard others.working != nil || others.waiting != nil || stale != nil else { return nil }
-        return AgentsActivityFootnote(working: others.working, waiting: others.waiting, stale: stale)
+    public static func footnote(isStale: Bool) -> String? {
+        isStale ? staleNote : nil
     }
 
-    public static func compactCount(of content: AgentsActivityContent) -> String? {
-        if content.waiting > 0 {
-            return "\(content.waiting)"
-        }
-        return content.working > 0 ? "\(content.working)" : nil
-    }
-
-    public static func deepLink(for content: AgentsActivityContent) -> URL? {
-        guard let agentId = content.pending?.agentId ?? content.highlight?.agentId, !agentId.isEmpty else { return nil }
+    public static func deepLink(forAgent agentId: String) -> URL? {
+        guard !agentId.isEmpty else { return nil }
         return DeepLink.agent(agentId).url
     }
 
@@ -188,32 +138,12 @@ public enum AgentsActivityText {
             let command = singleLine(pending.text).map { headline.showsPrompt ? shellPrompt + $0 : $0 }
             return AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: command.map(AgentsActivityLines.Detail.command))
         case .question:
-            let hasTwoRowsOfActions = AgentsActivityActions.actions(for: pending).count > singleRowActionLimit
+            let hasTwoRowsOfActions = AgentsActivityActions.actions(for: pending, agentId: "").count > singleRowActionLimit
             return AgentsActivityLines(
                 headline: singleLine(pending.text) ?? PendingText.questionHeader,
                 detail: hasTwoRowsOfActions ? nil : .continuation
             )
         }
-    }
-
-    private static func othersSummary(of content: AgentsActivityContent) -> AgentsActivitySummary {
-        guard let highlight = content.highlight else { return AgentsActivitySummary(working: nil, waiting: nil) }
-        let status = AgentStatus(rawValue: highlight.status)
-        let others = counts(
-            working: max(0, content.working - (status == .working ? 1 : 0)),
-            waiting: max(0, content.waiting - (status == .blocked ? 1 : 0))
-        )
-        return AgentsActivitySummary(
-            working: others.working.map { othersPrefix + $0 },
-            waiting: others.waiting.map { others.working == nil ? othersPrefix + $0 : $0 }
-        )
-    }
-
-    private static func counts(working: Int, waiting: Int) -> AgentsActivitySummary {
-        AgentsActivitySummary(
-            working: working > 0 ? "\(working) trabalhando" : nil,
-            waiting: waiting > 0 ? "\(waiting) esperando você" : nil
-        )
     }
 
     private static func activityText(_ activity: String) -> String {

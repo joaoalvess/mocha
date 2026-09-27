@@ -5,11 +5,11 @@ import Testing
 
 struct AgentsActivityActionsTests {
     private static func pending(kind: AgentsActivityContent.Pending.Kind, text: String, options: [String] = [], toolName: String? = nil) -> AgentsActivityContent.Pending {
-        AgentsActivityContent.Pending(requestId: "req-1", agentId: "w17:p1", kind: kind, toolName: toolName, text: text, options: options)
+        AgentsActivityContent.Pending(requestId: "req-1", kind: kind, toolName: toolName, text: text, options: options)
     }
 
     @Test func permissionOffersDenyThenAllow() {
-        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .permission, text: "npm run build", toolName: "Bash"))
+        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .permission, text: "npm run build", toolName: "Bash"), agentId: "w17:p1")
         #expect(actions == [
             AgentsActivityAction(requestId: "req-1", agentId: "w17:p1", role: .deny, title: "Negar", choice: .deny),
             AgentsActivityAction(requestId: "req-1", agentId: "w17:p1", role: .allow, title: "Permitir", choice: .allow),
@@ -19,7 +19,7 @@ struct AgentsActivityActionsTests {
 
     @Test func questionWithOptionsAnswersWithTheExactQuestionAndLabel() {
         let question = "Qual formato de feed você quer publicar? "
-        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .question, text: question, options: ["RSS 2.0", " Atom", "Os dois"]))
+        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .question, text: question, options: ["RSS 2.0", " Atom", "Os dois"]), agentId: "w17:p1")
         #expect(actions.map(\.title) == ["RSS 2.0", " Atom", "Os dois"])
         #expect(actions.allSatisfy { $0.role == .option && $0.requestId == "req-1" && $0.agentId == "w17:p1" })
         #expect(actions.map(\.choice.response) == [
@@ -32,13 +32,13 @@ struct AgentsActivityActionsTests {
     @Test(arguments: [1, 4])
     func questionOptionsUpToTheLimitAreOffered(count: Int) {
         let options = (1...count).map { "Opção \($0)" }
-        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "Qual?", options: options)).count == count)
+        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "Qual?", options: options), agentId: "w17:p1").count == count)
     }
 
     @Test func questionWithoutInlineAnswerHasNoButtons() {
-        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "Prévia da pergunta…")).isEmpty)
-        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "Qual?", options: ["a", "b", "c", "d", "e"])).isEmpty)
-        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "", options: ["a"])).isEmpty)
+        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "Prévia da pergunta…"), agentId: "w17:p1").isEmpty)
+        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "Qual?", options: ["a", "b", "c", "d", "e"]), agentId: "w17:p1").isEmpty)
+        #expect(AgentsActivityActions.actions(for: Self.pending(kind: .question, text: "", options: ["a"]), agentId: "w17:p1").isEmpty)
     }
 
     @Test(arguments: [
