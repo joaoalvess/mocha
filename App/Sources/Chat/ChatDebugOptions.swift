@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ChatDebugOptions {
     var openSessionId: String?
+    var openSubagentId: String?
     var scrollToItemId: String?
     var scrollAnchor: UnitPoint = .top
     var expandToolItemId: String?
@@ -19,6 +20,7 @@ struct ChatDebugOptions {
     var performanceSweep = false
 
     static let openSessionKey = "chat-open-session"
+    static let openSubagentKey = "chat-open-subagent"
     static let scrollToKey = "chat-scroll-to"
     static let scrollAnchorKey = "chat-scroll-anchor"
     static let expandToolKey = "chat-expand-tool"
@@ -37,6 +39,7 @@ struct ChatDebugOptions {
     static func current(argumentDomain: [String: Any] = LaunchArguments.argumentDomain()) -> ChatDebugOptions {
         var options = ChatDebugOptions()
         options.openSessionId = argumentDomain[openSessionKey] as? String
+        options.openSubagentId = argumentDomain[openSubagentKey] as? String
         options.scrollToItemId = argumentDomain[scrollToKey] as? String
         options.scrollAnchor = anchor(argumentDomain[scrollAnchorKey])
         options.expandToolItemId = argumentDomain[expandToolKey] as? String

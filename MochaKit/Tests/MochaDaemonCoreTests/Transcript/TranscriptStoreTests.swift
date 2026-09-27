@@ -22,7 +22,7 @@ struct TranscriptStoreTests {
         #expect(subscription.page.before == nil)
         let meta = subscription.page.meta
         #expect(TranscriptSnapshot.Meta(meta: meta) == expected.meta)
-        #expect(meta.claudeVersion == "2.1.282")
+        #expect(meta.claudeVersion == Self.fixtureVersion(name))
         #expect(meta.lastModified == TranscriptFileStatus.of(path: TranscriptFixtures.path(name))?.modificationDate)
     }
 
@@ -120,7 +120,11 @@ struct TranscriptStoreTests {
     func metaWithoutFollowingMatchesTheSnapshot(_ name: String) async throws {
         let meta = try #require(await fixtureStore().meta(forSession: TranscriptSession(sessionId: name)))
         #expect(TranscriptSnapshot.Meta(meta: meta) == (try TranscriptFixtures.expectedSnapshot(name)).meta)
-        #expect(meta.claudeVersion == "2.1.282")
+        #expect(meta.claudeVersion == Self.fixtureVersion(name))
+    }
+
+    private static func fixtureVersion(_ name: String) -> String {
+        ["subagents-background", "workflow"].contains(name) ? "2.1.283" : "2.1.282"
     }
 
     @Test func missingSessionHasNoMetaNoStatsAndAnEmptyPage() async throws {

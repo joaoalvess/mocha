@@ -53,6 +53,9 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Ditado por voz on-device | 1b |
 | Anexar imagem ao prompt | 1a-core |
 | Abrir nova tab com Claude num workspace existente | 1a-final |
+| Card vivo de cada subagente (`Agent`) no chat, que abre o transcript do subagente só de leitura | subagentes |
+| Selo de subagentes rodando no card da Home e lista de subagentes no Detalhe do agente | subagentes |
+| Card de workflow com as fases e os agentes de cada fase | subagentes |
 | Terminal SSH (`herdr agent attach`) | 2 |
 | Transporte Mosh no terminal | 3 |
 
@@ -69,6 +72,8 @@ Nada disto entra em nenhuma fase acima: outros agentes (Codex, Antigravity e dem
 - **Sessão**: sessão do Claude Code (`session_id`, UUID). Um agente troca de sessão com `/clear`, que cria um arquivo de transcript novo; `/compact` mantém a sessão e o arquivo.
 - **Turno**: do prompt do usuário até o Claude parar (hook `Stop`).
 - **Pedido pendente**: aprovação de ferramenta ou pergunta (AskUserQuestion) esperando resposta (1b).
+- **Subagente**: agente que o Claude Code abre com a ferramenta `Agent` (antes `Task`), inclusive os aninhados e os agentes de um workflow. Roda em background, com transcript próprio, e é identificado pelo `agentId` (§3.5).
+- **Workflow**: execução da ferramenta `Workflow` do Claude Code, um script que abre agentes em fases, identificada pelo `runId` (§3.5.3).
 
 ---
 
@@ -165,6 +170,8 @@ Princípios:
 Os test targets acham `MochaKit/Fixtures/` por um helper `Fixtures` baseado em `#filePath`, porque o SwiftPM não aceita recurso fora do diretório do target.
 
 O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `swift-markdown`. A extensão `MochaWidgets` depende só de `MochaProtocol`. O modo demo liga com o argumento de launch `-demo`: o app usa `DemoServerConnection` (de `MochaDemo`) no lugar da conexão real. Junto com `-demo`, o argumento `-demo-script` liga um roteiro de eventos (árvore mudando, troca de sessão, append contínuo, queda e volta da conexão), usado nos WPs de UI. O projeto tem um esquema "Mocha Demo" que passa `-demo`.
+
+**Subagentes no demo** (fase subagentes): o chat de `receitas-api` termina como na tela 16 (o `Explore` "Mapear uso de OFFSET" concluído e o `general-purpose` "Teste de carga /receitas" rodando, com a ferramenta atual), e acima da parte visível traz os cards dos outros subagentes da tela 18 ("Gerar fixtures de carga" concluído e o `Plan` "Revisar o índice de receitas" com falha e motivo). O aninhado "Achar o script de carga" é filho do que roda e aparece como card concluído no transcript dele, logo depois de "Pensou" (tela 16b). O `openChat` de cada um responde com o transcript dele: o que roda como na tela 16b e o concluído como na 16c. O `receitas-api` vai com `runningSubagents: 1`, e o `demo-app` fica em CONCLUÍDOS com `runningSubagents: 2` e o chat da tela 19 (workflow `auditoria-a11y` rodando, com as fases e os agentes da captura), como na tela 17. O `listSubagents` do `receitas-api` devolve a lista da tela 18; o chat de `login-social` ganha, no histórico, um card de subagente parado e um card de workflow concluído (recolhido, como no estado concluído abaixo da tela 19). Os horários são relativos ao lançamento, como no resto do demo. No roteiro `-demo-script`, o subagente que roda termina: o card vira `completed` por `chatUpdate`, o transcript aberto recebe o `chatMeta` com o fim, o `treeChanged` zera o selo do `receitas-api`, e o `listSubagents` passa a devolvê-lo como `completed`.
 
 ### §2.3 Fluxos principais
 
@@ -275,7 +282,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - **Criação**: numa sessão nova, o arquivo só nasce na primeira mensagem, e o `transcript_path` do `SessionStart` pode apontar para um arquivo que ainda não existe. O diretório do projeto também pode não existir ainda (primeira sessão naquele `cwd`). O `TranscriptStore` trata arquivo inexistente como sessão vazia e observa o diretório do projeto (ou `~/.claude/projects/`, se ele também não existir) até o arquivo aparecer. Depois de `/clear`, o arquivo novo nasce na hora, já com as linhas do `/clear`.
 - **Sessões**: `/clear` cria um `session_id` novo e um arquivo novo; o antigo só recebe metadados depois disso. `/compact` mantém o `session_id` e o arquivo.
 - **Identidade**: vale `sessionId`. O campo `session_id` (snake_case), presente em parte das linhas, pode trazer a sessão anterior ao `/clear` e é ignorado.
-- **Subagentes**: ficam em `<session_id>/subagents/agent-<agentId>.jsonl` (todas as linhas com `isSidechain: true` e `agentId`), com `agent-<agentId>.meta.json` (`agentType`, `description`, `toolUseId` do `Agent` que o criou). Não são exibidos. No arquivo principal, o subagente aparece só como o `toolCall` `Agent` e, se rodou em background, como a notificação de tarefa. Linhas com `isSidechain: true` no arquivo principal são ignoradas por garantia.
+- **Subagentes e workflows**: ficam em `<session_id>/subagents/` e `<session_id>/workflows/` (§3.5). No arquivo principal, cada `Agent` vira um card de subagente e cada `Workflow`, um card de workflow (§3.2.2). O transcript de um subagente (`agent-<agentId>.jsonl`, todas as linhas com `isSidechain: true` e `agentId`) é lido pelo mesmo parser, no modo subagente. Linhas com `isSidechain: true` no arquivo principal são ignoradas por garantia.
 
 #### §3.2.2 Formato e mapeamento (Claude Code 2.1.283)
 
@@ -288,32 +295,35 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 | Entrada | Condição | Vira |
 |---|---|---|
 | qualquer | JSON inválido ou sem `type` string | descartada (contador `dropped`) |
-| qualquer | `isSidechain == true` | ignorada |
+| qualquer | `isSidechain == true` | ignorada (aceita no modo subagente, abaixo) |
 | `ai-title` | — | `ChatMeta.title` (o último vence); não vira item |
 | `permission-mode` | — | `ChatMeta.permissionMode` (o último vence; vistos: `default`, `acceptEdits`, `plan`, `auto`) |
 | `mode`, `atis-latch`, `last-prompt`, `agent-name`, `queue-operation`, `file-history-snapshot`, `file-history-delta`, `worktree-state`, `relocated`, `cost-state`, `pr-link`, `frame-link`, `fork-context-ref`, `bridge-session`, `continued-in` | — | ignorados |
 | `attachment` | `attachment.type == "queued_command"`, `commandMode == "prompt"`, `origin.kind` ausente ou `human`, sem `isMeta` | `userPrompt`: prompt enviado com o Claude trabalhando. `prompt` é string ou blocos `text`/`image` |
-| `attachment` | `queued_command` com `commandMode == "task-notification"` | `notice` com o `<summary>` |
+| `attachment` | `queued_command` com `commandMode == "task-notification"` | notificação de tarefa (abaixo), com o texto de `attachment.prompt` |
 | `attachment` | demais | ignorado |
-| `user` | `isMeta == true` | ignorado (caveat de comando local, `turnCompanion`, mensagem `peer`, "[Image: original …]") |
+| `user` | `origin.kind == "peer"` (mensagem de outra sessão, inclusive o relatório de handback de um subagente) | ignorado |
+| `user`, content string | `origin.kind == "task-notification"`, com ou sem `isMeta` (no arquivo do subagente, a notificação de um aninhado vem com `isMeta: true`) | notificação de tarefa (abaixo) |
+| `user` | `isMeta == true` | ignorado (caveat de comando local, `turnCompanion`, "[Image: original …]") |
 | `user` | `isCompactSummary == true` | ignorado (resumo do `/compact`) |
 | `user`, content string | contém `<command-name>/x</command-name>` | `slashCommand(name: "/x", args: <command-args>)`. Se o último `slashCommand` tem o mesmo `promptId` e o mesmo nome, não cria item (eco do `/compact`) |
 | `user`, content string | começa com `<local-command-stdout>` ou `<local-command-stderr>` | `output` do último `slashCommand`, sem as tags e sem códigos ANSI → `chatUpdate` |
 | `user`, content string | começa com `<bash-input>` (comando `!` do terminal) | `slashCommand(name: "!", args: <comando>)` |
 | `user`, content string | começa com `<bash-stdout>` ou `<bash-stderr>` | `output` do último `slashCommand` (stdout, e stderr se não vazio) → `chatUpdate` |
-| `user`, content string | `origin.kind == "task-notification"` ou começa com `<task-notification>` | `notice` com o `<summary>` (ex.: `Agent "Revisar README" finished`) |
 | `user`, content string | o texto é `/compact` ou `/compact <instruções>` | `slashCommand(name: "/compact", args: …)`: a linha crua que o Claude grava antes de compactar |
 | `user`, content string | demais | `userPrompt(text, imageCount: 0)` |
-| `user`, content array | tem bloco `tool_result` | atualiza o `toolCall` de `tool_use_id`: `failed` se `is_error == true`, senão `succeeded`, com `resultPreview` → `chatUpdate`. `tool_use_id` desconhecido: ignorado e contado |
+| `user`, content array | tem bloco `tool_result` | atualiza o item de `tool_use_id` → `chatUpdate`. Num `toolCall`: `failed` se `is_error == true`, senão `succeeded`, com `resultPreview`. Num `subagent` ou `workflow`: regras de card (abaixo). `tool_use_id` desconhecido: ignorado e contado |
 | `user`, content array | um único bloco `text` igual a `[Request interrupted by user]` ou `[Request interrupted by user for tool use]` | `notice("Interrompido pelo usuário")` |
 | `user`, content array | blocos `text`/`image` | `userPrompt(text: textos unidos por "\n", imageCount: nº de blocos image)`; outros blocos (ex.: `document`) não contam |
 | `assistant` | `isApiErrorMessage == true` ou `message.model == "<synthetic>"` | `notice` com o texto do bloco (ex.: "API Error: …"); não atualiza modelo nem branch |
 | `assistant`, bloco `text` | texto não vazio depois de aparar espaços | `assistantText(markdown)` |
 | `assistant`, bloco `thinking` | — | `thinking(text:)`, com `nil` quando `thinking == ""` (o caso comum) |
 | `assistant`, bloco `redacted_thinking` | — | `thinking(text: nil)` |
-| `assistant`, bloco `tool_use` | — | `toolCall` com `status: running`, `summary` (abaixo) e `inputJSON` do `input` truncado em 4.000 caracteres |
+| `assistant`, bloco `tool_use` | `name` é `Agent` ou `Task` | `subagent` (card de subagente, abaixo) |
+| `assistant`, bloco `tool_use` | `name == "Workflow"` | `workflow` (card de workflow, abaixo) |
+| `assistant`, bloco `tool_use` | demais | `toolCall` com `status: running`, `summary` (abaixo) e `inputJSON` do `input` truncado em 4.000 caracteres |
 | `assistant`, outro bloco | — | ignorado e contado |
-| `system` / `turn_duration` | `durationMs` | `turnFooter(durationMs)`. Turno interrompido não tem `turn_duration` |
+| `system` / `turn_duration` | `durationMs` | `turnFooter(durationMs)`. Turno interrompido não tem `turn_duration`. No modo subagente, ignorado |
 | `system` / `away_summary` | `content` | `recap(text)` |
 | `system` / `local_command` | `content` com `<command-name>` | `slashCommand`, pela mesma regra de `user` |
 | `system` / `local_command` | `content` com `<local-command-stdout>` ou `<local-command-stderr>` | `output` do último `slashCommand` |
@@ -334,7 +344,7 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 | `Grep`, `Glob` | `pattern` |
 | `WebFetch` | `url` |
 | `WebSearch`, `ToolSearch` | `query` |
-| `Agent` | `description` |
+| `Agent`, `Task` | `description` |
 | `AskUserQuestion` | `questions[0].question` |
 | `ExitPlanMode` | primeira linha não vazia de `plan` |
 | `Skill` | `skill` |
@@ -346,6 +356,36 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 - `content` array: os `text` unidos por `\n`; `image` vira `[imagem]`, `tool_reference` vira o `tool_name` e `document` vira `[documento]`.
 - `AskUserQuestion` com `toolUseResult.answers`: uma linha `pergunta → resposta` por pergunta (`multiSelect` vem com os rótulos separados por vírgula).
 - Pedido negado (`toolDenialKind` `user-rejected`, `automode-blocked` ou `automode-unavailable`) e Esc com a ferramenta rodando chegam com `is_error: true` e viram `failed`.
+
+**Card de subagente** (`subagent(SubagentCall)`, fase subagentes; dados em §3.5):
+- `tool_use` `Agent` ou `Task`: `toolUseId` = `id`; `description` = `input.description`; `agentType` = `input.subagent_type` sem o prefixo de plugin (o texto depois do último `:`, ex.: `feature-dev:code-reviewer` → `code-reviewer`), ou `general-purpose` quando falta; `status: running`, `toolUses: 0` e o resto `nil`. Cada chamada é um item próprio.
+- `tool_result` desse `tool_use`:
+  - `toolUseResult.status == "async_launched"` (lançamento em background, o caso de toda chamada observada na 2.1.283): só preenche `agentId` com `toolUseResult.agentId`;
+  - resultado síncrono (`toolUseResult` com `totalToolUseCount` e `totalDurationMs`): `completed`, com `agentId`, `toolUses` = `totalToolUseCount` e `durationMs` = `totalDurationMs`;
+  - `is_error == true`: `failed`, com `failureReason` = o texto do resultado (regra do `resultPreview`).
+- O parser só conhece o lançamento, o resultado síncrono e as notificações de tarefa. A ferramenta atual, a contagem, o início e o fim ao vivo vêm do daemon, que os sobrepõe ao item (§4.1.2).
+
+**Card de workflow** (`workflow(WorkflowCall)`):
+- `tool_use` `Workflow`: `name` = o `name` do `meta` do `input.script` (§3.5.3); sem script inline ou sem `name`, o nome do arquivo de `input.scriptPath` sem a extensão e sem o sufixo `-wf_<runId>`; sem os dois, "Workflow". `status: running`, `phases: []`, `agentCount: 0`, `toolUses: 0` e `startedAt` = `timestamp` da linha.
+- `tool_result`: com `toolUseResult.status == "async_launched"`, preenche `runId` e troca o `name` por `toolUseResult.workflowName`; o parser guarda o `toolUseResult.taskId` para casar a notificação. Com `is_error == true`, `failed`.
+- Fases, agentes e contagens ao vivo vêm do daemon (§3.5.3, §4.1.2).
+
+**Notificação de tarefa**: linha `user` com `origin.kind == "task-notification"` ou `attachment` `queued_command` com `commandMode == "task-notification"`. A detecção é só por esses campos: a string `<task-notification>` também aparece em `queue-operation`, `prompt_snapshot` e `deferred_tools_record`, que não geram nada. O texto pode ter mais de um bloco `<task-notification>…</task-notification>` (com as tags `<task-id>`, `<tool-use-id>` opcional, `<status>`, `<summary>`, `<note>`, `<result>` e `<usage>`), e cada bloco é tratado à parte, pelo `<task-id>`:
+- `^a[0-9a-f]{16}$` (agente): atualiza o `subagent` cujo `toolUseId` é o `<tool-use-id>` ou, sem ele, cujo `agentId` é o `<task-id>` → `chatUpdate`, sem gerar item. `<status>` `completed` → `completed`; `failed` → `failed`, com `failureReason` = o texto do `<summary>` depois de `failed: `; `killed` → `stopped`. Um `<note>` com "stopped with background work of its own still running" (resultado interino) mantém `running`. `<usage>` preenche `toolUses` (`<tool_uses>`) e `durationMs` (`<duration_ms>`).
+- `^w[0-9a-z]{8}$` (workflow): atualiza o `workflow` do `<tool-use-id>` ou do `taskId` guardado → `chatUpdate`, sem gerar item. `completed` → `completed`, `failed` → `failed`, `killed` → `stopped`; `<usage>` preenche `agentCount` (`<agent_count>`), `toolUses` e `durationMs`.
+- demais (Bash e Monitor, `^b…`, e bloco sem `<task-id>`): `notice` com o `<summary>`.
+- agente ou workflow sem card carregado (outra página, ou o `tool_use` numa sessão anterior): o bloco não gera nada.
+- texto sem nenhum bloco (ex.: "2 background agents were stopped by the user: …", visto na 2.1.252): `notice` com o texto.
+- Assim, o aviso `Agent "…" finished` não aparece no chat: o card mostra o fim. Com mais de um `notice` na mesma linha, os ids seguem a regra `<uuid>#<índice>`.
+- A leitura dos blocos é pública, em `MochaTranscript`: `TaskNotification.parse(_ text: String) -> [TaskNotification]`, com `taskId`, `toolUseId`, `status`, `summary`, `note`, `toolUses`, `durationMs` e `agentCount`. O daemon usa a mesma função nos sinais (b) e (c) da §3.5.2.
+
+**Modo subagente** (transcript `agent-<agentId>.jsonl`, aberto pelo chat de subagente, §5.3.1): a entrada é `TranscriptParseMode.subagent(forkToolUseId: String?)`, em `MochaTranscript` (o padrão é `.main`), que o `TranscriptStore` monta a partir do `SubagentTranscript` (§4.1.1). Valem as mesmas regras, com estas diferenças:
+- linhas com `isSidechain == true` são aceitas;
+- a primeira linha `user` com `parentUuid == null` vira `task(text:)` (a tarefa que o pai passou), com o id da linha;
+- **fork** (`meta.isFork`, fronteira em `meta.toolUseId`): tudo até a linha `user` que traz o `tool_result` de `tool_use_id == meta.toolUseId` é pulado (o `fork-context-ref`, ou as linhas copiadas do pai-subagente num fork aninhado, e a cópia do `tool_use`). Essa linha vira `task(text:)` com o texto do bloco `text` depois de `Your directive: ` (o bloco inteiro, se o marcador faltar);
+- `Agent` e `Task` dentro dele viram `subagent` (aninhado), pelas regras acima;
+- `system`/`turn_duration` não gera `turnFooter`: o rodapé do fim e o motivo da falha vêm do `ChatMeta.subagent` (§5.2), e o app os desenha (§6.3);
+- o título do chat vem do daemon (§4.1.2), não de `ai-title`.
 
 Regras:
 
@@ -360,7 +400,8 @@ Regras:
   - O título vem do último `ai-title`, que começa como frase e depois vira o nome em kebab-case (igual ao título do terminal). Na falta dele, vem de `terminal_title_stripped` do Herdr.
 - **Meta da Home** (campos do `TranscriptMeta`, §4.1.1, derivados dos mesmos itens da tabela acima):
   - `preview`: o último item `userPrompt` (autor `user`) ou `assistantText` (autor `assistant`) do arquivo. O texto passa por `PlainText.preview(fromMarkdown:)` (`MochaTranscript`): tira cercas e crases de código, marcadores de ênfase, `#` de título, marcadores de lista e de citação, troca `[texto](url)` por `texto`, junta todos os espaços e quebras num espaço só e corta em 200 caracteres, sem reticências. Um `userPrompt` só com imagens vira `[imagem]`. Sem nenhum desses itens (sessão nova ou recém-limpa), `nil`.
-  - `activity`: o último `toolCall` com `status == running`; sem nenhum rodando, o último `toolCall` do arquivo. Leva `name`, `summary` e `status`.
+  - `prompt`: o texto do último `userPrompt` do arquivo (inclusive `queued_command`), com a mesma limpeza e o mesmo corte do `preview` (`[imagem]` quando só tem imagens). Fica mesmo depois que o assistente responde; sem nenhum, `nil`. Só alimenta a Live Activity (§7.4) e não entra no `AgentSummary`.
+  - `activity`: o último `toolCall` com `status == running`; sem nenhum rodando, o último `toolCall` do arquivo. Leva `name`, `summary` e `status`. Os itens `subagent` e `workflow` não são `toolCall` e não entram aqui.
   - `contextTokens`: `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` do `message.usage` da última linha `assistant` que não seja `<synthetic>` nem erro de API (sem `output_tokens`; sidechain já é ignorada).
   - `sessionStartedAt`: o `timestamp` da primeira linha do arquivo que tem `timestamp`.
   - `turnStartedAt`: o `timestamp` do último `userPrompt` vindo de uma linha `user` (o `queued_command` não abre turno).
@@ -387,8 +428,8 @@ Política para tipos novos:
   - Meta: `chatPage` em < 300 ms para um arquivo de 50 MB no M1 (fixture de `scripts/gen-big-transcript.swift`).
 - **Acompanhamento**: `DispatchSource.makeFileSystemObjectSource` (`.extend`, `.write`, `.rename`, `.delete`), lendo de `lastOffset` até o fim. Linha incompleta (sem `\n`) fica em buffer até completar.
 - **Arquivo que ainda não existe** (sessão nova sem mensagem): observar o diretório do projeto, ou `~/.claude/projects/` se ele também não existir, até o arquivo aparecer.
-- **Cursor de paginação**: opaco para o app. Internamente é `<sessionId>:<offset>`, com o offset da primeira linha da página que gera item, que precisa ser o início de uma linha do índice. Linhas sem item entre duas páginas (resultados, saídas) ficam na página mais antiga. `hasMore` é `true` quando existe uma linha com item antes da página; sem ele, `before` vem `nil`. Cursor de outra sessão ou fora do índice é inválido (§5.3.1).
-- O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, ou com agente `working`/`blocked` (necessário para a Home ao vivo, o push e a Live Activity). Fora disso, fecha o descritor.
+- **Cursor de paginação**: opaco para o app. Internamente é `<sessionId>:<offset>`, com o offset da primeira linha da página que gera item, que precisa ser o início de uma linha do índice. No chat de subagente, é `<sessionId>/<agentId>:<offset>`, no arquivo do subagente. Linhas sem item entre duas páginas (resultados, saídas) ficam na página mais antiga. `hasMore` é `true` quando existe uma linha com item antes da página; sem ele, `before` vem `nil`. Cursor de outra sessão, de outro subagente ou fora do índice é inválido (§5.3.1).
+- O daemon só acompanha arquivos de sessões com chat aberto em algum cliente, com agente `working`/`blocked` (necessário para a Home ao vivo, o push e a Live Activity) ou com subagente ou workflow `running` (§3.5). Fora disso, fecha o descritor.
 - **Meta sem acompanhamento**: com a sessão acompanhada, o `TranscriptMeta` sai do estado já montado. Fora disso, `meta(forSession:)` lê o fim do arquivo de trás para a frente, em blocos, até achar todos os campos ou ler 8 MB (o que faltar fica `nil`), e a primeira linha para o `sessionStartedAt`. O resultado fica em cache por tamanho e mtime.
 
 ### §3.3 Hooks do Claude Code
@@ -443,6 +484,96 @@ O Mac tem o `moshi-hook` (Homebrew, serviço `sh.brew.moshi-hook`) instalado com
   3. sem os dois, `nil`.
 - **Sem cache**: arquivo ausente ou inválido → sem `usage` para os clientes (o app esconde a pílula de uso) e contexto só pelo transcript. O `doctor` mostra o item Uso: ✅ com a idade do cache, ⚠️ sem o arquivo.
 
+### §3.5 Subagentes e workflows
+
+Fase subagentes. Formatos conferidos no Claude Code 2.1.283, cobertos pelas fixtures redigidas de `MochaKit/Fixtures/transcripts/`. Nada disto é documentado pela Anthropic: a leitura é tolerante como a da §3.2.2, e campos desconhecidos são ignorados.
+
+#### §3.5.1 Arquivos e ligação
+
+```
+~/.claude/projects/<proj>/
+  <sessionId>.jsonl                          transcript principal
+  <sessionId>/
+    subagents/
+      agent-<agentId>.jsonl                  transcript do subagente (append)
+      agent-<agentId>.meta.json              sidecar (reescrito inteiro, com inode novo)
+      workflows/
+        wf_<runId>/                          um por workflow; pode ser symlink (§3.5.3)
+          journal.jsonl                      progresso (append)
+          agent-<agentId>.jsonl, .meta.json  agentes do workflow
+    workflows/
+      wf_<runId>.json                        estado final (escrito uma vez, no fim)
+      scripts/<nome>-<runId>.js              script de um Workflow com script inline
+```
+
+- **Ids**: `agentId` = `a` + 16 hex; `runId` = `wf_` + 8 hex + `-` + 3 hex; `taskId` de workflow = `w` + 8 alfanuméricos; o de Bash e Monitor, `b` + 8.
+- **O que é subagente**: cada `tool_use` `Agent` (ou `Task`, o nome antigo) do transcript principal; os aninhados (`meta.spawnDepth == 2`, `meta.parentAgentId`), com o arquivo no mesmo `subagents/` e o `tool_use` dentro do arquivo do pai; e os agentes de workflow (`meta.agentType == "workflow-subagent"`, arquivo em `workflows/wf_<runId>/`, sem `tool_use` próprio). O fork (`agentType: "fork"`, `isFork: true`) é um subagente comum. A skill que roda como agente (meta com `name` e sem `toolUseId`) é ignorada.
+- **Ligação**: `tool_use.id` = `meta.toolUseId`; `toolUseResult.agentId` do `tool_result` = `<task-id>` da notificação = o `<agentId>` do nome do arquivo. A chave confiável é o `agentId`. O workflow liga pelo `toolUseResult.runId` e pelo `toolUseResult.taskId` do `tool_result` do `Workflow`.
+- **`meta.json`**: campos usados `agentType`, `description`, `toolUseId`, `parentAgentId`, `spawnDepth`, `isFork`, `workflowPhase`, `name` e `stoppedByUser`; os outros são ignorados. Ele não tem estado nem horários. O tipo exibido é o `agentType` sem o prefixo de plugin (o texto depois do último `:`), e o daemon já o manda assim.
+- **Escrita**:
+  - os `.jsonl` crescem por append: leitura incremental por offset, com a última linha parcial em buffer (§3.2.3);
+  - o `meta.json` é reescrito inteiro com inode novo: é relido pelo caminho a cada evento do diretório, nunca por um descritor aberto;
+  - o `.jsonl` e o `meta.json` nascem em qualquer ordem: um `.jsonl` sem meta é aceito, e o meta completa os campos quando chega;
+  - em `subagents/`, tudo o que não é `agent-<id>.jsonl`, `agent-<id>.meta.json` ou `workflows/` é ignorado, inclusive os sidecars `*.forked-skill*.json`. Nunca varrer `**/*.jsonl`: o `journal.jsonl` também é `.jsonl`.
+
+#### §3.5.2 Estado de um subagente
+
+`SubagentStatus` (§5.2): `running`, `completed`, `failed` e `stopped` (parado pelo Claude com `TaskStop` ou pelo usuário). O estado é o do sinal mais recente, e os sinais chegam nesta ordem:
+
+**(a) Fim no próprio arquivo**, pela última linha que não é `attachment`:
+
+| Última linha | Estado |
+|---|---|
+| `assistant` com bloco `text` e `stop_reason == "end_turn"` (com ou sem o `SubagentHandback` antes) | `completed` |
+| `assistant` com `isApiErrorMessage == true` (modelo `<synthetic>`) | `failed`; motivo = o texto do bloco |
+| `user` com o bloco `text` `[Request interrupted by user]` | `stopped` |
+| agente de workflow: `user` com o `tool_result` do `tool_use` `StructuredOutput` | `completed` |
+| qualquer outra | `running` |
+
+`meta.stoppedByUser == true` também vale `stopped`.
+
+**(b) `queue-operation` com `operation == "enqueue"`** no transcript principal, com o texto da notificação do agente. É gravado no instante do fim, inclusive para os aninhados, cuja notificação é entregue no transcript do pai-subagente.
+
+**(c) Notificação entregue** no transcript principal (`attachment` `queued_command` com `commandMode == "task-notification"`, ou `user` com `origin.kind == "task-notification"`), com o `<status>` e o `<usage>` finais. Uma notificação já aplicada pelo `enqueue` não muda o estado; só completa o que faltava.
+
+- Os blocos de (b) e (c) seguem a notificação de tarefa da §3.2.2: `completed` → `completed`, `failed` → `failed`, `killed` → `stopped`, e a nota interina ("stopped with background work of its own still running") → `running`.
+- Uma linha nova que não seja `attachment` no arquivo do subagente depois de um fim (retomado por `SendMessage`, com `origin.kind: "coordinator"`) volta para `running`. Um `attachment` depois do fim (ex.: `prompt_snapshot` depois do `end_turn`) não muda o estado.
+- Sem marcador de fim, o estado fica `running`, mesmo que o processo do Claude tenha caído. Numa saída normal do Claude, os subagentes ganham `[Request interrupted by user]`.
+- Na primeira leitura de uma sessão (daemon iniciando, sessão nova no conjunto observado), os sinais já gravados são comparados pelo `timestamp`: vale o mais recente entre a última linha do arquivo do subagente e as notificações dele.
+
+**Métricas**, do arquivo do subagente (num fork, só depois da fronteira da §3.2.2):
+- `activity` (ferramenta atual): o último `tool_use` sem `tool_result`, com o `summary` da §3.2.2; `nil` sem ferramenta pendente e fora de `running`.
+- `toolUses`: número de blocos `tool_use`.
+- `startedAt`: `timestamp` da primeira linha que tem `timestamp` (num fork, o da linha da fronteira).
+- `durationMs`, só no fim: `<usage><duration_ms>` da notificação; sem ela, o `timestamp` da última linha menos o `startedAt`.
+- `failureReason`, só em `failed`: quando a última linha do arquivo do subagente (fora os `attachment`) é o erro sintético, o texto dele ("API Error: …"), que não muda quando a notificação chega; senão, o texto do `<summary>` depois de `failed: ` ("Agent terminated early due to an API error: …"). Fica no original, em inglês, sem tradução.
+- Tokens não entram no protocolo.
+
+#### §3.5.3 Workflows
+
+- **Lançamento**: `tool_use` `Workflow` com `input` `{args, script}` ou `{args, scriptPath}`. O `tool_result` traz `toolUseResult` com `status: "async_launched"`, `runId` (`wf_…`), `taskId` (`w…`), `workflowName`, `transcriptDir` e `scriptPath`.
+- **Ao vivo**: `subagents/workflows/wf_<runId>/journal.jsonl`, sem timestamps, com três tipos de linha: `{"type":"launched"}`, `{"type":"started","key","agentId","label","phase"}` e `{"type":"result","key","agentId","result"}`. Uma nova tentativa grava outro `started` com a mesma `key` e outro `agentId`: vale o último. Cada agente tem o `meta.json` (`description` = `label`, `workflowPhase` = `phase`) e o transcript, como na §3.5.1.
+- **Fases**: vêm do literal `export const meta = { …, phases: [{title, detail?}, …] }` do script: o `input.script` ou o arquivo de `input.scriptPath` (ou do `toolUseResult.scriptPath`), lido até 1 MB. O parser (`WorkflowScriptMeta`, em `MochaTranscript`) é tolerante: acha o objeto `meta`, lê o `name` e a chave `phases`, e em cada objeto do array lê `title` e `detail` como literal de string (aspas simples, duplas ou crase sem `${`). Qualquer outra forma é falha, sem erro, e as fases passam a ser as vistas no journal, na ordem da primeira aparição.
+- **Agentes de uma fase**: os `started` do journal com aquela `phase` (a última tentativa de cada `key`), na ordem do journal. O estado de cada um segue a §3.5.2, e a linha `result` do journal confirma `completed`.
+- **Estado da fase** (`WorkflowPhaseStatus`): `pending` sem agente; `running` com algum agente `running`; `failed` sem nenhum `running` e com algum `failed` ou `stopped`; `completed` nos demais.
+- **Contagens ao vivo**: `agentCount` = número de `key` distintas; `toolUses` = soma do `toolUses` da última tentativa de cada `key`; `startedAt` = `timestamp` da linha do `tool_use`.
+- **Fim**, pelo que chegar primeiro:
+  - `workflows/wf_<runId>.json`, escrito uma vez no fim, procurado no `workflows/` da sessão e, se não estiver lá, no de outra sessão do mesmo projeto: `status` (`completed`, `failed`, `killed` → `stopped`), `phases` (com `detail`; substituem as extraídas do script), `agentCount`, `totalToolCalls` (→ `toolUses`), `durationMs` e `workflowProgress` (estado final de cada agente: `done` → `completed`, `error` → `failed`);
+  - a notificação `Dynamic workflow "…" completed` (`<task-id>` `^w…`), pela §3.2.2.
+- `WorkflowStatus`: `running`, `completed`, `failed` e `stopped`.
+- **Workflow retomado em outra sessão**: `subagents/workflows/wf_<runId>` pode ser um symlink para o diretório de outra sessão. O daemon segue o link e deduplica pelo caminho real.
+
+#### §3.5.4 Leitura no daemon
+
+- O `SubagentStore` (§4.1.1) observa as sessões atuais dos agentes Claude da árvore e as sessões dos chats abertos. Por sessão:
+  - `DispatchSource` de diretório em `<sessionId>/subagents/`, `subagents/workflows/`, cada `wf_<runId>/` e `<sessionId>/workflows/`, para ver arquivos novos e o `meta.json` reescrito. Enquanto um deles não existe, observa o ancestral existente mais próximo, até o diretório do projeto;
+  - `DispatchSource` de arquivo (`.extend`, `.write`, `.rename`, `.delete`) e leitura incremental em cada `agent-<id>.jsonl` `running` e em cada `journal.jsonl` de workflow `running`. O descritor fecha no fim;
+  - leitura do transcript principal, só para os sinais (b) e (c) da §3.5.2 e para o `tool_use` e o `tool_result` de `Workflow` (script, nome e `runId`):
+    - na primeira observação, do fim para trás, em blocos, até 8 MB (como o meta sem acompanhamento, §3.2.3). Um subagente cujos sinais ficaram antes disso vale só pelo sinal (a), e as fases de um workflow lançado antes vêm do journal;
+    - depois, incremental a partir do último offset lido, com `DispatchSource` de arquivo próprio, nas mesmas condições do acompanhamento da §3.2.3 (chat aberto, agente `working`/`blocked` ou subagente ou workflow `running`). Fora delas, fecha o descritor e retoma do último offset quando a sessão volta a ser acompanhada;
+    - só são decodificadas as linhas que passam por um pré-filtro de texto; a detecção em si é pelos campos da §3.2.2.
+- O estado de um arquivo terminado fica em cache por tamanho e mtime e não é relido.
+
 ---
 
 ## §4 mochad (daemon do Mac)
@@ -456,6 +587,7 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `HerdrClient` (`MochaHerdr`) | Conexões com o socket, requisições com id, stream de eventos (`AsyncStream`) que termina no EOF |
 | `HerdrBridge` | Snapshot inicial, inscrições e reconexão (§3.1.3), árvore derivada (§3.1.4), comandos (prompt, Esc, teclas, nova tab) |
 | `TranscriptStore` | Resolução de arquivo, índice de offsets, páginas, acompanhamento, deltas por sessão |
+| `SubagentStore` | Subagentes e workflows das sessões observadas: estado, métricas, contagem dos que rodam e resolução do arquivo do subagente (§3.5) |
 | `SessionHub` | Clientes conectados, chats abertos por cliente, primeiro plano por cliente, broadcast |
 | `UsageMonitor` | Cache de uso do plugin e plano da conta (§3.4); contexto usado por sessão |
 | `SessionArchive` | Sessões encerradas e arquivamento pelo usuário, persistidos em `sessions.json` (§4.9) |
@@ -548,6 +680,7 @@ public protocol TranscriptProviding: Sendable {
 public struct TranscriptSession: Sendable, Hashable {
     public var sessionId: String
     public var transcriptPath: String?     // do hook, quando existe (§3.2.1)
+    public var subagent: SubagentTranscript?   // transcript de subagente: parser no modo subagente (§3.2.2)
 }
 
 public struct TranscriptPage: Sendable {
@@ -577,6 +710,7 @@ public struct TranscriptMeta: Sendable, Equatable {
     public var claudeVersion: String?
     public var lastModified: Date?         // mtime do arquivo
     public var preview: MessagePreview?    // §3.2.2, meta da Home
+    public var prompt: String?             // §3.2.2, último pedido do usuário
     public var activity: ToolActivity?
     public var contextTokens: Int?
     public var sessionStartedAt: Date?
@@ -597,6 +731,7 @@ public enum TranscriptError: Error, Sendable, Equatable {
 ```
 
 - `open` é atômico: devolve a última página e um stream com os deltas a partir do fim dela, sem perder nem duplicar linhas gravadas entre a leitura e a inscrição.
+- Com `subagent`, o arquivo é o `subagent.path` (não se resolve pelo `sessionId`), o parser roda no modo subagente com a fronteira de fork `subagent.forkToolUseId`, e o cursor é o do chat de subagente (§3.2.3).
 - Contagem de referência por assinante: o arquivo é acompanhado enquanto houver ao menos uma inscrição viva. Cancelar uma inscrição (`cancel()` ou fim da `Task` consumidora) não afeta as outras.
 - `page`: cursor inválido ou de outra sessão lança `TranscriptError.invalidCursor`.
 - `meta(forSession:)` é lido do fim do arquivo, sem índice completo, com cache por tamanho e mtime. Devolve `nil` se o arquivo não existe.
@@ -629,11 +764,73 @@ public protocol SessionArchiving: Sendable {
 }
 ```
 
-**Fakes**: `FakeHerdrBridge` (`MochaTestSupport/Herdr/`), `FakeTranscriptProvider` (`MochaTestSupport/Transcript/`), `FakeUsageProvider` (`MochaTestSupport/Usage/`) e `FakeSessionArchive` (`MochaTestSupport/Sessions/`) implementam os protocolos e são controlados pelo teste: emitem eventos, fixam a árvore, as páginas, o uso e as sessões e contam as chamadas.
+**`SubagentProviding`**: declarado em `MochaDaemonCore/Subagents/` e implementado pelo `SubagentStore` (§3.5, fase subagentes).
+
+```swift
+public protocol SubagentProviding: Sendable {
+    func events() -> AsyncStream<SubagentEvent>
+    func observe(sessions: Set<String>) async
+    func runningCount(session sessionId: String) async -> Int
+    func subagents(session sessionId: String) async -> [SubagentSummary]
+    func state(_ agentId: String) async -> SubagentState?
+    func workflow(_ runId: String) async -> WorkflowState?
+    func transcript(session sessionId: String, agentId: String) async -> SubagentTranscript?
+}
+
+public struct SubagentTranscript: Sendable, Hashable {
+    public var agentId: String
+    public var path: String                // agent-<agentId>.jsonl, com os symlinks resolvidos
+    public var forkToolUseId: String?      // meta.toolUseId de um fork: a fronteira (§3.2.2)
+}
+
+public struct SubagentState: Sendable, Equatable {
+    public var agentId: String
+    public var sessionId: String
+    public var toolUseId: String?          // meta.toolUseId
+    public var parentAgentId: String?      // aninhado
+    public var runId: String?              // agente de workflow
+    public var agentType: String           // sem o prefixo de plugin
+    public var description: String         // no agente de workflow, o label
+    public var status: SubagentStatus
+    public var activity: ToolActivity?
+    public var toolUses: Int
+    public var startedAt: Date?
+    public var durationMs: Int?
+    public var failureReason: String?
+}
+
+public struct WorkflowState: Sendable, Equatable {
+    public var runId: String
+    public var sessionId: String
+    public var toolUseId: String?
+    public var name: String?               // workflowName ou o name do meta do script
+    public var status: WorkflowStatus
+    public var phases: [WorkflowPhase]
+    public var agentCount: Int
+    public var toolUses: Int
+    public var durationMs: Int?
+}
+
+public enum SubagentEvent: Sendable {
+    case subagent(SubagentState)
+    case workflow(WorkflowState)
+    case runningCount(sessionId: String, count: Int)
+}
+```
+
+- `events()`: cada chamada cria um assinante novo, com buffer `.bufferingNewest(256)`. Cada mudança no estado de um subagente ou de um workflow sai uma vez, e `runningCount` sai quando a contagem de uma sessão muda.
+- `observe(sessions:)` recebe o conjunto de sessões observadas (§3.5.4), que o `SessionHub` atualiza a cada árvore e a cada chat aberto ou fechado. Uma sessão que sai do conjunto tem os descritores fechados, e o cache fica.
+- `runningCount(session:)`: subagentes `running` da sessão, contando os de `Agent`, os aninhados e os agentes de workflow (a última tentativa de cada `key`).
+- `subagents(session:)`: só os de `Agent`, inclusive os aninhados, na ordem de `listSubagents` (§5.3.1). Os agentes de workflow ficam no card do workflow.
+- `state(_:)` e `workflow(_:)` devolvem `nil` para agente ou workflow fora das sessões observadas.
+- `transcript(session:agentId:)` procura `~/.claude/projects/*/<sessionId>/subagents/agent-<agentId>.jsonl` e depois `~/.claude/projects/*/<sessionId>/subagents/workflows/wf_*/agent-<agentId>.jsonl`, lê o `meta.json` para a fronteira do fork e devolve `nil` sem arquivo. Vale também para sessão não observada.
+- Erro de E/S vira log e estado vazio, sem lançar.
+
+**Fakes**: `FakeHerdrBridge` (`MochaTestSupport/Herdr/`), `FakeTranscriptProvider` (`MochaTestSupport/Transcript/`), `FakeUsageProvider` (`MochaTestSupport/Usage/`), `FakeSessionArchive` (`MochaTestSupport/Sessions/`) e `FakeSubagentProvider` (`MochaTestSupport/Subagents/`) implementam os protocolos e são controlados pelo teste: emitem eventos, fixam a árvore, as páginas, o uso, as sessões e os subagentes e contam as chamadas.
 
 #### §4.1.2 Composição
 
-O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para os clientes.
+O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subagentes, o `SubagentProviding` no que vai para os clientes.
 
 - **Fronteira**: o `HerdrBridge` monta a árvore inteira com o que vem do Herdr e do git (ids, rótulos, `number`, `repoName`, `branch`, `isDirty`, tabs, agentes com `kind`, `status`, `sessionId`, `branch` e o `title` do terminal, e o `agentStatus` agregado). O `SessionHub` sobrescreve em cada `AgentSummary` com sessão: `title`, `model`, `lastActivityAt`, `preview`, `activity`, `sessionStartedAt`, `turnStartedAt` e `turnEndedAt` (do `TranscriptMeta`), `contextLeftPercent` (§3.4, primeiro o `UsageProviding`, depois o `contextTokens`) e `archivedAt` (do `SessionArchiving`).
 - **Home ao vivo**: o `SessionHub` mantém uma inscrição no `TranscriptProviding` (`open`) para cada agente `working` ou `blocked`, mesmo sem chat aberto, e a solta 30 s depois de o agente sair desses estados (o `turn_duration` chega logo depois do `Stop`). Para os demais agentes, usa `meta(forSession:)` a cada `tree` recomposto.
@@ -652,6 +849,15 @@ O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para
 - **Arquivamento**: a cada `turnStartedAt` novo de uma sessão, o `SessionHub` chama `SessionArchiving.turnStarted`, que apaga o `archivedAt` anterior a ele. Quando a sessão de um agente muda, a antiga vai para `sessionEnded` com `reason: cleared`; quando o agente some da árvore (pane fechado, pane que saiu, Claude encerrado), a sessão dele vai com `reason: ended`. O registro leva o último `AgentSummary` conhecido.
 - **`pane_moved`**: mensagens com o id antigo são traduzidas por `resolve`. O app reaponta o chat aberto pelo `sessionId` que vem no `treeChanged` (§6.1).
 - **Herdr indisponível**: o `SessionHub` continua servindo a última árvore conhecida e responde `herdrUnavailable` a `sendPrompt` e `interrupt`. `helloOk.host.herdrConnected` reflete o estado no momento do `hello`, e cada mudança depois dele sai em `herdrStatus`. Enquanto o Herdr está indisponível, nenhuma sessão vai para o arquivo por sumir da árvore.
+- **Subagentes e workflows** (fase subagentes):
+  - o `SessionHub` passa ao `SubagentProviding.observe(sessions:)` as sessões atuais dos agentes Claude da árvore e as dos chats abertos;
+  - **cards ao vivo**: em todo `chatPage`, `chatAppend` e `chatUpdate`, um item `subagent` com `agentId` conhecido recebe `status`, `activity`, `toolUses`, `startedAt`, `durationMs` e `failureReason` do `state(agentId)`, e um item `workflow` com `runId` recebe `status`, `phases`, `agentCount`, `toolUses` e `durationMs` do `workflow(runId)` (o `startedAt` do parser fica). Sem estado no `SubagentProviding`, vale o do parser;
+  - um evento do `SubagentProviding` que muda um card de chat aberto gera `chatUpdate` com o item sobreposto, no máximo 1 por card a cada 1 s; mudança de `status` sai na hora. Um agente de workflow atualiza o card do workflow dele;
+  - `AgentSummary.runningSubagents` = `runningCount(session:)` da sessão atual do agente; a mudança gera `treeChanged`, com o debounce de sempre;
+  - um agente com `runningSubagents > 0` é acompanhado como um `working` na Home ao vivo, mesmo `idle`: o `SessionHub` mantém a inscrição do transcript e a solta 30 s depois de a contagem zerar;
+  - `listSubagents` responde com `subagents(session:)` da sessão atual do agente (§5.3.1);
+  - **chat de subagente** (`ChatTarget.subagent`): o arquivo vem de `transcript(session:agentId:)` e é aberto pelo `TranscriptProviding` com `TranscriptSession.subagent`. `ChatMeta.title` é a `description` do subagente (o `label`, no agente de workflow); `model` e `branch` vêm do transcript do subagente; `workspaceLabel` é o do chat pai (do agente atual da sessão ou da `ArchivedSession`; vazio sem nenhum dos dois); `permissionMode` é `nil`; `status` é `unknown`; e `subagent` sai do `state(agentId)`, com `parentTitle` = o título do chat pai: o do chat da sessão (regra do `ChatMeta.title` acima) para um subagente de primeiro nível ou agente de workflow, e a `description` do pai para um aninhado;
+  - o `chatMeta` do chat de subagente sai quando muda o `ChatMeta.subagent`, com o mesmo limite de 1 s dos cards; mudança de `status` sai na hora.
 
 ### §4.2 CLI
 
@@ -666,7 +872,7 @@ O `SessionHub` junta o `HerdrBridging` e o `TranscriptProviding` no que vai para
 | `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
 | `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
-| `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity (1b), com `--working`, `--waiting`, `--title`, `--priority`, `--stale-in` e `--dismiss-in` |
+| `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity por agente (1b, §7.4), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
 | `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
 
@@ -785,7 +991,7 @@ Mensagens WebSocket de texto, JSON UTF-8. Datas em ISO-8601 com milissegundos. C
 ```
 
 - `v`: versão do protocolo. Um cliente com `v` diferente recebe `error{code:"protocolMismatch"}` e é desconectado.
-- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `archived`, `usage`, `herdrStatus`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
+- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `subagentList`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `archived`, `usage`, `herdrStatus`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
 - Tipo desconhecido vindo do cliente: o daemon responde `error{code:"unknownType"}` e segue. Tipo desconhecido vindo do servidor: o app ignora a mensagem.
 - `payload` ausente equivale a `{}`.
 
@@ -856,6 +1062,7 @@ public struct AgentSummary: Codable, Sendable, Identifiable {
     public var turnStartedAt: Date?
     public var turnEndedAt: Date?
     public var archivedAt: Date?           // arquivado pelo usuário e sem turno novo depois (§4.9)
+    public var runningSubagents: Int?      // subagentes running da sessão atual (§3.5); nil ou 0 esconde o selo
 }
 
 public enum MessageAuthor: String, Codable, Sendable { case user, assistant }
@@ -906,6 +1113,7 @@ public struct UsageSnapshot: Codable, Sendable {
 public enum ChatTarget: Sendable, Hashable {
     case agent(AgentID)                    // chat vivo
     case session(String)                   // sessionId de uma sessão arquivada: só leitura
+    case subagent(sessionId: String, agentId: String)   // transcript de subagente (inclusive de workflow): só leitura
 }
 
 public enum ToolStatus: String, Codable, Sendable { case running, succeeded, failed }
@@ -919,12 +1127,59 @@ public struct ToolCall: Codable, Sendable {
     public var resultPreview: String?      // truncado em 2.000 caracteres
 }
 
+public enum SubagentStatus: String, Codable, Sendable { case running, completed, failed, stopped }
+public enum WorkflowStatus: String, Codable, Sendable { case running, completed, failed, stopped }
+public enum WorkflowPhaseStatus: String, Codable, Sendable { case pending, running, completed, failed }
+
+public struct SubagentCall: Codable, Sendable {
+    public var toolUseId: String
+    public var agentId: String?            // do tool_result; nil até o lançamento
+    public var agentType: String           // sem o prefixo de plugin (§3.5.1)
+    public var description: String
+    public var status: SubagentStatus
+    public var activity: ToolActivity?     // ferramenta atual, só em running
+    public var toolUses: Int
+    public var startedAt: Date?
+    public var durationMs: Int?            // só no fim
+    public var failureReason: String?      // só em failed; texto original, em inglês
+}
+
+public struct WorkflowCall: Codable, Sendable {
+    public var toolUseId: String
+    public var runId: String?              // do tool_result
+    public var name: String
+    public var status: WorkflowStatus
+    public var phases: [WorkflowPhase]
+    public var agentCount: Int
+    public var toolUses: Int
+    public var startedAt: Date?
+    public var durationMs: Int?            // só no fim
+}
+
+public struct WorkflowPhase: Codable, Sendable {
+    public var title: String
+    public var detail: String?
+    public var status: WorkflowPhaseStatus
+    public var agents: [WorkflowAgent]
+}
+
+public struct WorkflowAgent: Codable, Sendable {
+    public var agentId: String
+    public var label: String
+    public var status: SubagentStatus
+    public var activity: ToolActivity?     // ferramenta atual, só em running
+    public var durationMs: Int?            // só no fim
+}
+
 public enum ChatItemKind: Codable, Sendable {
     case userPrompt(text: String, imageCount: Int)
     case slashCommand(name: String, args: String, output: String?)   // name: "/x" ou "!" (comando de shell do terminal)
     case assistantText(markdown: String)
     case thinking(text: String?)
     case toolCall(ToolCall)
+    case subagent(SubagentCall)            // chamada de Agent (§3.2.2)
+    case workflow(WorkflowCall)            // chamada de Workflow (§3.2.2)
+    case task(text: String)                // tarefa no topo do transcript de subagente
     case turnFooter(durationMs: Int)
     case recap(text: String)
     case notice(text: String)
@@ -944,6 +1199,28 @@ public struct ChatMeta: Codable, Sendable {
     public var branch: String?
     public var status: AgentStatus
     public var permissionMode: String?
+    public var subagent: SubagentChatInfo? // só no chat de subagente
+}
+
+public struct SubagentChatInfo: Codable, Sendable {
+    public var parentTitle: String         // título do chat pai
+    public var agentType: String
+    public var status: SubagentStatus
+    public var startedAt: Date?
+    public var durationMs: Int?
+    public var toolUses: Int
+    public var failureReason: String?
+}
+
+public struct SubagentSummary: Codable, Sendable {                      // item de subagentList
+    public var agentId: String
+    public var parentAgentId: String?      // aninhado: o app recua a linha
+    public var agentType: String
+    public var description: String
+    public var status: SubagentStatus
+    public var toolUses: Int
+    public var startedAt: Date?
+    public var durationMs: Int?
 }
 
 public enum PendingKind: Codable, Sendable {                            // 1b
@@ -980,15 +1257,17 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 
 - O caso vira o campo `"type"` e os valores associados viram campos irmãos, com os nomes dos rótulos.
 - Em structs que carregam um enum desses (`ChatItem.kind`, `PendingRequest.kind`), os campos do enum são **achatados** no objeto do struct.
-- Um struct associado (`toolCall(ToolCall)`) também tem os campos achatados.
+- Um struct associado (`toolCall(ToolCall)`, `subagent(SubagentCall)`, `workflow(WorkflowCall)`) também tem os campos achatados. Os campos dele que são structs ou listas (`activity`, `phases`, `agents`) ficam como objetos e listas comuns.
 - Opcionais `nil` são omitidos. Datas em ISO-8601 com milissegundos (`2026-09-25T15:44:34.551Z`).
 - O `Codable` é implementado à mão, com testes de ida e volta contra as fixtures de `MochaKit/Fixtures/protocol/`.
 - Um `type` desconhecido em `ChatItem` decodifica como `unsupported(type:)`; nos demais enums, como erro de decodificação só daquele item.
 - `AgentStatus` com valor desconhecido decodifica como `.unknown`.
-- Listas tolerantes: `items` de `chatPage`, `chatAppend` e `chatUpdate`, e `requests` de `pending`, descartam o item que não decodifica e mantêm os outros. As demais listas são estritas.
+- Listas tolerantes: `items` de `chatPage`, `chatAppend`, `chatUpdate` e `subagentList`, e `requests` de `pending`, descartam o item que não decodifica e mantêm os outros. As demais listas são estritas (inclusive `phases` e `agents` de um `workflow`).
 - Os códigos de `error` formam um conjunto aberto (`ProtocolErrorCode`): um código desconhecido é preservado.
-- **`ChatTarget`** é achatado no payload que o carrega: `.agent(id)` vira `"agentId": id`, e `.session(id)` vira `"sessionId": id`. Na decodificação, exatamente um dos dois precisa existir; os dois ou nenhum é erro de decodificação.
+- **`ChatTarget`** é achatado no payload que o carrega: `.agent(id)` vira `"agentId": id`, `.session(id)` vira `"sessionId": id`, e `.subagent(sessionId, agentId)` vira `"sessionId": sessionId, "subagentId": agentId`. Na decodificação, exatamente um entre `agentId` e `sessionId` precisa existir, e `subagentId` só vale junto com `sessionId`; os dois, nenhum, ou `subagentId` sem `sessionId` é erro de decodificação.
 - `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `AgentSummary.preview` e `AgentSummary.activity` inválidos (autor ou status desconhecido) decodificam como `nil`, sem derrubar a árvore. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
+- `SubagentStatus`, `WorkflowStatus` e `WorkflowPhaseStatus` com valor desconhecido são erro de decodificação do item que os carrega (o item sai da lista tolerante). `ChatMeta.subagent` inválido decodifica como `nil`.
+- Os campos e casos da fase subagentes são aditivos e o `v` continua 1: um app antigo recebe `subagent`, `workflow` e `task` como `unsupported`, e ignora `runningSubagents`, `ChatMeta.subagent` e a mensagem `subagentList`. O contrário não é suportado: o app da fase exige o `mochad` da mesma fase, e os dois sobem juntos.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
 
@@ -998,6 +1277,10 @@ Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
 {"id":"b7e0…","at":"2026-09-25T15:44:41.000Z","type":"toolCall","toolUseId":"toolu_01H3…","name":"Bash","summary":"scripts/test.sh","inputJSON":"{\"command\":\"scripts/test.sh\"}","status":"succeeded","resultPreview":"All tests passed"}
 {"id":"c1f4…","at":"2026-09-25T15:45:10.000Z","type":"turnFooter","durationMs":45000}
 {"id":"d2a9…","at":"2026-09-25T15:45:11.000Z","type":"slashCommand","name":"/clear","args":""}
+{"id":"e4b1…","at":"2026-09-26T13:52:10.000Z","type":"subagent","toolUseId":"toolu_01AG…","agentId":"a0123456789abcdef","agentType":"general-purpose","description":"Teste de carga /receitas","status":"running","activity":{"toolName":"Bash","summary":"k6 run --vus 50 --duration 2m load/list-recipes.js","status":"running"},"toolUses":9,"startedAt":"2026-09-26T13:52:11.000Z"}
+{"id":"f5c2…","at":"2026-09-26T13:50:02.000Z","type":"subagent","toolUseId":"toolu_01PL…","agentId":"a89abcdef01234567","agentType":"Plan","description":"Revisar o índice de receitas","status":"failed","toolUses":3,"startedAt":"2026-09-26T13:50:03.000Z","durationMs":48000,"failureReason":"Agent terminated early due to an API error: …"}
+{"id":"0a7d…","at":"2026-09-26T14:10:00.000Z","type":"workflow","toolUseId":"toolu_01WF…","runId":"wf_0a1b2c3d-4e5","name":"auditoria-a11y","status":"running","phases":[{"title":"Mapear telas","status":"completed","agents":[{"agentId":"a1111111111111111","label":"Mapear","status":"completed","durationMs":95000}]},{"title":"Corrigir por tela","detail":"uma tela por agente, com testes de UI","status":"running","agents":[{"agentId":"a2222222222222222","label":"Ajustes","status":"running","activity":{"toolName":"Edit","summary":"SettingsView.swift","status":"running"}}]},{"title":"Revisar","status":"pending","agents":[]}],"agentCount":5,"toolUses":86,"startedAt":"2026-09-26T14:10:00.000Z"}
+{"id":"1b8e…","at":"2026-09-26T13:52:11.000Z","type":"task","text":"Rode o teste de carga de GET /receitas com o k6 (load/list-recipes.js)…"}
 ```
 
 ```json
@@ -1020,6 +1303,10 @@ Envelope completo:
 {"v":1,"id":"c-9","type":"ack","payload":{}}
 {"v":1,"id":"c-9","type":"error","payload":{"code":"agentBlocked","message":"O agente está esperando uma resposta no terminal."}}
 {"v":1,"id":"c-11","type":"openChat","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","limit":60}}
+{"v":1,"id":"c-12","type":"openChat","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","subagentId":"a0123456789abcdef","limit":60}}
+{"v":1,"type":"chatMeta","payload":{"sessionId":"0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64","subagentId":"a0123456789abcdef","meta":{"title":"Teste de carga /receitas","workspaceLabel":"receitas-api","model":"claude-opus-5-5","branch":"development","status":"unknown","subagent":{"parentTitle":"Paginação com cursor em /receitas","agentType":"general-purpose","status":"completed","startedAt":"2026-09-26T13:52:11.000Z","durationMs":231000,"toolUses":12}}}}
+{"v":1,"id":"c-13","type":"listSubagents","payload":{"agentId":"w17:p1"}}
+{"v":1,"id":"c-13","type":"subagentList","payload":{"agentId":"w17:p1","items":[{"agentId":"a0123456789abcdef","agentType":"general-purpose","description":"Teste de carga /receitas","status":"running","toolUses":9,"startedAt":"2026-09-26T13:52:11.000Z"},{"agentId":"a76543210fedcba98","parentAgentId":"a0123456789abcdef","agentType":"Explore","description":"Achar o script de carga","status":"completed","toolUses":5,"startedAt":"2026-09-26T13:52:20.000Z","durationMs":41000}]}}
 {"v":1,"type":"usage","payload":{"plan":"Max 20x","account":"d•••@e•••.com","windows":[{"kind":"fiveHour","usedPercent":12,"resetsAt":"2026-09-26T07:00:00.000Z"},{"kind":"weekly","usedPercent":71,"resetsAt":"2026-09-28T14:00:00.000Z"}],"fetchedAt":"2026-09-26T03:21:03.000Z"}}
 ```
 
@@ -1027,15 +1314,16 @@ Envelope completo:
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
-Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage` e `LiveActivityRegistration`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`.
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage` e `LiveActivityRegistration`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`.
 
 **Cliente → servidor**
 
 | `type` | payload | Resposta | Fase |
 |---|---|---|---|
 | `hello` | `{deviceToken?: String, pairingCode?: String, deviceName: String, appVersion: String, apns?: ApnsRegistration}` (exatamente um entre `deviceToken` e `pairingCode`) | `helloOk` e depois `tree` | 1a-core (`apns` 1a-final) |
-| `openChat` | `{<ChatTarget>, before?: String, limit?: Int}` (`agentId` ou `sessionId`; `limit` padrão 60, máximo 200) | `chatPage` | 1a-core |
-| `closeChat` | `{<ChatTarget>}` | `ack{}` | 1a-core |
+| `openChat` | `{<ChatTarget>, before?: String, limit?: Int}` (`agentId`, `sessionId`, ou `sessionId` com `subagentId`; `limit` padrão 60, máximo 200) | `chatPage` | 1a-core (`subagentId`: subagentes) |
+| `closeChat` | `{<ChatTarget>}` | `ack{}` | 1a-core (`subagentId`: subagentes) |
+| `listSubagents` | `{agentId}` | `subagentList` | subagentes |
 | `sendPrompt` | `{agentId, text}` | `ack{}` | 1a-core |
 | `interrupt` | `{agentId}` | `ack{}` | 1a-core |
 | `setForeground` | `{agentId?: String, isActive: Bool}` | `ack{}` | 1a-core |
@@ -1060,6 +1348,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `treeChanged` | `{workspaces: [WorkspaceNode]}` (árvore inteira; é pequena) | Evento: mudança de árvore (debounce de 150 ms) |
 | `agentStatus` | `{agentId, status: AgentStatus, title?: String}` | Evento: mudança de status |
 | `chatPage` | `{<ChatTarget>, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
+| `subagentList` | `{agentId, items: [SubagentSummary]}` (lista tolerante, na ordem da §5.3.1) | Resposta a `listSubagents` |
 | `chatAppend` | `{<ChatTarget>, items: [ChatItem]}` | Evento: itens novos num chat aberto |
 | `chatUpdate` | `{<ChatTarget>, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
 | `chatMeta` | `{<ChatTarget>, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
@@ -1091,6 +1380,16 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - sessão sem arquivo em `~/.claude/projects/*/<sessionId>.jsonl` → `sessionNotFound`;
   - a sessão não precisa estar em `archived`; o chat é acompanhado como qualquer outro, e o `chatPage` e os eventos voltam com o mesmo `sessionId`;
   - `sendPrompt`, `interrupt` e `slash` só aceitam `agentId`: o app não oferece envio num chat de sessão.
+- **`openChat` e `closeChat` com `sessionId` e `subagentId`** (transcript de subagente, só leitura):
+  - `sessionId` fora do formato UUID, ou `subagentId` fora de `[A-Za-z0-9_-]{1,64}` → `invalidPayload`;
+  - sem arquivo em `~/.claude/projects/*/<sessionId>/subagents/agent-<subagentId>.jsonl` nem em `~/.claude/projects/*/<sessionId>/subagents/workflows/wf_*/agent-<subagentId>.jsonl` → `sessionNotFound`, com a mensagem "Subagente não encontrado";
+  - vale para subagentes de `Agent`, aninhados e agentes de workflow, de sessão atual ou não; o chat é acompanhado ao vivo como qualquer outro, e o `chatPage` e os eventos voltam com o mesmo `sessionId` e `subagentId`;
+  - `sendPrompt`, `interrupt`, `slash` e `archive` não aceitam alvo de subagente: os payloads deles não têm `subagentId`, e o app não oferece envio, interrupção nem arquivamento no chat de subagente.
+- **`listSubagents`**:
+  - agente desconhecido, depois de `resolve` → `agentNotFound`; agente com `kind != "claude"` → `invalidPayload`, com a mensagem do `openChat`; agente sem sessão → `subagentList` com `items: []`;
+  - `items` traz só os subagentes de `Agent` da sessão atual, inclusive os aninhados; os agentes de workflow ficam no card do workflow;
+  - ordem: primeiro os `running`, depois os terminados, cada grupo do mais recente ao mais antigo (pelo `startedAt` nos `running` e pelo fim, `startedAt` + `durationMs`, nos terminados); cada aninhado vem logo abaixo do pai, na mesma ordem entre irmãos, e um aninhado cujo pai não está na lista entra como de primeiro nível;
+  - sem push contínuo: o app pede a lista ao abrir o Detalhe e de novo a cada `treeChanged` que muda o `runningSubagents` do agente.
 - **`archive`**: `sessionId` que não é a sessão atual de nenhum agente da árvore → `sessionNotFound`. Aceito, o daemon responde `ack`, grava o arquivamento (§4.9) e manda `treeChanged` com o `archivedAt`.
 - **`sendPrompt`, `interrupt` e `slash`**: agente com `kind != "claude"` → `invalidPayload`, com a mesma mensagem do `openChat`.
 - **`newAgentTab`**:
@@ -1138,12 +1437,12 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 
 - SwiftUI, iOS 26+, só iPhone, só retrato na 1a.
 - Estado de UI em classes `@Observable @MainActor`.
-- Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Home/`, `AgentDetail/`, `Usage/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug).
+- Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Home/`, `AgentDetail/`, `Usage/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug). Na fase subagentes, `Chat/` ganha os cards `SubagentCard`, `WorkflowCard` e `TaskCard` e o chat de subagente (`ChatScreen(target: .subagent)`); `Home/`, o selo de subagentes; e `AgentDetail/`, a lista SUBAGENTES (§6.3).
 - Lógica pura de apresentação, testável no macOS, fica em `MochaClient/Presentation/`: seções da Home, ritmo do uso, tempos relativos ("agora", "há 4 min", "ontem"), abreviação do modelo e agrupamento de ferramentas.
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
 - **Deep links**: `mocha://agent/<paneId>` abre o chat por cima da Home (substitui o chat aberto, se houver) e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`. Os testes abrem deep links pelo argumento de launch `-open-url <url>` (só em Debug) e por teste unitário, nunca por `simctl openurl` (o aviso "Open in Mocha?" trava o simulador).
-- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), `-demo-offline` (junto com `-demo`, a conexão cai logo depois de entregar a árvore, as arquivadas e o uso, e fica em `waitingToRetry(.unreachable)`: Home sem conexão), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-open-settings` (abre Ajustes ao iniciar, para a captura da tela 12), só em Debug, `-pairing-error <unreachable|daemonNotRunning|unauthorized|pairingExpired>` (par chave-valor; junto com `-demo -demo-unpaired`, troca o `pairingRequired(nil)` pelo problema, para a captura da tela 01c), só em Debug, `-open-drawer` (abre a gaveta ao iniciar, depois do `-open-url`; com `-drawer.mode recent|tree` e `-drawer.collapsedWorkspaces <ids separados por quebra de linha>` no domínio de argumentos, serve às capturas da gaveta; os pares `-chave valor` vêm antes das flags), só em Debug, `-probe push` e `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`, ou da `MarkdownPreviewScreen` com `turn|elements|blocks|perf`), e, só em Debug e lidos dentro do chat, `-chat-open-session`, `-chat-scroll-to`, `-chat-scroll-anchor center|bottom`, `-chat-expand-tool`, `-chat-focus-composer`, `-chat-draft`, `-chat-send`, `-chat-older-delay`, `-chat-perf-sweep`, `-chat-attach-samples <n>` (par chave-valor; anexa n imagens de amostra geradas no app, antes do `-chat-focus-composer` e do `-chat-send`; com `-chat-send ''`, envia só as imagens) e `-chat-attach-menu` (com `-chat-focus-composer`, abre o menu do `+`), `-chat-slash-menu` (com `-chat-focus-composer`, abre o menu `↻`), `-chat-confirm-clear` (mostra a confirmação do `/clear`), `-chat-slash <comando>` (executa um item do menu `↻` sem confirmação) e `-chat-close-after <s>` (volta para a Home depois de s segundos) (servem às capturas e à medição do chat, §6.3 e §6.5), e, só em Debug e lidos em `Notifications/`, `-notification-tap <agentId>` (injeta um alerta de turno concluído desse agente pelo mesmo caminho do toque na notificação) e `-notification-tap-delay <s>` (atrasa essa injeção), e, só em Debug e lidos em `Drawer/`, `-drawer-new-tab <workspaceId>` (aciona o `+` desse workspace uma vez, quando a conexão chega a `.connected`), `-drawer-new-tab-delay <s>` (atrasa esse toque) e `-drawer-reopen-after <s>` (reabre a gaveta s segundos depois do toque, para a captura da tab nova). O `-probe` e o `-preview` são lidos só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
+- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), `-demo-offline` (junto com `-demo`, a conexão cai logo depois de entregar a árvore, as arquivadas e o uso, e fica em `waitingToRetry(.unreachable)`: Home sem conexão), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-open-settings` (abre Ajustes ao iniciar, para a captura da tela 12), só em Debug, `-pairing-error <unreachable|daemonNotRunning|unauthorized|pairingExpired>` (par chave-valor; junto com `-demo -demo-unpaired`, troca o `pairingRequired(nil)` pelo problema, para a captura da tela 01c), só em Debug, `-open-drawer` (abre a gaveta ao iniciar, depois do `-open-url`; com `-drawer.mode recent|tree` e `-drawer.collapsedWorkspaces <ids separados por quebra de linha>` no domínio de argumentos, serve às capturas da gaveta; os pares `-chave valor` vêm antes das flags), só em Debug, `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`, ou da `MarkdownPreviewScreen` com `turn|elements|blocks|perf`), e, só em Debug e lidos dentro do chat, `-chat-open-session`, `-chat-scroll-to`, `-chat-scroll-anchor center|bottom`, `-chat-expand-tool`, `-chat-focus-composer`, `-chat-draft`, `-chat-send`, `-chat-older-delay`, `-chat-perf-sweep`, `-chat-attach-samples <n>` (par chave-valor; anexa n imagens de amostra geradas no app, antes do `-chat-focus-composer` e do `-chat-send`; com `-chat-send ''`, envia só as imagens) e `-chat-attach-menu` (com `-chat-focus-composer`, abre o menu do `+`), `-chat-slash-menu` (com `-chat-focus-composer`, abre o menu `↻`), `-chat-confirm-clear` (mostra a confirmação do `/clear`), `-chat-slash <comando>` (executa um item do menu `↻` sem confirmação) e `-chat-close-after <s>` (volta para a Home depois de s segundos) (servem às capturas e à medição do chat, §6.3 e §6.5), e, só em Debug e lidos em `Notifications/`, `-notification-tap <agentId>` (injeta um alerta de turno concluído desse agente pelo mesmo caminho do toque na notificação) e `-notification-tap-delay <s>` (atrasa essa injeção), e, só em Debug e lidos em `Drawer/`, `-drawer-new-tab <workspaceId>` (aciona o `+` desse workspace uma vez, quando a conexão chega a `.connected`), `-drawer-new-tab-delay <s>` (atrasa esse toque) e `-drawer-reopen-after <s>` (reabre a gaveta s segundos depois do toque, para a captura da tab nova), e, só em Debug e lido dentro do chat, `-chat-open-subagent <agentId>` (abre por push o transcript desse subagente da sessão do chat aberto, para as capturas 16b e 16c), e, só em Debug e lido em `Home/`, `-home-open-detail <agentId>` (abre o Detalhe desse agente ao iniciar, para a captura 18). O `-preview` é lido só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
 
 **Conexão**: esboço normativo em `MochaProtocol`, como a §5.2.
 
@@ -1195,8 +1494,9 @@ public protocol ServerConnection: Sendable {
 - é o único consumidor de `messages` e `states`;
 - guarda o host, as preferências, a árvore, as sessões arquivadas, o uso, o `herdrConnected`, o estado da conexão, o chat visível e a navegação;
 - **navegação**: a Home é a raiz de um `NavigationStack`; o chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda ou tocar no disco de status do header. A gaveta é uma camada por cima (sem gesto de borda), aberta pelo botão esquerdo da Home e pela bússola do chat. Detalhe do agente, Uso e Ajustes são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
+- **chat de subagente** (fase subagentes): entra por push sobre a pilha atual (o chat pai, outro transcript de subagente ou, a partir do Detalhe, a pilha que está sob a folha: a Home ou o chat que abriu o Detalhe), e voltar volta à tela de baixo. Os chats da pilha ficam abertos no daemon (sem `closeChat`) enquanto estão nela, e cada um recebe `closeChat` ao sair dela;
 - correlaciona as respostas pelo id;
-- ao voltar para `.connected`, reabre o chat visível com `openChat` e substitui a lista;
+- ao voltar para `.connected`, reabre com `openChat` o chat visível e os que estão abaixo dele na pilha, e substitui as listas;
 - num `tree` ou `treeChanged`, se o `agentId` do chat visível sumiu e outro agente tem o mesmo `sessionId`, passa a usar o id novo.
 
 ### §6.2 Design system
@@ -1272,7 +1572,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Mostra só agentes com `kind == "claude"` e as sessões de `archived`. Seções, nesta ordem, cada uma só quando tem card:
   - **PRECISA DE VOCÊ**: `status == blocked`. Card com borda âmbar;
   - **TRABALHANDO**: `status == working`;
-  - **ARQUIVADOS**: `archivedAt != nil`; ou `sessionStartedAt` há mais de 6 h; ou `turnEndedAt ?? lastActivityAt` há 10 min ou mais; e todas as `ArchivedSession`;
+  - **ARQUIVADOS**: `archivedAt != nil`; ou `sessionStartedAt` há mais de 6 h; ou `turnEndedAt ?? lastActivityAt` há 10 min ou mais; e todas as `ArchivedSession`. As duas regras de tempo não valem com `runningSubagents > 0` (fase subagentes): o agente com subagente rodando fica em CONCLUÍDOS;
   - **CONCLUÍDOS**: os demais agentes.
   A regra é avaliada nessa ordem (blocked > working > arquivado > concluído), com o relógio local, a cada mudança da árvore e a cada 30 s. A lógica fica em `MochaClient/Presentation/` com testes. A ordem dentro da seção é `lastActivityAt` (ou `endedAt`) decrescente.
 - **Card**:
@@ -1364,10 +1664,49 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Terminal** (fase 2, `15-terminal`): folha sobre o chat com o terminal do pane (§9.1), aberta por "Abrir terminal" no Detalhe ou por uma tab de shell da gaveta.
 
+**Subagente no chat** (fase subagentes, `16-chat-subagente` e os estados abaixo dela no mock)
+- `subagent`: card `toolCard` próprio para cada chamada, sem agrupar com a seguinte (o agrupamento de chamadas consecutivas é só do `toolCall`):
+  - primeira linha: ícone de subagente, o tipo em negrito (sem o prefixo de plugin, que o daemon já tira: `feature-dev:code-reviewer` → `code-reviewer`), a descrição (truncada no fim) e, à direita, o giro (`running`), ✓ (`completed`), ✗ em `error` (`failed`) ou ■ (`stopped`);
+  - em `running` com `activity`, uma linha recuada com o ícone e o nome de exibição da ferramenta (os do `toolCall`: `Bash` → "Shell") em negrito e o resumo;
+  - última linha, recuada, em `textSecondary`, com o chevron à direita: tempo e ferramentas ("3m 51s • 9 ferramentas"; "1 ferramenta" no singular). Em `running`, o tempo conta desde `startedAt`, atualizado a cada segundo; no fim, é o `durationMs`. Em `failed`, a linha começa com "falhou" em `error` ("falhou • 48s • 3 ferramentas"); em `stopped`, com "parado". Sem tokens;
+  - tocar abre o transcript do subagente (`ChatTarget.subagent` com o `sessionId` do chat e o `agentId`); sem `agentId` (antes do lançamento), o toque não faz nada. O card não expande.
+- O aviso `Agent "…" finished` do transcript principal não aparece (§3.2.2): o card mostra o fim.
+- Tempos no formato da linha de status ("48s", "2m 14s", "1m 02s").
+
+**Transcript do subagente** (`16b-transcript-subagente`, `16c-transcript-concluido`)
+- `ChatScreen(target: .subagent)`, só de leitura, por push (§6.1).
+- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola abre a gaveta. Tocar no título não faz nada.
+- **Topo da lista**, quando a página chega ao começo do arquivo (`hasMore == false`): aviso centralizado "<tipo> · <hora de startedAt> · <modelo abreviado>" (ex.: "general-purpose · 13:52 · opus-5-5"); um campo que falta sai do texto.
+- `task`: card "Tarefa" (fundo `toolCard`), com o ícone de subagente e "Tarefa" em `textSecondary`, o texto em até 4 linhas e "Ver tarefa completa" com chevron, que expande o texto inteiro.
+- A lista segue o chat; um `subagent` aninhado abre o transcript dele.
+- **Pílula de estado** no lugar do composer (`glassComposer`): "Rodando · só leitura" com o giro, "Concluído · só leitura" com ✓, "Falhou · só leitura" com ✗ em `error`, "Parado · só leitura" com ■. Sem linha de status nem botão de parar.
+- **Fim**: em `completed`, o rodapé "Concluído em <durationMs> · N ferramentas" em itálico `textSecondary`, no fim da lista; em `failed`, o `failureReason` como aviso centralizado no fim da lista, no original, em inglês. Quando o último item já é um `notice` com o mesmo texto (a falha de API, cujo `failureReason` é o texto do erro sintético, §3.5.2), o aviso não se repete. Os dois vêm do `ChatMeta.subagent` e mudam com o `chatMeta`.
+- No chat de subagente, o `setForeground` vai sem `agentId`, como no chat de sessão arquivada.
+
+**Home com subagentes** (`17-home-subagentes`)
+- Com `runningSubagents > 0`, a segunda linha do card começa com o selo "N subagente" / "N subagentes" (ícone de subagente, fundo `badgeOk`, texto `statusOk`, 11 pt semibold), seguido da segunda linha de sempre, quando existe. O selo some quando a contagem zera. A contagem soma os subagentes de `Agent`, os aninhados e os agentes de workflow.
+- O agente `idle` com subagente rodando fica em CONCLUÍDOS com o selo (regra das seções, acima).
+
+**Detalhe com subagentes** (`18-detalhe-subagentes`)
+- Seção SUBAGENTES logo depois do bloco principal (e do "Abrir terminal", na fase 2): cabeçalho "SUBAGENTES" e, à direita, "N rodando" quando há algum rodando. A folha rola, e Conta e a lista de Host, Modelo, Workspace, Tab e Sessão vêm depois.
+- A lista vem de `listSubagents`, pedida ao abrir o Detalhe e de novo a cada `treeChanged` que muda o `runningSubagents` do agente. Sem itens, e numa `ArchivedSession`, a seção não aparece.
+- Um cartão com uma linha por item, na ordem do daemon: ícone de estado (giro, ✓, ✗ em `error`, ■), a descrição e, abaixo, "<tipo> · <tempo> · N ferramentas" em `textSecondary` ("<tipo> · falhou · …" com "falhou" em `error`; "<tipo> · parado · …"), sem tokens, e o chevron. Um item com `parentAgentId` fica recuado. Em `running`, o tempo conta desde `startedAt`, atualizado a cada segundo.
+- Tocar numa linha fecha a folha e abre o transcript do subagente por push.
+
+**Workflow no chat** (`19-chat-workflow` e o estado concluído abaixo dela no mock)
+- `workflow`: card `toolCard` com o ícone de workflow, "Workflow" em negrito, o `name` e, à direita, o giro, ✓, ✗ em `error` ou ■.
+- **Expandido** (padrão enquanto `running`; tocar no topo do card alterna): borda `toolBorder` e uma caixa `codeInner` com as fases, na ordem:
+  - ✓ `completed`, giro `running` (título em negrito), ✗ `failed` em `error` e ○ `pending`, com a contagem à direita: "N agente(s)" na fase concluída ou com falha, "X de N agentes" (concluídos de iniciados) na que roda e "pendente" na pendente;
+  - sob a fase `running`, o `detail` em itálico `textSecondary` e os agentes dela: giro ou ✓, o `label` e, rodando, a ferramenta atual (nome em `textPrimary` e resumo); concluído, o tempo. As outras fases mostram só a contagem;
+  - rodapé do card, em `textSecondary`: "<tempo> • N agentes • N ferramentas", com o tempo desde `startedAt` enquanto roda.
+- **Recolhido** (padrão no fim): uma linha "Workflow <name> · N agentes" com o estado à direita.
+- Tocar num agente abre o transcript dele (`ChatTarget.subagent` com o `sessionId` do chat e o `agentId` do agente).
+
 ### §6.4 Voz (1b)
 
 - `SpeechAnalyzer` + `SpeechTranscriber` com locale `pt-BR`, on-device.
-- Antes de habilitar o microfone, conferir `SpeechTranscriber.supportedLocales` e baixar o modelo via `AssetInventory` se preciso.
+- Antes de habilitar o microfone, conferir `SpeechTranscriber.supportedLocale(equivalentTo:)` e baixar o modelo via `AssetInventory` se preciso: com `AssetInventory.status(forModules:)` abaixo de `.installed`, `assetInstallationRequest(supporting:)` + `downloadAndInstall()`, com o progresso no composer (S6: no Mac, `.supported` aparece mesmo com o modelo já presente, e a requisição devolve `nil` quando não há nada a baixar).
+- Preset `.progressiveTranscription` (resultados voláteis e rápidos). Áudio do `AVAudioEngine` convertido para `SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith:)` (16 kHz mono Int16 no Mac) e entregue por `start(inputSequence:)`; `finalizeAndFinishThroughEndOfInput()` ao parar.
 - Toque no microfone inicia e toque de novo para. O texto parcial aparece no campo em `textSecondary` e o final substitui o parcial. Nada é enviado sozinho.
 
 ### §6.5 Imagem (1a-core)
@@ -1415,10 +1754,12 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 ### §7.2 Ações de notificação (1b)
 
 - `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`). "Negar" manda `deny` com a mensagem padrão (§8.2): o Claude recebe a negação e continua o turno.
-- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Várias perguntas ou `multiSelect` abrem o app (`.foreground`).
+- `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Com `QUESTION`, o corpo é o texto exato da pergunta (até 2.000 bytes), que o app usa como chave de `answers`. Várias perguntas, `multiSelect` ou uma pergunta maior vão com a categoria `NEEDS_INPUT`, sem ações, e o corpo é a prévia de `questions[0].question`: o toque abre o chat com o card.
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
 
-### §7.3 Live Activity agregada (1b)
+### §7.3 Live Activity agregada (1b, substituída pela §7.4)
+
+> Desde 2026-09-27 vale a §7.4 (uma atividade por agente). Desta seção continuam valendo: codificação do `content-state`, headers, regras do `pending` e dos campos do `highlight` (limites, orçamentos, `activity` com `toolName` cru), Ações (intents, Face ID só no Permitir), limite de 8 h, tokens e simulador.
 
 - Uma única atividade `MochaAgentsAttributes` (sem atributos estáticos relevantes), definida em `MochaProtocol` sob `#if os(iOS)` (o `ActivityAttributes` não existe no macOS), com `ContentState`:
 
@@ -1427,6 +1768,7 @@ public struct ContentState: Codable, Hashable {
     public var working: Int
     public var waiting: Int                 // blocked
     public var highlight: Highlight?        // o mais urgente: blocked > working mais antigo
+    public var pending: Pending?            // o pedido pendente mais antigo (§8)
     public var updatedAt: Date
     public struct Highlight: Codable, Hashable {
         public var agentId: String
@@ -1434,13 +1776,46 @@ public struct ContentState: Codable, Hashable {
         public var workspaceLabel: String
         public var status: String
         public var since: Date
+        public var tabTitle: String?        // título da tab do Herdr
+        public var model: String?
+        public var contextLeftPercent: Int?
+        public var preview: String?         // última mensagem do agente, sem markdown
+        public var activity: String?        // ferramenta rodando, ex.: "Shell: npm run build"
+    }
+    public struct Pending: Codable, Hashable {
+        public enum Kind: String, Codable, Hashable { case permission, question }
+        public var requestId: String
+        public var agentId: String
+        public var kind: Kind
+        public var toolName: String?        // só em permission
+        public var text: String
+        public var options: [String]        // sempre presente; vazio quando não há resposta inline
     }
 }
 ```
 
+- **`pending`**: o pedido pendente mais antigo entre os agentes; quando existe, o `highlight` é o agente dele. Omitido quando não há pedido.
+  - Permissão: `toolName` e `text` = o `summary` do pedido (§3.2.2, ≤ 120 caracteres); `options` vazio.
+  - Pergunta que se responde na atividade (uma pergunta, sem `multiSelect`, texto ≤ 1.000 bytes, 1 a 4 opções com rótulos ≤ 60 caracteres, e o `pending` codificado ≤ 3.200 bytes para o payload caber em 4 KB): `text` = o texto exato da pergunta e `options` = os rótulos exatos, na ordem. O app responde com `answers` = `{text: rótulo}`.
+  - Outra pergunta: `text` = a prévia de `questions[0].question` (180 caracteres, sem markdown) e `options` vazio.
+  - Um `pending` que aparece, some ou troca de `requestId` é atualização de prioridade 10.
+
 - **Codificação**: o sistema decodifica o `content-state` com as estratégias **padrão** do `JSONDecoder`. `Date` é um número em segundos desde 2001-01-01 (`timeIntervalSinceReferenceDate`), nunca ISO-8601 nem `ProtocolDate`. O daemon usa o espelho `LiveActivityContentState` (`MochaDaemonCore/Push`), que codifica as datas assim, com `highlight` omitido quando nulo. Já `timestamp`, `stale-date` e `dismissal-date` do `aps` são **segundos Unix** (1970).
-- **Tela bloqueada**: "2 trabalhando · 1 esperando você" e a linha do destaque, com timer desde `since`.
+- **Campos do `highlight`** (da árvore, §5.3): `model` e `contextLeftPercent` do `AgentSummary`; `preview` = `PlainText.preview` do texto do `preview` do agente quando o autor é o assistente (180 caracteres); `activity` = "<ferramenta>: <summary>" da `ToolActivity` em andamento (120 caracteres); `prompt` = o `prompt` do `TranscriptMeta` da sessão do agente (§3.2.2; 120 caracteres; em branco, omitido). Com `pending`, `preview`, `activity` e `prompt` são omitidos (o card mostra o pedido), e o orçamento do `pending` (3.200 bytes) continua valendo. O `content-state` codificado tem orçamento de 3.840 bytes: acima disso, o daemon descarta nesta ordem `preview`, `activity`, `prompt`, `model` e `contextLeftPercent`. O `activity` leva o `toolName` cru; o app mostra o nome de exibição da ferramenta.
+- **Tela bloqueada** (layout da Live Activity do Moshi, `docs/referencias/moshi/live-activity.jpg`; um card só):
+  - topo à esquerda: `tabTitle` (ou `workspaceLabel`) na cor do status do destaque · o modelo em cinza, sem o prefixo `claude-`;
+  - topo à direita: a barra de contexto (mesma regra de cor da Home) e o tile do Claude;
+  - linha 1, negrito, uma linha: sem `pending`, a `activity` ou a `preview` (ou o `title`); com `pending`, "<Ferramenta> quer <verbo>" ou a pergunta;
+  - linha 2, cinza, uma linha: a continuação do texto da linha 1 (ou o comando do pedido);
+  - contagem discreta dos outros agentes (ex.: "+2 trabalhando · 1 esperando você") e, com `pending`, os botões das Ações abaixo;
+  - no fim, "Tudo pronto" no lugar da linha 1.
 - **Dynamic Island**: compacta com o asterisco à esquerda e contagem à direita; mínima com o asterisco colorido pelo estado; expandida com destaque, contagem e botão "Abrir" (deep link, também em `widgetURL`). O `alert` do push-to-start mostra a apresentação expandida sozinha. No simulador, a captura precisa de `xcrun simctl io <udid> screenshot --mask=black`.
+- **Ações** (tela bloqueada e Dynamic Island expandida), com `pending`:
+  - permissão: o que o agente quer fazer ("Shell quer rodar" + `text`) e os botões "Negar" e "Permitir";
+  - pergunta com `options`: a pergunta e um botão por opção;
+  - pergunta sem `options`: a prévia e o toque abre o chat com o card (deep link do agente).
+  - Os botões são `Button(intent:)` com `LiveActivityIntent`: o sistema roda o intent no processo do app, sem abri-lo, e o app faz `POST /v1/respond` (Bearer, §5.5). "Permitir" tem `authenticationPolicy = .requiresAuthentication` (Face ID); "Negar" e as opções usam o padrão, que roda com o iPhone travado.
+  - Depois de uma resposta aceita, o app atualiza a atividade localmente sem o `pending`; a atualização do daemon vem em seguida. Uma resposta recusada (400/404) ou sem conexão deixa o `pending` e mostra o motivo numa notificação local, como nas ações de notificação (§7.2).
 - **Headers**: `apns-push-type: liveactivity`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-id`. `apns-expiration` e `apns-collapse-id` são aceitos, mas não são necessários.
 - **Ciclo de vida**:
   - **Início**: quando algum agente passa a `working` e não há atividade ativa.
@@ -1451,6 +1826,7 @@ public struct ContentState: Codable, Hashable {
     - `apns-priority: 10` em toda mudança que o usuário precisa ver: contagem de `working`/`waiting`, troca do destaque e fim. Medido: 0,6–0,7 s.
     - `apns-priority: 5` só para mudanças que podem esperar ou se perder (ex.: só o título do destaque). Medido com o iPhone em uso: 45 s e 84 s, e uma se perdeu, coalescida pela seguinte.
     - No máximo uma atualização a cada 10 s, sempre com o estado mais recente.
+    - Enquanto algum agente está `working`/`blocked` sem mudança, uma atualização de prioridade 5 a cada 10 min renova o `stale-date`, para a atividade não ficar `stale` num turno longo.
   - **Fim**: quando nenhum agente está `working`/`blocked` por 60 s, `event: end` com prioridade 10, o estado final ("Tudo pronto") e `dismissal-date` = agora + 15 min. A atividade some na `dismissal-date`.
   - **Limite de 8 h**: ao completar 7 h 50 min, o daemon encerra e inicia outra com push-to-start.
 - **Orçamentos** (`liveactivitiesd`, visto no simulador e reavaliado a cada hora): 10 push-to-starts e ~60 updates de prioridade 10 por hora, por app. Com o limite de 10 s e a regra de prioridade acima, o Mocha fica abaixo disso em uso normal. Se não ficar, a alternativa é `NSSupportsLiveActivitiesFrequentUpdates` no Info.plist.
@@ -1461,6 +1837,25 @@ public struct ContentState: Codable, Hashable {
   - sem conexão, reenvia na próxima.
 - Payload ≤ 4 KB: o título do destaque vai truncado em 60 caracteres (um `start` completo tem ~400 bytes).
 - **Simulador**: recebe push-to-start e updates reais do sandbox, mas **não entrega ao app o token de update de uma atividade iniciada por push**. Esse caminho só se testa no iPhone.
+
+
+### §7.4 Live Activity por agente (1b)
+
+Decisão do João em 2026-09-27, depois de comparar com o Moshi com vários agentes em paralelo: uma atividade por agente Claude, no layout do Moshi (`docs/referencias/moshi/live-activity.jpg`).
+
+- **Tipo**: `MochaAgentAttributes` (`MochaProtocol`, só iOS), atributo estático `agentId`; `attributes-type: "MochaAgentAttributes"` e `attributes: {"agentId": "<id>"}` no push-to-start. `ContentState`: `status`, `title`, `workspaceLabel`, `since`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `prompt?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as mesmas regras de preenchimento, limites e orçamentos da §7.3 (sem contagens nem `agentId` no `pending`).
+- **Card** (tela bloqueada e Dynamic Island expandida): o card do WP-I16 sem a linha de contagem. Cabeçalho "<workspaceLabel> · <modelo>": o projeto (workspace do Herdr, ex.: "Core") em peso regular na cor do status e o modelo em cinza claro #D4D4D4, 13 pt, 6 pt entre os itens, ponto #555555; sem título de tab. Sem `pending` (ocupado ou parado): linha 1 = a `preview` (senão a `activity`, senão o `title`); linha 2 = "Você: <prompt>" (senão a continuação da linha 1). Medidas da tela bloqueada, tiradas do print do Moshi em 3x: margens 16 nas laterais, 15 no topo e 16 embaixo; 4 pt do cabeçalho à linha 1 e 2 pt entre as linhas; linha 1 19 pt bold (encolhe até 0,86 antes de cortar), linha 2 15 pt #A9A9A9 (até 0,95). As cores do card são declaradas em Display P3, porque os valores vêm de prints do Moshi (P3); em sRGB o verde e o laranja saem lavados. Paleta do card no tom do Moshi: verde #9AF768, tile #CA7B5D, trilho da barra #463B38, cinza #A9A9A9 (âmbar e vermelho da §6.2); barra de contexto + tile; linha 1/linha 2; botões do `pending`. Compacta: asterisco na cor do status; mínima: asterisco. `widgetURL` = deep link do agente. `relevance-score`: `blocked` 100, `working` 50, parado 10.
+- **Início**: quando um agente passa a `working` e não tem atividade. App em primeiro plano: o app inicia (`Activity.request` com o `agentId`). Senão, push-to-start com `alert` `{"title": "Claude trabalhando · <rótulo>", "body": "<title>"}`.
+- **Limites**: no máximo 5 atividades por aparelho. Cheio: um agente que fica `blocked` encerra a atividade parada mais antiga e ocupa a vaga; senão fica sem atividade. O orçamento de 10 push-to-starts por hora é do app inteiro; esgotado, o agente fica sem atividade. Agente sem atividade recebe as notificações da §7.1.
+- **Atualização**: por atividade, no máximo uma a cada 10 s, sempre com o estado mais recente; prioridade 10 em mudança de `status` ou de `pending`, 5 no resto (texto, contexto, modelo); refresh 5 a cada 10 min enquanto `working`/`blocked`; `stale-date` = agora + 15 min.
+- **Alertas no lugar das notificações**: para um agente com atividade ativa e token de update conhecido no aparelho, o daemon **não** manda os alertas da §7.1 (turno concluído, precisa de você, sinais secundários). Em vez disso:
+  - `pending` novo → update prioridade 10 com `alert` `{"title": "Claude precisa de você · <rótulo>", "body": <texto do pending, até 180 caracteres>, "sound": "default"}`; `blocked` sem pending (sinal secundário) → o mesmo alerta com o corpo "Esperando uma resposta no terminal.";
+  - turno concluído (`working` → parado) → update prioridade 10 com o estado parado e, se `preferences.turnDoneAlerts`, `alert` `{"title": "Claude terminou · <rótulo>", "body": <corpo da §7.1>, "sound": "default"}`.
+  - Antes do token de update chegar (2–40 s depois de um push-to-start), vale a §7.1.
+- **Payload**: start, update e end (com o `alert`) cabem nos 4 KB do APNs. Se não couber, o daemon tira, nesta ordem: `preview`, `activity`, `prompt`, `model`, `contextLeftPercent`, as opções do `pending` (vira a prévia de 180 caracteres) e, por fim, corta `title` e `workspaceLabel` em 20 caracteres.
+- **Fim**: 30 min sem `working`/`blocked`, ou o agente some da árvore → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start do mesmo agente.
+- **Tokens**: o push-to-start é um token do app para o tipo `MochaAgentAttributes`; cada atividade manda o seu token de update com `activityId` e `agentId` no `LiveActivityRegistration` (WS em primeiro plano, `POST /v1/live-activity` em background). O daemon guarda as atividades por aparelho e por agente em `devices.json`.
+- **Transição**: o daemon e o widget deixam o tipo agregado nos WPs M17/I17. `MochaAgentsAttributes` fica no protocolo só para o app encerrar, ao abrir, as atividades agregadas que encontrar.
 
 ---
 
@@ -1610,4 +2005,5 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | A chave APNs atual só vale no sandbox; TestFlight usa produção | Criar ou habilitar uma chave de produção antes do primeiro build de TestFlight; `BadEnvironmentKeyInToken` aparece no `doctor` (§7.1) |
 | O cache de uso é privado do plugin `herdr-agent-usage` e pode mudar de formato ou deixar de existir | Leitura tolerante de só quatro campos (§3.4), fixture sintética versionada, contexto com reserva pelo transcript, pílula de uso escondida sem cache e item Uso no `doctor` |
 | O plano e a conta vêm de chaves de `~/.claude.json` inferidas, sem leitura real pelos agentes | Só `organizationRateLimitTier` e `emailAddress`, com fallback para "Claude" sem plano; conferência do João no WP-X1 |
+| Os arquivos de subagentes e workflows (`meta.json`, `journal.jsonl`, `wf_*.json`) e a notificação de tarefa são internos do Claude Code e mudam sem aviso | Estado derivado de mais de um sinal, com o mais recente valendo (§3.5.2), leitura tolerante, fases com reserva pelo journal (§3.5.3), fixtures redigidas versionadas e o aviso de versão do `doctor` (§3.2.2) |
 | A janela de contexto do modelo é inferida pelo nome | Primeiro o `used_percent` do plugin, que vem do próprio Claude Code; a tabela de `ContextWindow` é só reserva |

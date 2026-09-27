@@ -67,6 +67,22 @@ public actor DeviceStore {
         return true
     }
 
+    public func setLiveActivities(pushToStart: LiveActivityRegistration?, agentActivities: [LiveActivityRegistration], for id: DeviceID) throws -> Bool {
+        var records = try read()
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
+        let claimed = [pushToStart].compactMap { $0 } + agentActivities
+        for other in records.indices where other != index {
+            for registration in claimed {
+                records[other].liveActivity = Self.releasing(registration, from: records[other].liveActivity)
+                records[other].agentActivities = records[other].agentActivities.compactMap { Self.releasing(registration, from: $0) }
+            }
+        }
+        records[index].liveActivity = pushToStart
+        records[index].agentActivities = agentActivities
+        try write(records)
+        return true
+    }
+
     public func removeApnsToken(_ token: String, from id: DeviceID) throws -> Bool {
         var records = try read()
         guard let index = records.firstIndex(where: { $0.id == id }), records[index].apns?.token.lowercased() == token.lowercased() else {
@@ -89,6 +105,18 @@ public actor DeviceStore {
         for index in records.indices where records[index].apns?.token.lowercased() == token.lowercased() {
             records[index].apns = nil
         }
+    }
+
+    private static func releasing(_ claimed: LiveActivityRegistration?, from current: LiveActivityRegistration?) -> LiveActivityRegistration? {
+        guard var current, let claimed else { return current }
+        if let token = claimed.pushToStartToken, current.pushToStartToken?.lowercased() == token.lowercased() {
+            current.pushToStartToken = nil
+        }
+        if let token = claimed.updateToken, current.updateToken?.lowercased() == token.lowercased() {
+            current.updateToken = nil
+            current.activityId = nil
+        }
+        return current.pushToStartToken == nil && current.updateToken == nil ? nil : current
     }
 
     private var path: String {

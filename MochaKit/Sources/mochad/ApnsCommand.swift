@@ -12,11 +12,11 @@ enum ApnsCommand {
           mochad apns liveactivity start|update|end --token <hex> --env sandbox|production [envio] [estado]
 
         envio:  --priority 5|10  --expiration <segundos a partir de agora, ou 0>  --collapse-id <id>
-        estado: --working <n>  --waiting <n>  --title <destaque>  --workspace <nome>  --no-highlight
+        estado: --agent <id>  --status working|blocked|idle  --title <título>  --workspace <nome>
                 --stale-in <segundos>  --dismiss-in <segundos> (end)
         """
 
-    private static let flags: Set<String> = ["--time-sensitive", "--no-highlight"]
+    private static let flags: Set<String> = ["--time-sensitive"]
 
     static func run(_ arguments: [String]) async -> Int32 {
         guard let subcommand = arguments.first else { return fail(usage, code: 64) }
@@ -88,28 +88,27 @@ enum ApnsCommand {
         let target = try await Target(options, allowsDevice: false)
         let sentAt = Date()
         let isEnd = eventName == "end"
-        let working = try options.integer("--working") ?? (isEnd ? 0 : 1)
-        let waiting = try options.integer("--waiting") ?? 0
-        let highlight: LiveActivityContentState.Highlight? = options.has("--no-highlight") || (isEnd && options.value("--title") == nil)
-            ? nil
-            : .init(
-                agentId: "w1:p1",
-                title: String((options.value("--title") ?? "Rodando os testes do Mocha").prefix(60)),
-                workspaceLabel: options.value("--workspace") ?? "demo-app",
-                status: waiting > 0 ? "blocked" : "working",
-                since: sentAt.addingTimeInterval(-125)
-            )
-        let state = LiveActivityContentState(working: working, waiting: waiting, highlight: highlight, updatedAt: sentAt)
-        let event: LiveActivityEvent
+        let agentId = options.value("--agent") ?? "w1:p1"
+        let status = options.value("--status") ?? (isEnd ? "idle" : "working")
+        guard ["working", "blocked", "idle"].contains(status) else { throw CommandOptions.UsageError("--status aceita working, blocked ou idle") }
+        let workspace = options.value("--workspace") ?? "demo-app"
+        let title = String((options.value("--title") ?? "Rodando os testes do Mocha").prefix(60))
+        let state = AgentActivityContentState(
+            agent: .init(agentId: agentId, title: title, workspaceLabel: workspace, status: status, since: sentAt.addingTimeInterval(-125)),
+            pending: nil,
+            updatedAt: sentAt
+        )
+        let event: AgentActivityEvent
         switch eventName {
         case "start":
-            event = .start(alert: LiveActivityStartAlert(title: "Mocha", body: summary(working: working, waiting: waiting)))
+            event = .start(alert: AgentActivityAlert(title: "Claude trabalhando · \(workspace)", body: title, sound: nil))
         case "update":
-            event = .update
+            event = .update(alert: nil)
         default:
-            event = .end(dismissalDate: sentAt.addingTimeInterval(try options.integer("--dismiss-in").map(TimeInterval.init) ?? 15 * 60))
+            event = .end(dismissalDate: sentAt.addingTimeInterval(try options.integer("--dismiss-in").map(TimeInterval.init) ?? 0))
         }
-        let push = LiveActivityPush(
+        let push = AgentActivityPush(
+            agentId: agentId,
             event: event,
             contentState: state,
             timestamp: sentAt,
@@ -219,13 +218,6 @@ enum ApnsCommand {
             self.config = loaded.config
             self.key = loaded.key
         }
-    }
-
-    private static func summary(working: Int, waiting: Int) -> String {
-        guard working + waiting > 0 else { return "Tudo pronto" }
-        return [working > 0 ? "\(working) trabalhando" : nil, waiting > 0 ? "\(waiting) esperando você" : nil]
-            .compactMap { $0 }
-            .joined(separator: " · ")
     }
 
     private static func describe(_ error: any Error) -> String {

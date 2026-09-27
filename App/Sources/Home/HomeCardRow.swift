@@ -82,12 +82,45 @@ private struct HomeCardText: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HomeCardTitle(text: card.title, tone: card.state == .archived ? .archived : .normal)
-            if let subtitle = card.subtitle {
+            if let badge = card.subagentBadge {
+                HStack(spacing: 0) {
+                    SubagentCountBadge(text: badge, tone: isOffline ? .offline : .ok)
+                        .padding(.trailing, 7)
+                    if let subtitle = card.subtitle {
+                        HomeCardSubtitle(text: subtitle, isWarning: card.subtitleIsWarning && !isOffline)
+                    }
+                }
+                .frame(height: 21)
+            } else if let subtitle = card.subtitle {
                 HomeCardSubtitle(text: subtitle, isWarning: card.subtitleIsWarning && !isOffline)
             }
             HomeCardMeta(workspace: card.workspace, time: card.time, tone: isOffline ? .offline : .normal)
-                .padding(.top, card.subtitle == nil ? 2.5 : 5.5)
+                .padding(.top, hasSecondLine ? 5.5 : 2.5)
         }
+    }
+
+    private var hasSecondLine: Bool {
+        card.subtitle != nil || card.subagentBadge != nil
+    }
+}
+
+private struct SubagentCountBadge: View {
+    let text: String
+    let tone: BadgeTone
+
+    var body: some View {
+        HStack(spacing: 4) {
+            LineIconView(icon: .agent, size: 11, strokeWidth: 2.2, color: tone.foreground)
+            Text(text)
+                .systemText(.badge)
+                .foregroundStyle(tone.foreground)
+                .lineLimit(1)
+        }
+        .padding(.leading, 5.5)
+        .padding(.trailing, 7)
+        .frame(height: 17.3)
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(tone.background))
+        .fixedSize()
     }
 }
 

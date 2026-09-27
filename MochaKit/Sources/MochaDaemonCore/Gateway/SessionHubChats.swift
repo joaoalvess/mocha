@@ -6,6 +6,7 @@ extension SessionHub {
         let limit = min(max(limit ?? Self.defaultChatLimit, Self.chatLimits.lowerBound), Self.chatLimits.upperBound)
         let target: ChatTarget
         let sessionId: String?
+        var subagent: SubagentTranscript?
         switch requested {
         case .agent(let agentId):
             let resolved = await herdr.resolve(agentId)
@@ -30,11 +31,18 @@ extension SessionHub {
             }
             target = requested
             sessionId = requestedSessionId
+        case .subagent(let requestedSessionId, let agentId):
+            guard let transcript = await resolveSubagentTranscript(sessionId: requestedSessionId, agentId: agentId, id: id, clientId: clientId) else {
+                return
+            }
+            target = requested
+            sessionId = requestedSessionId
+            subagent = transcript
         }
         if let before {
-            await sendOlderPage(target, sessionId: sessionId, before: before, limit: limit, id: id, clientId: clientId)
+            await sendOlderPage(target, sessionId: sessionId, subagent: subagent, before: before, limit: limit, id: id, clientId: clientId)
         } else {
-            await subscribeChat(target, sessionId: sessionId, limit: limit, id: id, clientId: clientId)
+            await subscribeChat(target, sessionId: sessionId, subagent: subagent, limit: limit, id: id, clientId: clientId)
         }
     }
 
@@ -56,6 +64,12 @@ extension SessionHub {
                 return
             }
             removeChat(at: target, clientId: clientId)
+        case .subagent(let sessionId, let agentId):
+            if clients[clientId]?.chats[target] == nil,
+               await resolveSubagentTranscript(sessionId: sessionId, agentId: agentId, id: id, clientId: clientId) == nil {
+                return
+            }
+            removeChat(at: target, clientId: clientId)
         }
         send(.ack(), id: id, to: clientId)
     }
@@ -64,8 +78,8 @@ extension SessionHub {
         for (clientId, client) in clients where client.isAuthenticated && !client.isClosing {
             for (key, chat) in client.chats {
                 guard let last = chat.lastMeta else { continue }
-                let meta = chatMeta(for: chat.target, sessionId: chat.sessionId)
-                guard meta != last else { continue }
+                let meta = chatMeta(for: chat.target, sessionId: chat.sessionId, subagentMeta: chat.subagentMeta)
+                guard meta != last, shouldSendChatMeta(meta, previous: last, token: chat.token) else { continue }
                 clients[clientId]?.chats[key]?.lastMeta = meta
                 send(.chatMeta(target: chat.target, meta: meta), to: clientId)
             }
@@ -82,6 +96,7 @@ extension SessionHub {
     private func sendOlderPage(
         _ target: ChatTarget,
         sessionId: String?,
+        subagent: SubagentTranscript?,
         before: String,
         limit: Int,
         id: String,
@@ -92,12 +107,17 @@ extension SessionHub {
             return
         }
         do {
-            let page = try await transcripts.page(session: transcriptSession(sessionId), before: before, limit: limit)
-            remember(page.meta, forSession: sessionId, source: nil)
+            let page = try await transcripts.page(session: transcriptSession(sessionId, subagent: subagent), before: before, limit: limit)
+            if subagent == nil {
+                remember(page.meta, forSession: sessionId, source: nil)
+            }
+            if let token = clients[clientId]?.chats[target]?.token {
+                rememberCards(page.items, token: token, clientId: clientId)
+            }
             let chatPage = ChatPage(
                 target: target,
-                meta: chatMeta(for: target, sessionId: sessionId),
-                items: page.items,
+                meta: chatMeta(for: target, sessionId: sessionId, subagentMeta: subagent == nil ? nil : page.meta),
+                items: overlaid(page.items),
                 before: page.before,
                 hasMore: page.hasMore
             )
@@ -109,11 +129,23 @@ extension SessionHub {
         }
     }
 
-    private func subscribeChat(_ target: ChatTarget, sessionId: String?, limit: Int, id: String, clientId: UUID) async {
+    private func subscribeChat(
+        _ target: ChatTarget,
+        sessionId: String?,
+        subagent: SubagentTranscript?,
+        limit: Int,
+        id: String,
+        clientId: UUID
+    ) async {
         guard clients[clientId] != nil else { return }
         let token = UUID()
-        clients[clientId]?.chats[target]?.cancel()
-        clients[clientId]?.chats[target] = OpenChat(token: token, target: target, sessionId: sessionId)
+        if let previous = clients[clientId]?.chats[target] {
+            previous.cancel()
+            forgetCards(token: previous.token)
+        }
+        var opened = OpenChat(token: token, target: target, sessionId: sessionId)
+        opened.subagent = subagent
+        clients[clientId]?.chats[target] = opened
         publishOpenChats()
         guard let sessionId else {
             let meta = chatMeta(for: target, sessionId: nil)
@@ -123,28 +155,33 @@ extension SessionHub {
         }
         let subscription: TranscriptSubscription
         do {
-            subscription = try await transcripts.open(session: transcriptSession(sessionId), limit: limit)
+            subscription = try await transcripts.open(session: transcriptSession(sessionId, subagent: subagent), limit: limit)
         } catch {
             removeChat(token, clientId: clientId)
             send(.transcriptFailed, id: id, to: clientId)
             return
         }
         let page = subscription.page
-        remember(page.meta, forSession: sessionId, source: token)
+        let subagentMeta = subagent == nil ? nil : page.meta
+        if subagent == nil {
+            remember(page.meta, forSession: sessionId, source: token)
+        }
         let current = chat(token, clientId: clientId)
         let replyTarget = current?.target ?? target
-        let meta = chatMeta(for: replyTarget, sessionId: sessionId)
+        let meta = chatMeta(for: replyTarget, sessionId: sessionId, subagentMeta: subagentMeta)
         if let current, current.sessionId == sessionId, current.subscription == nil {
             updateChat(token, clientId: clientId) { chat in
                 chat.subscription = subscription
                 chat.forwarder = chatForwarder(subscription.deltas, token: token, sessionId: sessionId, clientId: clientId)
                 chat.lastMeta = meta
+                chat.subagentMeta = subagentMeta
             }
+            rememberCards(page.items, token: token, clientId: clientId)
         } else {
             subscription.cancel()
         }
         send(
-            .chatPage(ChatPage(target: replyTarget, meta: meta, items: page.items, before: page.before, hasMore: page.hasMore)),
+            .chatPage(ChatPage(target: replyTarget, meta: meta, items: overlaid(page.items), before: page.before, hasMore: page.hasMore)),
             id: id,
             to: clientId
         )
@@ -177,7 +214,8 @@ extension SessionHub {
         }
         remember(subscription.page.meta, forSession: sessionId, source: token)
         if learnsSession, !subscription.page.items.isEmpty {
-            send(.chatAppend(target: current.target, items: subscription.page.items), to: clientId)
+            rememberCards(subscription.page.items, token: token, clientId: clientId)
+            send(.chatAppend(target: current.target, items: overlaid(subscription.page.items)), to: clientId)
         }
     }
 
@@ -199,30 +237,39 @@ extension SessionHub {
         switch delta {
         case .append(let items):
             guard !items.isEmpty else { return }
-            send(.chatAppend(target: chat.target, items: items), to: clientId)
+            rememberCards(items, token: token, clientId: clientId)
+            send(.chatAppend(target: chat.target, items: overlaid(items)), to: clientId)
         case .update(let items):
             guard !items.isEmpty else { return }
-            send(.chatUpdate(target: chat.target, items: items), to: clientId)
+            rememberCards(items, token: token, clientId: clientId)
+            send(.chatUpdate(target: chat.target, items: overlaid(items)), to: clientId)
         case .meta(let meta):
-            remember(meta, forSession: sessionId, source: token)
+            if chat.subagent != nil {
+                updateChat(token, clientId: clientId) { $0.subagentMeta = meta }
+                refreshChatMetas()
+            } else {
+                remember(meta, forSession: sessionId, source: token)
+            }
         }
     }
 
-    private func chatMeta(for target: ChatTarget, sessionId: String?) -> ChatMeta {
+    private func chatMeta(for target: ChatTarget, sessionId: String?, subagentMeta: TranscriptMeta? = nil) -> ChatMeta {
         let meta = sessionId.flatMap { metas[$0] }
         switch target {
         case .agent(let agentId):
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta)
         case .session:
             return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
+        case .subagent(let sessionId, let agentId):
+            return subagentChatMeta(sessionId: sessionId, agentId: agentId, meta: subagentMeta)
         }
     }
 
-    private func chat(_ token: UUID, clientId: UUID) -> OpenChat? {
+    func chat(_ token: UUID, clientId: UUID) -> OpenChat? {
         clients[clientId]?.chats.values.first { $0.token == token }
     }
 
-    private func updateChat(_ token: UUID, clientId: UUID, _ transform: (inout OpenChat) -> Void) {
+    func updateChat(_ token: UUID, clientId: UUID, _ transform: (inout OpenChat) -> Void) {
         guard let key = clients[clientId]?.chats.first(where: { $0.value.token == token })?.key else { return }
         guard var chat = clients[clientId]?.chats[key] else { return }
         transform(&chat)
@@ -237,6 +284,7 @@ extension SessionHub {
     private func removeChat(at target: ChatTarget, clientId: UUID) {
         guard let chat = clients[clientId]?.chats.removeValue(forKey: target) else { return }
         chat.cancel()
+        forgetCards(token: chat.token)
         publishOpenChats()
     }
 }

@@ -245,6 +245,29 @@ struct DesignSystemPreviewComponents: View {
                     }
                     .padding(.horizontal, Metrics.contentMargin)
                 }
+                group("Subagentes e workflows") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 16) {
+                            LineIconView(icon: .agent, size: 15, strokeWidth: 1.9, color: Palette.textSecondary)
+                            LineIconView(icon: .agent, size: 15, strokeWidth: 2.1, color: Palette.claude)
+                            LineIconView(icon: .flow, size: 15, strokeWidth: 1.9, color: Palette.textSecondary)
+                            LineIconView(icon: .stopCircle, size: 15, strokeWidth: 2, color: Palette.textSecondary)
+                        }
+                        HStack(spacing: 16) {
+                            SubagentStateIcon(status: .running)
+                            SubagentStateIcon(status: .completed)
+                            SubagentStateIcon(status: .failed)
+                            SubagentStateIcon(status: .stopped)
+                        }
+                        HStack(spacing: 16) {
+                            SubagentStateIcon(status: .running, size: 16)
+                            SubagentStateIcon(status: .completed, size: 16)
+                            SubagentStateIcon(status: .failed, size: 16)
+                            SubagentStateIcon(status: .stopped, size: 16)
+                        }
+                    }
+                    .padding(.horizontal, Metrics.contentMargin)
+                }
                 group("Linhas de folha") {
                     SheetListCard {
                         SheetListRow(label: "Host", value: "MacBook", isCompact: true)

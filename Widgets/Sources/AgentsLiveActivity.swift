@@ -1,148 +1,124 @@
 import ActivityKit
+import MochaClient
 import MochaProtocol
 import SwiftUI
 import WidgetKit
 
 struct AgentsLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: MochaAgentsAttributes.self) { context in
-            AgentsLockScreenView(state: context.state)
+        ActivityConfiguration(for: MochaAgentAttributes.self) { context in
+            let content = AgentsActivityContent(context.state)
+            AgentsLockScreenView(content: content, agentId: context.attributes.agentId, isStale: context.isStale)
                 .activityBackgroundTint(AgentsPalette.background)
                 .activitySystemActionForegroundColor(AgentsPalette.textPrimary)
+                .widgetURL(AgentsActivityText.deepLink(forAgent: context.attributes.agentId))
         } dynamicIsland: { context in
-            DynamicIsland {
+            let content = AgentsActivityContent(context.state)
+            let header = AgentsActivityText.header(of: content)
+            let tone = AgentsActivityText.tone(of: content)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    AgentsAsterisk(state: context.state)
-                        .font(.title2)
+                    AgentsCardTitle(header: header, metrics: .island)
+                        .frame(height: AgentsCardMetrics.island.tileSize)
+                        .padding(.leading, 6)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let highlight = context.state.highlight {
-                        Text(timerInterval: highlight.since...Date.distantFuture, countsDown: false)
-                            .font(.system(.subheadline, design: .monospaced))
-                            .lineLimit(1)
-                            .multilineTextAlignment(.trailing)
-                            .frame(minWidth: 56, alignment: .trailing)
-                            .foregroundStyle(AgentsPalette.textSecondary)
-                    }
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    Text(AgentsText.summary(context.state))
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    AgentsCardBadge(context: header.context, metrics: .island)
+                        .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        if let highlight = context.state.highlight {
-                            Text(AgentsText.highlightLine(highlight))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(AgentsPalette.textSecondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        if let url = AgentsText.deepLink(context.state) {
-                            Link("Abrir", destination: url)
-                                .font(.caption.weight(.semibold))
-                        }
-                    }
+                    AgentsIslandBody(content: content, agentId: context.attributes.agentId, isStale: context.isStale)
+                        .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                AgentsAsterisk(state: context.state)
+                ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
             } compactTrailing: {
-                Text(AgentsText.compactCount(context.state))
-                    .monospacedDigit()
-                    .foregroundStyle(AgentsAsterisk.color(for: context.state))
+                Text(header.project)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AgentsPalette.labelColor(for: tone))
+                    .lineLimit(1)
+                    .frame(maxWidth: 64)
             } minimal: {
-                AgentsAsterisk(state: context.state)
+                ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
             }
-            .widgetURL(AgentsText.deepLink(context.state))
+            .widgetURL(AgentsActivityText.deepLink(forAgent: context.attributes.agentId))
+            .keylineTint(AgentsPalette.color(for: tone))
         }
     }
 }
 
 struct AgentsLockScreenView: View {
-    let state: MochaAgentsAttributes.ContentState
+    let content: AgentsActivityContent
+    let agentId: String
+    let isStale: Bool
+
+    private let metrics = AgentsCardMetrics.lockScreen
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                AgentsAsterisk(state: state)
-                Text(AgentsText.summary(state))
-                    .font(.system(.headline, design: .monospaced))
-                    .foregroundStyle(AgentsPalette.textPrimary)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+            AgentsCardHeader(header: AgentsActivityText.header(of: content), metrics: metrics)
+            AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
+                .padding(.top, metrics.headerSpacing - metrics.lineSpacing)
+            if let footnote = AgentsActivityText.footnote(isStale: isStale) {
+                AgentsCardFootnote(text: footnote, metrics: metrics)
             }
-            if let highlight = state.highlight {
-                HStack {
-                    Text(AgentsText.highlightLine(highlight))
-                        .lineLimit(1)
-                    Spacer()
-                    Text(timerInterval: highlight.since...Date.distantFuture, countsDown: false)
-                        .monospacedDigit()
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 70, alignment: .trailing)
-                }
-                .font(.system(.subheadline, design: .monospaced))
-                .foregroundStyle(AgentsPalette.textSecondary)
+            if let pending = content.pending {
+                PendingActivityControls(pending: pending, agentId: agentId, metrics: metrics)
+                    .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
             }
-            HStack(spacing: 4) {
-                Text("atualizado às \(state.updatedAt.formatted(.dateTime.hour().minute().second())) · há")
-                Text(timerInterval: state.updatedAt...Date.distantFuture, countsDown: false)
-                    .monospacedDigit()
-            }
-            .font(.system(.caption2, design: .monospaced))
-            .foregroundStyle(AgentsPalette.textSecondary)
         }
-        .padding()
+        .padding(.horizontal, 16)
+        .padding(.top, 15)
+        .padding(.bottom, 16)
     }
 }
 
-struct AgentsAsterisk: View {
-    let state: MochaAgentsAttributes.ContentState
+struct AgentsIslandBody: View {
+    let content: AgentsActivityContent
+    let agentId: String
+    let isStale: Bool
+
+    private let metrics = AgentsCardMetrics.island
 
     var body: some View {
-        Image(systemName: "asterisk")
-            .fontWeight(.bold)
-            .foregroundStyle(Self.color(for: state))
-    }
-
-    static func color(for state: MochaAgentsAttributes.ContentState) -> Color {
-        if state.waiting > 0 { return AgentsPalette.waiting }
-        if state.working > 0 { return AgentsPalette.claude }
-        return AgentsPalette.textSecondary
-    }
-}
-
-enum AgentsText {
-    static func summary(_ state: MochaAgentsAttributes.ContentState) -> String {
-        let parts = [
-            state.working > 0 ? "\(state.working) trabalhando" : nil,
-            state.waiting > 0 ? "\(state.waiting) esperando você" : nil,
-        ].compactMap { $0 }
-        return parts.isEmpty ? "Tudo pronto" : parts.joined(separator: " · ")
-    }
-
-    static func compactCount(_ state: MochaAgentsAttributes.ContentState) -> String {
-        state.waiting > 0 ? "\(state.waiting)!" : "\(state.working)"
-    }
-
-    static func highlightLine(_ highlight: MochaAgentsAttributes.ContentState.Highlight) -> String {
-        "\(highlight.title) · \(highlight.workspaceLabel)"
-    }
-
-    static func deepLink(_ state: MochaAgentsAttributes.ContentState) -> URL? {
-        guard
-            let agentId = state.highlight?.agentId,
-            let encoded = agentId.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
-        else { return nil }
-        return URL(string: "mocha://agent/" + encoded)
+        let footnote = AgentsActivityText.footnote(isStale: isStale)
+        let openURL = AgentsActivityText.deepLink(forAgent: agentId)
+        VStack(alignment: .leading, spacing: metrics.lineSpacing) {
+            AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
+            if let pending = content.pending {
+                if let footnote {
+                    AgentsCardFootnote(text: footnote, metrics: metrics)
+                }
+                PendingActivityControls(pending: pending, agentId: agentId, metrics: metrics)
+                    .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
+            } else if footnote != nil || openURL != nil {
+                HStack(spacing: 8) {
+                    if let footnote {
+                        AgentsCardFootnote(text: footnote, metrics: metrics)
+                    }
+                    Spacer(minLength: 8)
+                    if let openURL {
+                        OpenAgentButton(url: openURL, height: metrics.buttonHeight)
+                    }
+                }
+                .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
+            }
+        }
     }
 }
 
-enum AgentsPalette {
-    static let background = Color(red: 0x1E / 255, green: 0x1E / 255, blue: 0x1E / 255)
-    static let textPrimary = Color(red: 0xFC / 255, green: 0xFC / 255, blue: 0xFC / 255)
-    static let textSecondary = Color(red: 0x98 / 255, green: 0xA0 / 255, blue: 0xA8 / 255)
-    static let claude = Color(red: 0xD8 / 255, green: 0x74 / 255, blue: 0x54 / 255)
-    static let waiting = Color(red: 0xF4 / 255, green: 0xB4 / 255, blue: 0x50 / 255)
+struct OpenAgentButton: View {
+    let url: URL
+    let height: CGFloat
+
+    var body: some View {
+        Link(destination: url) {
+            Text(AgentsActivityText.open)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AgentsPalette.textPrimary)
+                .padding(.horizontal, 16)
+                .frame(height: height)
+                .background(AgentsPalette.controlBg, in: Capsule())
+        }
+    }
 }

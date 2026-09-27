@@ -1,0 +1,61 @@
+{
+  "items" : [
+    {
+      "at" : "2026-09-26T21:00:08.200Z",
+      "id" : "d73bdf25-1105-5862-b05c-b6c518a6db12",
+      "text" : "Liste os arquivos de teste e o que cada um cobre.",
+      "type" : "task"
+    },
+    {
+      "at" : "2026-09-26T21:00:11.000Z",
+      "id" : "b4276da0-0c55-5040-a9fc-6b99a433f2c5",
+      "inputJSON" : "{\"pattern\":\"**/*.test.ts\"}",
+      "name" : "Glob",
+      "resultPreview" : "tests/login.test.ts\ntests/cart.test.ts",
+      "status" : "succeeded",
+      "summary" : "**/*.test.ts",
+      "toolUseId" : "toolu_01FIXTURECGLOB0000000001",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-26T21:00:15.000Z",
+      "id" : "bb769c84-9e98-52e7-b3a1-4b5ed44ada42",
+      "inputJSON" : "{\"file_path\":\"/Users/dev/projects/demo-app/tests/login.test.ts\"}",
+      "name" : "Read",
+      "resultPreview" : "import { login } from '../src/login'",
+      "status" : "succeeded",
+      "summary" : "tests/login.test.ts",
+      "toolUseId" : "toolu_01FIXTURECREAD0000000001",
+      "type" : "toolCall"
+    },
+    {
+      "at" : "2026-09-26T21:00:43.400Z",
+      "id" : "b2e01912-872c-50e4-bc70-49990da67165",
+      "text" : "Interrompido pelo usuário",
+      "type" : "notice"
+    }
+  ],
+  "meta" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "tests/login.test.ts",
+      "toolName" : "Read"
+    },
+    "branch" : "main",
+    "contextTokens" : 19212,
+    "model" : "claude-opus-5-5",
+    "permissionMode" : null,
+    "preview" : null,
+    "sessionStartedAt" : "2026-09-26T21:00:08.200Z",
+    "title" : null,
+    "turnEndedAt" : null,
+    "turnStartedAt" : null
+  },
+  "stats" : {
+    "dropped" : 0,
+    "orphanResults" : 0,
+    "unknown" : {
+
+    }
+  }
+}

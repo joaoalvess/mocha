@@ -17,7 +17,14 @@ struct ChatState: Equatable {
     var failure: AppSessionError?
 
     var isReadOnly: Bool {
-        if case .session = target { true } else { false }
+        switch target {
+        case .agent: false
+        case .session, .subagent: true
+        }
+    }
+
+    var stackEntry: ChatStackEntry {
+        ChatStackEntry(route: route, target: target)
     }
 }
 
@@ -61,12 +68,15 @@ final class AppSession {
     private(set) var usage: UsageSnapshot?
     private(set) var herdrConnected: Bool?
     private(set) var hasReceivedTree = false
-    private(set) var chat: ChatState?
-    private(set) var chatPath: [ChatTarget] = []
+    private(set) var chatStack: [ChatState] = []
+    private var departingChats: [ChatState] = []
     private(set) var isDrawerOpen = false
     private(set) var pairing = PairingGate()
     private(set) var pairedAt: Date?
+    private(set) var pending = PendingInbox()
+    private(set) var pendingReveal: AgentID?
     var sheet: AppSheet?
+    var isInboxOpen = false
 
     @ObservationIgnored private let connection: any ServerConnection
     @ObservationIgnored private let uploader: any ImageUploading
@@ -74,7 +84,8 @@ final class AppSession {
     @ObservationIgnored private var nextRequestNumber = 0
     @ObservationIgnored private var consumerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var hasStarted = false
-    @ObservationIgnored private var chatGeneration = 0
+    @ObservationIgnored private var chatGenerations: [ChatTarget: Int] = [:]
+    @ObservationIgnored private var nextChatGeneration = 0
     @ObservationIgnored private let pairingDates: any PairingDateStore
     @ObservationIgnored private var lifecycleTask: Task<Void, Never>?
     @ObservationIgnored private var isSceneActive = false
@@ -96,9 +107,12 @@ final class AppSession {
         return agentId
     }
 
+    var chatPath: [ChatTarget] {
+        chatStack.map(\.route)
+    }
+
     var visibleChat: ChatState? {
-        guard let route = chatPath.last, let chat, chat.route == route else { return nil }
-        return chat
+        chatStack.last
     }
 
     var claudeAgents: [AgentSummary] {
@@ -106,8 +120,7 @@ final class AppSession {
     }
 
     func chat(for route: ChatTarget) -> ChatState? {
-        guard let chat, chat.route == route else { return nil }
-        return chat
+        chatStack.last { $0.route == route } ?? departingChats.last { $0.route == route }
     }
 
     func start() {
@@ -192,34 +205,26 @@ final class AppSession {
     func openChat(_ target: ChatTarget) {
         isDrawerOpen = false
         sheet = nil
-        switch ChatNavigation.open(target, visibleRoute: visibleChat?.route, visibleTarget: visibleChat?.target) {
-        case .stay:
-            if visibleChat?.failure != nil {
-                loadLatestPage()
-            }
-        case .show(let path, let closing):
-            if let closing {
-                sendWithoutReply(.closeChat(target: closing))
-            }
-            chat = ChatState(route: target, target: target, sessionId: sessionId(for: target))
-            chatPath = path
-            loadLatestPage()
-        }
+        isInboxOpen = false
+        navigate(ChatNavigation.open(target, stack: stackEntries))
     }
 
     func closeChat() {
-        guard !chatPath.isEmpty else { return }
-        chatPath = []
-        leaveChat()
+        guard !chatStack.isEmpty else { return }
+        navigate(ChatNavigation.setPath([], stack: stackEntries))
+    }
+
+    func goBack() {
+        navigate(ChatNavigation.back(stack: stackEntries))
     }
 
     func setChatPath(_ path: [ChatTarget]) {
-        guard path != chatPath else { return }
-        if path.isEmpty {
-            closeChat()
-        } else if let target = path.last {
-            openChat(target)
-        }
+        navigate(ChatNavigation.setPath(path, stack: stackEntries))
+    }
+
+    func subagentTarget(agentId: String?, in route: ChatTarget) -> ChatTarget? {
+        guard let agentId, let sessionId = chat(for: route)?.sessionId else { return nil }
+        return .subagent(sessionId: sessionId, agentId: agentId)
     }
 
     func openDrawer() {
@@ -247,6 +252,37 @@ final class AppSession {
 
     func dismissSheet() {
         sheet = nil
+    }
+
+    func showInbox() {
+        isDrawerOpen = false
+        sheet = nil
+        isInboxOpen = true
+    }
+
+    func revealPendingRequest(of agentId: AgentID) {
+        pendingReveal = agentId
+        openChat(.agent(agentId))
+    }
+
+    func consumePendingReveal() {
+        pendingReveal = nil
+    }
+
+    func respond(to requestId: RequestID, with response: PendingResponse) {
+        guard pending.beginSending(requestId) else { return }
+        Task {
+            let outcome: PendingSendOutcome
+            do {
+                try await request(.respond(requestId: requestId, response: response))
+                outcome = .accepted
+            } catch AppSessionError.server(let code, _) where code == .requestNotFound {
+                outcome = .gone
+            } catch {
+                outcome = .failed(Self.sessionError(from: error).message)
+            }
+            pending.finishSending(requestId, outcome: outcome)
+        }
     }
 
     func setTurnDoneAlerts(_ isOn: Bool) async throws {
@@ -287,28 +323,30 @@ final class AppSession {
         try await request(.interrupt(agentId: try visibleAgentId()))
     }
 
-    func loadOlderItems() {
+    func loadOlderItems(for route: ChatTarget) {
         guard
-            let current = visibleChat,
+            let current = chatStack.last(where: { $0.route == route }),
             current.hasMore,
             let before = current.before,
             !current.isLoading,
-            !current.isLoadingOlder
+            !current.isLoadingOlder,
+            let generation = chatGenerations[route]
         else { return }
-        chat?.isLoadingOlder = true
-        let generation = chatGeneration
+        updateChat(route) { $0.isLoadingOlder = true }
         Task {
             do {
                 let reply = try await request(.openChat(target: current.target, before: before, limit: Self.pageSize))
-                guard generation == chatGeneration else { return }
+                guard chatGenerations[route] == generation else { return }
                 guard case .chatPage(let page) = reply else {
                     throw AppSessionError.unexpectedReply(type: reply.type)
                 }
-                prependOlder(page)
+                prependOlder(page, to: route)
             } catch {
-                guard generation == chatGeneration else { return }
-                chat?.isLoadingOlder = false
-                chat?.failure = Self.sessionError(from: error)
+                guard chatGenerations[route] == generation else { return }
+                updateChat(route) {
+                    $0.isLoadingOlder = false
+                    $0.failure = Self.sessionError(from: error)
+                }
             }
         }
     }
@@ -345,16 +383,56 @@ final class AppSession {
         Task { try? await request(message) }
     }
 
-    private func leaveChat() {
-        chatGeneration += 1
-        guard let target = chat?.target else { return }
-        sendWithoutReply(.closeChat(target: target))
+    private var stackEntries: [ChatStackEntry] {
+        chatStack.map(\.stackEntry)
+    }
+
+    private func navigate(_ step: ChatNavigationStep) {
+        switch step {
+        case .stay:
+            if let visible = visibleChat, visible.failure != nil {
+                loadLatestPage(visible.route)
+            }
+        case .show(let path, let closing):
+            for target in closing {
+                sendWithoutReply(.closeChat(target: target))
+            }
+            let previous = chatStack
+            departingChats = previous.filter { !path.contains($0.route) }
+            chatStack = path.map { route in
+                previous.first { $0.route == route } ?? ChatState(route: route, target: route, sessionId: sessionId(for: route))
+            }
+            for dropped in previous where !path.contains(dropped.route) {
+                chatGenerations[dropped.route] = nil
+            }
+            for route in path where !previous.contains(where: { $0.route == route }) {
+                loadLatestPage(route)
+            }
+        }
+    }
+
+    private func updateChat(_ route: ChatTarget, _ change: (inout ChatState) -> Void) {
+        guard let index = chatStack.lastIndex(where: { $0.route == route }) else { return }
+        change(&chatStack[index])
+    }
+
+    private func updateChats(target: ChatTarget, _ change: (inout ChatState) -> Void) {
+        for index in chatStack.indices where chatStack[index].target == target {
+            change(&chatStack[index])
+        }
+    }
+
+    private func beginGeneration(for route: ChatTarget) -> Int {
+        nextChatGeneration += 1
+        chatGenerations[route] = nextChatGeneration
+        return nextChatGeneration
     }
 
     private func sessionId(for target: ChatTarget) -> String? {
         switch target {
         case .agent(let agentId): workspaces.agent(withId: agentId)?.sessionId
         case .session(let sessionId): sessionId
+        case .subagent(let sessionId, _): sessionId
         }
     }
 
@@ -366,6 +444,9 @@ final class AppSession {
         }
         guard state == .connected else {
             foreground.connectionClosed()
+            if wasConnected {
+                AgentsActivityController.shared.socketClosed()
+            }
             failAllReplies(with: .notConnected)
             if !isOpeningConnection {
                 failChatWaitingForConnection()
@@ -373,15 +454,28 @@ final class AppSession {
             return
         }
         if !wasConnected {
-            reopenVisibleChat()
+            reopenChatStack()
             sendForeground()
             AppNotifications.connectionOpened()
+            AgentsActivityController.shared.socketOpened { [weak self] registration in
+                await self?.registerLiveActivity(registration) ?? false
+            }
+        }
+    }
+
+    private func registerLiveActivity(_ registration: LiveActivityRegistration) async -> Bool {
+        do {
+            try await request(.registerLiveActivity(registration))
+            return true
+        } catch {
+            return false
         }
     }
 
     private func coverWithPairing() {
         sheet = nil
         isDrawerOpen = false
+        isInboxOpen = false
     }
 
     private func recordPairing() {
@@ -429,9 +523,10 @@ final class AppSession {
         case .chatUpdate(let target, let items):
             updateChat(target: target, items: items)
         case .chatMeta(let target, let meta):
-            guard chat?.target == target else { return }
-            chat?.meta = meta
-        case .chatPage, .pending, .ack, .pong, .error, .unknown:
+            updateChats(target: target) { $0.meta = meta }
+        case .pending(let requests):
+            pending.replace(with: requests)
+        case .chatPage, .subagentList, .ack, .pong, .error, .unknown:
             break
         }
     }
@@ -439,17 +534,20 @@ final class AppSession {
     private func applyTree(_ newWorkspaces: [WorkspaceNode]) {
         workspaces = newWorkspaces
         hasReceivedTree = true
-        guard let current = visibleChat else { return }
-        switch ChatTargetTracking.change(for: current.target, knownSessionId: current.sessionId, in: newWorkspaces) {
-        case .unchanged:
-            break
-        case .learnedSession(let sessionId):
-            chat?.sessionId = sessionId
-        case .sessionSwitched(let sessionId):
-            chat?.sessionId = sessionId
-            loadLatestPage()
-        case .agentMoved(let agentId):
-            chat?.target = .agent(agentId)
+        AgentsActivityController.shared.agentsChanged(newWorkspaces.allAgents)
+        for current in chatStack {
+            guard case .agent = current.target else { continue }
+            switch ChatTargetTracking.change(for: current.target, knownSessionId: current.sessionId, in: newWorkspaces) {
+            case .unchanged:
+                break
+            case .learnedSession(let sessionId):
+                updateChat(current.route) { $0.sessionId = sessionId }
+            case .sessionSwitched(let sessionId):
+                updateChat(current.route) { $0.sessionId = sessionId }
+                loadLatestPage(current.route)
+            case .agentMoved(let agentId):
+                updateChat(current.route) { $0.target = .agent(agentId) }
+            }
         }
     }
 
@@ -460,32 +558,36 @@ final class AppSession {
                 agent.title = title
             }
         }
-        guard chat?.target == .agent(agentId) else { return }
-        chat?.meta?.status = status
-        if let title {
-            chat?.meta?.title = title
+        AgentsActivityController.shared.agentsChanged(workspaces.allAgents)
+        updateChats(target: .agent(agentId)) { chat in
+            chat.meta?.status = status
+            if let title {
+                chat.meta?.title = title
+            }
         }
     }
 
     private func appendToChat(target: ChatTarget, items: [ChatItem]) {
-        guard let current = chat, current.target == target else { return }
-        let knownIds = Set(current.items.map(\.id))
-        chat?.items.append(contentsOf: items.filter { !knownIds.contains($0.id) })
+        updateChats(target: target) { chat in
+            let knownIds = Set(chat.items.map(\.id))
+            chat.items.append(contentsOf: items.filter { !knownIds.contains($0.id) })
+        }
     }
 
     private func updateChat(target: ChatTarget, items: [ChatItem]) {
-        guard let current = chat, current.target == target else { return }
-        var updated = current.items
-        for item in items {
-            guard let index = updated.firstIndex(where: { $0.id == item.id }) else { continue }
-            updated[index] = item
+        updateChats(target: target) { chat in
+            for item in items {
+                guard let index = chat.items.firstIndex(where: { $0.id == item.id }) else { continue }
+                chat.items[index] = item
+            }
         }
-        chat?.items = updated
     }
 
-    private func reopenVisibleChat() {
-        guard visibleChat != nil else { return }
-        loadLatestPage()
+    private func reopenChatStack() {
+        let reopening = ChatNavigation.reopening(stack: stackEntries)
+        for current in chatStack where reopening.contains(current.target) {
+            loadLatestPage(current.route)
+        }
     }
 
     private var isOpeningConnection: Bool {
@@ -496,37 +598,41 @@ final class AppSession {
     }
 
     private func failChatWaitingForConnection() {
-        guard visibleChat?.isLoading == true else { return }
-        chat?.isLoading = false
-        chat?.failure = .notConnected
+        for index in chatStack.indices where chatStack[index].isLoading {
+            chatStack[index].isLoading = false
+            chatStack[index].failure = .notConnected
+        }
     }
 
-    private func loadLatestPage() {
-        guard let current = visibleChat else { return }
-        chatGeneration += 1
-        let generation = chatGeneration
-        chat?.isLoading = true
-        chat?.failure = nil
+    private func loadLatestPage(_ route: ChatTarget) {
+        guard let current = chatStack.last(where: { $0.route == route }) else { return }
+        let generation = beginGeneration(for: route)
+        updateChat(route) {
+            $0.isLoading = true
+            $0.failure = nil
+        }
         guard !isOpeningConnection else { return }
         Task {
             do {
                 let reply = try await request(.openChat(target: current.target, limit: Self.pageSize))
-                guard generation == chatGeneration else { return }
+                guard chatGenerations[route] == generation else { return }
                 guard case .chatPage(let page) = reply else {
                     throw AppSessionError.unexpectedReply(type: reply.type)
                 }
-                replaceChat(with: page)
+                replaceChat(route, with: page)
             } catch {
-                guard generation == chatGeneration else { return }
-                chat?.isLoading = false
-                chat?.failure = Self.sessionError(from: error)
+                guard chatGenerations[route] == generation else { return }
+                updateChat(route) {
+                    $0.isLoading = false
+                    $0.failure = Self.sessionError(from: error)
+                }
             }
         }
     }
 
-    private func replaceChat(with page: ChatPage) {
-        guard let current = chat else { return }
-        chat = ChatState(
+    private func replaceChat(_ route: ChatTarget, with page: ChatPage) {
+        guard let current = chatStack.last(where: { $0.route == route }) else { return }
+        let replaced = ChatState(
             route: current.route,
             target: page.target,
             sessionId: sessionId(for: page.target) ?? current.sessionId,
@@ -536,16 +642,19 @@ final class AppSession {
             hasMore: page.hasMore,
             isLoading: false
         )
+        updateChat(route) { $0 = replaced }
     }
 
-    private func prependOlder(_ page: ChatPage) {
-        guard let current = chat, current.target == page.target else { return }
-        let knownIds = Set(current.items.map(\.id))
-        chat?.items.insert(contentsOf: page.items.filter { !knownIds.contains($0.id) }, at: 0)
-        chat?.before = page.before
-        chat?.hasMore = page.hasMore
-        chat?.meta = page.meta
-        chat?.isLoadingOlder = false
+    private func prependOlder(_ page: ChatPage, to route: ChatTarget) {
+        updateChat(route) { chat in
+            guard chat.target == page.target else { return }
+            let knownIds = Set(chat.items.map(\.id))
+            chat.items.insert(contentsOf: page.items.filter { !knownIds.contains($0.id) }, at: 0)
+            chat.before = page.before
+            chat.hasMore = page.hasMore
+            chat.meta = page.meta
+            chat.isLoadingOlder = false
+        }
     }
 
     private func failReply(id: String, with error: AppSessionError) {

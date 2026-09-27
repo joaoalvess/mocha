@@ -127,11 +127,26 @@ struct TranscriptHomeMetaTests {
         readings.expectConsistent()
         let header = readings.full
         #expect(header.preview == MessagePreview(author: .user, text: "fila enquanto trabalha"))
+        #expect(header.prompt == "fila enquanto trabalha")
         #expect(header.activity == ToolActivity(toolName: "Bash", summary: "npm test", status: .running))
         #expect(header.contextTokens == 24)
         #expect(header.sessionStartedAt == H.date("10:00:00"))
         #expect(header.turnStartedAt == H.date("10:00:00"))
         #expect(header.turnEndedAt == H.date("10:00:07"))
+    }
+
+    @Test func thePromptIsTheLastUserMessageEvenAfterTheAnswer() throws {
+        let readings = try HomeMetaReadings.of([
+            H.user("Primeiro pedido", at: "10:00:00"),
+            H.text("Feito", at: "10:00:01"),
+            H.user("Faz **dnv**", at: "10:00:02"),
+            H.toolUse("Bash", id: "t1", input: ["command": "sleep 10"], at: "10:00:03"),
+            H.toolResult("t1", at: "10:00:13"),
+            H.text("20 s de 60.", at: "10:00:14"),
+        ])
+        readings.expectConsistent()
+        #expect(readings.full.preview == MessagePreview(author: .assistant, text: "20 s de 60."))
+        #expect(readings.full.prompt == "Faz dnv")
     }
 
     @Test func activityPrefersTheLastRunningToolCall() throws {
@@ -177,6 +192,7 @@ struct TranscriptHomeMetaTests {
         let onlyImage = try HomeMetaReadings.of([H.user([image], at: "10:00:00")])
         onlyImage.expectConsistent()
         #expect(onlyImage.full.preview == MessagePreview(author: .user, text: "[imagem]"))
+        #expect(onlyImage.full.prompt == "[imagem]")
         let withText = try HomeMetaReadings.of([H.user([["type": "text", "text": "olha **isso**"], image], at: "10:00:00")])
         withText.expectConsistent()
         #expect(withText.full.preview == MessagePreview(author: .user, text: "olha isso"))
@@ -190,6 +206,7 @@ struct TranscriptHomeMetaTests {
         ])
         readings.expectConsistent()
         #expect(readings.full.preview == nil)
+        #expect(readings.full.prompt == nil)
         #expect(readings.full.activity == nil)
         #expect(readings.full.turnStartedAt == nil)
         #expect(readings.full.turnEndedAt == nil)
@@ -354,8 +371,13 @@ struct TranscriptHomeMetaTests {
                     return nil
                 }
                 let parsedToolUses = parsed.effects.compactMap { effect -> String? in
-                    if case .item(let item) = effect, case .toolCall(let call) = item.kind { return call.toolUseId }
-                    return nil
+                    guard case .item(let item) = effect else { return nil }
+                    switch item.kind {
+                    case .toolCall(let call): return call.toolUseId
+                    case .subagent(let call): return call.toolUseId
+                    case .workflow(let call): return call.toolUseId
+                    default: return nil
+                    }
                 }
                 #expect((outline?.toolResults ?? []) == parsedResults)
                 #expect((outline?.toolUseIds ?? []) == parsedToolUses)

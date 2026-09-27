@@ -128,6 +128,53 @@ struct DeviceStoreTests {
         }
     }
 
+    @Test func liveActivityTokensBelongToOneDevice() async throws {
+        try await withStore { store, _ in
+            let pushToStart = String(repeating: "a1", count: 40)
+            let update = String(repeating: "b2", count: 40)
+            let apns = ApnsRegistration(token: String(repeating: "ab", count: 32), env: .sandbox)
+            let phone = try await store.register(name: "iPhone", token: "t1", at: start, apns: apns)
+            let pad = try await store.register(name: "iPad", token: "t2", at: start)
+            let watch = try await store.register(name: "Outro", token: "t3", at: start)
+            let starter = LiveActivityRegistration(pushToStartToken: pushToStart, env: .sandbox)
+            let parser = LiveActivityRegistration(activityId: "act-1", updateToken: update, agentId: "w1:p1", env: .sandbox)
+            let lexer = LiveActivityRegistration(activityId: "act-2", updateToken: String(repeating: "d4", count: 40), agentId: "w2:p1", env: .sandbox)
+            let other = LiveActivityRegistration(pushToStartToken: String(repeating: "c3", count: 40), env: .production)
+            func record(_ id: DeviceID) async throws -> DeviceRecord {
+                try #require(try await store.devices().first { $0.id == id })
+            }
+
+            #expect(try await store.setLiveActivities(pushToStart: starter, agentActivities: [parser, lexer], for: phone.id))
+            #expect(try await store.setLiveActivities(pushToStart: other, agentActivities: [], for: watch.id))
+            #expect(try await store.setLiveActivities(pushToStart: starter, agentActivities: [], for: "sumiu") == false)
+            #expect(try await record(phone.id).liveActivity == starter)
+            #expect(try await record(phone.id).agentActivities == [parser, lexer])
+            #expect(try await record(phone.id).hasLiveActivity(for: "w1:p1"))
+            #expect(try await record(phone.id).hasLiveActivity(for: "w9:p9") == false)
+
+            let claimed = LiveActivityRegistration(activityId: "act-1", updateToken: update.uppercased(), agentId: "w1:p1", env: .sandbox)
+            #expect(try await store.setLiveActivities(pushToStart: nil, agentActivities: [claimed], for: pad.id))
+            #expect(try await record(phone.id).liveActivity == starter)
+            #expect(try await record(phone.id).agentActivities == [lexer])
+            #expect(try await record(phone.id).hasLiveActivity(for: "w1:p1") == false)
+            #expect(try await record(phone.id).apns == apns)
+            #expect(try await record(pad.id).agentActivities == [claimed])
+            #expect(try await record(watch.id).liveActivity == other)
+
+            let moved = LiveActivityRegistration(pushToStartToken: pushToStart.uppercased(), env: .sandbox)
+            #expect(try await store.setLiveActivities(pushToStart: moved, agentActivities: [claimed], for: pad.id))
+            #expect(try await record(phone.id).liveActivity == nil)
+            #expect(try await record(phone.id).agentActivities == [lexer])
+            #expect(try await record(pad.id).liveActivity == moved)
+
+            #expect(try await store.setLiveActivities(pushToStart: nil, agentActivities: [], for: pad.id))
+            #expect(try await record(pad.id).liveActivity == nil)
+            #expect(try await record(pad.id).agentActivities.isEmpty)
+            #expect(try await record(watch.id).liveActivity == other)
+            #expect(try await store.devices().map(\.name) == ["iPhone", "iPad", "Outro"])
+        }
+    }
+
     @Test func recordsKeepPreferencesAndOptionalRegistrations() async throws {
         try await withStore { store, fileURL in
             let record = try await store.register(name: "iPhone", token: SecureToken.generate(), at: start)

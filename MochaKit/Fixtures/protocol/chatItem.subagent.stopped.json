@@ -1,0 +1,13 @@
+{
+  "id": "c83f1e5a-9b27-4d60-8a4c-2e7f9d1b3a06",
+  "at": "2026-09-26T11:20:14.000Z",
+  "type": "subagent",
+  "toolUseId": "toolu_01ST4kP8Rv",
+  "agentId": "a9e1c3b5d7f20486a",
+  "agentType": "Explore",
+  "description": "Medir a consulta com EXPLAIN",
+  "status": "stopped",
+  "toolUses": 6,
+  "startedAt": "2026-09-26T11:20:15.000Z",
+  "durationMs": 62000
+}

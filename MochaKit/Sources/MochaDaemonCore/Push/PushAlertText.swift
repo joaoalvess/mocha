@@ -25,12 +25,18 @@ enum PushAlertText {
     static let summaryLimit = 120
     static let turnDoneFallback = "Turno concluído."
     static let secondaryBody = "Esperando uma resposta no terminal."
+    static let permissionCategory = "PERMISSION"
+    static let questionCategory = "QUESTION"
 
     static func title(_ kind: PushAlertKind, workspaceLabel: String?) -> String {
         let base = switch kind {
         case .turnDone: "Claude terminou"
         case .needsInput: "Claude precisa de você"
         }
+        return title(base, workspaceLabel: workspaceLabel)
+    }
+
+    static func title(_ base: String, workspaceLabel: String?) -> String {
         guard let label = workspaceLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty else { return base }
         return base + " · " + label
     }
@@ -40,7 +46,24 @@ enum PushAlertText {
         return preview.isEmpty ? turnDoneFallback : preview
     }
 
+    static let inlineQuestionByteLimit = 2_000
+
+    static func pendingCategory(_ request: PermissionRequestHook) -> String {
+        guard request.toolName == PendingRequestFactory.questionToolName else { return permissionCategory }
+        return inlineQuestion(request) == nil ? PushAlertKind.needsInput.category : questionCategory
+    }
+
+    static func inlineQuestion(_ request: PermissionRequestHook) -> String? {
+        guard request.toolName == PendingRequestFactory.questionToolName,
+              let questions = request.toolInput["questions"]?.arrayValue, questions.count == 1,
+              questions[0]["multiSelect"]?.boolValue != true,
+              let question = nonEmpty(questions[0]["question"]), question.utf8.count <= inlineQuestionByteLimit
+        else { return nil }
+        return question
+    }
+
     static func needsInputBody(_ request: PermissionRequestHook) -> String {
+        if let question = inlineQuestion(request) { return question }
         if request.toolName == "AskUserQuestion", let question = nonEmpty(request.toolInput["questions"]?.arrayValue?.first?["question"]) {
             return PlainText.preview(fromMarkdown: question, limit: bodyLimit)
         }

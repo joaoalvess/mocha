@@ -61,6 +61,8 @@ public actor DaemonRuntime {
     private var controlServer: LocalControlServer?
     private var hookRouter: HookRouter?
     private var push: PushService?
+    private var pending: PendingStore?
+    private var liveActivity: LiveActivityService?
     private var uploadCleanup: Task<Void, Never>?
 
     public init(options: DaemonOptions = DaemonOptions(), events: @escaping Gateway.EventSink = { _ in }) {
@@ -79,16 +81,29 @@ public actor DaemonRuntime {
         let pairing = Pairing()
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
         let archive = SessionArchive(fileURL: paths.sessionsFile)
-        let hub = SessionHub(herdr: herdr, transcripts: transcripts, devices: devices, pairing: pairing, usage: usage, archive: archive)
+        let subagents = SubagentStore(projectsRoot: options.projectsRoot)
+        let pending = PendingStore(herdr: herdr, transcripts: transcripts)
+        let hub = SessionHub(
+            herdr: herdr,
+            transcripts: transcripts,
+            devices: devices,
+            pairing: pairing,
+            usage: usage,
+            archive: archive,
+            subagents: subagents,
+            pending: pending
+        )
         let push = PushService(
             devices: devices,
             audience: hub,
             credentials: options.apnsCredentials ?? ApnsCredentials.loader(configFile: paths.configFile),
             transport: options.apnsTransport ?? URLSessionApnsTransport()
         )
+        let liveActivity = LiveActivityService(devices: devices, sender: push)
+        await hub.attachLiveActivity(liveActivity)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
-        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, events: events)
+        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, liveActivities: liveActivity, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let configFile = paths.configFile
         let hookPort = options.hookPort ?? preparation.config.hookPort
@@ -98,6 +113,7 @@ public actor DaemonRuntime {
                 reload: { (try? DaemonConfigStore(url: configFile).read())?.hookSecret }
             ),
             events: hookEvents,
+            permissions: pending,
             resolveAgent: { await herdr.resolve($0) }
         )
         let hookServer = HttpServer(binding: .loopback(port: hookPort), router: hooks.makeRouter())
@@ -117,6 +133,8 @@ public actor DaemonRuntime {
         self.usage = usage
         self.gateway = gateway
         self.push = push
+        self.pending = pending
+        self.liveActivity = liveActivity
         self.hookRouter = hookRouter
         uploads.removeExpired(now: Date())
         let clock = SystemGatewayClock()
@@ -126,6 +144,8 @@ public actor DaemonRuntime {
         await usage.start()
         await herdr.start()
         await hub.start()
+        await pending.start()
+        await liveActivity.start(inputs: hub.liveActivityUpdates)
         await hookRouter.start(hooks: hookEvents.events())
         do {
             try await gatewayServer.start()
@@ -164,9 +184,13 @@ public actor DaemonRuntime {
         controlServer = nil
         await hookServer?.stop()
         hookServer = nil
+        await pending?.shutdown()
+        pending = nil
         hookEvents.finish()
         await hookRouter?.stop()
         hookRouter = nil
+        await liveActivity?.shutdown()
+        liveActivity = nil
         await push?.shutdown()
         push = nil
         await gateway?.shutdown()

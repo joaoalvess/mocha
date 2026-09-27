@@ -22,21 +22,21 @@
        "model": "claude-opus-5-5",
        "branch": "main",
        "sessionId": "6a1f4c2e-9b3d-4e7a-8c5f-0d2b1a9e8f7c",
-       "lastActivityAt": "2026-09-25T11:53:40.000Z",
+       "lastActivityAt": "2026-09-25T11:53:58.000Z",
        "pendingCount": 0,
        "preview": {
         "author": "assistant",
-        "text": "Os testes da tela de ajustes passaram. Quer que eu abra o PR?"
+        "text": "Ele roda em background; eu aviso quando a revisão terminar."
        },
        "activity": {
-        "toolName": "Bash",
-        "summary": "swift test --filter SettingsViewTests",
+        "toolName": "Glob",
+        "summary": "Sources/**/*View.swift",
         "status": "succeeded"
        },
        "contextLeftPercent": 62,
        "sessionStartedAt": "2026-09-25T10:41:42.552Z",
-       "turnStartedAt": "2026-09-25T11:53:16.000Z",
-       "turnEndedAt": "2026-09-25T11:53:40.000Z"
+       "turnStartedAt": "2026-09-25T11:53:40.000Z",
+       "turnEndedAt": "2026-09-25T11:53:58.000Z"
       }
      ]
     },
@@ -161,14 +161,19 @@
        "model": "claude-opus-5-5",
        "branch": "development",
        "sessionId": "8b2e6f4a-3c1d-4a9e-b7f5-2d8c0e6a1f93",
-       "lastActivityAt": "2026-09-25T11:57:40.000Z",
+       "lastActivityAt": "2026-09-25T11:59:35.000Z",
        "pendingCount": 0,
        "preview": {
         "author": "assistant",
-        "text": "Troquei o OFFSET por cursor em ListRecipes e ajustei o handler. Rodando os testes de integração:"
+        "text": "Achei OFFSET em /ingredientes e /autores. Troco os dois pelo mesmo cursor."
+       },
+       "activity": {
+        "toolName": "Bash",
+        "summary": "go test ./internal/ingredients -run Cursor",
+        "status": "running"
        },
        "contextLeftPercent": 84,
-       "turnStartedAt": "2026-09-25T11:56:02.000Z"
+       "turnStartedAt": "2026-09-25T11:55:39.000Z"
       }
      ]
     },

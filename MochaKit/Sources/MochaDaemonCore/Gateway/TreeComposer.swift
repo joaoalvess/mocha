@@ -9,11 +9,21 @@ enum TreeComposer {
         _ tree: [WorkspaceNode],
         metas: [String: TranscriptMeta],
         contexts: [String: Double] = [:],
-        archivedAts: [String: Date] = [:]
+        archivedAts: [String: Date] = [:],
+        runningSubagents: [String: Int] = [:],
+        pendingCounts: [AgentID: Int] = [:]
     ) -> [WorkspaceNode] {
         mapAgents(tree) { agent in
+            var agent = agent
+            agent.pendingCount = pendingCounts[agent.id] ?? 0
             guard let sessionId = agent.sessionId else { return agent }
-            return summary(agent, meta: metas[sessionId], contextUsedPercent: contexts[sessionId], archivedAt: archivedAts[sessionId])
+            return summary(
+                agent,
+                meta: metas[sessionId],
+                contextUsedPercent: contexts[sessionId],
+                archivedAt: archivedAts[sessionId],
+                runningSubagents: runningSubagents[sessionId]
+            )
         }
     }
 
@@ -21,9 +31,13 @@ enum TreeComposer {
         _ agent: AgentSummary,
         meta: TranscriptMeta?,
         contextUsedPercent: Double? = nil,
-        archivedAt: Date? = nil
+        archivedAt: Date? = nil,
+        runningSubagents: Int? = nil
     ) -> AgentSummary {
         var summary = agent
+        if let runningSubagents, runningSubagents > 0 {
+            summary.runningSubagents = runningSubagents
+        }
         if let meta {
             if let title = meta.title, !title.isEmpty {
                 summary.title = title

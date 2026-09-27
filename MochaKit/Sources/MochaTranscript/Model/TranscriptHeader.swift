@@ -8,6 +8,7 @@ public struct TranscriptHeader: Sendable, Equatable {
     public var permissionMode: String?
     public var claudeVersion: String?
     public var preview: MessagePreview?
+    public var prompt: String?
     public var activity: ToolActivity?
     public var contextTokens: Int?
     public var sessionStartedAt: Date?
@@ -21,6 +22,7 @@ public struct TranscriptHeader: Sendable, Equatable {
         permissionMode: String? = nil,
         claudeVersion: String? = nil,
         preview: MessagePreview? = nil,
+        prompt: String? = nil,
         activity: ToolActivity? = nil,
         contextTokens: Int? = nil,
         sessionStartedAt: Date? = nil,
@@ -33,6 +35,7 @@ public struct TranscriptHeader: Sendable, Equatable {
         self.permissionMode = permissionMode
         self.claudeVersion = claudeVersion
         self.preview = preview
+        self.prompt = prompt
         self.activity = activity
         self.contextTokens = contextTokens
         self.sessionStartedAt = sessionStartedAt

@@ -72,7 +72,7 @@ private func age(_ date: Date?, at now: Date) throws -> TimeInterval {
     @Test(arguments: [
         ("w2:p1", 58, 60.0, 120.0),
         ("w5:p1", 71, 0, 60),
-        ("w3:p1", 84, 120, 180),
+        ("w3:p1", 84, 0, 60),
         ("w1:p1", 62, 360, 420),
         ("w3:p2", 100, 420, 480),
     ] as [(AgentID, Int, TimeInterval, TimeInterval)])
@@ -99,13 +99,13 @@ private func age(_ date: Date?, at now: Date) throws -> TimeInterval {
 
         let receitas = try agent("w3:p1")
         #expect(receitas.preview?.author == .assistant)
-        #expect(receitas.preview?.text.hasPrefix("Troquei o OFFSET por cursor em ListRecipes") == true)
-        #expect(receitas.activity == nil)
-        #expect(try age(receitas.turnStartedAt, at: launch) == 238)
+        #expect(receitas.preview?.text == "Achei OFFSET em /ingredientes e /autores. Troco os dois pelo mesmo cursor.")
+        #expect(receitas.activity == ToolActivity(toolName: "Bash", summary: "go test ./internal/ingredients -run Cursor", status: .running))
+        #expect(try age(receitas.turnStartedAt, at: launch) == 261)
         #expect(try age(receitas.sessionStartedAt, at: launch) > 6 * 3_600)
 
         let demoApp = try agent("w1:p1")
-        #expect(demoApp.preview == MessagePreview(author: .assistant, text: "Os testes da tela de ajustes passaram. Quer que eu abra o PR?"))
+        #expect(demoApp.preview == MessagePreview(author: .assistant, text: "Ele roda em background; eu aviso quando a revisão terminar."))
         #expect(demoApp.turnEndedAt == demoApp.lastActivityAt)
         #expect(try age(demoApp.sessionStartedAt, at: launch) < 6 * 3_600)
 

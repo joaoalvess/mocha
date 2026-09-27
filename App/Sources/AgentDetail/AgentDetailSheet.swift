@@ -6,6 +6,7 @@ import UIKit
 struct AgentDetailSheet: View {
     @Bindable var session: AppSession
     let target: ChatTarget
+    @State private var subagents: [SubagentSummary] = []
 
     private static let contentTop: CGFloat = 4
     private static let closeInset: CGFloat = 16
@@ -17,7 +18,10 @@ struct AgentDetailSheet: View {
                     info: AgentDetailInfo(session: session, target: target),
                     hostName: session.host?.hostName,
                     usage: session.usage,
-                    now: context.date
+                    now: context.date,
+                    subagents: subagents,
+                    onOpenSubagent: { session.openChat($0) },
+                    onRespond: pendingAgentId.map { agentId in { session.revealPendingRequest(of: agentId) } }
                 )
                 .padding(.horizontal, Metrics.contentMargin)
                 .padding(.top, Self.contentTop)
@@ -31,7 +35,37 @@ struct AgentDetailSheet: View {
             .padding(.leading, Self.closeInset)
             .padding(.top, Self.closeInset)
         }
+        .task(id: subagentListKey) { await loadSubagents() }
     }
+
+    private var pendingAgentId: AgentID? {
+        guard case .agent(let agentId) = target, session.pending.request(forAgent: agentId) != nil else { return nil }
+        return agentId
+    }
+
+    private var subagentListKey: SubagentListKey? {
+        guard case .agent(let agentId) = target else { return nil }
+        return SubagentListKey(
+            agentId: agentId,
+            runningSubagents: session.workspaces.agent(withId: agentId)?.runningSubagents ?? 0,
+            isConnected: session.connectionState == .connected
+        )
+    }
+
+    private func loadSubagents() async {
+        guard let key = subagentListKey, key.isConnected else { return }
+        guard
+            let reply = try? await session.request(.listSubagents(agentId: key.agentId)),
+            case .subagentList(_, let items) = reply
+        else { return }
+        subagents = items
+    }
+}
+
+private struct SubagentListKey: Hashable {
+    let agentId: AgentID
+    let runningSubagents: Int
+    let isConnected: Bool
 }
 
 struct AgentDetailInfo {
@@ -42,6 +76,7 @@ struct AgentDetailInfo {
     var model: String?
     var tabTitle: String?
     var sessionId: String?
+    var isAgent = false
 
     @MainActor
     init(session: AppSession, target: ChatTarget) {
@@ -55,6 +90,7 @@ struct AgentDetailInfo {
             model = agent?.model
             tabTitle = session.workspaces.tab(containingAgent: agentId)?.title
             sessionId = agent?.sessionId
+            isAgent = true
         case .session(let sessionId):
             let archived = session.archivedSessions.first { $0.id == sessionId }
             title = HomeSections.title(for: archived?.preview)
@@ -64,6 +100,14 @@ struct AgentDetailInfo {
             model = archived?.model
             tabTitle = archived?.agentId.flatMap { session.workspaces.tab(containingAgent: $0)?.title }
             self.sessionId = sessionId
+        case .subagent:
+            title = HomeSections.title(for: nil)
+            workspace = Self.missing
+            activityAt = nil
+            badge = Self.badge(for: .unknown)
+            model = nil
+            tabTitle = nil
+            sessionId = nil
         }
     }
 
@@ -83,10 +127,20 @@ private struct AgentDetailContent: View {
     let hostName: String?
     let usage: UsageSnapshot?
     let now: Date
+    let subagents: [SubagentSummary]
+    let onOpenSubagent: (ChatTarget) -> Void
+    let onRespond: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             AgentDetailHero(info: info, hostName: hostName, now: now)
+            if let onRespond {
+                RespondButton(action: onRespond)
+                    .padding(.top, 20.3)
+            }
+            if info.isAgent, let sessionId = info.sessionId, !subagents.isEmpty {
+                AgentSubagentsSection(items: subagents, sessionId: sessionId, onOpen: onOpenSubagent)
+            }
             if let usage {
                 let windows = UsagePace.summaries(of: usage, now: now)
                 if !windows.isEmpty {

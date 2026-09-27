@@ -1,0 +1,1 @@
+{"agentType": "feature-dev:code-reviewer", "description": "Checar links", "toolUseId": "toolu_01FIXTUREGAGENT00000000001", "parentAgentId": "a1111111111111111", "spawnDepth": 2, "requestShape": "background", "requestNonInteractive": true}

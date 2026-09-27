@@ -35,6 +35,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>O Mocha usa a câmera para ler o QR de pareamento do Mac e para tirar fotos que você anexa aos prompts.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O Mocha usa o microfone para ditar prompts em português, transcritos no próprio iPhone.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>O Mocha transcreve o seu ditado no próprio iPhone para escrever o prompt.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIAppFonts</key>

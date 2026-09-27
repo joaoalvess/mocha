@@ -14,6 +14,7 @@ enum DemoScriptEvent: Sendable, Equatable {
     case switchSession
     case moveAgent
     case finishWorkingAgent
+    case finishSubagent
     case disconnectHerdr
     case reconnectHerdr
     case dropConnection
@@ -40,6 +41,7 @@ enum DemoScript {
         DemoScriptStep(delay: .seconds(4), event: .switchSession),
         DemoScriptStep(delay: .seconds(4), event: .moveAgent),
         DemoScriptStep(delay: .seconds(3), event: .finishWorkingAgent),
+        DemoScriptStep(delay: .seconds(3), event: .finishSubagent),
         DemoScriptStep(delay: .seconds(3), event: .disconnectHerdr),
         DemoScriptStep(delay: .seconds(3), event: .reconnectHerdr),
         DemoScriptStep(delay: .seconds(4), event: .dropConnection),
@@ -58,6 +60,8 @@ enum DemoScript {
     static let movedAgentId: AgentID = "w5:p1"
     static let movedAgentNewId: AgentID = "w5:p2"
     static let finishingAgentId: AgentID = "w5:p1"
+    static let finishingSubagentSessionId = DemoSubagents.receitasSessionId
+    static let finishingSubagentId = DemoSubagents.loadTestAgentId
     static let worktreeContextLeftPercent = 88
     static let reservedAgentIds: Set<AgentID> = [worktreeAgentId, movedAgentNewId]
 

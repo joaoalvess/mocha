@@ -53,6 +53,9 @@ struct ChatConversation: View {
             .onChange(of: isFieldFocused) { _, isFocused in
                 if !isFocused { isComposing = false }
             }
+            .onChange(of: session.pendingReveal, initial: true) { _, agentId in
+                revealPendingRequest(agentId)
+            }
             .task { await runDebugLaunch() }
     }
 
@@ -65,11 +68,20 @@ struct ChatConversation: View {
                             if isVisible { loadOlderItems() }
                         }
                 }
+                if let notice = subagentTopNotice {
+                    ChatNoticeText(text: notice)
+                        .padding(.horizontal, Metrics.contentMargin)
+                        .padding(.bottom, ChatRowSpacing.standard)
+                }
                 ForEach(list.rows) { row in
                     SignpostedRowLayout(kind: row.signpostKind) {
-                        ChatRowView(row: row, model: chat?.meta?.model, isExpanded: list.isExpanded(row.id)) {
-                            list.toggleExpansion(row.id)
-                        }
+                        ChatRowView(
+                            row: row,
+                            model: chat?.meta?.model,
+                            isExpanded: list.isExpanded(row.id),
+                            onToggle: { list.toggleExpansion(row.id) },
+                            onOpenSubagent: openSubagent
+                        )
                     }
                     .padding(.horizontal, Metrics.contentMargin)
                     .padding(.bottom, list.spacingBelow(row))
@@ -81,6 +93,21 @@ struct ChatConversation: View {
                 }
                 ForEach(list.pending.bubbles) { bubble in
                     PendingBubbleRow(bubble: bubble) { list.discardPending(bubble.id) }
+                        .padding(.horizontal, Metrics.contentMargin)
+                        .padding(.bottom, ChatRowSpacing.standard)
+                }
+                if let pendingRequest {
+                    PendingChatCard(session: session, request: pendingRequest)
+                        .padding(.horizontal, Metrics.contentMargin)
+                        .padding(.bottom, ChatRowSpacing.standard)
+                }
+                if let footer = subagentCompletedFooter {
+                    SubagentCompletedFooter(text: footer)
+                        .padding(.horizontal, Metrics.contentMargin)
+                        .padding(.bottom, ChatRowSpacing.standard)
+                }
+                if let reason = subagentFailureNotice {
+                    ChatNoticeText(text: reason)
                         .padding(.horizontal, Metrics.contentMargin)
                         .padding(.bottom, ChatRowSpacing.standard)
                 }
@@ -117,7 +144,21 @@ struct ChatConversation: View {
         .overlay(alignment: .bottomTrailing) { jumpButton }
     }
 
+    @ViewBuilder
     private var header: some View {
+        if isSubagent {
+            SubagentHeaderBar(
+                title: title,
+                subtitle: subagentInfo.map { SubagentText.parentSubtitle($0.parentTitle) } ?? session.connectionState.statusText,
+                onBack: { session.goBack() },
+                onOpenDrawer: { session.openDrawer() }
+            )
+        } else {
+            agentHeader
+        }
+    }
+
+    private var agentHeader: some View {
         ChatHeaderBar(
             indicator: indicator,
             title: title,
@@ -133,7 +174,9 @@ struct ChatConversation: View {
 
     @ViewBuilder
     private var bottomBar: some View {
-        if isReadOnly {
+        if isSubagent {
+            SubagentStatePill(status: subagentInfo?.status ?? .running)
+        } else if isReadOnly {
             ReadOnlyComposerPill()
         } else {
             ChatComposer(
@@ -186,7 +229,32 @@ struct ChatConversation: View {
     }
 
     private var isReadOnly: Bool {
-        if case .session = liveTarget { true } else { false }
+        switch liveTarget {
+        case .agent: false
+        case .session, .subagent: true
+        }
+    }
+
+    private var isSubagent: Bool {
+        if case .subagent = liveTarget { true } else { false }
+    }
+
+    private var subagentInfo: SubagentChatInfo? {
+        isSubagent ? chat?.meta?.subagent : nil
+    }
+
+    private var subagentTopNotice: String? {
+        guard let chat, let info = subagentInfo, !chat.isLoading, !chat.hasMore else { return nil }
+        return SubagentText.topNotice(agentType: info.agentType, startedAt: info.startedAt, model: chat.meta?.model)
+    }
+
+    private var subagentCompletedFooter: String? {
+        guard let info = subagentInfo, info.status == .completed else { return nil }
+        return SubagentText.completedFooter(durationMs: info.durationMs, toolUses: info.toolUses)
+    }
+
+    private var subagentFailureNotice: String? {
+        SubagentText.failureNotice(subagentInfo, lastItem: chat?.items.last)
     }
 
     private var isConnected: Bool {
@@ -223,7 +291,13 @@ struct ChatConversation: View {
     private var indicator: StatusIndicator {
         guard isConnected else { return .disconnected }
         if isReadOnly { return .archived }
+        if pendingRequest != nil { return .agent(.blocked) }
         return .agent(status)
+    }
+
+    private var pendingRequest: PendingRequest? {
+        guard case .agent(let agentId) = liveTarget else { return nil }
+        return session.pending.request(forAgent: agentId)
     }
 
     private var title: String {
@@ -292,18 +366,31 @@ struct ChatConversation: View {
         position.scrollTo(id: ChatScreenLayout.bottomAnchorId, anchor: .bottom)
     }
 
+    private func revealPendingRequest(_ agentId: AgentID?) {
+        guard let agentId, liveTarget == .agent(agentId) else { return }
+        session.consumePendingReveal()
+        dismissComposer()
+        jumpToBottom()
+    }
+
     private func loadOlderItems() {
         guard !isPinnedToBottom else { return }
         #if DEBUG
         if let delay = ChatDebugOptions.current().olderPageDelay {
             Task {
                 try? await Task.sleep(for: delay)
-                session.loadOlderItems()
+                session.loadOlderItems(for: target)
             }
             return
         }
         #endif
-        session.loadOlderItems()
+        session.loadOlderItems(for: target)
+    }
+
+    private func openSubagent(_ agentId: String) {
+        guard let subagent = session.subagentTarget(agentId: agentId, in: target) else { return }
+        dismissComposer()
+        session.openChat(subagent)
     }
 
     private func dismissComposer() {
@@ -369,6 +456,10 @@ struct ChatConversation: View {
         }
         if let sessionId = options.openSessionId, ChatDebugLaunch.consume(ChatDebugOptions.openSessionKey) {
             session.openChat(.session(sessionId))
+            return
+        }
+        if let agentId = options.openSubagentId, ChatDebugLaunch.consume(ChatDebugOptions.openSubagentKey), let subagent = session.subagentTarget(agentId: agentId, in: target) {
+            session.openChat(subagent)
             return
         }
         if let text = options.draft, ChatDebugLaunch.consume(ChatDebugOptions.draftKey) {
@@ -437,7 +528,7 @@ struct ChatConversation: View {
             let index = currentRowId.flatMap { id in rows.firstIndex { $0.id == id } } ?? rows.count - 1
             if index == 0 {
                 guard chat?.hasMore == true else { break }
-                session.loadOlderItems()
+                session.loadOlderItems(for: target)
                 continue
             }
             let next = max(0, index - Self.sweepStep)

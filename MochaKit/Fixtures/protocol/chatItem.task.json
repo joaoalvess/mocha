@@ -1,0 +1,6 @@
+{
+  "id": "1b8e…",
+  "at": "2026-09-26T13:52:11.000Z",
+  "type": "task",
+  "text": "Rode o teste de carga de GET /receitas com o k6 (load/list-recipes.js)…"
+}

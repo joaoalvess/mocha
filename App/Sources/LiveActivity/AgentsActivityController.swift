@@ -1,196 +1,192 @@
 import ActivityKit
 import Foundation
+import MochaClient
 import MochaProtocol
-import Observation
+import os
 import UIKit
 
-struct AgentsActivitySnapshot: Identifiable, Equatable {
-    let id: String
-    var state: ActivityState
-    var content: MochaAgentsAttributes.ContentState
-    var updateToken: String?
-}
-
-enum AgentsActivityEvent: Sendable {
-    case discovered(activityId: String, state: ActivityState)
-    case pushToStartToken(String)
-    case updateToken(activityId: String, token: String)
-    case content(activityId: String, state: MochaAgentsAttributes.ContentState, receivedAt: Date, isInitial: Bool)
-    case activityState(activityId: String, state: ActivityState)
-}
-
 @MainActor
-@Observable
 final class AgentsActivityController {
     static let shared = AgentsActivityController()
 
-    private(set) var activities: [AgentsActivitySnapshot] = []
-    private(set) var pushToStartToken: String?
-    private(set) var areActivitiesEnabled = false
-    private(set) var frequentPushesEnabled = false
-    private(set) var lastError: String?
+    private static let logger = Logger(subsystem: "com.joaoalves.mocha", category: "liveactivity")
+    private static let staleInterval: TimeInterval = 15 * 60
 
-    @ObservationIgnored var onEvent: ((AgentsActivityEvent) -> Void)?
-    @ObservationIgnored private let authorization = ActivityAuthorizationInfo()
-    @ObservationIgnored private let tokenStore = LiveActivityTokenStore()
-    @ObservationIgnored private var tokens = LiveActivityTokens()
-    @ObservationIgnored private var observedIds: Set<String> = []
-    @ObservationIgnored private var contentSeenIds: Set<String> = []
-    @ObservationIgnored private var tasks: [Task<Void, Never>] = []
+    private let authorization = ActivityAuthorizationInfo()
+    private var tokens: AgentsActivityTokenSync?
+    private var tracker = AgentsActivityTracker()
+    private var observedIds: Set<String> = []
+
+    private var isEnabled: Bool {
+        !ProcessInfo.processInfo.arguments.contains(LaunchConfiguration.demoFlag)
+    }
 
     func startObserving() {
-        guard tasks.isEmpty else { return }
-        tokens = tokenStore.load()
-        pushToStartToken = tokens.pushToStartToken
-        areActivitiesEnabled = authorization.areActivitiesEnabled
-        frequentPushesEnabled = authorization.frequentPushesEnabled
-        for activity in Activity<MochaAgentsAttributes>.activities {
+        guard isEnabled, tokens == nil else { return }
+        let live = Activity<MochaAgentAttributes>.activities.filter { Self.isLive($0.activityState) }
+        tokens = AgentsActivityTokenSync(
+            environment: PushRegistration.shared.environment.environment,
+            liveActivityIds: Set(live.map(\.id)),
+            gateway: GatewayAgentsActivityRegistrar(tokenStore: KeychainTokenStore())
+        )
+        deliver { await $0.deliverPending() }
+        for activity in live {
             observe(activity)
         }
-        tasks.append(Task { [weak self] in
-            for await activity in Activity<MochaAgentsAttributes>.activityUpdates {
-                self?.observe(activity)
+        let newest = Dictionary(live.map { ($0.attributes.agentId, $0.id) }) { _, last in last }
+        Task {
+            for (agentId, keptId) in newest {
+                await Self.endActivities(of: agentId, except: keptId)
             }
-        })
-        tasks.append(Task { [weak self] in
-            for await token in Activity<MochaAgentsAttributes>.pushToStartTokenUpdates {
+            await Self.endAggregatedActivities()
+        }
+        Task { [weak self] in
+            for await activity in Activity<MochaAgentAttributes>.activityUpdates {
+                self?.adopt(activity)
+            }
+        }
+        Task { [weak self] in
+            for await token in Activity<MochaAgentAttributes>.pushToStartTokenUpdates {
                 self?.receivePushToStartToken(token)
             }
-        })
-        tasks.append(Task { [weak self, authorization] in
-            for await enabled in authorization.activityEnablementUpdates {
-                self?.areActivitiesEnabled = enabled
-            }
-        })
-        tasks.append(Task { [weak self, authorization] in
-            for await enabled in authorization.frequentPushEnablementUpdates {
-                self?.frequentPushesEnabled = enabled
-            }
-        })
+        }
     }
 
-    @discardableResult
-    func start(state: MochaAgentsAttributes.ContentState) -> String? {
+    func socketOpened(send: @escaping @Sendable (LiveActivityRegistration) async -> Bool) {
+        let registrar = SocketAgentsActivityRegistrar(send: send)
+        deliver { await $0.socketOpened(registrar) }
+    }
+
+    func socketClosed() {
+        deliver { await $0.socketClosed() }
+    }
+
+    func agentsChanged(_ agents: [AgentSummary]) {
+        guard isEnabled else { return }
+        let now = Date()
+        let becameBusy = tracker.update(agents, at: now)
+        let isForeground = UIApplication.shared.applicationState == .active
+        for agentId in becameBusy.sorted() {
+            guard AgentsActivityStartPolicy.shouldStart(
+                isForeground: isForeground,
+                hasActivityForAgent: Self.hasLiveActivity(for: agentId),
+                activitiesEnabled: authorization.areActivitiesEnabled
+            ), let content = tracker.content(for: agentId, at: now) else { continue }
+            start(content, agentId: agentId)
+        }
+    }
+
+    nonisolated static func clearPending(_ requestId: String) async {
+        for activity in Activity<MochaAgentAttributes>.activities where isLive(activity.activityState) {
+            let current = activity.content
+            guard let cleared = AgentsActivityContent(current.state).clearingPending(requestId) else { continue }
+            await activity.update(
+                ActivityContent(state: cleared.attributesState, staleDate: current.staleDate),
+                alertConfiguration: nil,
+                timestamp: current.state.updatedAt
+            )
+        }
+    }
+
+    private func start(_ content: AgentsActivityContent, agentId: String) {
         do {
             let activity = try Activity.request(
-                attributes: MochaAgentsAttributes(),
-                content: ActivityContent(state: state, staleDate: nil),
+                attributes: MochaAgentAttributes(agentId: agentId),
+                content: ActivityContent(state: content.attributesState, staleDate: content.updatedAt.addingTimeInterval(Self.staleInterval)),
                 pushType: .token
             )
-            lastError = nil
-            observe(activity)
-            return activity.id
+            Self.logger.info("started the live activity of \(agentId, privacy: .public) locally")
+            adopt(activity)
         } catch {
-            lastError = String(describing: error)
-            return nil
+            Self.logger.error("failed to start the live activity of \(agentId, privacy: .public): \(String(describing: error), privacy: .public)")
         }
     }
 
-    func endAll() async {
-        let finalState = MochaAgentsAttributes.ContentState(working: 0, waiting: 0, highlight: nil, updatedAt: Date())
-        await Self.endActivities(with: finalState)
+    private func adopt(_ activity: Activity<MochaAgentAttributes>) {
+        observe(activity)
+        Task { await Self.endActivities(of: activity.attributes.agentId, except: activity.id) }
     }
 
-    private nonisolated static func endActivities(with finalState: MochaAgentsAttributes.ContentState) async {
-        for activity in Activity<MochaAgentsAttributes>.activities {
-            await activity.end(ActivityContent(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
-        }
-    }
-
-    private func observe(_ activity: Activity<MochaAgentsAttributes>) {
+    private func observe(_ activity: Activity<MochaAgentAttributes>) {
         let id = activity.id
+        let agentId = activity.attributes.agentId
         guard observedIds.insert(id).inserted else { return }
-        upsert(AgentsActivitySnapshot(
-            id: id,
-            state: activity.activityState,
-            content: activity.content.state,
-            updateToken: activity.pushToken.map(Self.hex)
-        ))
-        onEvent?(.discovered(activityId: id, state: activity.activityState))
         if let token = activity.pushToken {
-            receiveUpdateToken(token, activityId: id)
+            receiveUpdateToken(token, activityId: id, agentId: agentId)
         }
-        tasks.append(Task { [weak self] in
+        Task { [weak self] in
             for await token in activity.pushTokenUpdates {
-                self?.receiveUpdateToken(token, activityId: id)
+                self?.receiveUpdateToken(token, activityId: id, agentId: agentId)
             }
-        })
-        tasks.append(Task { [weak self] in
-            for await content in activity.contentUpdates {
-                self?.receiveContent(content.state, activityId: id)
+        }
+        Task { [weak self] in
+            for await state in activity.activityStateUpdates where !Self.isLive(state) {
+                self?.forget(activityId: id)
             }
-        })
-        tasks.append(Task { [weak self] in
-            for await state in activity.activityStateUpdates {
-                self?.receiveState(state, activityId: id)
-            }
-        })
+        }
     }
 
     private func receivePushToStartToken(_ data: Data) {
         let token = Self.hex(data)
-        pushToStartToken = token
-        tokens.pushToStartToken = token
-        tokens.pushToStartReceivedAt = Date()
-        persist()
-        onEvent?(.pushToStartToken(token))
+        deliver { await $0.recordPushToStartToken(token) }
     }
 
-    private func receiveUpdateToken(_ data: Data, activityId: String) {
+    private func receiveUpdateToken(_ data: Data, activityId: String, agentId: String) {
         let token = Self.hex(data)
-        update(activityId) { $0.updateToken = token }
-        guard tokens.activities[activityId]?.updateToken != token else { return }
-        tokens.activities[activityId] = LiveActivityTokens.ActivityRecord(
-            updateToken: token,
-            receivedAt: Date(),
-            appState: Self.describe(UIApplication.shared.applicationState)
-        )
-        persist()
-        onEvent?(.updateToken(activityId: activityId, token: token))
+        deliver { await $0.recordUpdateToken(token, activityId: activityId, agentId: agentId) }
     }
 
-    private func receiveContent(_ state: MochaAgentsAttributes.ContentState, activityId: String) {
-        update(activityId) { $0.content = state }
-        let isInitial = contentSeenIds.insert(activityId).inserted
-        onEvent?(.content(activityId: activityId, state: state, receivedAt: Date(), isInitial: isInitial))
+    private func forget(activityId: String) {
+        deliver { await $0.forgetActivity(activityId) }
     }
 
-    private func receiveState(_ state: ActivityState, activityId: String) {
-        update(activityId) { $0.state = state }
-        onEvent?(.activityState(activityId: activityId, state: state))
-    }
-
-    private func upsert(_ snapshot: AgentsActivitySnapshot) {
-        if let index = activities.firstIndex(where: { $0.id == snapshot.id }) {
-            activities[index] = snapshot
-        } else {
-            activities.append(snapshot)
+    private func deliver(_ operation: @escaping @Sendable (AgentsActivityTokenSync) async -> Void) {
+        guard let tokens else { return }
+        let assertion = BackgroundAssertion(name: "live-activity-tokens")
+        Task {
+            await operation(tokens)
+            assertion.end()
         }
     }
 
-    private func update(_ activityId: String, _ change: (inout AgentsActivitySnapshot) -> Void) {
-        guard let index = activities.firstIndex(where: { $0.id == activityId }) else { return }
-        change(&activities[index])
+    private nonisolated static func endActivities(of agentId: String, except keptId: String) async {
+        for activity in Activity<MochaAgentAttributes>.activities where activity.attributes.agentId == agentId && activity.id != keptId {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
     }
 
-    private func persist() {
-        do {
-            try tokenStore.save(tokens)
-        } catch {
-            lastError = String(describing: error)
+    private nonisolated static func endAggregatedActivities() async {
+        for activity in Activity<MochaAgentsAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
+    }
+
+    private static func hasLiveActivity(for agentId: String) -> Bool {
+        Activity<MochaAgentAttributes>.activities.contains { $0.attributes.agentId == agentId && isLive($0.activityState) }
+    }
+
+    private nonisolated static func isLive(_ state: ActivityState) -> Bool {
+        state == .active || state == .stale
     }
 
     private static func hex(_ data: Data) -> String {
         data.map { String(format: "%02x", $0) }.joined()
     }
+}
 
-    private static func describe(_ state: UIApplication.State) -> String {
-        switch state {
-        case .active: "active"
-        case .inactive: "inactive"
-        case .background: "background"
-        @unknown default: "unknown"
+@MainActor
+private final class BackgroundAssertion {
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+    init(name: String) {
+        identifier = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            self?.end()
         }
+    }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }

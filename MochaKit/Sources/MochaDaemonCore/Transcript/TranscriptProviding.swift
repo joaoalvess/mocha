@@ -11,10 +11,12 @@ public protocol TranscriptProviding: Sendable {
 public struct TranscriptSession: Sendable, Hashable {
     public var sessionId: String
     public var transcriptPath: String?
+    public var subagent: SubagentTranscript?
 
-    public init(sessionId: String, transcriptPath: String? = nil) {
+    public init(sessionId: String, transcriptPath: String? = nil, subagent: SubagentTranscript? = nil) {
         self.sessionId = sessionId
         self.transcriptPath = transcriptPath
+        self.subagent = subagent
     }
 }
 
@@ -62,6 +64,7 @@ public struct TranscriptMeta: Sendable, Equatable {
     public var claudeVersion: String?
     public var lastModified: Date?
     public var preview: MessagePreview?
+    public var prompt: String?
     public var activity: ToolActivity?
     public var contextTokens: Int?
     public var sessionStartedAt: Date?
@@ -76,6 +79,7 @@ public struct TranscriptMeta: Sendable, Equatable {
         claudeVersion: String? = nil,
         lastModified: Date? = nil,
         preview: MessagePreview? = nil,
+        prompt: String? = nil,
         activity: ToolActivity? = nil,
         contextTokens: Int? = nil,
         sessionStartedAt: Date? = nil,
@@ -89,6 +93,7 @@ public struct TranscriptMeta: Sendable, Equatable {
         self.claudeVersion = claudeVersion
         self.lastModified = lastModified
         self.preview = preview
+        self.prompt = prompt
         self.activity = activity
         self.contextTokens = contextTokens
         self.sessionStartedAt = sessionStartedAt

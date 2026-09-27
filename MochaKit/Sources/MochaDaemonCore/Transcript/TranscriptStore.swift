@@ -47,18 +47,18 @@ public actor TranscriptStore: TranscriptProviding {
     }
 
     public func page(session: TranscriptSession, before: String, limit: Int) async throws -> TranscriptPage {
-        guard let cursor = TranscriptCursor(before), cursor.sessionId == session.sessionId else {
+        guard let cursor = TranscriptCursor(before), cursor.sessionId == session.cursorKey else {
             throw TranscriptError.invalidCursor
         }
         guard let slice = await tracker(for: session).page(beforeOffset: cursor.offset, limit: limit) else {
             throw TranscriptError.invalidCursor
         }
         let meta = await meta(forSession: session) ?? TranscriptMeta()
-        return TranscriptPage(slice: slice, sessionId: session.sessionId, meta: meta)
+        return TranscriptPage(slice: slice, sessionId: session.cursorKey, meta: meta)
     }
 
     public func meta(forSession session: TranscriptSession) async -> TranscriptMeta? {
-        if let live = await trackers[session.sessionId]?.followedMeta() {
+        if let live = await trackers[session.cursorKey]?.followedMeta() {
             return live
         }
         guard let path = locator.path(for: session), let status = TranscriptFileStatus.of(path: path) else { return nil }
@@ -66,7 +66,7 @@ public actor TranscriptStore: TranscriptProviding {
         if let cached = metaCache[path], cached.stamp == stamp {
             return cached.value
         }
-        guard let header = await Self.readHeader(path: path) else { return nil }
+        guard let header = await Self.readHeader(path: path, mode: session.parseMode) else { return nil }
         let meta = TranscriptMeta(header: header, lastModified: status.modificationDate)
         metaCache[path] = Cached(stamp: stamp, value: meta)
         return meta
@@ -78,7 +78,7 @@ public actor TranscriptStore: TranscriptProviding {
         if let cached = statsCache[path], cached.stamp == stamp {
             return cached.value
         }
-        guard let summary = await Self.summarize(path: path) else { return nil }
+        guard let summary = await Self.summarize(path: path, mode: session.parseMode) else { return nil }
         let stats = TranscriptStats(
             dropped: summary.statistics.dropped,
             orphanResults: summary.statistics.orphanResults,
@@ -103,11 +103,11 @@ public actor TranscriptStore: TranscriptProviding {
     }
 
     private func tracker(for session: TranscriptSession) -> TranscriptTracker {
-        if let existing = trackers[session.sessionId] {
+        if let existing = trackers[session.cursorKey] {
             return existing
         }
         let created = TranscriptTracker(session: session, locator: locator, hooks: hooks)
-        trackers[session.sessionId] = created
+        trackers[session.cursorKey] = created
         return created
     }
 
@@ -121,12 +121,12 @@ public actor TranscriptStore: TranscriptProviding {
     }
 
     @concurrent
-    private static func readHeader(path: String) async -> TranscriptHeader? {
-        try? TranscriptHeaderScanner.header(ofFileAt: path)
+    private static func readHeader(path: String, mode: TranscriptParseMode) async -> TranscriptHeader? {
+        try? TranscriptHeaderScanner.header(ofFileAt: path, mode: mode)
     }
 
     @concurrent
-    private static func summarize(path: String) async -> TranscriptDocument? {
-        try? TranscriptDocument.summary(path: path)
+    private static func summarize(path: String, mode: TranscriptParseMode) async -> TranscriptDocument? {
+        try? TranscriptDocument.summary(path: path, mode: mode)
     }
 }

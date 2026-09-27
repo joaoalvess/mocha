@@ -14,6 +14,8 @@ struct TranscriptHomeTracker {
     private var lastCallId: String?
     private var lastMessage: ChatItem?
     private var computedPreview: (item: ChatItem, preview: MessagePreview?)?
+    private var lastPrompt: ChatItem?
+    private var computedPrompt: (item: ChatItem, text: String?)?
     private var olderRunning: ToolCall?
     private var olderLast: ToolCall?
 
@@ -23,7 +25,12 @@ struct TranscriptHomeTracker {
             switch item.kind {
             case .toolCall(let call):
                 absorbToolCall(call, id: item.id, isAppend: change.isAppend)
-            case .userPrompt, .assistantText:
+            case .userPrompt:
+                if change.isAppend {
+                    lastMessage = item
+                    lastPrompt = item
+                }
+            case .assistantText:
                 if change.isAppend {
                     lastMessage = item
                 }
@@ -50,6 +57,12 @@ struct TranscriptHomeTracker {
                 computedPreview = (lastMessage, MessagePreview(transcriptItem: lastMessage))
             }
             header.preview = computedPreview?.preview
+        }
+        if let lastPrompt {
+            if computedPrompt?.item != lastPrompt {
+                computedPrompt = (lastPrompt, MessagePreview(transcriptItem: lastPrompt)?.text)
+            }
+            header.prompt = computedPrompt?.text
         }
         if let call = currentActivityCall {
             header.activity = ToolActivity(call: call)

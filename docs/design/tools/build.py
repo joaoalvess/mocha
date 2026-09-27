@@ -432,6 +432,68 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 .acc .k.g{background:rgba(39,40,41,.55)}
 .acc .grp2{margin-left:auto;display:flex;gap:6px;padding-left:8px;border-left:1px solid rgba(255,255,255,.1)}
 
+.ph.sub{background:#2E221F;color:#D87454}
+.sa{background:var(--toolCard);border-radius:16px;padding:8px 15px 8px 12.7px;font:400 12px/16px var(--mono);color:var(--ts)}
+.sa .r{display:flex;align-items:center;height:16px;white-space:nowrap}
+.sa .r+.r{margin-top:6px}
+.sa .ti{width:15px;height:15px;margin-right:6.6px;stroke-width:1.9}
+.sa .sm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sa .nm{color:var(--tp);font-weight:700}
+.sa .ind{width:21.6px;flex:none}
+.sa .ai{width:13px;height:13px;margin-right:6px;stroke-width:1.9}
+.sa .an{color:var(--tp)}
+.sa .r.ac{padding-right:25px}
+.sa .bad{color:var(--error)}
+.sa .st{width:15px;height:15px;margin-left:10px;stroke-width:2}
+.sa .st.err{color:var(--error);stroke-width:1.8}
+.sa .spin{width:13px;height:13px;margin:0 1px 0 11px;border-radius:50%;border:1.8px solid rgba(152,160,168,.25);border-top-color:var(--ts)}
+.sa .cv{width:12px;height:12px;margin:0 1.5px 0 11.5px;stroke-width:2.3}
+.variants .vcol{width:100%;display:flex;flex-direction:column;gap:6px}
+.pcard.task{box-shadow:none}
+.pcard.task .h1{color:var(--ts)}
+.pcard.task .pt{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.hdr .hb.back{left:16px}
+.hdr .hb.back .ic{width:15px;height:15px;stroke-width:2.6}
+.hdr.subh .ast{left:53px;top:16px;stroke-width:2.1}
+.hdr.subh .ttl{left:74px;right:56px}
+.hdr.subh .sub{left:53px;right:56px}
+.rop{position:absolute;left:50%;bottom:49px;transform:translateX(-50%);height:44px;border-radius:22px;padding:0 20px 0 18px;display:flex;align-items:center;gap:9px;font:400 14px/20px var(--mono);color:var(--ts);white-space:nowrap;z-index:40}
+.rop .spin{width:13px;height:13px;border-radius:50%;border:1.8px solid rgba(152,160,168,.25);border-top-color:var(--ts)}
+.rop .st{width:15px;height:15px;stroke-width:2}
+.t2f{display:flex;align-items:center;height:21px}
+.t2f .tx{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sbd{display:inline-flex;align-items:center;gap:4px;height:17.3px;padding:0 7px 0 5.5px;border-radius:5px;background:var(--badgeOk);color:var(--ok);font:600 11px/1 var(--sf);letter-spacing:.1px;margin-right:7px;flex:none}
+.sbd .ic{width:11px;height:11px;stroke-width:2.2}
+.dlab{display:flex;justify-content:space-between;margin:20.3px 16.3px 7px;font:400 12px/16px var(--sf);letter-spacing:.25px;text-transform:uppercase;color:var(--ts)}
+.dlab span+span{text-transform:none;letter-spacing:0}
+.sal .rw{display:flex;align-items:center;height:56px;padding:0 16.7px 0 16.3px;gap:12px}
+.sal .rw+.rw{border-top:1px solid var(--divider)}
+.sal .rw.nest{padding-left:44.3px}
+.sal .sx{width:16px;display:grid;place-items:center;flex:none;color:var(--ts)}
+.sal .sx .ic{width:16px;height:16px;stroke-width:2}
+.sal .sx .ic.err{color:var(--error);stroke-width:1.8}
+.sal .spin{width:14px;height:14px;border-radius:50%;border:1.8px solid rgba(152,160,168,.25);border-top-color:var(--ts)}
+.sal .c{flex:1;min-width:0}
+.sal .t{font:400 15px/20px var(--sf);color:var(--tp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sal .s{font:400 13px/17px var(--sf);color:var(--ts);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sal .s b{font-weight:400;color:var(--error)}
+.sal .cv{width:12px;height:12px;color:var(--ts);stroke-width:2.3;flex:none}
+.wf .inner{padding:8px 12px 10px}
+.wf .wp{display:flex;align-items:center;height:24px;white-space:nowrap}
+.wf .wp .pi{width:13px;height:13px;margin-right:9px;flex:none;stroke-width:2.2}
+.wf .wp .pt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wf .wp .pc{margin-left:10px}
+.wf .wp.cur .pt{color:var(--tp);font-weight:700}
+.wf .wsp{width:13px;height:13px;margin-right:9px;flex:none;border-radius:50%;border:1.8px solid rgba(152,160,168,.25);border-top-color:var(--ts)}
+.wf .pdot{width:11px;height:11px;margin:0 10px 0 1px;flex:none;border-radius:50%;border:1.6px solid var(--sepDot)}
+.wf .pd{padding-left:22px;height:18px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf .ag{display:flex;align-items:center;height:20px;padding-left:22px;white-space:nowrap}
+.wf .ag .ai{width:11px;height:11px;margin-right:8px;flex:none;stroke-width:2.3}
+.wf .ag .wsp{width:11px;height:11px;margin-right:8px;border-width:1.6px}
+.wf .ag .lb{width:64px;flex:none;color:var(--tp)}
+.wf .ag .sm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wf .wm{padding:9px 15px 11px 24px;font:400 12px/16px var(--mono);color:var(--ts);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(0,255,0,.12),0 0 8px 1px rgba(0,255,0,.25)}50%{box-shadow:0 0 0 6px rgba(0,255,0,.2),0 0 16px 4px rgba(0,255,0,.45)}}
 @keyframes astp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.82)}}
@@ -442,6 +504,7 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 .hdr .dot.pulse{animation:pulse 1.6s ease-in-out infinite}
 .dr .ti.pl,.rr .ti.pl{animation:astp 1.4s ease-in-out infinite}
 .caret{animation:blink 1.1s step-end infinite}
+.sa .spin,.rop .spin,.sal .spin,.wf .wsp{animation:spin .9s linear infinite}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 """
 
@@ -501,6 +564,8 @@ SYMBOLS = """
 <symbol id="i-send-arrow" viewBox="0 0 24 24"><path d="M12 19.5V5M5.8 11.2 12 5l6.2 6.2"/></symbol>
 <symbol id="i-ast6" viewBox="0 0 24 24"><path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.7 3.9v4.4h-4.4"/></symbol>
+<symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15.5 4.5 8 12l7.5 7.5"/></symbol>
+<symbol id="i-flow" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="6" height="6" rx="1.6"/><rect x="14.5" y="9" width="6" height="6" rx="1.6"/><rect x="3.5" y="14.5" width="6" height="6" rx="1.6"/><path d="M9.5 6.5h2.4a1.6 1.6 0 0 1 1.6 1.6V12h1M9.5 17.5h2.4a1.6 1.6 0 0 0 1.6-1.6V12"/></symbol>
 <symbol id="i-wifix" viewBox="0 0 24 24"><path d="M2.8 9.2a13.5 13.5 0 0 1 18.4 0M5.9 12.5a9 9 0 0 1 12.2 0M9 15.8a4.5 4.5 0 0 1 6 0"/><circle cx="12" cy="19.2" r="1.1" class="fill"/><path d="M4 3.5 20 20.5"/></symbol>
 </defs></svg>
 """ % {'AST': ICONS['AST'], 'GEAR': ICONS['GEAR']}
@@ -606,7 +671,8 @@ def screen(sid, cls, inner, style=''):
     return f'<div class="phone"><div class="screen {cls}" id="{sid}" data-shot{st}>{inner}{HI}</div></div>'
 
 PH = {'core': '<span class="ph core">1a-core</span>', 'fin': '<span class="ph fin">1a-final</span>',
-      'b': '<span class="ph b">1b</span>', 'f2': '<span class="ph f2">fase 2</span>'}
+      'b': '<span class="ph b">1b</span>', 'f2': '<span class="ph f2">fase 2</span>',
+      'sub': '<span class="ph sub">subagentes</span>'}
 
 def shot(title, phases, scr, note, extra=''):
     chips = ''.join(PH[p] for p in phases)
@@ -1020,6 +1086,179 @@ terminal = screen('s-term', 'term', sb() +
     f'<div class="grp2"><div class="k g">{I("history")}</div><div class="k g" style="color:#fff">{I("claude")}</div><div class="k g">{I("kbdx")}</div></div>'
     '</div>' + keyboard())
 
+# ---------------------------------------------------------------- 16-19 Subagentes e workflows
+def sa_state(state):
+    if state == 'ok':
+        return I('check', 'st')
+    if state == 'err':
+        return I('xcircle', 'st err')
+    if state == 'stop':
+        return I('stopc', 'st')
+    return '<span class="spin"></span>'
+
+def sa_card(atype, desc, state, meta, act=None):
+    rows = f'<div class="r">{I("agent", "ti")}<span class="sm"><span class="nm">{atype}</span> {desc}</span>{sa_state(state)}</div>'
+    if act:
+        icon, name, rest = act
+        rows += f'<div class="r ac"><span class="ind"></span>{I(icon, "ai")}<span class="sm"><span class="an">{name}</span> {rest}</span></div>'
+    rows += f'<div class="r"><span class="ind"></span><span class="sm">{meta}</span>{I("chev-r", "cv")}</div>'
+    return f'<div class="sa">{rows}</div>'
+
+def sub_header(title, parent):
+    return (f'<div class="hdr subh gl gl-chat"><div class="hb back">{I("chev-l")}</div>{I("agent", "ast")}'
+            f'<div class="ttl">{title}</div><div class="sub">subagente de {parent}</div>'
+            f'<div class="hb nav">{I("compass")}</div></div>')
+
+def task_card(text):
+    return (f'<div class="pcard task"><div class="h1">{I("agent")}Tarefa</div>'
+            f'<div class="pt">{text}</div><div class="more">{I("chev-d")}Ver tarefa completa</div></div>')
+
+def ro_pill(state):
+    if state == 'run':
+        return '<div class="rop gl gl-cmp"><span class="spin"></span><span>Rodando · só leitura</span></div>'
+    return f'<div class="rop gl gl-cmp">{I("check", "st")}<span>Concluído · só leitura</span></div>'
+
+SA_LOAD_ACT = ('term', 'Shell', 'k6 run --vus 50 --duration 2m load/list-recipes.js')
+PARENT_RECEITAS = 'Paginação c…/receitas'
+
+chat_sub = screen('s-chat-sub', '', sb() +
+    '<div class="chat" style="bottom:95px">'
+    '<div class="ub">procura os outros endpoints que ainda usam OFFSET e roda o teste de carga de /receitas em paralelo</div>'
+    '<div class="think">Pensou</div>'
+    '<div class="p">Vou dividir em dois subagentes: um mapeia o uso de <span class="ci">OFFSET</span> e o outro roda o teste de carga. Enquanto isso, reviso o handler.</div>'
+    + tools(sa_card('Explore', 'Mapear uso de OFFSET', 'ok', '2m 14s • 18 ferramentas'),
+            sa_card('general-purpose', 'Teste de carga /receitas', 'run', '3m 51s • 9 ferramentas', act=SA_LOAD_ACT),
+            tool('doc', 'Read', 'internal/recipes/handler.go'))
+    + '<div class="p">Achei <span class="ci">OFFSET</span> em <span class="ci">/ingredientes</span> e <span class="ci">/autores</span>. Troco os dois pelo mesmo cursor.</div>'
+    + tools(tool('pencil', 'Edit', 'internal/ingredients/store.go', count=2),
+            tool('term', 'Shell', 'go test ./internal/ingredients -run Cursor', st='run'))
+    + f'<div class="status">{I("ast6", "as")}<span>Trabalhando…</span><span class="e">(4m 21s)</span>{STOP}</div>'
+    '</div>' + header(PARENT_RECEITAS, 'receitas-api • opus-5-5 • development', dot='pulse')
+    + composer())
+
+sa_variants = ('<div class="variants"><div class="cap">Estados do card do subagente (tocar abre o transcript):</div><div class="vcol">'
+    + sa_card('general-purpose', 'Teste de carga /receitas', 'run', '3m 51s • 9 ferramentas', act=SA_LOAD_ACT)
+    + sa_card('Explore', 'Mapear uso de OFFSET', 'ok', '2m 14s • 18 ferramentas')
+    + sa_card('Plan', 'Revisar o índice de receitas', 'err', '<span class="bad">falhou</span> • 48s • 3 ferramentas')
+    + sa_card('Explore', 'Medir a consulta com EXPLAIN', 'stop', 'parado • 1m 02s • 6 ferramentas')
+    + '</div></div>')
+
+sub_run = screen('s-sub-run', '', sb() +
+    '<div class="chat" style="top:122px">'
+    '<div class="notice">general-purpose · 13:52 · opus-5-5</div>'
+    + task_card('Rode o teste de carga de GET /receitas com o k6 (load/list-recipes.js): 50 usuários por 2 min, primeiro na main e depois em feat/cursor-receitas. Compare o p95 e a taxa de erro das duas rodadas.')
+    + '<div class="think">Pensou</div>'
+    + tools(sa_card('Explore', 'Achar o script de carga', 'ok', '41s • 5 ferramentas'),
+            tool('doc', 'Read', 'load/list-recipes.js'),
+            tool('term', 'Shell', 'k6 run --vus 50 --duration 2m load/list-recipes.js', count=3))
+    + '<div class="p">Na <span class="ci">main</span>, com OFFSET: p95 de 1,82 s na página 200 e nenhum erro. Agora com o cursor:</div>'
+    + tools(tool('term', 'Shell', 'git switch feat/cursor-receitas &amp;&amp; go build ./...', count=2),
+            tool('pencil', 'Edit', 'load/list-recipes.js'))
+    + '<div class="p">O script agora segue o <span class="ci">next_cursor</span> da resposta em vez de somar o offset.</div>'
+    + tools(tool('term', 'Shell', 'k6 run --vus 50 --duration 2m load/list-recipes.js', st='run'))
+    + '</div>' + sub_header('Teste de carga /receitas', PARENT_RECEITAS) + ro_pill('run'))
+
+sub_done = screen('s-sub-done', '', sb() +
+    '<div class="chat" style="bottom:95px">'
+    + task_card('Procure em internal/ os endpoints que ainda paginam com LIMIT/OFFSET. Liste rota, função e arquivo; não edite nada.')
+    + tools(tool('term', 'Shell', 'rg -n "OFFSET" internal/', count=6),
+            tool('doc', 'Read', 'internal/ingredients/store.go', count=9))
+    + '<div class="p">Três arquivos usam <span class="ci">OFFSET</span>. Confiro as rotas no router:</div>'
+    + tools(tool('search', 'Grep', 'r.Get\\(', count=2), tool('doc', 'Read', 'internal/api/router.go'))
+    + '<h4>Endpoints com OFFSET</h4>'
+    '<ul><li><span class="ci">/ingredientes</span>: <span class="ci">ListIngredients</span> em <span class="ci">internal/ingredients/store.go</span></li>'
+    '<li><span class="ci">/autores</span>: <span class="ci">ListAuthors</span> em <span class="ci">internal/authors/store.go</span></li></ul>'
+    '<div class="p">O <span class="ci">/receitas</span> já usa cursor. Os dois ordenam por <span class="ci">created_at</span>, sem desempate por id.</div>'
+    '<div class="foot">Concluído em 2m 14s · 18 ferramentas</div>'
+    '</div>' + sub_header('Mapear uso de OFFSET', PARENT_RECEITAS) + ro_pill('ok'))
+
+def sub_line(n, rest=''):
+    tx = f'<span class="tx">{rest}</span>' if rest else ''
+    return f'<span class="t2f"><span class="sbd">{I("agent")}{n} subagente{"s" if n > 1 else ""}</span>{tx}</span>'
+
+home_sub = screen('s-home-sub', 'home', sb() + home_top() + '<div class="list">'
+    '<div class="sec">Precisa de você</div>'
+    + hcard('Posso rodar npm run build para validar o feed?', 'site-pessoal', 'há 1 min', 58, 'warn', sub='Precisa de você · Shell', subwarn=True, warn=True)
+    + '<div class="sec">Trabalhando</div>'
+    + hcard('Achei OFFSET em /ingredientes e /autores. Troco os dois pelo mesmo cursor.', 'receitas-api', 'agora', 79, 'work', sub=sub_line(1, 'Shell: go test ./internal/ingredients -run Cursor'))
+    + hcard('Você: implementa login com a Apple nesse worktree…', 'login-social', 'há 1 min', 71, 'work', sub='Shell: swift test --filter AppleSignIn')
+    + '<div class="sec">Concluídos</div>'
+    + hcard('Ele roda em background; eu aviso quando a revisão terminar.', 'demo-app', 'há 3 min', 66, 'done', sub=sub_line(2))
+    + hcard('Sessão limpa', 'receitas-api', 'há 4 min', 100, 'done')
+    + '<div class="sec">Arquivados</div>'
+    + hcard('Você: cria o worktree login-social a partir da main', 'login-social', 'ontem', 47, 'arch', sub='Sessão encerrada', dim=True)
+    + '</div>' + upill())
+
+def sal_row(state, title, sub, nest=False):
+    if state == 'run':
+        s = '<span class="spin"></span>'
+    elif state == 'err':
+        s = I('xcircle', 'err')
+    else:
+        s = I('check')
+    return f'<div class="rw{" nest" if nest else ""}"><span class="sx">{s}</span><div class="c"><div class="t">{title}</div><div class="s">{sub}</div></div>{I("chev-r", "cv")}</div>'
+
+det_sub = screen('s-det-sub', 'home', sb() +
+    '<div class="dsheet"></div><div class="dflow">'
+    f'<div class="hero"><div class="ht">{I("claude")}</div><h2>Achei OFFSET em /ingredientes e /autores. Troco os dois pelo mesmo cursor.</h2>'
+    '<div class="hm"><span class="w">receitas-api</span> · MacBook · agora</div>'
+    '<div class="hb"><span class="stb work">TRABALHANDO</span></div></div>'
+    f'<div class="obtn">{I("term")}Abrir terminal</div>'
+    '<div class="dlab"><span>Subagentes</span><span>1 rodando</span></div>'
+    '<div class="dcard sal">'
+    + sal_row('run', 'Teste de carga /receitas', 'general-purpose · 3m 51s · 9 ferramentas')
+    + sal_row('ok', 'Achar o script de carga', 'Explore · 41s · 5 ferramentas', nest=True)
+    + sal_row('ok', 'Mapear uso de OFFSET', 'Explore · 2m 14s · 18 ferramentas')
+    + sal_row('ok', 'Gerar fixtures de carga', 'general-purpose · 3m 40s · 22 ferramentas')
+    + sal_row('err', 'Revisar o índice de receitas', 'Plan · <b>falhou</b> · 48s · 3 ferramentas')
+    + '</div>'
+    '<div class="dcard acct"><div class="hd"><span>Conta</span><span>Max 20x (d•••@e•••.com)</span></div><div class="rows">'
+    + dbar('5h', 12, '3h 35m') + dbar('7d', 71, '2d 10h') + '</div></div>'
+    '</div>'
+    f'<div class="xbtn gl gl-hero">{I("x")}</div><div class="scrollind" style="height:140px"></div>')
+
+def wf_phase(state, title, count):
+    if state == 'ok':
+        ic = I('check', 'pi')
+    elif state == 'run':
+        ic = '<span class="wsp"></span>'
+    else:
+        ic = '<span class="pdot"></span>'
+    cls = ' cur' if state == 'run' else ''
+    return f'<div class="wp{cls}">{ic}<span class="pt">{title}</span><span class="pc">{count}</span></div>'
+
+def wf_agent(state, label, rest):
+    ic = '<span class="wsp"></span>' if state == 'run' else I('check', 'ai')
+    return f'<div class="ag">{ic}<span class="lb">{label}</span><span class="sm">{rest}</span></div>'
+
+wf_card = ('<div class="texp wf" style="margin-bottom:12px">' + tool('flow', 'Workflow', 'auditoria-a11y', st='run') +
+    '<div class="inner">'
+    + wf_phase('ok', 'Mapear telas', '1 agente')
+    + wf_phase('run', 'Corrigir por tela', '2 de 4 agentes')
+    + '<div class="pd">uma tela por agente, com testes de UI</div>'
+    + wf_agent('run', 'Ajustes', '<span style="color:var(--tp)">Edit</span> SettingsView.swift')
+    + wf_agent('run', 'Perfil', '<span style="color:var(--tp)">Read</span> ProfileView.swift')
+    + wf_agent('ok', 'Login', '1m 48s')
+    + wf_agent('ok', 'Home', '2m 05s')
+    + wf_phase('pend', 'Revisar', 'pendente')
+    + '</div><div class="wm">6m 12s • 5 agentes • 86 ferramentas</div></div>')
+
+chat_wf = screen('s-chat-wf', '', sb() +
+    '<div class="chat" style="bottom:95px">'
+    '<div class="p">Os testes da tela de ajustes passaram. Quer que eu rode a auditoria de acessibilidade também?</div>'
+    '<div class="foot">Brewed for 1m 12s</div>'
+    '<div class="ub">roda o workflow auditoria-a11y em todas as telas do app</div>'
+    '<div class="think">Pensou</div>'
+    + tools(tool('search', 'Glob', 'Sources/**/*View.swift'))
+    + '<div class="p">O app tem 4 telas. O workflow mapeia as telas, corrige cada uma em paralelo e revisa tudo no fim.</div>'
+    + wf_card +
+    '<div class="p">Ele roda em background; eu aviso quando a revisão terminar.</div>'
+    '<div class="foot">Brewed for 18s</div>'
+    '</div>' + header('Auditoria a11y', 'demo-app • opus-5-5 • main') + composer())
+
+wf_variants = ('<div class="variants"><div class="cap">Workflow concluído (o card recolhe numa linha; tocar expande as fases):</div><div class="vcol">'
+    + tool('flow', 'Workflow', 'auditoria-a11y · 10 agentes') + '</div></div>')
+
 # ---------------------------------------------------------------- page
 N = lambda *xs: list(xs)
 
@@ -1038,6 +1277,7 @@ page = f"""<!doctype html>
 <div class="it">{PH['fin']}menu ↻, notificações de turno</div>
 <div class="it">{PH['b']}aprovações, perguntas, inbox, voz, imagem, Live Activity</div>
 <div class="it">{PH['f2']}terminal</div>
+<div class="it">{PH['sub']}subagentes e workflows</div>
 </div></header>
 """
 
@@ -1115,6 +1355,27 @@ page += group('Navegação e sistema', [
         'Com o app aberto em outro chat, o alerta chega como banner. O do chat visível é suprimido (<code>setForeground</code>).')),
     shot('15 · Terminal', ['f2'], terminal, N(
         'Só desenho. Folha sobre o chat com o terminal real do pane; a barra de teclas (Ctrl, Esc, Tab, ⌘, colar, histórico, atalho do Claude, fechar teclado) fica acima do teclado.')),
+])
+
+page += group('Subagentes e workflows', [
+    shot('16 · Chat com subagentes', ['sub'], chat_sub, N(
+        '<b>Cada chamada de <code>Agent</code> vira um card próprio</b>, sem agrupar com a chamada seguinte: tipo (<code>agentType</code>, sem o prefixo do plugin: <code>feature-dev:code-reviewer</code> vira <code>code-reviewer</code>) em negrito e a descrição. Rodando: a ferramenta atual do subagente, o tempo desde que ele começou e quantas ferramentas ele já chamou. Concluído: ✓ com o tempo e a contagem finais da notificação de tarefa.',
+        '<b>Tocar abre o transcript do subagente.</b> O aviso <code>Agent "…" finished</code> que o Claude Code grava no transcript principal não aparece: o card já mostra o fim. Sem tokens no card.'), sa_variants),
+    shot('16b · Transcript do subagente, rodando', ['sub'], sub_run, N(
+        'Só leitura, por push sobre o chat pai. O header troca o disco por <b>voltar</b> (volta ao chat pai), o asterisco pelo ícone de subagente e mostra "subagente de &lt;título do chat pai&gt;".',
+        'O aviso no topo traz o tipo, a hora e o modelo; o card "Tarefa" é o prompt que o Claude principal passou (4 linhas, toque expande). Sem composer e sem linha de status: a pílula diz o estado.')),
+    shot('16c · Transcript do subagente, concluído', ['sub'], sub_done, N(
+        'O último texto é a resposta que voltou para o Claude principal. A linha final (tempo e ferramentas) vem da notificação de tarefa, não de um <code>turn_duration</code>.',
+        'Falha ou parada: a pílula e o card do chat mostram ✗ ou ■, e o motivo da notificação entra como aviso no fim, no texto original (em inglês).')),
+    shot('17 · Home com subagentes', ['sub'], home_sub, N(
+        'O selo <b>"N subagentes"</b> abre a segunda linha do card enquanto há subagentes rodando naquela sessão (os do <code>Agent</code>, os aninhados e os agentes de workflow). Some quando todos terminam.',
+        'O Claude principal pode ter terminado o turno com subagentes em background: o card fica em CONCLUÍDOS com o selo (demo-app).')),
+    shot('18 · Detalhe com subagentes', ['sub'], det_sub, N(
+        'Lista SUBAGENTES da sessão, logo depois do bloco principal: os que rodam primeiro, depois os terminados do mais recente ao mais antigo. Cada linha: estado, descrição e "tipo · tempo · ferramentas", sem tokens. Um subagente aberto por outro aparece recuado logo abaixo do pai. Tocar abre o transcript.',
+        'A folha rola: Conta e a lista de Host, Modelo, Workspace, Tab e Sessão continuam abaixo, como na tela 4.')),
+    shot('19 · Chat com workflow', ['sub'], chat_wf, N(
+        'Card do <code>Workflow</code> expandido enquanto roda: as fases com ✓ (concluída), giro (atual, com o <code>detail</code> e os agentes dela) e ○ (pendente), e a contagem de agentes por fase. No rodapé: tempo, agentes e ferramentas do workflow.',
+        'Tocar num agente abre o transcript dele (tela 16b). Tocar no topo do card recolhe numa linha.'), wf_variants),
 ])
 
 page += '</body></html>'

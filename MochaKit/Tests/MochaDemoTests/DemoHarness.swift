@@ -107,8 +107,9 @@ final class DemoHarness: Sendable {
     let states: Recorder<ConnectionState>
     private let consumers: [Task<Void, Never>]
 
-    init(_ options: DemoOptions = .fast, launch: Date = Date()) throws {
-        let dataset = try DemoDataset.bundled(now: launch, isEmpty: options.isEmpty)
+    init(_ options: DemoOptions = .fast, launch: Date = Date(), adjusting adjust: (inout DemoDataset) -> Void = { _ in }) throws {
+        var dataset = try DemoDataset.bundled(now: launch, isEmpty: options.isEmpty)
+        adjust(&dataset)
         let connection = DemoServerConnection(dataset: dataset, options: options)
         let messages = Recorder<ServerEnvelope>()
         let states = Recorder<ConnectionState>()

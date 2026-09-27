@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "id": "c-13",
+  "type": "subagentList",
+  "payload": {
+    "agentId": "w17:p1",
+    "items": [
+      {
+        "agentId": "a0123456789abcdef",
+        "agentType": "general-purpose",
+        "description": "Teste de carga /receitas",
+        "status": "running",
+        "toolUses": 9,
+        "startedAt": "2026-09-26T13:52:11.000Z"
+      },
+      {
+        "agentId": "a76543210fedcba98",
+        "parentAgentId": "a0123456789abcdef",
+        "agentType": "Explore",
+        "description": "Achar o script de carga",
+        "status": "completed",
+        "toolUses": 5,
+        "startedAt": "2026-09-26T13:52:20.000Z",
+        "durationMs": 41000
+      }
+    ]
+  }
+}

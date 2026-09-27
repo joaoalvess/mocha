@@ -1,0 +1,1 @@
+extension PushService: LiveActivityPushSending {}

@@ -14,6 +14,9 @@ struct ChatRow: Identifiable, Equatable {
         case turnFooter(durationMs: Int)
         case recap(String)
         case notice(String)
+        case subagent(SubagentCall)
+        case workflow(WorkflowCall)
+        case task(String)
     }
 
     let id: String
@@ -32,11 +35,21 @@ struct ChatRow: Identifiable, Equatable {
         case .turnFooter: "turnFooter"
         case .recap: "recap"
         case .notice: "notice"
+        case .subagent: "subagent"
+        case .workflow: "workflow"
+        case .task: "task"
         }
     }
 
     var isToolRow: Bool {
-        if case .tools = content { true } else { false }
+        switch content {
+        case .tools, .subagent, .workflow: true
+        default: false
+        }
+    }
+
+    var isExpandedByDefault: Bool {
+        if case .workflow(let call) = content { call.status == .running } else { false }
     }
 }
 
@@ -95,6 +108,12 @@ final class ChatRowBuilder {
             rows.append(ChatRow(id: item.id, content: .recap(text), spacingBelow: ChatRowSpacing.standard))
         case .notice(let text):
             rows.append(ChatRow(id: item.id, content: .notice(text), spacingBelow: ChatRowSpacing.standard))
+        case .subagent(let call):
+            rows.append(ChatRow(id: item.id, content: .subagent(call), spacingBelow: ChatRowSpacing.standard))
+        case .workflow(let call):
+            rows.append(ChatRow(id: item.id, content: .workflow(call), spacingBelow: ChatRowSpacing.standard))
+        case .task(let text):
+            rows.append(ChatRow(id: item.id, content: .task(text), spacingBelow: ChatRowSpacing.standard))
         case .thinking, .toolCall, .unsupported:
             break
         }

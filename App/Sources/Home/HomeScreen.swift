@@ -13,6 +13,27 @@ struct HomeScreen: View {
         .onChange(of: session.connectionState, initial: true) { _, state in
             offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
         }
+        .task { await runDebugLaunch() }
+        .sheet(isPresented: $session.isInboxOpen) {
+            InboxSheet(session: session)
+                .presentationDetents([InboxSheet.detent])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(Palette.drawerBg)
+                .presentationCornerRadius(Metrics.sheetCornerRadius)
+        }
+    }
+
+    private func runDebugLaunch() async {
+        #if DEBUG
+        guard let agentId = HomeDebugOptions.current().openDetailAgentId else { return }
+        while session.workspaces.agent(withId: agentId) == nil {
+            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        if HomeDebugLaunch.consume(HomeDebugOptions.openDetailKey) {
+            session.showDetail(.agent(agentId))
+        }
+        #endif
     }
 }
 
@@ -63,6 +84,13 @@ private struct HomeContent: View {
                     session.openDrawer()
                 }
                 Spacer()
+                if showsInbox {
+                    InboxButton(count: session.pending.count) {
+                        session.showInbox()
+                    }
+                    .padding(.trailing, InboxButton.spacing)
+                    .transition(.opacity)
+                }
                 GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
                     session.showSettings()
                 }
@@ -77,6 +105,11 @@ private struct HomeContent: View {
         .padding(.horizontal, Metrics.homeButtonSide)
         .padding(.top, Metrics.homeButtonTopInset)
         .animation(.smooth(duration: 0.25), value: offlineMessage)
+        .animation(.smooth(duration: 0.25), value: showsInbox)
+    }
+
+    private var showsInbox: Bool {
+        session.pending.count > 0 && offlineMessage == nil
     }
 }
 

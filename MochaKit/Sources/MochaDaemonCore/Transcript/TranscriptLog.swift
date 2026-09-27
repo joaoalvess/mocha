@@ -4,6 +4,16 @@ import os
 
 let transcriptLogger = Logger(subsystem: "com.joaoalves.mocha", category: "transcript")
 
+extension TranscriptSession {
+    var cursorKey: String {
+        subagent.map { "\(sessionId)/\($0.agentId)" } ?? sessionId
+    }
+
+    var parseMode: TranscriptParseMode {
+        subagent.map { .subagent(forkToolUseId: $0.forkToolUseId) } ?? .main
+    }
+}
+
 extension TranscriptMeta {
     init(header: TranscriptHeader, lastModified: Date?) {
         self.init(
@@ -14,6 +24,7 @@ extension TranscriptMeta {
             claudeVersion: header.claudeVersion,
             lastModified: lastModified,
             preview: header.preview,
+            prompt: header.prompt,
             activity: header.activity,
             contextTokens: header.contextTokens,
             sessionStartedAt: header.sessionStartedAt,

@@ -22,13 +22,18 @@ public final class TranscriptFollower {
     static let seedLines = 256
 
     private let file: TranscriptFile
+    private let mode: TranscriptParseMode
     private var reducer = TranscriptReducer()
     private var home = TranscriptHomeTracker()
-    private var seedCache = ParsedLineCache()
+    private var seedCache: ParsedLineCache
+    private var parser: SequentialLineParser
     public private(set) var header: TranscriptHeader
 
-    public init(path: String, start: Start) throws(TranscriptFileError) {
+    public init(path: String, start: Start, mode: TranscriptParseMode = .main) throws(TranscriptFileError) {
         file = try TranscriptFile(path: path)
+        self.mode = mode
+        seedCache = ParsedLineCache(mode: mode)
+        parser = SequentialLineParser(mode)
         header = TranscriptHeader()
         guard case .afterExistingLines = start else { return }
         try file.indexToEnd()
@@ -36,7 +41,8 @@ public final class TranscriptFollower {
         for index in seedStart..<file.lineCount {
             home.absorb(reducer.apply(try seedCache.line(index, in: file)))
         }
-        let scanned = try TranscriptHeaderScanner.scan(file, end: file.indexedEnd)
+        parser = SequentialLineParser(resuming: try seedCache.mode(forLine: file.lineCount, in: file))
+        let scanned = try TranscriptHeaderScanner.scan(file, end: file.indexedEnd, mode: mode)
         header = scanned.header
         home.seed(olderActivity: scanned.activity)
         home.apply(to: &header)
@@ -69,14 +75,14 @@ public final class TranscriptFollower {
 
     public func page(beforeOffset offset: UInt64, limit: Int) throws(TranscriptFileError) -> TranscriptPageSlice? {
         guard let line = file.lineIndex(forOffset: offset) else { return nil }
-        var cache = ParsedLineCache()
+        var cache = ParsedLineCache(mode: mode)
         return try TranscriptPager(file: file).page(endingBefore: line, limit: limit, cache: &cache)
     }
 
     public func readAppendedLines() throws(TranscriptFileError) -> TranscriptFollowUpdate {
         var update = TranscriptFollowUpdate()
         for line in try file.readAppendedLines() {
-            let parsed = TranscriptLineParser.parse(line.bytes, offset: line.offset)
+            let parsed = parser.parse(line.bytes, offset: line.offset)
             header.absorb(parsed)
             let changes = reducer.apply(parsed)
             home.absorb(changes)
@@ -91,20 +97,22 @@ public final class TranscriptFollower {
 
 public final class TranscriptPageReader {
     private let file: TranscriptFile
+    private let mode: TranscriptParseMode
 
-    public init(path: String) throws(TranscriptFileError) {
+    public init(path: String, mode: TranscriptParseMode = .main) throws(TranscriptFileError) {
         file = try TranscriptFile(path: path)
+        self.mode = mode
         try file.indexToEnd()
     }
 
     public func lastPage(limit: Int) throws(TranscriptFileError) -> TranscriptPageSlice {
-        var cache = ParsedLineCache()
+        var cache = ParsedLineCache(mode: mode)
         return try TranscriptPager(file: file).page(endingBefore: file.lineCount, limit: limit, cache: &cache)
     }
 
     public func page(beforeOffset offset: UInt64, limit: Int) throws(TranscriptFileError) -> TranscriptPageSlice? {
         guard let line = file.lineIndex(forOffset: offset) else { return nil }
-        var cache = ParsedLineCache()
+        var cache = ParsedLineCache(mode: mode)
         return try TranscriptPager(file: file).page(endingBefore: line, limit: limit, cache: &cache)
     }
 

@@ -20,7 +20,8 @@ struct HomeSectionsTests {
         activity: ToolActivity? = nil,
         sessionStartedAgo: TimeInterval? = nil,
         turnEndedAgo: TimeInterval? = nil,
-        archivedAgo: TimeInterval? = nil
+        archivedAgo: TimeInterval? = nil,
+        runningSubagents: Int? = nil
     ) -> AgentSummary {
         AgentSummary(
             id: id,
@@ -35,7 +36,8 @@ struct HomeSectionsTests {
             contextLeftPercent: 50,
             sessionStartedAt: sessionStartedAgo.map(ago),
             turnEndedAt: turnEndedAgo.map(ago),
-            archivedAt: archivedAgo.map(ago)
+            archivedAt: archivedAgo.map(ago),
+            runningSubagents: runningSubagents
         )
     }
 
@@ -254,6 +256,27 @@ struct HomeSectionsTests {
         let summary = agent("a", lastActivityAgo: 0, turnEndedAgo: 0)
         #expect(HomeSections.kind(of: summary, now: now) == .done)
         #expect(HomeSections.kind(of: summary, now: now.addingTimeInterval(HomeSections.refreshInterval * 20)) == .archived)
+    }
+
+    @Test func idleAgentWithRunningSubagentsStaysInDoneWithTheBadge() {
+        let demoApp = agent("w1:p1", lastActivityAgo: 30 * 60, sessionStartedAgo: 7 * 60 * 60, turnEndedAgo: 20 * 60, runningSubagents: 2)
+        #expect(HomeSections.kind(of: demoApp, now: now) == .done)
+        let sections = HomeSections.make(agents: [demoApp], archived: [], now: now)
+        #expect(sections.map(\.kind) == [.done])
+        #expect(sections.first?.cards.first?.subagentBadge == "2 subagentes")
+    }
+
+    @Test func archivedAgentGoesToArchivedEvenWithRunningSubagents() {
+        let archived = agent("w1:p1", archivedAgo: 60, runningSubagents: 1)
+        #expect(HomeSections.kind(of: archived, now: now) == .archived)
+    }
+
+    @Test func badgeDisappearsWhenTheCountDropsToZero() {
+        let working = agent("w2:p1", status: .working, runningSubagents: 1)
+        #expect(HomeSections.card(for: working, in: .working, now: now).subagentBadge == "1 subagente")
+        let finished = agent("w2:p1", status: .idle, lastActivityAgo: 11 * 60, runningSubagents: 0)
+        #expect(HomeSections.kind(of: finished, now: now) == .archived)
+        #expect(HomeSections.card(for: finished, in: .archived, now: now).subagentBadge == nil)
     }
 }
 
