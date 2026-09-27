@@ -238,6 +238,8 @@ public actor SessionHub {
                         let agentId = TreeComposer.agents(in: baseTree).first { $0.sessionId == sessionId }?.id
                         followed[sessionId] = FollowedSession(sessionId: sessionId, agentId: agentId)
                     }
+                case .subagent:
+                    break
                 }
             }
         }

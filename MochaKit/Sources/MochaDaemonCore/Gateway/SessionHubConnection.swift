@@ -238,7 +238,7 @@ extension SessionHub {
             await setPreferences(preferences, id: id, clientId: clientId)
         case .newAgentTab(let workspaceId):
             await openAgentTab(in: workspaceId, id: id, clientId: clientId)
-        case .respond, .registerLiveActivity, .unknown:
+        case .respond, .registerLiveActivity, .listSubagents, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }
