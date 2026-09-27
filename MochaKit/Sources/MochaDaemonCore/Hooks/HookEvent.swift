@@ -5,11 +5,13 @@ public struct ReceivedHook: Sendable, Equatable {
     public var agentId: AgentID
     public var receivedAt: Date
     public var event: HookEvent
+    public var requestId: RequestID?
 
-    public init(agentId: AgentID, receivedAt: Date, event: HookEvent) {
+    public init(agentId: AgentID, receivedAt: Date, event: HookEvent, requestId: RequestID? = nil) {
         self.agentId = agentId
         self.receivedAt = receivedAt
         self.event = event
+        self.requestId = requestId
     }
 }
 

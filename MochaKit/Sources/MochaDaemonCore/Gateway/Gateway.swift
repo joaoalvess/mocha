@@ -5,6 +5,7 @@ public struct Gateway: Sendable {
     public static let webSocketPath = "/v1"
     public static let uploadPath = "/v1/upload"
     public static let liveActivityPath = "/v1/live-activity"
+    public static let respondPath = "/v1/respond"
     public static let port: UInt16 = 47421
     public static let binding = HttpBinding.loopback(port: port)
 
@@ -53,6 +54,13 @@ public struct Gateway: Sendable {
             router.route(.post, Self.liveActivityPath, maxBodySize: LiveActivityRoute.maxBodySize) { request in
                 events(.httpRequest(request))
                 return await liveActivity.respond(to: request)
+            }
+        }
+        if let pending = hub.pending {
+            let respond = RespondRoute(pending: pending, authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
+            router.route(.post, Self.respondPath) { request in
+                events(.httpRequest(request))
+                return await respond.respond(to: request)
             }
         }
         return router

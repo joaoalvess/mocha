@@ -118,9 +118,15 @@ public actor PushService {
             await alert(.turnDone, agentId: hook.agentId, body: PushAlertText.turnDoneBody(stop.lastAssistantMessage))
         case .permissionRequest(let request):
             rememberNeedsInput(hook.agentId, at: clock.now())
-            await alert(.needsInput, agentId: hook.agentId, body: PushAlertText.needsInputBody(request))
+            await alert(
+                .needsInput,
+                agentId: hook.agentId,
+                body: PushAlertText.needsInputBody(request),
+                category: hook.requestId.map { _ in PushAlertText.pendingCategory(request) },
+                requestId: hook.requestId
+            )
         case .notification(let notification) where notification.kind == .permissionPrompt:
-            await secondaryNeedsInput(hook.agentId)
+            await secondaryNeedsInput(hook.agentId, agent: await audience.agentSummary(hook.agentId))
         case .sessionStart, .userPromptSubmit, .notification:
             break
         }
@@ -179,10 +185,14 @@ public actor PushService {
         blockedChecks[agentId] = nil
         guard blockedAgents.contains(agentId) else { return }
         guard let agent = await audience.agentSummary(agentId), agent.kind == TreeComposer.claudeKind else { return }
-        await secondaryNeedsInput(agentId)
+        await secondaryNeedsInput(agentId, agent: agent)
     }
 
-    private func secondaryNeedsInput(_ agentId: AgentID) async {
+    private func secondaryNeedsInput(_ agentId: AgentID, agent: AgentSummary?) async {
+        if let agent, agent.pendingCount > 0 {
+            pushLogger.debug("needsInput for \(agentId, privacy: .public) already alerted by its pending request")
+            return
+        }
         let now = clock.now()
         if let last = lastNeedsInput[agentId], now.timeIntervalSince(last) < Self.seconds(configuration.needsInputWindow) {
             pushLogger.debug("needsInput for \(agentId, privacy: .public) already alerted")
@@ -198,7 +208,7 @@ public actor PushService {
         lastNeedsInput[agentId] = date
     }
 
-    private func alert(_ kind: PushAlertKind, agentId: AgentID, body: String) async {
+    private func alert(_ kind: PushAlertKind, agentId: AgentID, body: String, category: String? = nil, requestId: RequestID? = nil) async {
         let recipients = await recipients(for: kind, agentId: agentId)
         guard !recipients.isEmpty, let sender = loadSender() else { return }
         let label = await audience.agentSummary(agentId)?.workspaceLabel
@@ -209,10 +219,11 @@ public actor PushService {
                 title: PushAlertText.title(kind, workspaceLabel: label),
                 body: body,
                 threadId: agentId,
-                category: kind.category,
+                category: category ?? kind.category,
                 interruptionLevel: kind.interruptionLevel,
                 agentId: agentId,
                 kind: kind.rawValue,
+                requestId: requestId,
                 sentAt: now
             ).payload()
         } catch {

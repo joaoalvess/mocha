@@ -205,6 +205,7 @@ extension SessionHub {
         if let usageSnapshot {
             send(.usage(usageSnapshot), to: clientId)
         }
+        sendPending(to: clientId)
     }
 
     private func handle(_ message: ClientMessage, id: String, from clientId: UUID) async {
@@ -240,6 +241,8 @@ extension SessionHub {
             await openAgentTab(in: workspaceId, id: id, clientId: clientId)
         case .listSubagents(let agentId):
             await listSubagents(agentId, id: id, clientId: clientId)
+        case .respond(let requestId, let response) where pending != nil:
+            await respond(to: requestId, with: response, id: id, clientId: clientId)
         case .respond, .registerLiveActivity, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }

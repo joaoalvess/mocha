@@ -61,6 +61,7 @@ public actor DaemonRuntime {
     private var controlServer: LocalControlServer?
     private var hookRouter: HookRouter?
     private var push: PushService?
+    private var pending: PendingStore?
     private var uploadCleanup: Task<Void, Never>?
 
     public init(options: DaemonOptions = DaemonOptions(), events: @escaping Gateway.EventSink = { _ in }) {
@@ -80,6 +81,7 @@ public actor DaemonRuntime {
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
         let archive = SessionArchive(fileURL: paths.sessionsFile)
         let subagents = SubagentStore(projectsRoot: options.projectsRoot)
+        let pending = PendingStore(herdr: herdr, transcripts: transcripts)
         let hub = SessionHub(
             herdr: herdr,
             transcripts: transcripts,
@@ -87,7 +89,8 @@ public actor DaemonRuntime {
             pairing: pairing,
             usage: usage,
             archive: archive,
-            subagents: subagents
+            subagents: subagents,
+            pending: pending
         )
         let push = PushService(
             devices: devices,
@@ -107,6 +110,7 @@ public actor DaemonRuntime {
                 reload: { (try? DaemonConfigStore(url: configFile).read())?.hookSecret }
             ),
             events: hookEvents,
+            permissions: pending,
             resolveAgent: { await herdr.resolve($0) }
         )
         let hookServer = HttpServer(binding: .loopback(port: hookPort), router: hooks.makeRouter())
@@ -126,6 +130,7 @@ public actor DaemonRuntime {
         self.usage = usage
         self.gateway = gateway
         self.push = push
+        self.pending = pending
         self.hookRouter = hookRouter
         uploads.removeExpired(now: Date())
         let clock = SystemGatewayClock()
@@ -135,6 +140,7 @@ public actor DaemonRuntime {
         await usage.start()
         await herdr.start()
         await hub.start()
+        await pending.start()
         await hookRouter.start(hooks: hookEvents.events())
         do {
             try await gatewayServer.start()
@@ -173,6 +179,8 @@ public actor DaemonRuntime {
         controlServer = nil
         await hookServer?.stop()
         hookServer = nil
+        await pending?.shutdown()
+        pending = nil
         hookEvents.finish()
         await hookRouter?.stop()
         hookRouter = nil

@@ -62,6 +62,35 @@ public enum OrderedJSON: Sendable, Equatable {
         return output
     }
 
+    public func compactSerialized() -> String {
+        var output = ""
+        writeCompact(into: &output)
+        return output
+    }
+
+    private func writeCompact(into output: inout String) {
+        switch self {
+        case .null, .bool, .number, .string:
+            write(into: &output, depth: 0)
+        case .array(let elements):
+            output += "["
+            for (index, element) in elements.enumerated() {
+                if index > 0 { output += "," }
+                element.writeCompact(into: &output)
+            }
+            output += "]"
+        case .object(let members):
+            output += "{"
+            for (index, member) in members.enumerated() {
+                if index > 0 { output += "," }
+                Self.writeString(member.key, into: &output)
+                output += ":"
+                member.value.writeCompact(into: &output)
+            }
+            output += "}"
+        }
+    }
+
     private func write(into output: inout String, depth: Int) {
         switch self {
         case .null:

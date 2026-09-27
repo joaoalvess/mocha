@@ -26,6 +26,11 @@ struct HubError: Error, Sendable, Equatable {
     static let deviceStoreFailed = HubError(code: .internal, message: "Não foi possível gravar o aparelho no Mac.")
     static let herdrFailed = HubError(code: .internal, message: "Falha ao falar com o Herdr.")
     static let transcriptFailed = HubError(code: .internal, message: "Não foi possível ler a conversa no Mac.")
+    static let requestNotFound = HubError(code: .requestNotFound, message: "Este pedido já foi respondido ou expirou.")
+
+    static func invalidResponse(_ message: String) -> HubError {
+        HubError(code: .invalidPayload, message: message)
+    }
 
     static func unknownType(_ type: String) -> HubError {
         HubError(code: .unknownType, message: "Tipo de mensagem desconhecido: \(type).")
