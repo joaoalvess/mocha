@@ -10,17 +10,20 @@ public struct HookServer: Sendable {
 
     let secrets: HookSecretVerifier
     let events: HookEventHub
+    let permissions: (any PermissionRequestHolding)?
     let resolveAgent: AgentResolver
     let now: @Sendable () -> Date
 
     public init(
         secrets: HookSecretVerifier,
         events: HookEventHub,
+        permissions: (any PermissionRequestHolding)? = nil,
         resolveAgent: @escaping AgentResolver = { $0 },
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.secrets = secrets
         self.events = events
+        self.permissions = permissions
         self.resolveAgent = resolveAgent
         self.now = now
     }
@@ -54,8 +57,19 @@ public struct HookServer: Sendable {
         }
         let agentId = await resolveAgent(pane)
         hooksLogger.debug("\(name.rawValue, privacy: .public) from \(agentId, privacy: .public), session \(event.context.sessionId, privacy: .public)")
-        events.publish(ReceivedHook(agentId: agentId, receivedAt: now(), event: event))
-        return Self.noDecision
+        let hook = ReceivedHook(agentId: agentId, receivedAt: now(), event: event)
+        guard let permissions else {
+            events.publish(hook)
+            return Self.noDecision
+        }
+        guard case .permissionRequest(let request) = event else {
+            await permissions.observe(hook)
+            events.publish(hook)
+            return Self.noDecision
+        }
+        let requestId = await permissions.open(hook, request: request)
+        events.publish(ReceivedHook(agentId: agentId, receivedAt: hook.receivedAt, event: event, requestId: requestId))
+        return Self.decision(await permissions.reply(to: requestId))
     }
 
     static let noDecision = HttpResponse(
@@ -63,4 +77,12 @@ public struct HookServer: Sendable {
         headers: ["Content-Type": "application/json"],
         body: Data("{}".utf8)
     )
+
+    static func decision(_ body: OrderedJSON) -> HttpResponse {
+        HttpResponse(
+            status: .ok,
+            headers: ["Content-Type": "application/json"],
+            body: Data(body.prettyPrinted().utf8)
+        )
+    }
 }
