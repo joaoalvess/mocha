@@ -71,6 +71,35 @@ struct LiveActivityRouteTests {
         }
     }
 
+    @Test func anInvalidTokenIsABadRequest() async throws {
+        try await withLiveActivityGateway { harness in
+            harness.registrar.fail(with: LiveActivityRegistrationError.invalidToken)
+            let response = try await post(harness, authorization: "Bearer \(harness.token)", body: try JSONEncoder().encode(Self.registration))
+            #expect(response.status == 400)
+        }
+    }
+
+    @Test func theServiceRefusesAMalformedTokenAndSavesAValidOne() async throws {
+        try await withHub { hub in
+            let token = SecureToken.generate()
+            let device = try await hub.devices.register(name: "iPhone do João", token: token, at: Sample.start)
+            let service = LiveActivityService(devices: hub.devices, sender: FakeLiveActivitySender(), clock: hub.clock)
+            let gateway = Gateway(version: "9.9.9", herdr: hub.herdr, hub: hub.hub, liveActivities: service)
+            try await withRunningServer(gateway.makeRouter()) { port in
+                let headers = ["Content-Type": "application/json", "Authorization": "Bearer \(token)"]
+                let invalid = Data(#"{"activityId":"act-1","updateToken":"não-é-hex","env":"sandbox"}"#.utf8)
+                let refused = try await sendRequest("POST", port: port, target: Gateway.liveActivityPath, headers: headers, body: invalid)
+                #expect(refused.status == 400)
+                #expect(try await hub.devices.devices().first?.liveActivity == nil)
+
+                let accepted = try await sendRequest("POST", port: port, target: Gateway.liveActivityPath, headers: headers, body: try JSONEncoder().encode(Self.registration))
+                #expect(accepted.status == 200)
+                #expect(try await hub.devices.devices().first { $0.id == device.id }?.liveActivity == Self.registration)
+            }
+            await service.shutdown()
+        }
+    }
+
     @Test func registrarFailureIsAnInternalError() async throws {
         try await withLiveActivityGateway { harness in
             harness.registrar.fail(with: CocoaError(.fileWriteUnknown))
