@@ -6,36 +6,6 @@ import Testing
 @testable import MochaDaemonCore
 
 struct LiveActivityPendingTests {
-    private struct AppContentState: Decodable, Equatable {
-        struct Highlight: Decodable, Equatable {
-            var agentId: String
-            var title: String
-            var workspaceLabel: String
-            var status: String
-            var since: Date
-        }
-
-        struct Pending: Decodable, Equatable {
-            enum Kind: String, Decodable, Equatable {
-                case permission
-                case question
-            }
-
-            var requestId: String
-            var agentId: String
-            var kind: Kind
-            var toolName: String?
-            var text: String
-            var options: [String]
-        }
-
-        var working: Int
-        var waiting: Int
-        var highlight: Highlight?
-        var pending: Pending?
-        var updatedAt: Date
-    }
-
     private let sentAt = Date(timeIntervalSince1970: 1_790_000_000.25)
 
     private func fromHook(_ file: String) throws -> LiveActivityContentState.Pending {
@@ -179,8 +149,8 @@ struct LiveActivityPendingTests {
             let pending = try fromHook(file)
             let push = LiveActivityPush(event: .update, contentState: state(pending), timestamp: sentAt, staleDate: sentAt.addingTimeInterval(900))
             let data = try JSONSerialization.data(withJSONObject: try contentState(of: push))
-            let decoded = try JSONDecoder().decode(AppContentState.self, from: data)
-            #expect(decoded == AppContentState(
+            let decoded = try JSONDecoder().decode(LiveActivityAppContentState.self, from: data)
+            #expect(decoded == LiveActivityAppContentState(
                 working: 1,
                 waiting: 1,
                 highlight: .init(agentId: "w1:p1", title: "Refatorar o parser", workspaceLabel: "demo-app", status: "blocked", since: sentAt),
@@ -197,7 +167,7 @@ struct LiveActivityPendingTests {
             #expect(try JSONDecoder().decode(LiveActivityContentState.self, from: data) == state(pending))
         }
         let data = try JSONSerialization.data(withJSONObject: try contentState(of: LiveActivityPush(event: .update, contentState: state(nil), timestamp: sentAt)))
-        #expect(try JSONDecoder().decode(AppContentState.self, from: data).pending == nil)
+        #expect(try JSONDecoder().decode(LiveActivityAppContentState.self, from: data).pending == nil)
     }
 
     @Test func anInlineUpdateInTheWorstCaseFitsInFourKilobytes() throws {
