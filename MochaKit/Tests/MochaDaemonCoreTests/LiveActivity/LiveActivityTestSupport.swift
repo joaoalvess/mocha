@@ -20,6 +20,29 @@ enum LiveActivitySample {
     ) -> AgentSummary {
         AgentSummary(id: id, kind: kind, status: status, title: title, workspaceLabel: workspaceLabel, pendingCount: pendingCount)
     }
+
+    static func permission(
+        _ id: RequestID,
+        agent: AgentID,
+        createdAt: Date = Sample.start,
+        toolName: String = "Bash",
+        summary: String = "rm -rf build"
+    ) -> PendingRequest {
+        PendingRequest(
+            id: id,
+            agentId: agent,
+            createdAt: createdAt,
+            kind: .permission(toolName: toolName, summary: summary, inputJSON: "{\"command\":\"\(summary)\"}")
+        )
+    }
+
+    static func question(_ id: RequestID, agent: AgentID, createdAt: Date = Sample.start, questions: [PendingQuestion]) -> PendingRequest {
+        PendingRequest(id: id, agentId: agent, createdAt: createdAt, kind: .question(questions: questions))
+    }
+
+    static func singleQuestion(_ text: String, labels: [String], multiSelect: Bool = false) -> PendingQuestion {
+        PendingQuestion(header: "Pergunta", question: text, options: labels.map { PendingOption(label: $0) }, multiSelect: multiSelect)
+    }
 }
 
 struct LiveActivityHarness {
@@ -55,8 +78,8 @@ struct LiveActivityHarness {
         try await settle()
     }
 
-    func agents(_ agents: [AgentSummary], foreground: Set<DeviceID> = []) async throws {
-        await service.apply(LiveActivityInput(agents: agents, foregroundDevices: foreground))
+    func agents(_ agents: [AgentSummary], pending: [PendingRequest] = [], foreground: Set<DeviceID> = []) async throws {
+        await service.apply(LiveActivityInput(agents: agents, pending: pending, foregroundDevices: foreground))
         try await settle()
     }
 
