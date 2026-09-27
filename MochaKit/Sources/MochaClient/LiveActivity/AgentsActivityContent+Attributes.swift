@@ -2,8 +2,9 @@
 import MochaProtocol
 
 extension AgentsActivityContent {
-    public init(_ state: MochaAgentAttributes.ContentState) {
+    public init(_ state: MochaFeedAttributes.ContentState) {
         self.init(
+            agentId: state.agentId,
             status: state.status,
             title: state.title,
             workspaceLabel: state.workspaceLabel,
@@ -20,8 +21,9 @@ extension AgentsActivityContent {
         )
     }
 
-    public var attributesState: MochaAgentAttributes.ContentState {
-        MochaAgentAttributes.ContentState(
+    public var attributesState: MochaFeedAttributes.ContentState {
+        MochaFeedAttributes.ContentState(
+            agentId: agentId,
             status: status,
             title: title,
             workspaceLabel: workspaceLabel,
@@ -32,7 +34,7 @@ extension AgentsActivityContent {
             activity: activity,
             prompt: prompt,
             pending: pending.map {
-                MochaAgentAttributes.ContentState.Pending(
+                MochaFeedAttributes.ContentState.Pending(
                     requestId: $0.requestId,
                     kind: $0.kind.attributesKind,
                     toolName: $0.toolName,
@@ -46,14 +48,14 @@ extension AgentsActivityContent {
 }
 
 extension AgentsActivityContent.Pending.Kind {
-    init(_ kind: MochaAgentAttributes.ContentState.Pending.Kind) {
+    init(_ kind: MochaFeedAttributes.ContentState.Pending.Kind) {
         switch kind {
         case .permission: self = .permission
         case .question: self = .question
         }
     }
 
-    var attributesKind: MochaAgentAttributes.ContentState.Pending.Kind {
+    var attributesKind: MochaFeedAttributes.ContentState.Pending.Kind {
         switch self {
         case .permission: .permission
         case .question: .question

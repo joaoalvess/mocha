@@ -76,6 +76,7 @@ struct ApnsPayloadTests {
         #expect(Set(object.keys) == ["agentId", "title", "workspaceLabel", "status", "since", "updatedAt"])
         let decoded = try JSONDecoder().decode(LiveActivityAppContentState.self, from: try JSONEncoder().encode(state))
         #expect(decoded == LiveActivityAppContentState(
+            agentId: "w17:p1",
             status: "blocked",
             title: "roda os testes",
             workspaceLabel: "demo-app",
@@ -118,7 +119,7 @@ struct ApnsPayloadTests {
         #expect(aps["input-push-token"] == nil)
     }
 
-    @Test func startPayloadHasTheAgentAttributesAlertAndInputPushToken() throws {
+    @Test func startPayloadHasTheFeedAttributesAlertAndInputPushToken() throws {
         let push = AgentActivityPush(
             agentId: "w17:p1",
             event: .start(alert: AgentActivityAlert(title: "Claude trabalhando · demo-app", body: "roda os testes", sound: nil)),
@@ -127,8 +128,8 @@ struct ApnsPayloadTests {
         )
         let aps = try #require(try PushTestData.jsonObject(try push.payload())["aps"] as? [String: Any])
         #expect(aps["event"] as? String == "start")
-        #expect(aps["attributes-type"] as? String == "MochaAgentAttributes")
-        #expect(aps["attributes"] as? [String: String] == ["agentId": "w17:p1"])
+        #expect(aps["attributes-type"] as? String == "MochaFeedAttributes")
+        #expect(aps["attributes"] as? [String: String] == [:])
         #expect(aps["input-push-token"] as? Int == 1)
         let alert = try #require(aps["alert"] as? [String: Any])
         #expect(alert["title"] as? String == "Claude trabalhando · demo-app")

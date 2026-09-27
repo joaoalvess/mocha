@@ -33,6 +33,7 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | 1a-final | Push de turno concluído e de agente bloqueado; slash commands; nova tab | WP-X2 |
 | subagentes | Subagentes e workflows no app: card do subagente no chat com o transcript dele, selo na Home, lista no Detalhe e card de workflow | WP-X6 |
 | 1b | Inbox e ações na notificação, Live Activity, voz | WP-X3 |
+| 1b-feed | Live Activity única que acompanha o último evento (§7.5); aceitar plano pela tela bloqueada | WP-XF |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
@@ -886,6 +887,41 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 
 ---
 
+## Fase 1b-feed: Live Activity follow-up
+
+Branch `fase/1b-feed`, criada de `main` em 2026-09-27. Onda 1: orquestrador (SPEC §7.5, `MochaFeedAttributes`). Onda 2: WP-M18 ∥ WP-I18 ∥ WP-M19. Depois o WP-XF, o merge em `main` e o merge de `main` na `fase/codex` antes do WP-C2. Bloqueios do João: a reprodução do WP-M19 (aceitar um plano pela tela bloqueada e, na segunda rodada, desligar o `moshi-hook` do `PermissionRequest`) e a conferência no iPhone.
+
+### WP-M18: card follow-up (daemon)
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/LiveActivity/`, `Push/`, `Devices/`, `mochad/ApnsCommand.swift` e os testes correspondentes.
+- **SPEC**: §7.5 (e o que a nota da §7.4 mantém).
+- **Faz**: uma atividade por aparelho em `devices.json` e no `LiveActivityService`; seletor de foco (pedido mais antigo, senão evento mais recente); `agentId` no espelho `LiveActivityContentState`; `attributes-type` `MochaFeedAttributes`; alerta no update que traz o foco e supressão da §7.1 para todo agente enquanto o aparelho tem card com token; sem limite de 5 nem despejo; `mochad apns liveactivity` no tipo novo.
+- **Aceite**:
+  - [x] Testes: troca de foco por `preview` nova e por `status`; pedido segura o foco; vários pedidos → o mais antigo; volta ao evento mais recente; mudança de `activity` do agente em foco sem troca; alerta no update e supressão da §7.1; evento de outro agente com o card preso num pedido sai pela §7.1; prioridade 10 na troca; fim em 30 min; payload ≤ 4 KB; registro antigo com `agentId` ignorado.
+
+### WP-I18: card follow-up (app e widget)
+
+- **Dono**: `Widgets/`, `App/Sources/LiveActivity/`, `MochaKit/Sources/MochaClient/LiveActivity/`, `Shared/LiveActivity/` (exceto o que o WP-M19 muda em `PendingActivityIntents.swift`: mudanças nesse arquivo vão como diff no relatório) e os testes correspondentes.
+- **SPEC**: §7.5.
+- **Faz**: widget em `MochaFeedAttributes`, com o `agentId` do estado no deep link e nas ações; o app controla uma atividade só (início local com o foco pelo critério da §7.5), encerra as `MochaAgentAttributes` e `MochaAgentsAttributes` ao abrir e registra os tokens sem `agentId`.
+- **Aceite**:
+  - [x] Testes do foco no app, dos textos, dos tokens e do contrato com o daemon; `scripts/build-app.sh`.
+  - [x] Conferência no iPhone com o João (WP-XF).
+
+### WP-M19: aceitar plano pela tela bloqueada
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Pending/`, `MochaKit/Sources/MochaClient/Pending/`, `App/Sources/LiveActivity/PendingActivityResponder.swift`, `Shared/LiveActivity/PendingActivityIntents.swift`, `MochaKit/Fixtures/hooks/` e os testes correspondentes.
+- **SPEC**: §7.2, §7.3 (Ações), §8.
+- **Faz**: primeiro a causa raiz (reprodução com `log stream` do subsistema `com.joaoalves.mocha`, com e sem o `moshi-hook`), reportada ao João antes de mudar código. Hipóteses: o pedido fecha antes da resposta (`PendingStore` por `session_id` com subagente, ou o pane saindo de `blocked`) e o 404 passa em silêncio; ou o `moshi-hook` decide o `ExitPlanMode` sozinho. Depois, o fix da causa; a notificação local quando a resposta pela Live Activity ou pela notificação volta 404/400 (§7.3); e o texto do plano ("Claude quer seguir o plano", a primeira linha do plano sem markdown, botões "Negar" e "Aprovar").
+- **Aceite**:
+  - [x] Causa reproduzida e registrada no relatório, com o payload do `PermissionRequest` do `ExitPlanMode` em `Fixtures/hooks/`.
+  - [x] Testes de cada fix.
+  - [x] Aceitar plano pela tela bloqueada no iPhone (WP-XF).
+
+### WP-XF: integração da 1b-feed
+
+- **Checklist do João** (iPhone, três agentes): um card só na tela bloqueada; o card troca para o agente que mandou mensagem; um pedido segura o card; Permitir, Negar, resposta de pergunta e aceitar plano pela tela bloqueada; alerta no card sem notificação duplicada; o card some 30 min depois de tudo parar.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -964,6 +1000,10 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
 | WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
 | WP-X3 | todo | |
+| WP-M18 | feito (alertas que o card não mostra saem pela §7.1 via `LiveActivityAlertFallback`, guardados até 60 s; com o app aberto o card atualiza sem alerta; `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude` segue instável, corrida do teste anterior à fase) | 3d3941b, 3199f2c, deeb05c, merge 2f6625e |
+| WP-I18 | feito (foco local pelo pedido visto primeiro, senão a última mudança de status; o daemon corrige no primeiro update) | ed1484e, 17bff10, merge d297c23 |
+| WP-M19 | feito (causa: `allow` sem `updatedInput` no `ExitPlanMode`, ignorado pelo Claude; aprovar manda o input original + `setMode` `auto`; pedido de subagente não fecha o do agente principal; 404 avisa; fixture de entrada sintetizada pela doc) | fix(daemon), fix(app), test(daemon), merge |
+| WP-XF | feito (aprovado pelo João no iPhone em 2026-09-27) | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |

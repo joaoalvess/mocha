@@ -45,7 +45,13 @@ public enum AgentsActivityActions {
         case .permission:
             return [
                 AgentsActivityAction(requestId: pending.requestId, agentId: agentId, role: .deny, title: PendingText.deny, choice: .deny),
-                AgentsActivityAction(requestId: pending.requestId, agentId: agentId, role: .allow, title: PendingText.allow, choice: .allow),
+                AgentsActivityAction(
+                    requestId: pending.requestId,
+                    agentId: agentId,
+                    role: .allow,
+                    title: pending.toolName == PendingText.planToolName ? PendingText.approve : PendingText.allow,
+                    choice: .allow
+                ),
             ]
         case .question:
             guard !pending.text.isEmpty, (1...optionLimit).contains(pending.options.count) else { return [] }

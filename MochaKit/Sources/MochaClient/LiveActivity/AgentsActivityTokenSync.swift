@@ -37,8 +37,8 @@ public actor AgentsActivityTokenSync {
         await flush(resendingAll: false)
     }
 
-    public func recordUpdateToken(_ token: String, activityId: String, agentId: String) async {
-        guard book.recordUpdateToken(token, activityId: activityId, agentId: agentId) else { return }
+    public func recordUpdateToken(_ token: String, activityId: String) async {
+        guard book.recordUpdateToken(token, activityId: activityId) else { return }
         persist()
         await flush(resendingAll: false)
     }

@@ -3,16 +3,16 @@ import UserNotifications
 
 enum PendingNotificationCategories {
     static func make() -> Set<UNNotificationCategory> {
-        [permission, question]
+        [approval(PendingNotificationCategory.permission, allowTitle: PendingText.allow), approval(PendingNotificationCategory.plan, allowTitle: PendingText.approve), question]
     }
 
-    private static var permission: UNNotificationCategory {
+    private static func approval(_ identifier: String, allowTitle: String) -> UNNotificationCategory {
         UNNotificationCategory(
-            identifier: PendingNotificationCategory.permission,
+            identifier: identifier,
             actions: [
                 UNNotificationAction(
                     identifier: PendingNotificationAction.allow,
-                    title: PendingText.allow,
+                    title: allowTitle,
                     options: [.authenticationRequired]
                 ),
                 UNNotificationAction(

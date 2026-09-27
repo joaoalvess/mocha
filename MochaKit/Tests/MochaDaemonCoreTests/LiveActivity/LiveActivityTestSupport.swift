@@ -71,6 +71,7 @@ struct LiveActivityAppContentState: Decodable, Equatable {
         var options: [String]
     }
 
+    var agentId: String
     var status: String
     var title: String
     var workspaceLabel: String
@@ -109,7 +110,6 @@ struct LiveActivityHarness {
     func registerUpdateToken(
         _ token: String = LiveActivitySample.updateToken,
         activityId: String = LiveActivitySample.activityId,
-        agent: AgentID = "w1:p1",
         for device: DeviceID
     ) async throws {
         try await service.register(
@@ -117,7 +117,6 @@ struct LiveActivityHarness {
                 pushToStartToken: LiveActivitySample.pushToStartToken,
                 activityId: activityId,
                 updateToken: token,
-                agentId: agent,
                 env: .sandbox
             ),
             from: device
@@ -169,8 +168,8 @@ struct LiveActivityHarness {
         try await devices.devices().first { $0.id == device }?.liveActivity
     }
 
-    func storedActivities(_ device: DeviceID) async throws -> [LiveActivityRegistration] {
-        try await devices.devices().first { $0.id == device }?.agentActivities ?? []
+    func storedCard(_ device: DeviceID) async throws -> LiveActivityRegistration? {
+        try await devices.devices().first { $0.id == device }?.feedActivity
     }
 
     func sent(to token: String) -> [FakeLiveActivitySender.Sent] {

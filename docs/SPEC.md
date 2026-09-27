@@ -400,7 +400,7 @@ Regras:
   - O título vem do último `ai-title`, que começa como frase e depois vira o nome em kebab-case (igual ao título do terminal). Na falta dele, vem de `terminal_title_stripped` do Herdr.
 - **Meta da Home** (campos do `TranscriptMeta`, §4.1.1, derivados dos mesmos itens da tabela acima):
   - `preview`: o último item `userPrompt` (autor `user`) ou `assistantText` (autor `assistant`) do arquivo. O texto passa por `PlainText.preview(fromMarkdown:)` (`MochaTranscript`): tira cercas e crases de código, marcadores de ênfase, `#` de título, marcadores de lista e de citação, troca `[texto](url)` por `texto`, junta todos os espaços e quebras num espaço só e corta em 200 caracteres, sem reticências. Um `userPrompt` só com imagens vira `[imagem]`. Sem nenhum desses itens (sessão nova ou recém-limpa), `nil`.
-  - `prompt`: o texto do último `userPrompt` do arquivo (inclusive `queued_command`), com a mesma limpeza e o mesmo corte do `preview` (`[imagem]` quando só tem imagens). Fica mesmo depois que o assistente responde; sem nenhum, `nil`. Só alimenta a Live Activity (§7.4) e não entra no `AgentSummary`.
+  - `prompt`: o texto do último `userPrompt` do arquivo (inclusive `queued_command`), com a mesma limpeza e o mesmo corte do `preview` (`[imagem]` quando só tem imagens). Fica mesmo depois que o assistente responde; sem nenhum, `nil`. Só alimenta a Live Activity (§7.5) e não entra no `AgentSummary`.
   - `activity`: o último `toolCall` com `status == running`; sem nenhum rodando, o último `toolCall` do arquivo. Leva `name`, `summary` e `status`. Os itens `subagent` e `workflow` não são `toolCall` e não entram aqui.
   - `contextTokens`: `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` do `message.usage` da última linha `assistant` que não seja `<synthetic>` nem erro de API (sem `output_tokens`; sidechain já é ignorada).
   - `sessionStartedAt`: o `timestamp` da primeira linha do arquivo que tem `timestamp`.
@@ -872,7 +872,7 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 | `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
 | `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
-| `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico de Live Activity por agente (1b, §7.4), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
+| `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico da Live Activity (§7.5), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
 | `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
 
@@ -1757,9 +1757,9 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 - `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Com `QUESTION`, o corpo é o texto exato da pergunta (até 2.000 bytes), que o app usa como chave de `answers`. Várias perguntas, `multiSelect` ou uma pergunta maior vão com a categoria `NEEDS_INPUT`, sem ações, e o corpo é a prévia de `questions[0].question`: o toque abre o chat com o card.
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
 
-### §7.3 Live Activity agregada (1b, substituída pela §7.4)
+### §7.3 Live Activity agregada (1b, substituída pela §7.5)
 
-> Desde 2026-09-27 vale a §7.4 (uma atividade por agente). Desta seção continuam valendo: codificação do `content-state`, headers, regras do `pending` e dos campos do `highlight` (limites, orçamentos, `activity` com `toolName` cru), Ações (intents, Face ID só no Permitir), limite de 8 h, tokens e simulador.
+> Desde 2026-09-27 vale a §7.5 (um card que acompanha o último evento). Desta seção continuam valendo: codificação do `content-state`, headers, regras do `pending` e dos campos do `highlight` (limites, orçamentos, `activity` com `toolName` cru), Ações (intents, Face ID só no Permitir), limite de 8 h, tokens e simulador.
 
 - Uma única atividade `MochaAgentsAttributes` (sem atributos estáticos relevantes), definida em `MochaProtocol` sob `#if os(iOS)` (o `ActivityAttributes` não existe no macOS), com `ContentState`:
 
@@ -1815,7 +1815,7 @@ public struct ContentState: Codable, Hashable {
   - pergunta com `options`: a pergunta e um botão por opção;
   - pergunta sem `options`: a prévia e o toque abre o chat com o card (deep link do agente).
   - Os botões são `Button(intent:)` com `LiveActivityIntent`: o sistema roda o intent no processo do app, sem abri-lo, e o app faz `POST /v1/respond` (Bearer, §5.5). "Permitir" tem `authenticationPolicy = .requiresAuthentication` (Face ID); "Negar" e as opções usam o padrão, que roda com o iPhone travado.
-  - Depois de uma resposta aceita, o app atualiza a atividade localmente sem o `pending`; a atualização do daemon vem em seguida. Uma resposta recusada (400/404) ou sem conexão deixa o `pending` e mostra o motivo numa notificação local, como nas ações de notificação (§7.2).
+  - Depois de uma resposta aceita, o app atualiza a atividade localmente sem o `pending`; a atualização do daemon vem em seguida. Uma resposta recusada (400) ou sem conexão deixa o `pending` e mostra o motivo numa notificação local, como nas ações de notificação (§7.2). Um 404 (o pedido já foi resolvido no Mac ou expirou) tira o `pending` e mostra a notificação local "Esse pedido já foi resolvido no Mac", também na ação de notificação.
 - **Headers**: `apns-push-type: liveactivity`, `apns-topic: com.example.mocha.push-type.liveactivity`, `apns-id`. `apns-expiration` e `apns-collapse-id` são aceitos, mas não são necessários.
 - **Ciclo de vida**:
   - **Início**: quando algum agente passa a `working` e não há atividade ativa.
@@ -1839,7 +1839,9 @@ public struct ContentState: Codable, Hashable {
 - **Simulador**: recebe push-to-start e updates reais do sandbox, mas **não entrega ao app o token de update de uma atividade iniciada por push**. Esse caminho só se testa no iPhone.
 
 
-### §7.4 Live Activity por agente (1b)
+### §7.4 Live Activity por agente (1b, substituída pela §7.5)
+
+> Desde 2026-09-27 vale a §7.5. Desta seção continuam valendo: o card (layout, medidas e paleta, sem título de tab), as regras de prioridade e de refresh, os alertas no lugar das notificações, o encaixe do payload em 4 KB e a renovação às 7 h 50 min.
 
 Decisão do João em 2026-09-27, depois de comparar com o Moshi com vários agentes em paralelo: uma atividade por agente Claude, no layout do Moshi (`docs/referencias/moshi/live-activity.jpg`).
 
@@ -1857,6 +1859,24 @@ Decisão do João em 2026-09-27, depois de comparar com o Moshi com vários agen
 - **Tokens**: o push-to-start é um token do app para o tipo `MochaAgentAttributes`; cada atividade manda o seu token de update com `activityId` e `agentId` no `LiveActivityRegistration` (WS em primeiro plano, `POST /v1/live-activity` em background). O daemon guarda as atividades por aparelho e por agente em `devices.json`.
 - **Transição**: o daemon e o widget deixam o tipo agregado nos WPs M17/I17. `MochaAgentsAttributes` fica no protocolo só para o app encerrar, ao abrir, as atividades agregadas que encontrar.
 
+### §7.5 Live Activity follow-up (1b-feed)
+
+Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma atividade por agente polui a tela bloqueada, e contagens não agregam. Vale **um card só**, que mostra um agente por vez e acompanha o último evento.
+
+- **Tipo**: `MochaFeedAttributes` (`MochaProtocol`, só iOS), sem atributos estáticos; `attributes-type: "MochaFeedAttributes"` e `attributes: {}` no push-to-start. `ContentState`: `agentId` (o agente em foco) e os campos da `MochaAgentAttributes` (§7.4): `status`, `title`, `workspaceLabel`, `since`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `prompt?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as regras de preenchimento, limites e orçamentos da §7.3. O daemon codifica pelo espelho `LiveActivityContentState` com o `agentId`.
+- **Uma atividade por aparelho.** O app, ao abrir, encerra as `MochaAgentAttributes` e as `MochaAgentsAttributes` que achar; os dois tipos ficam no protocolo só para isso.
+- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada, entre os agentes Claude da árvore:
+  1. com pedido pendente em algum agente: o agente do pedido mais antigo (`createdAt`, depois `id`). O pedido segura o card até ser resolvido;
+  2. senão: o agente com o **evento** mais recente. Evento = a `preview` mudou, o `status` efetivo mudou (inclusive o turno concluído) ou o agente ficou `blocked` sem pedido. Empate: o agente em foco continua; depois o menor `agentId`.
+  - Mudança só de `activity`, `prompt`, `model`, `contextLeftPercent` ou `title` atualiza o card quando é do agente em foco, e não puxa o foco.
+  - Um agente que some da árvore perde o foco; sem nenhum agente, o card mantém o último estado até o fim.
+- **Card**: o da §7.4 para o agente em foco, sem contagem de outros agentes. `widgetURL` e o botão "Abrir" = deep link do `agentId` do estado. `relevance-score` pelo `status` do agente em foco.
+- **Início**: quando algum agente passa a `working`/`blocked` e o aparelho não tem card. App em primeiro plano: `Activity.request` com o foco pelo mesmo critério, calculado no app pela árvore. Senão, push-to-start com `alert` `{"title": "Claude trabalhando · <rótulo>", "body": "<title>"}` do agente em foco.
+- **Atualização**: no máximo uma a cada 10 s, sempre com o estado mais recente. Prioridade 10 em troca de foco e em mudança de `status` ou de `pending`; 5 no resto; refresh 5 a cada 10 min enquanto algum agente está `working`/`blocked`; `stale-date` = agora + 15 min.
+- **Alertas no lugar das notificações**: enquanto o aparelho tem o card com token de update conhecido, o daemon não manda os alertas da §7.1 de **nenhum** agente. O alerta (texto e regras da §7.4) vai no update que traz o foco para o agente do evento. Um evento de outro agente que não ganha o foco, porque um pedido segura o card, sai como alerta da §7.1. Antes do token chegar, vale a §7.1.
+- **Fim**: 30 min sem nenhum agente `working`/`blocked` → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start.
+- **Tokens**: `registerLiveActivity` sem `agentId`: um token de push-to-start para o tipo e o token de update da atividade com `activityId`. O daemon guarda uma atividade por aparelho em `devices.json`; um registro antigo com `agentId` é ignorado.
+
 ---
 
 ## §8 Aprovações e perguntas (1b)
@@ -1867,7 +1887,7 @@ Mecanismo validado pelo spike S3 no Claude Code 2.1.283. Payloads, respostas e l
 
 - Todo diálogo em que o Claude espera uma decisão no terminal dispara o hook `PermissionRequest` no mesmo instante em que o diálogo aparece: a aprovação de ferramenta (Bash, Write, Edit, MCP…) **e** o seletor do `AskUserQuestion`. O hook (HTTP, timeout 590 s, §3.3.1) fica pendente no `HookServer` enquanto o diálogo continua respondível no Mac. Vale a primeira resposta, dos dois lados.
 - Não há hook `PreToolUse` do Mocha nem fallback por `agent.send_keys`.
-- Um agente tem no máximo um pedido pendente. Com várias ferramentas na mesma resposta, o Claude mostra um diálogo por vez e só dispara o `PermissionRequest` seguinte depois que o anterior se resolve.
+- Um agente tem no máximo um pedido pendente. Um subagente (com `agent_id` no payload do hook) conta à parte: o pedido dele não encerra o do agente principal da mesma `session_id`, e vice-versa. Com várias ferramentas na mesma resposta, o Claude mostra um diálogo por vez e só dispara o `PermissionRequest` seguinte depois que o anterior se resolve.
 - **Entrada** (`Fixtures/hooks/PermissionRequest.*.json`): `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `tool_name`, `tool_input` e, só para ferramentas, `permission_suggestions` (ignorado: não corresponde às opções do diálogo). Não traz `tool_use_id`.
 - **Criação do `PendingRequest`**:
   - `agentId` vem do header `X-Mocha-Pane`, traduzido depois de `pane_moved` (§3.3.1);
@@ -1883,6 +1903,7 @@ Resposta HTTP 200, `Content-Type: application/json` (`Fixtures/hooks/response.*.
 | `PendingResponse` | Corpo |
 |---|---|
 | `allow` (permissão) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}` |
+| `allow` (permissão `ExitPlanMode`) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":<tool_input original>,"updatedPermissions":[{"type":"setMode","mode":"auto","destination":"session"}]}}}`. O `allow` puro não basta para o plano: o Claude ignora e o diálogo continua no terminal (documentação dos hooks, 2026-09-27). O modo `auto` repete a 1ª opção do terminal, decisão do João |
 | `deny(reason)` (permissão ou pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"<reason, ou 'Negado pelo usuário no iPhone.'>"}}}` |
 | `answers(map)` (pergunta) | `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"questions":<tool_input.questions original>,"answers":{"<question>":"<resposta>"}}}}}` |
 | sem decisão | `{}` |
@@ -1927,7 +1948,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 
 ### §8.5 Estado
 
-- O `PendingStore` mantém os pedidos em memória, no máximo um por sessão. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada: para o Claude isso é um erro não bloqueante, e o diálogo do terminal continua.
+- O `PendingStore` mantém os pedidos em memória, no máximo um por sessão e `agent_id`. Reiniciar o daemon descarta os pedidos, e os hooks pendentes caem por conexão fechada: para o Claude isso é um erro não bloqueante, e o diálogo do terminal continua.
 - `pendingCount` por agente alimenta a gaveta e o `waiting` da Live Activity.
 
 ---

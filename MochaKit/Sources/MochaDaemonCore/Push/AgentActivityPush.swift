@@ -50,7 +50,7 @@ public enum AgentActivityEvent: Sendable, Equatable {
 }
 
 public struct AgentActivityPush: Sendable, Equatable {
-    public static let attributesType = "MochaAgentAttributes"
+    public static let attributesType = "MochaFeedAttributes"
 
     public var agentId: String
     public var event: AgentActivityEvent
@@ -90,7 +90,7 @@ public struct AgentActivityPush: Sendable, Equatable {
         switch event {
         case .start(let alert):
             aps.attributesType = Self.attributesType
-            aps.attributes = Attributes(agentId: agentId)
+            aps.attributes = [:]
             aps.alert = Alert(alert)
             aps.inputPushToken = 1
         case .update(let alert):
@@ -113,7 +113,7 @@ public struct AgentActivityPush: Sendable, Equatable {
         let relevanceScore: Double?
         var dismissalDate: Int64?
         var attributesType: String?
-        var attributes: Attributes?
+        var attributes: [String: String]?
         var alert: Alert?
         var inputPushToken: Int?
 
@@ -137,10 +137,6 @@ public struct AgentActivityPush: Sendable, Equatable {
             case alert
             case inputPushToken = "input-push-token"
         }
-    }
-
-    private struct Attributes: Encodable {
-        let agentId: String
     }
 
     private struct Alert: Encodable {

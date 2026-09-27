@@ -53,6 +53,20 @@ struct PendingDaemonContractTests {
         #expect(denied["hookSpecificOutput"]?["decision"]?["message"]?.stringValue == PendingHookReply.defaultDenyMessage)
     }
 
+    @Test func planActionsEncodeLikeTheFixtureAndShowThePlainFirstLine() throws {
+        let request = try Self.hook("PermissionRequest.ExitPlanMode.json")
+        #expect(PushAlertText.pendingCategory(request) == PendingNotificationCategory.plan)
+        #expect(PushAlertText.needsInputBody(request) == "Criar o arquivo f.txt")
+        let kind = PendingRequestFactory.kind(for: request)
+        let pending = LiveActivityContentState.Pending(PendingRequest(id: "req-1", agentId: "w1:p1", createdAt: Date(), kind: kind))
+        let content = AgentsActivityContent.Pending(requestId: pending.requestId, kind: .permission, toolName: pending.toolName, text: pending.text, options: [])
+        #expect(AgentsActivityActions.actions(for: content, agentId: "w1:p1").map(\.title) == ["Negar", "Aprovar"])
+        let allow = try #require(PendingNotificationReply(actionIdentifier: PendingNotificationAction.allow, userInfo: Self.userInfo, body: "", text: nil))
+        #expect(try PendingHookReply.reply(to: allow.response, kind: kind, toolInput: request.toolInput) == (try Self.expectedReply("response.PermissionRequest.ExitPlanMode.allow.json")))
+        let deny = try #require(PendingNotificationReply(actionIdentifier: PendingNotificationAction.deny, userInfo: Self.userInfo, body: "", text: nil))
+        #expect(try PendingHookReply.reply(to: deny.response, kind: kind, toolInput: request.toolInput) == PendingHookReply.deny(nil))
+    }
+
     @Test func permissionCardTextFollowsTheDaemonSummary() throws {
         let request = try Self.hook("PermissionRequest.bash.json")
         guard case .permission(let toolName, let summary, let inputJSON) = PendingRequestFactory.kind(for: request) else {
