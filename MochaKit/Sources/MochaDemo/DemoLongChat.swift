@@ -9,8 +9,8 @@ enum DemoLongChat {
     static let branch = "development"
     static let model = "claude-opus-5-5"
     static let sessionId = "8b2e6f4a-3c1d-4a9e-b7f5-2d8c0e6a1f93"
-    static let turnStartOffset: TimeInterval = -238
-    static let historyEndOffset: TimeInterval = -300
+    static let turnStartOffset: TimeInterval = -261
+    static let historyEndOffset: TimeInterval = -1_200
 
     private static let start = Date(timeIntervalSince1970: 1_789_981_200)
     private static let seed: UInt64 = 0x6D6F_6368_61
@@ -44,7 +44,7 @@ enum DemoLongChat {
         let shift = historyEnd.timeIntervalSince(history.last?.at ?? historyEnd)
         let shifted = history.map { (at: $0.at.addingTimeInterval(shift), kind: $0.kind) } + turn
         return shifted.enumerated().map { offset, entry in
-            ChatItem(id: "long-\(offset)", at: entry.at, kind: entry.kind)
+            ChatItem(id: entry.kind.cardId ?? "long-\(offset)", at: entry.at, kind: entry.kind)
         }
     }
 }
@@ -54,20 +54,34 @@ private enum PaginationTurn {
 
     static func items() -> [(at: Date, kind: ChatItemKind)] {
         let steps: [(TimeInterval, ChatItemKind)] = [
-            (DemoLongChat.turnStartOffset, .userPrompt(text: "troca a paginação de /receitas para cursor. mantém o formato da resposta", imageCount: 0)),
-            (-233, .thinking(text: nil)),
-            (-226, .assistantText(markdown: "A listagem usa `LIMIT/OFFSET`; com 40 mil receitas a página 200 leva 1,8 s. Cursor resolve sem mudar o contrato.")),
-            (-221, tool(1, "Bash", #"rg -n "OFFSET" internal/"#, command: #"rg -n "OFFSET" internal/"#, result: "internal/recipes/store.go:88:  LIMIT $1 OFFSET $2")),
-            (-216, tool(2, "Bash", #"rg -n "OFFSET" internal/"#, command: #"rg -n "OFFSET" internal/"#, result: "internal/recipes/store.go:88:  LIMIT $1 OFFSET $2")),
-            (-209, tool(3, "Read", "internal/recipes/handler.go", path: "internal/recipes/handler.go", result: "212 linhas")),
-            (-200, .assistantText(markdown: "Vou usar um cursor opaco em base64 com ordenação estável por id.")),
-            (-194, tool(4, "Read", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "164 linhas")),
-            (-188, tool(5, "Read", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "40 linhas")),
-            (-178, tool(6, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
-            (-167, tool(7, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
-            (-158, tool(8, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
-            (-146, .assistantText(markdown: "Troquei o `OFFSET` por cursor em `ListRecipes` e ajustei o handler. Rodando os testes de integração:")),
-            (-140, tool(9, "Bash", "go test ./internal/... -run Pagination -count=1", command: "go test ./internal/... -run Pagination -count=1", status: .running)),
+            (-900, .userPrompt(text: "troca a paginação de /receitas para cursor. mantém o formato da resposta", imageCount: 0)),
+            (-895, .thinking(text: nil)),
+            (-888, .assistantText(markdown: "A listagem usa `LIMIT/OFFSET`; com 40 mil receitas a página 200 leva 1,8 s. Cursor resolve sem mudar o contrato.")),
+            (-883, tool(1, "Bash", #"rg -n "OFFSET" internal/"#, command: #"rg -n "OFFSET" internal/"#, result: "internal/recipes/store.go:88:  LIMIT $1 OFFSET $2")),
+            (-878, tool(2, "Bash", #"rg -n "OFFSET" internal/"#, command: #"rg -n "OFFSET" internal/"#, result: "internal/recipes/store.go:88:  LIMIT $1 OFFSET $2")),
+            (-871, tool(3, "Read", "internal/recipes/handler.go", path: "internal/recipes/handler.go", result: "212 linhas")),
+            (-862, .assistantText(markdown: "Vou usar um cursor opaco em base64 com ordenação estável por id. Em paralelo, peço a revisão do índice e as fixtures do teste de carga.")),
+            (-860, .subagent(DemoSubagents.indexReview.call)),
+            (-858, .subagent(DemoSubagents.fixtures.call)),
+            (-850, tool(4, "Read", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "164 linhas")),
+            (-844, tool(5, "Read", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "40 linhas")),
+            (-834, tool(6, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
+            (-823, tool(7, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
+            (-814, tool(8, "Edit", "internal/recipes/store.go", path: "internal/recipes/store.go", result: "Arquivo atualizado.")),
+            (-800, .assistantText(markdown: "Troquei o `OFFSET` por cursor em `ListRecipes` e ajustei o handler. Rodando os testes de integração:")),
+            (-794, tool(9, "Bash", "go test ./internal/... -run Pagination -count=1", command: "go test ./internal/... -run Pagination -count=1", result: "ok  \tgithub.com/dev/receitas-api/internal/recipes\t1.214s")),
+            (-630, .assistantText(markdown: "Paginação por cursor pronta em `/receitas`: os testes de integração passaram e as fixtures de carga estão em `load/fixtures/`. A revisão do índice falhou por erro de API; posso pedir de novo depois.")),
+            (-629, .turnFooter(durationMs: 271_000)),
+            (DemoLongChat.turnStartOffset, .userPrompt(text: "procura os outros endpoints que ainda usam OFFSET e roda o teste de carga de /receitas em paralelo", imageCount: 0)),
+            (-257, .thinking(text: nil)),
+            (-236, .assistantText(markdown: "Vou dividir em dois subagentes: um mapeia o uso de `OFFSET` e o outro roda o teste de carga. Enquanto isso, reviso o handler.")),
+            (-233, .subagent(DemoSubagents.offsetMap.call)),
+            (-232, .subagent(DemoSubagents.loadTest.call)),
+            (-226, tool(10, "Read", "internal/recipes/handler.go", path: "internal/recipes/handler.go", result: "231 linhas")),
+            (-90, .assistantText(markdown: "Achei `OFFSET` em `/ingredientes` e `/autores`. Troco os dois pelo mesmo cursor.")),
+            (-80, tool(11, "Edit", "internal/ingredients/store.go", path: "internal/ingredients/store.go", result: "Arquivo atualizado.")),
+            (-62, tool(12, "Edit", "internal/ingredients/store.go", path: "internal/ingredients/store.go", result: "Arquivo atualizado.")),
+            (-25, tool(13, "Bash", "go test ./internal/ingredients -run Cursor", command: "go test ./internal/ingredients -run Cursor", status: .running)),
         ]
         return steps.map { (DemoDataset.anchor.addingTimeInterval($0.0), $0.1) }
     }
@@ -422,7 +436,7 @@ private struct TranscriptWriter {
     }
 }
 
-private enum TranscriptText {
+enum TranscriptText {
     struct Command {
         var line: String
         var success: String
@@ -431,7 +445,7 @@ private enum TranscriptText {
 
     static let projectRoot = "/Users/dev/projects/receitas-api/"
 
-    static let toolWeights: [ToolKind] = [
+    fileprivate static let toolWeights: [ToolKind] = [
         .bash, .bash, .bash, .read, .read, .read, .edit, .edit, .write, .grep, .glob, .agent, .webFetch, .todoWrite,
     ]
 

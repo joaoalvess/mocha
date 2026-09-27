@@ -34,7 +34,22 @@ extension WorkspaceNode {
 
 extension ChatItem {
     func shifted(by interval: TimeInterval) -> ChatItem {
-        ChatItem(id: id, at: at.addingTimeInterval(interval), kind: kind)
+        ChatItem(id: id, at: at.addingTimeInterval(interval), kind: kind.shifted(by: interval))
+    }
+}
+
+extension ChatItemKind {
+    func shifted(by interval: TimeInterval) -> ChatItemKind {
+        switch self {
+        case .subagent(var call):
+            call.startedAt = call.startedAt.shifted(by: interval)
+            return .subagent(call)
+        case .workflow(var call):
+            call.startedAt = call.startedAt.shifted(by: interval)
+            return .workflow(call)
+        default:
+            return self
+        }
     }
 }
 

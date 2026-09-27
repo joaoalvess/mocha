@@ -49,8 +49,8 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
 
     @Test func bundledChatsTogetherCoverEveryKind() {
         let everyKind: Set<String> = [
-            "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
-            "unsupported",
+            "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "subagent", "workflow", "turnFooter", "recap",
+            "notice", "unsupported",
         ]
         let bundled = dataset.chats.filter { $0.agentId != DemoLongChat.agentId }
         #expect(bundled.count == 5)
@@ -83,7 +83,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
         #expect(Set(items.map(\.id)).count == items.count)
         #expect(items.map(\.at) == items.map(\.at).sorted())
         #expect(Set(items.map(\.kind.type)) == [
-            "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
+            "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "subagent", "turnFooter", "recap", "notice",
         ])
         let toolCalls = items.compactMap(\.toolCall)
         #expect(Set(toolCalls.map(\.name)).count >= 8)
@@ -106,18 +106,23 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
     @Test func generatedChatEndsWithTheWorkingTurnOfTheMock() throws {
         let items = DemoLongChat.items()
         let prompt = try #require(items.last { if case .userPrompt = $0.kind { true } else { false } })
-        #expect(prompt.kind == .userPrompt(text: "troca a paginação de /receitas para cursor. mantém o formato da resposta", imageCount: 0))
+        #expect(prompt.kind == .userPrompt(
+            text: "procura os outros endpoints que ainda usam OFFSET e roda o teste de carga de /receitas em paralelo",
+            imageCount: 0
+        ))
         #expect(prompt.at == DemoDataset.anchor.addingTimeInterval(DemoLongChat.turnStartOffset))
         let turn = items.drop { $0.id != prompt.id }
         #expect(turn.map(\.kind.type) == [
-            "userPrompt", "thinking", "assistantText", "toolCall", "toolCall", "toolCall", "assistantText", "toolCall", "toolCall",
-            "toolCall", "toolCall", "toolCall", "assistantText", "toolCall",
+            "userPrompt", "thinking", "assistantText", "subagent", "subagent", "toolCall", "assistantText", "toolCall", "toolCall",
+            "toolCall",
         ])
         let running = try #require(turn.last?.toolCall)
         #expect(running.name == "Bash")
-        #expect(running.summary == "go test ./internal/... -run Pagination -count=1")
+        #expect(running.summary == "go test ./internal/ingredients -run Cursor")
         #expect(running.status == .running)
-        #expect(items[items.count - turn.count - 1].at < prompt.at)
+        let previous = items[items.count - turn.count - 1]
+        #expect(previous.at < prompt.at)
+        #expect(previous.kind.type == "turnFooter")
     }
 
     @Test func generatedChatIsDeterministic() {
@@ -154,6 +159,10 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
         var texts = try files.map { ($0.lastPathComponent, try String(contentsOf: $0, encoding: .utf8)) }
         let generated = try JSONEncoder().encode(DemoLongChat.chat())
         texts.append(("chat gerado", String(decoding: generated, as: UTF8.self)))
+        for subagent in DemoSubagents.all {
+            let transcript = try JSONEncoder().encode(subagent.items)
+            texts.append((subagent.description, String(decoding: transcript, as: UTF8.self)))
+        }
         for (name, text) in texts {
             for forbidden in forbiddenNames {
                 #expect(!text.lowercased().contains(forbidden), "\(name) contém \(forbidden)")

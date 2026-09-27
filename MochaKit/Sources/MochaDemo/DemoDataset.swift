@@ -41,6 +41,7 @@ struct DemoDataset: Sendable {
     var chats: [DemoChat]
     var sessionChats: [DemoSessionChat]
     var usage: UsageSnapshot
+    var subagents: [DemoSubagent] = []
 
     var archived: [ArchivedSession] {
         sessionChats.map(\.session).sortedByRecency()
@@ -73,6 +74,7 @@ struct DemoDataset: Sendable {
         let chats = try chatURLs.map { try decoder.decode(DemoChat.self, from: Data(contentsOf: $0)) }
         var dataset = DemoDataset(workspaces: tree.workspaces, chats: chats, sessionChats: archived.chats, usage: usage.populated)
         try dataset.addLongChat()
+        try dataset.addSubagents()
         if isEmpty {
             dataset = dataset.withoutClaude(usage: usage.empty)
         }
@@ -99,6 +101,24 @@ struct DemoDataset: Sendable {
         chats.append(chat)
     }
 
+    private mutating func addSubagents() throws {
+        subagents = DemoSubagents.all
+        try addItems(DemoSubagents.demoAppTurn(), toChatOf: DemoSubagents.demoAppAgentId)
+        try addItems(DemoSubagents.loginSocialCards(), toChatOf: DemoSubagents.loginAgentId)
+        for agent in workspaces.allAgents {
+            guard let sessionId = agent.sessionId else { continue }
+            let running = subagents.runningSubagents(inSession: sessionId)
+            workspaces.updateAgent(withId: agent.id) { $0.runningSubagents = running }
+        }
+    }
+
+    private mutating func addItems(_ items: [ChatItem], toChatOf agentId: AgentID) throws {
+        guard let index = chats.firstIndex(where: { $0.agentId == agentId }) else {
+            throw DemoError.missingResource("chat de \(agentId)")
+        }
+        chats[index].items = (chats[index].items + items).sorted { $0.at < $1.at }
+    }
+
     private func withoutClaude(usage: UsageSnapshot) -> DemoDataset {
         DemoDataset(workspaces: workspaces.map { $0.withoutClaude() }, chats: [], sessionChats: [], usage: usage)
     }
@@ -108,7 +128,8 @@ struct DemoDataset: Sendable {
             workspaces: workspaces.map { $0.shifted(by: interval) },
             chats: chats.map { $0.shifted(by: interval) },
             sessionChats: sessionChats.map { $0.shifted(by: interval) },
-            usage: usage.shifted(by: interval)
+            usage: usage.shifted(by: interval),
+            subagents: subagents.map { $0.shifted(by: interval) }
         )
     }
 }
