@@ -35,14 +35,12 @@ public struct AgentsActivityContext: Sendable, Equatable {
 
 public struct AgentsActivityHeader: Sendable, Equatable {
     public var project: String
-    public var tab: String?
     public var tone: AgentsActivityTone
     public var model: String?
     public var context: AgentsActivityContext?
 
-    public init(project: String, tab: String?, tone: AgentsActivityTone, model: String?, context: AgentsActivityContext?) {
+    public init(project: String, tone: AgentsActivityTone, model: String?, context: AgentsActivityContext?) {
         self.project = project
-        self.tab = tab
         self.tone = tone
         self.model = model
         self.context = context
@@ -75,6 +73,7 @@ public enum AgentsActivityText {
     public static let separator = " · "
     public static let shellPrompt = "$ "
     public static let activitySeparator = ": "
+    public static let promptPrefix = "Você: "
     public static let singleRowActionLimit = 2
 
     public static func tone(of content: AgentsActivityContent) -> AgentsActivityTone {
@@ -91,12 +90,11 @@ public enum AgentsActivityText {
     public static func header(of content: AgentsActivityContent) -> AgentsActivityHeader {
         let tone = tone(of: content)
         let project = singleLine(content.workspaceLabel) ?? appName
-        let tab = singleLine(content.tabTitle).flatMap { $0 == project ? nil : $0 }
         let model = singleLine(content.model).map(ModelName.abbreviated).flatMap(singleLine)
         let context = content.contextLeftPercent.map {
             AgentsActivityContext(leftPercent: min(max($0, 0), 100), isBlocked: tone == .waiting)
         }
-        return AgentsActivityHeader(project: project, tab: tab, tone: tone, model: model, context: context)
+        return AgentsActivityHeader(project: project, tone: tone, model: model, context: context)
     }
 
     public static func lines(of content: AgentsActivityContent) -> AgentsActivityLines {
@@ -106,8 +104,9 @@ public enum AgentsActivityText {
         guard content.isBusy else {
             return AgentsActivityLines(headline: idle, detail: singleLine(content.preview).map(AgentsActivityLines.Detail.text))
         }
-        let headline = singleLine(content.activity).map(activityText) ?? singleLine(content.preview) ?? singleLine(content.title)
-        return AgentsActivityLines(headline: headline ?? appName, detail: .continuation)
+        let headline = singleLine(content.preview) ?? singleLine(content.activity).map(activityText) ?? singleLine(content.title)
+        let prompt = singleLine(content.prompt).map { AgentsActivityLines.Detail.text(promptPrefix + $0) }
+        return AgentsActivityLines(headline: headline ?? appName, detail: prompt ?? .continuation)
     }
 
     public static func footnote(isStale: Bool) -> String? {

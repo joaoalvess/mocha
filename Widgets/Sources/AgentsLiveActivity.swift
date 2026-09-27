@@ -58,6 +58,7 @@ struct AgentsLockScreenView: View {
         VStack(alignment: .leading, spacing: metrics.lineSpacing) {
             AgentsCardHeader(header: AgentsActivityText.header(of: content), metrics: metrics)
             AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
+                .padding(.top, metrics.headerSpacing - metrics.lineSpacing)
             if let footnote = AgentsActivityText.footnote(isStale: isStale) {
                 AgentsCardFootnote(text: footnote, metrics: metrics)
             }
@@ -67,7 +68,8 @@ struct AgentsLockScreenView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 13.5)
+        .padding(.top, 15)
+        .padding(.bottom, 16)
     }
 }
 

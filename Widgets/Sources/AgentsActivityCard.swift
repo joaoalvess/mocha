@@ -9,6 +9,7 @@ struct AgentsCardMetrics {
     let footnoteSize: CGFloat
     let tileSize: CGFloat
     let markSize: CGFloat
+    let headerSpacing: CGFloat
     let lineSpacing: CGFloat
     let actionsSpacing: CGFloat
     let buttonHeight: CGFloat
@@ -17,13 +18,14 @@ struct AgentsCardMetrics {
 
     static let lockScreen = AgentsCardMetrics(
         headerSize: 13,
-        headlineSize: 17,
+        headlineSize: 19,
         detailSize: 15,
         commandSize: 14,
         footnoteSize: 12,
         tileSize: 21,
         markSize: 17,
-        lineSpacing: 3,
+        headerSpacing: 4,
+        lineSpacing: 2,
         actionsSpacing: 8,
         buttonHeight: 34,
         gridButtonHeight: 27,
@@ -38,6 +40,7 @@ struct AgentsCardMetrics {
         footnoteSize: 12,
         tileSize: 21,
         markSize: 17,
+        headerSpacing: 2,
         lineSpacing: 2,
         actionsSpacing: 8,
         buttonHeight: 30,
@@ -51,16 +54,10 @@ struct AgentsCardTitle: View {
     let metrics: AgentsCardMetrics
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 6) {
             Text(header.project)
-                .fontWeight(.bold)
                 .foregroundStyle(AgentsPalette.labelColor(for: header.tone))
                 .layoutPriority(2)
-            if let tab = header.tab {
-                separator
-                Text(tab)
-                    .foregroundStyle(AgentsPalette.textSecondary)
-            }
             if let model = header.model {
                 separator
                 Text(model)
@@ -111,6 +108,9 @@ struct AgentsCardLines: View {
     let lines: AgentsActivityLines
     let metrics: AgentsCardMetrics
 
+    private static let headlineMinimumScale: CGFloat = 0.86
+    private static let detailMinimumScale: CGFloat = 0.95
+
     var body: some View {
         Group {
             switch lines.detail {
@@ -144,6 +144,7 @@ struct AgentsCardLines: View {
             .font(.system(size: metrics.headlineSize, weight: .bold))
             .foregroundStyle(AgentsPalette.textPrimary)
             .lineLimit(1)
+            .minimumScaleFactor(Self.headlineMinimumScale)
     }
 
     private func detail(_ text: String, size: CGFloat, design: Font.Design) -> some View {
@@ -151,6 +152,7 @@ struct AgentsCardLines: View {
             .font(.system(size: size, design: design))
             .foregroundStyle(AgentsPalette.textSecondary)
             .lineLimit(1)
+            .minimumScaleFactor(Self.detailMinimumScale)
     }
 }
 

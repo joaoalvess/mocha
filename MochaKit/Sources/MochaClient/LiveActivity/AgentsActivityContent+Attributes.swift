@@ -8,11 +8,11 @@ extension AgentsActivityContent {
             title: state.title,
             workspaceLabel: state.workspaceLabel,
             since: state.since,
-            tabTitle: state.tabTitle,
             model: state.model,
             contextLeftPercent: state.contextLeftPercent,
             preview: state.preview,
             activity: state.activity,
+            prompt: state.prompt,
             pending: state.pending.map {
                 Pending(requestId: $0.requestId, kind: Pending.Kind($0.kind), toolName: $0.toolName, text: $0.text, options: $0.options)
             },
@@ -26,11 +26,11 @@ extension AgentsActivityContent {
             title: title,
             workspaceLabel: workspaceLabel,
             since: since,
-            tabTitle: tabTitle,
             model: model,
             contextLeftPercent: contextLeftPercent,
             preview: preview,
             activity: activity,
+            prompt: prompt,
             pending: pending.map {
                 MochaAgentAttributes.ContentState.Pending(
                     requestId: $0.requestId,

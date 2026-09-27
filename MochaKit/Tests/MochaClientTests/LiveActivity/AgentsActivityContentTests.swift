@@ -11,7 +11,7 @@ struct AgentsActivityContentTests {
       "workspaceLabel": "site-pessoal",
       "status": "blocked",
       "since": 780000000.5,
-      "tabTitle": "M12",
+      "prompt": "Faz dnv",
       "model": "claude-opus-5-5",
       "contextLeftPercent": 89,
       "pending": {
@@ -33,9 +33,9 @@ struct AgentsActivityContentTests {
             title: "Modo escuro e RSS",
             workspaceLabel: "site-pessoal",
             since: Date(timeIntervalSinceReferenceDate: 780_000_000.5),
-            tabTitle: "M12",
             model: "claude-opus-5-5",
             contextLeftPercent: 89,
+            prompt: "Faz dnv",
             pending: .init(requestId: "5e3b0000-0000-4000-8000-000000000001", kind: .permission, toolName: "Bash", text: "npm run build", options: []),
             updatedAt: Date(timeIntervalSinceReferenceDate: 780_000_134.25)
         ))
@@ -52,9 +52,9 @@ struct AgentsActivityContentTests {
                 workspaceLabel: "mocha",
                 status: "working",
                 since: since,
-                tabTitle: "M12",
                 preview: "Rodando os testes",
-                activity: "Bash: npm test"
+                activity: "Bash: npm test",
+                prompt: "Faz dnv"
             ),
             pending: .init(requestId: "req-1", agentId: "w1:p4", kind: .question, toolName: nil, text: "Qual banco?", options: ["Postgres", "SQLite"]),
             updatedAt: updatedAt
@@ -65,9 +65,9 @@ struct AgentsActivityContentTests {
             title: "Refatora o parser",
             workspaceLabel: "mocha",
             since: since,
-            tabTitle: "M12",
             preview: "Rodando os testes",
             activity: "Bash: npm test",
+            prompt: "Faz dnv",
             pending: .init(requestId: "req-1", kind: .question, toolName: nil, text: "Qual banco?", options: ["Postgres", "SQLite"]),
             updatedAt: updatedAt
         ))

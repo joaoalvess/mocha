@@ -14,11 +14,11 @@ public struct MochaAgentAttributes: ActivityAttributes, Sendable {
         public var title: String
         public var workspaceLabel: String
         public var since: Date
-        public var tabTitle: String?
         public var model: String?
         public var contextLeftPercent: Int?
         public var preview: String?
         public var activity: String?
+        public var prompt: String?
         public var pending: Pending?
         public var updatedAt: Date
 
@@ -27,11 +27,11 @@ public struct MochaAgentAttributes: ActivityAttributes, Sendable {
             title: String,
             workspaceLabel: String,
             since: Date,
-            tabTitle: String? = nil,
             model: String? = nil,
             contextLeftPercent: Int? = nil,
             preview: String? = nil,
             activity: String? = nil,
+            prompt: String? = nil,
             pending: Pending? = nil,
             updatedAt: Date
         ) {
@@ -39,11 +39,11 @@ public struct MochaAgentAttributes: ActivityAttributes, Sendable {
             self.title = title
             self.workspaceLabel = workspaceLabel
             self.since = since
-            self.tabTitle = tabTitle
             self.model = model
             self.contextLeftPercent = contextLeftPercent
             self.preview = preview
             self.activity = activity
+            self.prompt = prompt
             self.pending = pending
             self.updatedAt = updatedAt
         }

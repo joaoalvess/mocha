@@ -9,11 +9,11 @@ struct AgentsActivityTextTests {
     private static func content(
         _ status: AgentStatus = .working,
         workspaceLabel: String = "Core",
-        tabTitle: String? = "M12",
         model: String? = "claude-opus-5-5",
         contextLeftPercent: Int? = 42,
         preview: String? = nil,
         activity: String? = nil,
+        prompt: String? = nil,
         pending: AgentsActivityContent.Pending? = nil
     ) -> AgentsActivityContent {
         AgentsActivityContent(
@@ -21,11 +21,11 @@ struct AgentsActivityTextTests {
             title: "Refatorar o parser",
             workspaceLabel: workspaceLabel,
             since: since,
-            tabTitle: tabTitle,
             model: model,
             contextLeftPercent: contextLeftPercent,
             preview: preview,
             activity: activity,
+            prompt: prompt,
             pending: pending,
             updatedAt: since
         )
@@ -46,18 +46,15 @@ struct AgentsActivityTextTests {
         #expect(AgentsActivityText.tone(of: Self.content(.working, pending: Self.permission())) == .waiting)
     }
 
-    @Test func theHeaderNamesTheProjectThenTheTabThenTheModel() {
+    @Test func theHeaderNamesTheProjectThenTheModel() {
         let header = AgentsActivityText.header(of: Self.content())
         #expect(header == AgentsActivityHeader(
             project: "Core",
-            tab: "M12",
             tone: .working,
             model: ModelName.abbreviated("claude-opus-5-5"),
             context: AgentsActivityContext(leftPercent: 42, isBlocked: false)
         ))
-        #expect(AgentsActivityText.header(of: Self.content(tabTitle: "Core")).tab == nil)
-        #expect(AgentsActivityText.header(of: Self.content(tabTitle: " \n ")).tab == nil)
-        #expect(AgentsActivityText.header(of: Self.content(tabTitle: nil, model: nil)).model == nil)
+        #expect(AgentsActivityText.header(of: Self.content(model: nil)).model == nil)
         #expect(AgentsActivityText.header(of: Self.content(workspaceLabel: "  ")).project == AgentsActivityText.appName)
     }
 
@@ -67,11 +64,19 @@ struct AgentsActivityTextTests {
         #expect(AgentsActivityText.header(of: Self.content(contextLeftPercent: nil)).context == nil)
     }
 
-    @Test func aBusyAgentShowsItsActivityThenItsPreviewThenItsTitle() {
-        let activity = AgentsActivityText.lines(of: Self.content(preview: "Rodando", activity: "Bash: npm test"))
-        #expect(activity == AgentsActivityLines(headline: "Shell: npm test", detail: .continuation))
-        #expect(AgentsActivityText.lines(of: Self.content(preview: "Rodando  os\ntestes")).headline == "Rodando os testes")
+    @Test func aBusyAgentShowsItsPreviewThenItsActivityThenItsTitle() {
+        let preview = AgentsActivityText.lines(of: Self.content(preview: "Rodando  os\ntestes", activity: "Bash: npm test"))
+        #expect(preview == AgentsActivityLines(headline: "Rodando os testes", detail: .continuation))
+        #expect(AgentsActivityText.lines(of: Self.content(activity: "Bash: npm test")).headline == "Shell: npm test")
         #expect(AgentsActivityText.lines(of: Self.content()).headline == "Refatorar o parser")
+    }
+
+    @Test func aBusyAgentShowsItsLastPromptUnderTheHeadline() {
+        let lines = AgentsActivityText.lines(of: Self.content(preview: "20 s de 60.", prompt: "Faz\n dnv"))
+        #expect(lines == AgentsActivityLines(headline: "20 s de 60.", detail: .text("Você: Faz dnv")))
+        #expect(AgentsActivityText.lines(of: Self.content(.blocked, prompt: "Faz dnv")).detail == .text("Você: Faz dnv"))
+        #expect(AgentsActivityText.lines(of: Self.content(preview: "20 s de 60.", prompt: " \n ")).detail == .continuation)
+        #expect(AgentsActivityText.lines(of: Self.content(.idle, preview: "Feito.", prompt: "Faz dnv")) == AgentsActivityLines(headline: "Pronto", detail: .text("Feito.")))
     }
 
     @Test func anIdleAgentIsReadyWithItsLastPreview() {
