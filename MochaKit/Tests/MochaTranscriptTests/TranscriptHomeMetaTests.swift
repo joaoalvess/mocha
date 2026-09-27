@@ -149,6 +149,13 @@ struct TranscriptHomeMetaTests {
         #expect(readings.full.prompt == "Faz dnv")
     }
 
+    @Test func thePromptDropsThePastedContentTags() throws {
+        let readings = try HomeMetaReadings.of([
+            H.user("<pasted_content id=\"0319\">\nSeguinte meu card\n</pasted_content id=\"0319\">", at: "10:00:00"),
+        ])
+        #expect(readings.full.prompt == "Seguinte meu card")
+    }
+
     @Test func activityPrefersTheLastRunningToolCall() throws {
         let readings = try HomeMetaReadings.of([
             H.user("paralelo", at: "10:00:00"),
