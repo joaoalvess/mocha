@@ -149,6 +149,9 @@ public actor SessionHub {
     var pendingRequests: [PendingRequest] = []
     let observedSessionUpdates: AsyncStream<Set<String>>
     let observedSessionContinuation: AsyncStream<Set<String>>.Continuation
+    let liveActivityInputs: AsyncStream<LiveActivityInput>
+    let liveActivityInputContinuation: AsyncStream<LiveActivityInput>.Continuation
+    var liveActivityRegistrar: (any LiveActivityRegistering)?
 
     private var lastSentTree: [WorkspaceNode] = []
     private var liveFollows: [AgentID: LiveFollow] = [:]
@@ -189,6 +192,12 @@ public actor SessionHub {
         let (sessionUpdates, sessionContinuation) = AsyncStream.makeStream(of: Set<String>.self, bufferingPolicy: .bufferingNewest(1))
         observedSessionUpdates = sessionUpdates
         observedSessionContinuation = sessionContinuation
+        let (liveActivityInputs, liveActivityInputContinuation) = AsyncStream.makeStream(
+            of: LiveActivityInput.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        self.liveActivityInputs = liveActivityInputs
+        self.liveActivityInputContinuation = liveActivityInputContinuation
     }
 
     public func start() async {
@@ -235,6 +244,7 @@ public actor SessionHub {
         }
         subagentTasks.removeAll()
         observedSessionContinuation.finish()
+        liveActivityInputContinuation.finish()
         for throttle in cardThrottles.values {
             throttle.pending?.cancel()
         }
@@ -458,6 +468,7 @@ public actor SessionHub {
             lastSentTree = tree
             broadcast(.treeChanged(workspaces: tree))
         }
+        publishLiveActivityInput(tree)
         refreshChatMetas()
     }
 

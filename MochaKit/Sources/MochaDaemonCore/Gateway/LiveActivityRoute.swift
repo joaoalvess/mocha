@@ -15,6 +15,8 @@ struct LiveActivityRoute: Sendable {
         do {
             try await registrar.register(registration, from: device.id)
             return try .json(EmptyReply())
+        } catch LiveActivityRegistrationError.invalidToken {
+            return HttpResponse(status: .badRequest)
         } catch {
             gatewayLogger.error("failed to register a live activity: \(String(describing: error), privacy: .public)")
             return HttpResponse(status: .internalServerError)
