@@ -9,13 +9,38 @@ public struct MochaAgentsAttributes: ActivityAttributes, Sendable {
         public var working: Int
         public var waiting: Int
         public var highlight: Highlight?
+        public var pending: Pending?
         public var updatedAt: Date
 
-        public init(working: Int, waiting: Int, highlight: Highlight?, updatedAt: Date) {
+        public init(working: Int, waiting: Int, highlight: Highlight?, pending: Pending? = nil, updatedAt: Date) {
             self.working = working
             self.waiting = waiting
             self.highlight = highlight
+            self.pending = pending
             self.updatedAt = updatedAt
+        }
+
+        public struct Pending: Codable, Hashable, Sendable {
+            public enum Kind: String, Codable, Hashable, Sendable {
+                case permission
+                case question
+            }
+
+            public var requestId: String
+            public var agentId: String
+            public var kind: Kind
+            public var toolName: String?
+            public var text: String
+            public var options: [String]
+
+            public init(requestId: String, agentId: String, kind: Kind, toolName: String?, text: String, options: [String]) {
+                self.requestId = requestId
+                self.agentId = agentId
+                self.kind = kind
+                self.toolName = toolName
+                self.text = text
+                self.options = options
+            }
         }
 
         public struct Highlight: Codable, Hashable, Sendable {
