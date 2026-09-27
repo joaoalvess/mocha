@@ -60,6 +60,7 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
     private struct Entry {
         var request: PendingRequest
         let sessionId: String
+        let subagentId: String?
         let toolName: String
         let toolInput: OrderedJSON
         var watch: ToolResultWatch?
@@ -148,7 +149,7 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
 
     public func open(_ hook: ReceivedHook, request: PermissionRequestHook) -> RequestID {
         let context = hook.event.context
-        for id in ids(ofSession: context.sessionId) {
+        for id in ids(ofSession: context.sessionId, subagentId: context.subagentId) {
             finish(id, reply: PendingHookReply.noDecision, reason: .sessionHook(.permissionRequest), publishing: false)
         }
         let id = UUID().uuidString.lowercased()
@@ -156,6 +157,7 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
         var entry = Entry(
             request: PendingRequest(id: id, agentId: hook.agentId, createdAt: hook.receivedAt, kind: PendingRequestFactory.kind(for: request)),
             sessionId: context.sessionId,
+            subagentId: context.subagentId,
             toolName: request.toolName,
             toolInput: request.toolInput
         )
@@ -180,7 +182,7 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
     public func respond(to requestId: RequestID, with response: PendingResponse) throws(PendingRespondError) {
         guard let entry = entries[requestId] else { throw .requestNotFound }
         let reply = try PendingHookReply.reply(to: response, kind: entry.request.kind, toolInput: entry.toolInput)
-        finish(requestId, reply: reply, reason: .phone)
+        finish(requestId, reply: reply, reason: .phone, detail: response.type)
     }
 
     func contains(_ requestId: RequestID) -> Bool {
@@ -278,7 +280,11 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
         entries.filter { $0.value.sessionId == sessionId }.map(\.key)
     }
 
-    private func finish(_ requestId: RequestID, reply: OrderedJSON, reason: PendingEndReason, publishing: Bool = true) {
+    private func ids(ofSession sessionId: String, subagentId: String?) -> [RequestID] {
+        entries.filter { $0.value.sessionId == sessionId && $0.value.subagentId == subagentId }.map(\.key)
+    }
+
+    private func finish(_ requestId: RequestID, reply: OrderedJSON, reason: PendingEndReason, detail: String? = nil, publishing: Bool = true) {
         guard let entry = entries.removeValue(forKey: requestId) else { return }
         entry.cancelTasks()
         if let waiter = waiters.removeValue(forKey: requestId) {
@@ -290,7 +296,8 @@ public actor PendingStore: PendingProviding, PermissionRequestHolding {
         if recentResolutions.count > Self.resolutionHistory {
             recentResolutions.removeFirst(recentResolutions.count - Self.resolutionHistory)
         }
-        pendingLogger.info("request \(requestId, privacy: .public) of \(entry.request.agentId, privacy: .public) ended: \(reason.logLabel, privacy: .public)")
+        let label = detail.map { "\(reason.logLabel) (\($0))" } ?? reason.logLabel
+        pendingLogger.info("request \(requestId, privacy: .public) of \(entry.request.agentId, privacy: .public) ended: \(label, privacy: .public)")
         if publishing {
             publish()
         }
