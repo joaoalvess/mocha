@@ -7,16 +7,14 @@ enum DrawerTextStyle {
     case workspaceName
     case branch
     case dirtyMark
-    case recentTitle
-    case recentSubtitle
     case hint
 
     var size: CGFloat {
         switch self {
         case .search: 16
         case .sectionHeader: 11
-        case .row, .workspaceName, .recentTitle: 15
-        case .branch, .recentSubtitle: 13
+        case .row, .workspaceName: 15
+        case .branch: 13
         case .dirtyMark: 21
         case .hint: 12
         }
@@ -26,7 +24,7 @@ enum DrawerTextStyle {
         switch self {
         case .sectionHeader: .semibold
         case .workspaceName: .medium
-        case .search, .row, .branch, .dirtyMark, .recentTitle, .recentSubtitle, .hint: .regular
+        case .search, .row, .branch, .dirtyMark, .hint: .regular
         }
     }
 
@@ -39,9 +37,9 @@ enum DrawerTextStyle {
 
     var relativeStyle: Font.TextStyle {
         switch self {
-        case .search, .row, .workspaceName, .dirtyMark, .recentTitle: .body
+        case .search, .row, .workspaceName, .dirtyMark: .body
         case .sectionHeader: .caption2
-        case .branch, .recentSubtitle: .footnote
+        case .branch: .footnote
         case .hint: .caption
         }
     }

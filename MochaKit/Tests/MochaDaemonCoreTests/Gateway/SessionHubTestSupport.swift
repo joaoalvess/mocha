@@ -240,9 +240,17 @@ enum Sample {
             title: title,
             workspaceLabel: workspaceLabel,
             branch: branch,
-            sessionId: sessionId
+            sessionId: sessionId,
+            controlAvailable: kind == TreeComposer.codexKind ? false : nil
         )
     }
+
+    static let unsupportedTree = [
+        workspace("w1", tabs: [
+            TabNode(id: "w1:t1", title: "Claude", agents: [agent("w1:p1", sessionId: sessionA)]),
+            TabNode(id: "w1:t2", title: "Outro", agents: [agent("w1:p2", kind: "unknown", title: "outro")]),
+        ]),
+    ]
 
     static func workspace(
         _ id: WorkspaceID,

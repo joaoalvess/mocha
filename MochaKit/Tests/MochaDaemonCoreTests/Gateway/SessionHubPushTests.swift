@@ -28,7 +28,7 @@ struct SessionHubPushTests {
     }
 
     @Test func slashIsSentToTheAgentAsAPrompt() async throws {
-        try await withHub { harness in
+        try await withHub(tree: Sample.unsupportedTree) { harness in
             let (socket, _) = try await harness.pairedClient()
 
             #expect(try await socket.reply(to: .slash(agentId: "w1:p1", command: "/compact"), id: "c-1") == .ack())

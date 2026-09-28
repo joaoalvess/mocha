@@ -235,12 +235,12 @@ public struct ChatPage: Codable, Sendable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case agentId, sessionId, subagentId, meta, items, before, hasMore
+        case agentId, sessionId, subagentId, provider, meta, items, before, hasMore
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        target = try container.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
+        target = try container.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
         meta = try container.decode(ChatMeta.self, forKey: .meta)
         items = try container.decodeLossyArray(of: ChatItem.self, forKey: .items)
         before = try container.decodeIfPresent(String.self, forKey: .before)
@@ -249,7 +249,7 @@ public struct ChatPage: Codable, Sendable, Hashable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
+        try container.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
         try container.encode(meta, forKey: .meta)
         try container.encode(items, forKey: .items)
         try container.encodeIfPresent(before, forKey: .before)

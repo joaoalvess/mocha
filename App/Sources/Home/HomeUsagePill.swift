@@ -1,7 +1,9 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 struct HomeUsagePill: View {
+    var provider: AgentProvider = .claude
     let windows: [UsageWindowSummary]
     let isDimmed: Bool
     let action: () -> Void
@@ -12,7 +14,7 @@ struct HomeUsagePill: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 0) {
-                claude
+                usage
                     .opacity(isDimmed ? Self.dimmedOpacity : 1)
             }
             .padding(.leading, 15)
@@ -26,13 +28,13 @@ struct HomeUsagePill: View {
         .accessibilityValue(windows.map { "\($0.label): \($0.percentText)" }.joined(separator: ", "))
     }
 
-    private var claude: some View {
+    private var usage: some View {
         HStack(spacing: 0) {
-            ClaudeMark(size: 16)
+            ProviderMark(provider: provider, size: 16)
                 .padding(.trailing, 7)
-            Text(Self.claudeName)
+            Text(provider == .codex ? Self.codexName : Self.claudeName)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Palette.claude)
+                .foregroundStyle(provider == .codex ? Palette.textPrimary : Palette.claude)
                 .padding(.trailing, 10)
             UsageBar(fraction: windows.first?.usedFraction ?? 0, height: 4)
         }
@@ -40,4 +42,5 @@ struct HomeUsagePill: View {
     }
 
     private static let claudeName = "Claude"
+    private static let codexName = "Codex"
 }

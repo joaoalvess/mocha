@@ -10,20 +10,13 @@ enum DrawerLayout {
     static let rowTrailing: CGFloat = 16.3
     static let levelIndent: CGFloat = 17.3
     static let treeRowHeight: CGFloat = 36
-    static let recentRowHeight: CGFloat = 56
     static let sectionHeaderLeading: CGFloat = 20.3
     static let sectionHeaderTop: CGFloat = 17
     static let sectionHeaderHeight: CGFloat = 16
     static let treeTopGap: CGFloat = 3
-    static let recentTopGap: CGFloat = 4
     static let blockedDotSize: CGFloat = 8
     static let branchLeading: CGFloat = 7.7
     static let claudeMarkScale: CGFloat = 1.18
-    static let newTabButtonSize: CGFloat = 28
-    static let newTabButtonTrailing: CGFloat = 2
-    static let newTabIconSize: CGFloat = 14
-    static let newTabIconStroke: CGFloat = 2
-    static let newTabHitOutset: CGFloat = 4
 
     static func chevronInset(level: Int) -> CGFloat {
         9.7 + CGFloat(level) * levelIndent
@@ -44,9 +37,7 @@ enum DrawerLayout {
 
 struct DrawerWorkspaceRowView: View {
     let row: DrawerWorkspaceRow
-    let isCreatingTab: Bool
     let action: () -> Void
-    let onNewTab: () -> Void
 
     var body: some View {
         Button(action: action) {
@@ -70,7 +61,6 @@ struct DrawerWorkspaceRowView: View {
                 }
             }
             .padding(.leading, DrawerLayout.workspaceNameInset(level: row.level))
-            .padding(.trailing, DrawerLayout.newTabButtonTrailing + DrawerLayout.newTabButtonSize)
             .frame(maxWidth: .infinity, minHeight: DrawerLayout.treeRowHeight, alignment: .leading)
             .overlay(alignment: .leading) {
                 LineIconView(icon: .chevronRight, size: 10, strokeWidth: 2.2, color: Palette.textSecondary)
@@ -83,40 +73,6 @@ struct DrawerWorkspaceRowView: View {
         .buttonStyle(.pressable)
         .accessibilityElement(children: .combine)
         .accessibilityValue(row.isExpanded ? "Expandido" : "Recolhido")
-        .overlay(alignment: .trailing) {
-            DrawerNewTabButton(workspaceLabel: row.label, isCreating: isCreatingTab, action: onNewTab)
-                .padding(.trailing, DrawerLayout.newTabButtonTrailing)
-        }
-    }
-}
-
-struct DrawerNewTabButton: View {
-    let workspaceLabel: String
-    let isCreating: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                if isCreating {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(Palette.textSecondary)
-                } else {
-                    DrawerIconView(
-                        icon: .plus,
-                        size: DrawerLayout.newTabIconSize,
-                        strokeWidth: DrawerLayout.newTabIconStroke,
-                        color: Palette.textSecondary
-                    )
-                }
-            }
-            .frame(width: DrawerLayout.newTabButtonSize, height: DrawerLayout.newTabButtonSize)
-            .contentShape(Rectangle().inset(by: -DrawerLayout.newTabHitOutset))
-        }
-        .buttonStyle(.pressable)
-        .disabled(isCreating)
-        .accessibilityLabel(isCreating ? "Abrindo tab com Claude em \(workspaceLabel)" : "Nova tab com Claude em \(workspaceLabel)")
     }
 }
 
@@ -138,6 +94,7 @@ struct DrawerBranchLabel: View {
 
 enum DrawerTabIcon: Equatable {
     case claude(isWorking: Bool)
+    case codex(isWorking: Bool)
     case otherAgent(isWorking: Bool)
     case shell
 }
@@ -193,50 +150,6 @@ struct DrawerTabRowView: View {
     }
 }
 
-struct DrawerRecentRowView: View {
-    let row: DrawerRecentRow
-    let now: Date
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 11) {
-                DrawerTabIconView(icon: .claude(isWorking: row.agent.status == .working), size: 14)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(row.agent.title)
-                        .drawerText(.recentTitle)
-                        .systemLinePitch(20, size: DrawerTextStyle.recentTitle.size)
-                        .foregroundStyle(Palette.textPrimary)
-                        .lineLimit(1)
-                    Text(row.subtitle(now: now))
-                        .drawerText(.recentSubtitle)
-                        .systemLinePitch(17, size: DrawerTextStyle.recentSubtitle.size)
-                        .foregroundStyle(Palette.textSecondary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if row.agent.status == .blocked {
-                    DrawerBlockedDot()
-                }
-            }
-            .padding(.leading, 10.7)
-            .padding(.trailing, 12)
-            .frame(maxWidth: .infinity, minHeight: DrawerLayout.recentRowHeight)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Palette.selectedRow)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
 struct DrawerBlockedDot: View {
     var body: some View {
         Circle()
@@ -256,6 +169,9 @@ struct DrawerTabIconView: View {
             ClaudeMark(size: size * DrawerLayout.claudeMarkScale)
                 .frame(width: size, height: size)
                 .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.claude))
+        case .codex(let isWorking):
+            ProviderMark(provider: .codex, size: size)
+                .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.textPrimary))
         case .otherAgent(let isWorking):
             LineIconView(icon: .sparkles, size: size, strokeWidth: 2.2, color: Palette.textSecondary)
                 .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.textSecondary))

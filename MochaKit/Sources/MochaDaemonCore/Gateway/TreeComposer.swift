@@ -4,6 +4,7 @@ import MochaTranscript
 
 enum TreeComposer {
     static let claudeKind = "claude"
+    static let codexKind = "codex"
 
     static func compose(
         _ tree: [WorkspaceNode],
@@ -100,6 +101,39 @@ enum TreeComposer {
 
     static func agent(_ id: AgentID, in tree: [WorkspaceNode]) -> AgentSummary? {
         agents(in: tree).first { $0.id == id }
+    }
+
+    static func codexSummary(_ agent: AgentSummary, pane: CodexPaneState?, connected: Bool) -> AgentSummary {
+        guard agent.kind == codexKind else { return agent }
+        var agent = agent
+        agent.controlAvailable = connected && pane != nil
+        guard let pane else { return agent }
+        agent.status = pane.status
+        if let title = pane.title, !title.isEmpty {
+            agent.title = title
+        }
+        return agent
+    }
+
+    static func codexOverlay(_ tree: [WorkspaceNode], panes: [AgentID: CodexPaneState], connected: Bool) -> [WorkspaceNode] {
+        tree.map { workspace in
+            var updated = workspace
+            var touched = false
+            updated.tabs = workspace.tabs.map { tab in
+                var tab = tab
+                tab.agents = tab.agents.map { agent in
+                    guard agent.kind == codexKind else { return agent }
+                    touched = true
+                    return codexSummary(agent, pane: panes[agent.id], connected: connected)
+                }
+                return tab
+            }
+            if touched {
+                updated.agentStatus = HerdrTreeBuilder.aggregateStatus(updated.tabs.flatMap { $0.agents.map(\.status) })
+            }
+            updated.children = codexOverlay(workspace.children, panes: panes, connected: connected)
+            return updated
+        }
     }
 
     static func containsWorkspace(_ id: WorkspaceID, in tree: [WorkspaceNode]) -> Bool {

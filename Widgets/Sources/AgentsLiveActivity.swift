@@ -23,7 +23,7 @@ struct AgentsLiveActivity: Widget {
                         .padding(.leading, 6)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    AgentsCardBadge(context: header.context, metrics: .island)
+                    AgentsCardBadge(context: header.context, provider: header.provider, metrics: .island)
                         .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -31,18 +31,17 @@ struct AgentsLiveActivity: Widget {
                         .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
-            } compactTrailing: {
-                Text(header.project)
-                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: "cup.and.saucer")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(AgentsPalette.labelColor(for: tone))
-                    .lineLimit(1)
-                    .frame(maxWidth: 64)
+                    .accessibilityHidden(true)
+            } compactTrailing: {
+                ProviderTile(provider: header.provider, size: 24, markSize: 16)
             } minimal: {
-                ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
+                ProviderTile(provider: header.provider, size: 22, markSize: 15)
             }
             .widgetURL(AgentsActivityText.deepLink(forAgent: content.agentId))
-            .keylineTint(AgentsPalette.color(for: tone))
+            .keylineTint(AgentsPalette.color(for: tone, provider: header.provider))
         }
     }
 }

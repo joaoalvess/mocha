@@ -9,6 +9,8 @@ public actor HerdrBridge: HerdrBridging {
     public static let interruptKeys = ["Escape"]
     public static let newAgentKind = "claude"
     public static let newAgentNamePrefix = "mocha-"
+    public static let codexAgentKind = "codex"
+    static let codexStartTimeout: Duration = .seconds(4)
     public static let readyStatuses: [HerdrAgentStatus] = [.idle, .blocked]
 
     private struct PaneSubscription {
@@ -184,6 +186,37 @@ public actor HerdrBridge: HerdrBridging {
             await refreshSnapshotNow(cycle: generation)
         }
         return paneId
+    }
+
+    public func newCodexTab(in workspaceId: WorkspaceID, remote: String) async throws -> (paneId: AgentID, cwd: String?) {
+        guard available else { throw HerdrBridgeError.unavailable }
+        guard let workspace = state.workspace(workspaceId) else { throw HerdrBridgeError.workspaceNotFound }
+        let directory = HerdrTreeBuilder.workspaceDirectory(workspace, in: state)
+        let created = try await command { client in
+            try await client.tabCreate(workspaceId: workspaceId, cwd: directory)
+        }
+        let paneId = created.rootPane.paneId
+        let namesInUse = try await command { client in
+            try await client.agentList().compactMap(\.name)
+        }
+        let name = Self.newAgentName(excluding: reservedAgentNames.union(namesInUse))
+        reservedAgentNames.insert(name)
+        defer { reservedAgentNames.remove(name) }
+        do {
+            _ = try await command { client in
+                try await client.agentStart(
+                    name: name,
+                    kind: Self.codexAgentKind,
+                    paneId: paneId,
+                    args: ["--remote", remote],
+                    timeout: Self.codexStartTimeout
+                )
+            }
+        } catch HerdrBridgeError.herdr(code: "timeout", _) {}
+        if available {
+            await refreshSnapshotNow(cycle: generation)
+        }
+        return (paneId, directory)
     }
 
     static func newAgentName(excluding namesInUse: Set<String>) -> String {

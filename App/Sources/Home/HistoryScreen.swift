@@ -2,7 +2,7 @@ import MochaClient
 import MochaProtocol
 import SwiftUI
 
-struct HomeScreen: View {
+struct HistoryScreen: View {
     @Bindable var session: AppSession
     @State private var offlineProblem: ConnectionProblem?
 
@@ -14,13 +14,6 @@ struct HomeScreen: View {
             offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
         }
         .task { await runDebugLaunch() }
-        .sheet(isPresented: $session.isInboxOpen) {
-            InboxSheet(session: session)
-                .presentationDetents([InboxSheet.detent])
-                .presentationDragIndicator(.hidden)
-                .presentationBackground(Palette.drawerBg)
-                .presentationCornerRadius(Metrics.sheetCornerRadius)
-        }
     }
 
     private func runDebugLaunch() async {
@@ -48,6 +41,7 @@ private struct HomeContent: View {
     private static let listBottom: CGFloat = 24
     private static let capsuleTopInset: CGFloat = 11
     private static let capsuleSideInset: CGFloat = 52
+    private static let titleTopInset: CGFloat = 11
 
     var body: some View {
         let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
@@ -62,13 +56,13 @@ private struct HomeContent: View {
                     bottomInset: usageWindows.isEmpty ? Self.listBottom : Self.listBottomWithPill
                 )
             } else if session.hasReceivedTree {
-                HomeEmptyState { session.openDrawer() }
+                HomeEmptyState()
             }
             topBar
         }
         .overlay(alignment: .bottom) {
             if !usageWindows.isEmpty {
-                HomeUsagePill(windows: usageWindows, isDimmed: offlineMessage != nil) {
+                HomeUsagePill(provider: session.usage?.provider ?? .claude, windows: usageWindows, isDimmed: offlineMessage != nil) {
                     session.showUsage()
                 }
                 .padding(.horizontal, Self.pillSide)
@@ -80,20 +74,18 @@ private struct HomeContent: View {
     private var topBar: some View {
         ZStack(alignment: .top) {
             HStack(spacing: 0) {
-                GlassRoundButton(icon: .sidebar, accessibilityLabel: "Abrir gaveta", style: .home) {
-                    session.openDrawer()
-                }
                 Spacer()
-                if showsInbox {
-                    InboxButton(count: session.pending.count) {
-                        session.showInbox()
-                    }
-                    .padding(.trailing, InboxButton.spacing)
-                    .transition(.opacity)
+                GlassRoundButton(systemImage: "house", accessibilityLabel: "Início", style: .home) {
+                    session.showStart()
                 }
-                GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
-                    session.showSettings()
-                }
+            }
+            if offlineMessage == nil {
+                Text("Histórico")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                    .frame(height: 22)
+                    .padding(.top, Self.titleTopInset)
+                    .accessibilityAddTraits(.isHeader)
             }
             if let offlineMessage {
                 OfflineCapsule(message: offlineMessage) { session.showSettings() }
@@ -105,11 +97,6 @@ private struct HomeContent: View {
         .padding(.horizontal, Metrics.homeButtonSide)
         .padding(.top, Metrics.homeButtonTopInset)
         .animation(.smooth(duration: 0.25), value: offlineMessage)
-        .animation(.smooth(duration: 0.25), value: showsInbox)
-    }
-
-    private var showsInbox: Bool {
-        session.pending.count > 0 && offlineMessage == nil
     }
 }
 
@@ -147,9 +134,9 @@ private struct HomeList: View {
         .animation(.smooth(duration: 0.3), value: sections)
     }
 
-    private func archive(_ sessionId: String) async -> Bool {
+    private func archive(_ sessionId: String, provider: AgentProvider) async -> Bool {
         do {
-            try await session.archive(sessionId: sessionId)
+            try await session.archive(sessionId: sessionId, provider: provider)
             return true
         } catch {
             return false

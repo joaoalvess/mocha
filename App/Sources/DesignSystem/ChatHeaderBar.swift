@@ -1,4 +1,5 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 enum ChatSubtitle {
@@ -13,12 +14,12 @@ enum ChatSubtitle {
 }
 
 struct ChatHeaderBar: View {
+    var provider: AgentProvider = .claude
     let indicator: StatusIndicator
     let title: String
     let subtitle: String
     var onStatusTap: () -> Void = {}
     var onTitleTap: () -> Void = {}
-    var onOpenDrawer: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 0) {
@@ -29,7 +30,7 @@ struct ChatHeaderBar: View {
             }
             .buttonStyle(.plain)
             .padding(.leading, 2)
-            .accessibilityLabel("Voltar para a Home")
+            .accessibilityLabel("Abrir gaveta")
             .accessibilityValue(indicator.accessibilityLabel)
             Button(action: onTitleTap) {
                 titleBlock
@@ -43,7 +44,7 @@ struct ChatHeaderBar: View {
                 HeaderRoundButton(accessibilityLabel: "Git", isEnabled: false, action: {}) {
                     LineIconView(icon: .branch, size: 16, strokeWidth: 2.1, color: Palette.glyphOnAccent)
                 }
-                HeaderRoundButton(accessibilityLabel: "Abrir gaveta", isEnabled: true, action: onOpenDrawer) {
+                HeaderRoundButton(accessibilityLabel: "Preview web", isEnabled: false, action: {}) {
                     CompassNeedle()
                         .stroke(Palette.glyphOnAccent, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
                         .frame(width: 8.5, height: 8.5)
@@ -59,7 +60,7 @@ struct ChatHeaderBar: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6.5) {
-                ClaudeMark(size: Metrics.claudeMarkHeaderSize)
+                ProviderMark(provider: provider, size: Metrics.claudeMarkHeaderSize)
                 Text(title)
                     .font(Typography.headerTitle)
                     .foregroundStyle(Palette.textPrimary)

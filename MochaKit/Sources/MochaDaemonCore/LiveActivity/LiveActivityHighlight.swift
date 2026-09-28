@@ -19,6 +19,7 @@ extension LiveActivityContentState.Highlight {
     init(_ agent: AgentSummary, status: AgentStatus, since: Date, prompt: String?, titleLimit: Int, showsProgress: Bool) {
         self.init(
             agentId: agent.id,
+            provider: agent.kind == AgentProvider.codex.rawValue ? .codex : nil,
             title: String(agent.title.prefix(titleLimit)),
             workspaceLabel: agent.workspaceLabel,
             status: status.rawValue,

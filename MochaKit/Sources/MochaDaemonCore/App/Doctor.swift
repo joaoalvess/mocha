@@ -5,6 +5,7 @@ public struct Doctor: Sendable {
     let herdr: HerdrProbe
     let local: any LocalControlling
     let serve: ServeInspector
+    let codex: CodexInspector
     let signer: CodeSigner
     let keyPresence: any ApnsKeyPresenceChecking
     let executable: URL
@@ -15,6 +16,7 @@ public struct Doctor: Sendable {
         herdr: HerdrProbe,
         local: any LocalControlling,
         serve: ServeInspector,
+        codex: CodexInspector,
         signer: CodeSigner,
         keyPresence: any ApnsKeyPresenceChecking,
         executable: URL,
@@ -24,6 +26,7 @@ public struct Doctor: Sendable {
         self.herdr = herdr
         self.local = local
         self.serve = serve
+        self.codex = codex
         self.signer = signer
         self.keyPresence = keyPresence
         self.executable = executable
@@ -42,6 +45,11 @@ public struct Doctor: Sendable {
             DoctorChecks.agentList(await herdr.agents()),
             DoctorChecks.hooks(settings),
             DoctorChecks.moshiHook(settings),
+            DoctorChecks.codex(
+                executable: codex.executable,
+                version: await codex.version(),
+                socketReady: FileManager.default.fileExists(atPath: paths.codexSocket.fileSystemPath)
+            ),
             DoctorChecks.serve(await serve.diagnose(), setupCommand: serve.setupCommand, expectedTarget: serve.expectedTarget),
             DoctorChecks.apns(
                 config: config,

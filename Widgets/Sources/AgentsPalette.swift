@@ -1,4 +1,5 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 enum AgentsPalette {
@@ -15,9 +16,9 @@ enum AgentsPalette {
     static let controlBg = Color(hex: 0x202225)
     static let contextTrack = Color(hex: 0x463B38)
 
-    static func color(for tone: AgentsActivityTone) -> Color {
+    static func color(for tone: AgentsActivityTone, provider: AgentProvider = .claude) -> Color {
         switch tone {
-        case .working: claude
+        case .working: provider == .codex ? textPrimary : claude
         case .waiting: waiting
         case .done: statusOk
         }
@@ -68,6 +69,40 @@ struct ClaudeTile: View {
         ClaudeMark(size: markSize, color: AgentsPalette.textPrimary)
             .frame(width: size, height: size)
             .background(AgentsPalette.claude, in: Circle())
+    }
+}
+
+struct ProviderMark: View {
+    let provider: AgentProvider
+    let size: CGFloat
+    let color: Color
+
+    var body: some View {
+        Group {
+            switch provider {
+            case .claude:
+                ClaudeMark(size: size, color: color)
+            case .codex:
+                Image(systemName: "diamond.inset.filled")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(color)
+                    .frame(width: size, height: size)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+struct ProviderTile: View {
+    let provider: AgentProvider
+    let size: CGFloat
+    let markSize: CGFloat
+
+    var body: some View {
+        ProviderMark(provider: provider, size: markSize, color: AgentsPalette.textPrimary)
+            .frame(width: size, height: size)
+            .background(provider == .codex ? AgentsPalette.controlBg : AgentsPalette.claude, in: Circle())
     }
 }
 

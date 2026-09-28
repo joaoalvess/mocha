@@ -101,8 +101,11 @@ public struct PendingAnswerDraft: Sendable, Equatable {
     public var response: PendingResponse? {
         guard isComplete else { return nil }
         var answers: [String: [String]] = [:]
-        for draft in questions where answers[draft.question.question] == nil {
-            answers[draft.question.question] = draft.answer
+        for draft in questions {
+            let key = draft.question.id ?? draft.question.question
+            if answers[key] == nil {
+                answers[key] = draft.answer
+            }
         }
         return .answers(answers)
     }

@@ -14,10 +14,11 @@ struct AgentDetailSheet: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
             ScrollView {
+                let info = AgentDetailInfo(session: session, target: target)
                 AgentDetailContent(
-                    info: AgentDetailInfo(session: session, target: target),
+                    info: info,
                     hostName: session.host?.hostName,
-                    usage: session.usage,
+                    usage: session.usage(for: info.provider),
                     now: context.date,
                     subagents: subagents,
                     onOpenSubagent: { session.openChat($0) },
@@ -69,6 +70,8 @@ private struct SubagentListKey: Hashable {
 }
 
 struct AgentDetailInfo {
+    var provider: AgentProvider = .claude
+    var controlAvailable = true
     var title: String
     var workspace: String
     var activityAt: Date?
@@ -83,6 +86,8 @@ struct AgentDetailInfo {
         switch target {
         case .agent(let agentId):
             let agent = session.workspaces.agent(withId: agentId)
+            provider = agent?.kind == AgentKind.codex ? .codex : .claude
+            controlAvailable = provider == .claude || agent?.controlAvailable == true
             title = HomeSections.title(for: agent?.preview)
             workspace = agent?.workspaceLabel ?? Self.missing
             activityAt = agent?.lastActivityAt
@@ -92,7 +97,7 @@ struct AgentDetailInfo {
             sessionId = agent?.sessionId
             isAgent = true
         case .session(let sessionId):
-            let archived = session.archivedSessions.first { $0.id == sessionId }
+            let archived = session.archivedSessions.first { $0.id == sessionId && $0.provider == .claude }
             title = HomeSections.title(for: archived?.preview)
             workspace = archived?.workspaceLabel ?? Self.missing
             activityAt = archived.map { $0.lastActivityAt ?? $0.endedAt }
@@ -100,6 +105,17 @@ struct AgentDetailInfo {
             model = archived?.model
             tabTitle = archived?.agentId.flatMap { session.workspaces.tab(containingAgent: $0)?.title }
             self.sessionId = sessionId
+        case .codexThread(let threadId):
+            let archived = session.archivedSessions.first { $0.id == threadId && $0.provider == .codex }
+            provider = .codex
+            controlAvailable = false
+            title = HomeSections.title(for: archived?.preview)
+            workspace = archived?.workspaceLabel ?? Self.missing
+            activityAt = archived.map { $0.lastActivityAt ?? $0.endedAt }
+            badge = .ended
+            model = archived?.model
+            tabTitle = archived?.agentId.flatMap { session.workspaces.tab(containingAgent: $0)?.title }
+            sessionId = threadId
         case .subagent:
             title = HomeSections.title(for: nil)
             workspace = Self.missing
@@ -141,10 +157,10 @@ private struct AgentDetailContent: View {
             if info.isAgent, let sessionId = info.sessionId, !subagents.isEmpty {
                 AgentSubagentsSection(items: subagents, sessionId: sessionId, onOpen: onOpenSubagent)
             }
-            if let usage {
+            if let usage, usage.provider == info.provider {
                 let windows = UsagePace.summaries(of: usage, now: now)
                 if !windows.isEmpty {
-                    AccountCard(title: UsagePace.accountTitle(plan: usage.plan, account: usage.account), windows: windows)
+                    AccountCard(title: UsagePace.accountTitle(plan: usage.plan, account: usage.account, provider: usage.provider), windows: windows)
                         .padding(.top, 20.3)
                 }
             }
@@ -161,7 +177,7 @@ private struct AgentDetailHero: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ClaudeTile(size: 80, cornerRadius: 22, background: Palette.heroTile, markSize: 48)
+            ProviderTile(provider: info.provider, size: 80, cornerRadius: 22, markSize: 48)
             Text(info.title)
                 .font(.system(size: 24, weight: .bold))
                 .tracking(-0.35)
@@ -178,6 +194,12 @@ private struct AgentDetailHero: View {
                 .padding(.top, 7.9)
             StateBadge(style: info.badge)
                 .padding(.top, 15.4)
+            if !info.controlAvailable && info.isAgent {
+                Text("Codex · controle indisponível")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.textSecondary)
+                    .padding(.top, 9)
+            }
         }
         .padding(.horizontal, 26)
         .padding(.top, 23.7)
@@ -263,6 +285,7 @@ private struct AgentDetailList: View {
 
     var body: some View {
         SheetListCard {
+            SheetListRow(label: "Agente", value: info.provider == .codex ? "Codex CLI" : "Claude Code", isCompact: true)
             SheetListRow(label: "Host", value: hostName ?? AgentDetailInfo.missing, isCompact: true)
             SheetListRow(label: "Modelo", value: info.model.map(ModelName.abbreviated) ?? AgentDetailInfo.missing, isCompact: true)
             SheetListRow(label: "Workspace do Herdr", value: info.workspace, valueStyle: .mono, isCompact: true)

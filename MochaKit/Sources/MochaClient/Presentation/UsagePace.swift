@@ -16,14 +16,13 @@ public enum UsagePaceTrend: Sendable, Hashable {
 }
 
 public struct UsageWindowSummary: Sendable, Hashable, Identifiable {
+    public var id: Int
     public var kind: UsageWindowKind
     public var label: String
     public var usedPercent: Double
     public var elapsedFraction: Double?
     public var trend: UsagePaceTrend?
     public var timeUntilReset: String?
-
-    public var id: UsageWindowKind { kind }
 
     public var usedFraction: Double {
         min(max(usedPercent / 100, 0), 1)
@@ -34,6 +33,7 @@ public struct UsageWindowSummary: Sendable, Hashable, Identifiable {
     }
 
     public init(
+        id: Int = 0,
         kind: UsageWindowKind,
         label: String,
         usedPercent: Double,
@@ -41,6 +41,7 @@ public struct UsageWindowSummary: Sendable, Hashable, Identifiable {
         trend: UsagePaceTrend? = nil,
         timeUntilReset: String? = nil
     ) {
+        self.id = id
         self.kind = kind
         self.label = label
         self.usedPercent = usedPercent
@@ -54,7 +55,6 @@ public enum UsagePace {
     public static let tolerance = 5.0
     public static let defaultAccountTitle = "Claude"
 
-    private static let displayedKinds: [UsageWindowKind] = [.fiveHour, .weekly]
     private static let minute = 60
     private static let hour = 60 * minute
     private static let day = 24 * hour
@@ -67,6 +67,13 @@ public enum UsagePace {
         }
     }
 
+    public static func duration(of window: UsageWindow) -> TimeInterval? {
+        if let minutes = window.windowDurationMins, minutes > 0 {
+            return TimeInterval(minutes * minute)
+        }
+        return duration(of: window.kind)
+    }
+
     public static func label(of kind: UsageWindowKind) -> String? {
         switch kind {
         case .fiveHour: "5h"
@@ -75,8 +82,15 @@ public enum UsagePace {
         }
     }
 
+    public static func label(of window: UsageWindow) -> String? {
+        guard let minutes = window.windowDurationMins, minutes > 0 else { return label(of: window.kind) }
+        if minutes % (24 * 60) == 0 { return "\(minutes / (24 * 60))d" }
+        if minutes % 60 == 0 { return "\(minutes / 60)h" }
+        return "\(minutes)m"
+    }
+
     public static func elapsedFraction(of window: UsageWindow, now: Date) -> Double? {
-        guard let duration = duration(of: window.kind), let resetsAt = window.resetsAt else { return nil }
+        guard let duration = duration(of: window), let resetsAt = window.resetsAt else { return nil }
         let fraction = 1 - resetsAt.timeIntervalSince(now) / duration
         return min(max(fraction, 0), 1)
     }
@@ -107,12 +121,18 @@ public enum UsagePace {
     }
 
     public static func summaries(of snapshot: UsageSnapshot, now: Date) -> [UsageWindowSummary] {
-        displayedKinds.compactMap { kind in
-            guard let window = snapshot.windows.first(where: { $0.kind == kind }), let label = label(of: kind) else { return nil }
+        let valid = snapshot.windows.compactMap { window -> (window: UsageWindow, label: String)? in
+            guard let label = label(of: window) else { return nil }
+            return (window, label)
+        }
+        let sorted = valid.sorted { (duration(of: $0.window) ?? .greatestFiniteMagnitude) < (duration(of: $1.window) ?? .greatestFiniteMagnitude) }
+        return sorted.enumerated().map { index, entry in
+            let window = entry.window
             let elapsed = elapsedFraction(of: window, now: now)
             return UsageWindowSummary(
-                kind: kind,
-                label: label,
+                id: index,
+                kind: window.kind,
+                label: entry.label,
                 usedPercent: window.usedPercent,
                 elapsedFraction: elapsed,
                 trend: elapsed.map { trend(usedPercent: window.usedPercent, elapsedFraction: $0) },
@@ -128,8 +148,8 @@ public enum UsagePace {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    public static func accountTitle(plan: String?, account: String?) -> String {
-        let name = plan ?? defaultAccountTitle
+    public static func accountTitle(plan: String?, account: String?, provider: AgentProvider = .claude) -> String {
+        let name = plan ?? (provider == .codex ? "Codex" : defaultAccountTitle)
         guard let account else { return name }
         return "\(name) (\(account))"
     }

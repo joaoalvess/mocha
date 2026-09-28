@@ -208,6 +208,9 @@ extension SessionHub {
         if let usageSnapshot {
             send(.usage(usageSnapshot), to: clientId)
         }
+        if let codexUsage {
+            send(.usage(codexUsage), to: clientId)
+        }
         sendPending(to: clientId)
     }
 
@@ -235,14 +238,23 @@ extension SessionHub {
             await unpair(clientId, id: id)
         case .ping:
             send(.pong, id: id, to: clientId)
-        case .archive(let sessionId):
-            await archiveSession(sessionId, id: id, clientId: clientId)
+        case .archive(let sessionId, let provider):
+            if provider == .claude {
+                await archiveSession(sessionId, id: id, clientId: clientId)
+            } else {
+                send(.notClaude, id: id, to: clientId)
+            }
         case .slash(let agentId, let command):
             await run(.prompt(command), agentId: agentId, id: id, clientId: clientId)
         case .setPreferences(let preferences):
             await setPreferences(preferences, id: id, clientId: clientId)
-        case .newAgentTab(let workspaceId):
-            await openAgentTab(in: workspaceId, id: id, clientId: clientId)
+        case .newAgentTab(let workspaceId, let kind):
+            switch kind {
+            case .claude:
+                await openAgentTab(in: workspaceId, id: id, clientId: clientId)
+            case .codex:
+                await openCodexTab(in: workspaceId, id: id, clientId: clientId)
+            }
         case .listSubagents(let agentId):
             await listSubagents(agentId, id: id, clientId: clientId)
         case .respond(let requestId, let response) where pending != nil:
@@ -262,6 +274,10 @@ extension SessionHub {
         let resolved = await herdr.resolve(agentId)
         guard let agent = await herdr.agent(resolved) else {
             send(.agentNotFound, id: id, to: clientId)
+            return
+        }
+        if agent.kind == TreeComposer.codexKind {
+            await runCodex(command, agent: agent, id: id, clientId: clientId)
             return
         }
         guard agent.kind == TreeComposer.claudeKind else {

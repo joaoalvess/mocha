@@ -28,6 +28,7 @@ public enum HomeCardState: Sendable, Hashable {
 
 public struct HomeCard: Sendable, Hashable, Identifiable {
     public var target: ChatTarget
+    public var provider: AgentProvider
     public var state: HomeCardState
     public var title: String
     public var subtitle: String?
@@ -37,6 +38,7 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
     public var activityAt: Date?
     public var time: String
     public var archiveSessionId: String?
+    public var controlAvailable: Bool
     public var runningSubagents: Int
 
     public var id: ChatTarget { target }
@@ -50,6 +52,7 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
 
     public init(
         target: ChatTarget,
+        provider: AgentProvider = .claude,
         state: HomeCardState,
         title: String,
         subtitle: String? = nil,
@@ -59,9 +62,11 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
         activityAt: Date? = nil,
         time: String,
         archiveSessionId: String? = nil,
+        controlAvailable: Bool = true,
         runningSubagents: Int = 0
     ) {
         self.target = target
+        self.provider = provider
         self.state = state
         self.title = title
         self.subtitle = subtitle
@@ -71,6 +76,7 @@ public struct HomeCard: Sendable, Hashable, Identifiable {
         self.activityAt = activityAt
         self.time = time
         self.archiveSessionId = archiveSessionId
+        self.controlAvailable = controlAvailable
         self.runningSubagents = runningSubagents
     }
 }
@@ -89,6 +95,7 @@ public struct HomeSection: Sendable, Hashable, Identifiable {
 
 public enum HomeSections {
     public static let claudeKind = "claude"
+    public static let codexKind = "codex"
     public static let refreshInterval: TimeInterval = 30
     public static let idleArchiveDelay: TimeInterval = 10 * 60
     public static let sessionMaximumAge: TimeInterval = 6 * 60 * 60
@@ -99,7 +106,7 @@ public enum HomeSections {
 
     public static func make(agents: [AgentSummary], archived: [ArchivedSession], now: Date) -> [HomeSection] {
         var grouped: [HomeSectionKind: [HomeCard]] = [:]
-        for agent in agents where agent.kind == claudeKind {
+        for agent in agents where agent.kind == claudeKind || agent.kind == codexKind {
             let kind = kind(of: agent, now: now)
             grouped[kind, default: []].append(card(for: agent, in: kind, now: now))
         }
@@ -161,15 +168,17 @@ public enum HomeSections {
     public static func card(for agent: AgentSummary, in kind: HomeSectionKind, now: Date) -> HomeCard {
         HomeCard(
             target: .agent(agent.id),
+            provider: agent.kind == codexKind ? .codex : .claude,
             state: state(for: kind),
             title: title(for: agent.preview),
-            subtitle: subtitle(for: agent, in: kind),
+            subtitle: agent.kind == codexKind && agent.controlAvailable == false ? "Controle indisponível" : subtitle(for: agent, in: kind),
             subtitleIsWarning: kind == .needsYou,
             workspace: agent.workspaceLabel,
             contextLeftPercent: agent.contextLeftPercent,
             activityAt: agent.lastActivityAt,
             time: timeText(agent.lastActivityAt, now: now),
             archiveSessionId: kind == .done ? agent.sessionId : nil,
+            controlAvailable: agent.kind != codexKind || agent.controlAvailable == true,
             runningSubagents: max(0, agent.runningSubagents ?? 0)
         )
     }
@@ -177,7 +186,8 @@ public enum HomeSections {
     public static func card(for session: ArchivedSession, now: Date) -> HomeCard {
         let activityAt = session.lastActivityAt ?? session.endedAt
         return HomeCard(
-            target: .session(session.id),
+            target: session.provider == .codex ? .codexThread(session.id) : .session(session.id),
+            provider: session.provider,
             state: .archived,
             title: title(for: session.preview),
             subtitle: endedSessionSubtitle,

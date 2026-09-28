@@ -34,10 +34,11 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | subagentes | Subagentes e workflows no app: card do subagente no chat com o transcript dele, selo na Home, lista no Detalhe e card de workflow | WP-X6 |
 | 1b | Inbox e ações na notificação, Live Activity, voz | WP-X3 |
 | 1b-feed | Live Activity única que acompanha o último evento (§7.5); aceitar plano pela tela bloqueada | WP-XF |
+| codex | Codex CLI no Herdr com chat e ações; desktop como leitura posterior | WP-XC |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
-A `main` só recebe uma fase depois do checklist do WP de integração dela. Enquanto isso, a branch da fase seguinte sai da branch da fase anterior (`fase/1a-final` a partir de `fase/1a-core`, e assim por diante), e o merge em `main` segue a mesma ordem.
+A `main` só recebe uma fase depois do checklist do WP de integração dela. Enquanto isso, a branch da fase seguinte sai da branch da fase anterior (`fase/1a-final` a partir de `fase/1a-core`, e assim por diante), e o merge em `main` segue a mesma ordem. A fase Codex é a exceção de início: sai de `main` após o merge de 1b, antes do checklist WP-X3, por decisão do João em 2026-09-27.
 
 ## Bloqueios externos (ações do João)
 
@@ -922,6 +923,54 @@ Branch `fase/1b-feed`, criada de `main` em 2026-09-27. Onda 1: orquestrador (SPE
 
 - **Checklist do João** (iPhone, três agentes): um card só na tela bloqueada; o card troca para o agente que mandou mensagem; um pedido segura o card; Permitir, Negar, resposta de pergunta e aceitar plano pela tela bloqueada; alerta no card sem notificação duplicada; o card some 30 min depois de tudo parar.
 
+## Fase Codex: CLI no Herdr, desktop como complemento
+
+Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contrato desta fase. Ondas: S7 → WP-C1 → WP-C2 ∥ WP-C3 → WP-C2-wiring → WP-XC → WP-CD. O desktop não bloqueia o aceite do CLI. Bloqueios do João: nenhum para S7 e os testes locais; revisar a configuração real do App Server e dos hooks antes da instalação, e validar no iPhone no WP-XC.
+
+### S7: App Server compartilhado no laboratório
+
+- **Dono**: `docs/spikes/S7.md` e laboratório `~/Developer/mocha-lab/S7/`, em workspace Herdr `mocha-lab-S7`. Não tocar sessões Codex existentes nem configuração real em `~/.codex`.
+- Validar com CLI `codex --remote` e dois clientes App Server na mesma thread: associação pane–thread, histórico e eventos, retomada após queda, prompt, interrupção e permissão respondida no terminal ou no outro cliente. Testar pergunta estruturada nos modos em que a API permitir; no Default, a ausência dessa ferramenta é limitação aceita pelo João em 2026-09-27. Verificar formato e limites de `account/rateLimits/read`, imagem e subagentes. Registrar versão, comandos, payloads redigidos, resultados e mudanças necessárias na §13.
+- **Gate**: passou para chat/aprovações no Default e perguntas no Plan, conforme `docs/spikes/S7.md`. Não usar `agent.send_keys` para reproduzir ações. Casos secundários não testados no spike passam ao WP-XC.
+
+### WP-C1: protocolo v2 e fixtures Codex
+
+- **Dono**: `MochaKit/Sources/MochaProtocol/`, `MochaKit/Fixtures/protocol/`, `MochaKit/Tests/MochaProtocolTests/` (exceção de dono compartilhado nesta onda: o orquestrador implementa).
+- Identificar provedor em sessão e arquivo com migração dos registros Claude, suportar nova tab Codex, janelas de uso com duração da API, chat e pedidos Codex. Atualizar `MochaDemo` em WP-C3. Aceite: round-trip v2, rejeição explícita de versão incompatível e fixtures antigas Claude decodificadas.
+
+### WP-C2: integração Codex no daemon
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/`, adaptação de `Gateway/`, `Herdr/`, `Pending/`, `Push/` e `LiveActivity/` necessária à §13; testes em `MochaKit/Tests/MochaDaemonCoreTests/Codex/` e fixtures em `MochaKit/Fixtures/codex/`.
+- Cliente App Server em actor, reconciliação pane–thread, conversão de itens/eventos, ações, decisões, uso, arquivos, subagentes e diagnóstico. O daemon usa socket local, não JSONL. Aceite: fixtures unitárias sem rede, Herdr ou Codex reais; integração real somente com tag `.integration`.
+
+### WP-C2-wiring: ligar o CodexService no mochad
+
+- **Dono**: o mesmo do WP-C2, mais `App/DaemonRuntime.swift`, `App/Doctor*.swift`, `mochad/StatusCommand.swift` e o uso por provedor em `App/Sources/AppShell/` e `App/Sources/AgentDetail/`. Branch `wp/C2-wiring`.
+- O WP-C2 entregou as peças sem ligá-las ao daemon. Este WP faz o `mochad` subir e supervisionar o App Server, liga o `CodexService` ao `SessionHub` (árvore, status, chat, ações, pendentes, push), abre a nova tab Codex com `codex --remote`, associa pane e thread por `thread/started` (§13.1) e põe o item Codex no `doctor`. Aceite: `scripts/test.sh` verde, com testes do `CodexPaneMatcher`; `scripts/build-daemon.sh` e `scripts/build-app.sh` compilam. O teste real fica no WP-XC.
+
+### WP-C3: Codex no app e no demo
+
+- **Dono**: `App/Sources/`, `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaClient/Pending/`, `MochaKit/Sources/MochaDemo/`, `docs/design/` e testes correspondentes. Mudanças em `project.yml` e `MochaProtocol` são propostas ao orquestrador.
+- Estender o mock em `docs/design/` antes da UI, com imagens de referência 3x. Mostrar Codex na Home, gaveta, Detalhe, chat, nova tab, Uso, inbox, alertas e Live Activity, inclusive estado indisponível e capacidade limitada do CLI antigo. Aceite: capturas comparadas ao mock e testes de navegação e apresentação.
+
+### WP-XC: integração do CLI
+
+- **Checklist do João**: uma tab Codex criada no Herdr com associação pane–thread comprovada; conversa única entre terminal e iPhone; prompt e imagem; interrupção; aprovação nos dois sentidos e pergunta em Plan mode vencidas ora no terminal, ora no iPhone; queda e volta do App Server, inclusive com ação em trânsito; uso, subagentes, push e Live Activity; Claude segue funcionando. Usar `scripts/test.sh`, `scripts/build-app.sh` e `scripts/build-device.sh` (este último após oferta de teste no iPhone).
+
+### WP-CD: leitura do Codex desktop
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/`, `App/Sources/Home/`, `App/Sources/Drawer/`, `App/Sources/Chat/` e testes correspondentes. Propor alterações no protocolo ao orquestrador.
+- Listar e paginar threads desktop sem retomá-las, até 20 recentes na Home e todas na gaveta. Estado desconhecido quando o App Server não comprova atividade. Preparar o diff exato dos hooks para revisão do João antes de instalar; a leitura funciona sem eles. Aceite: nenhuma ação de controle aparece para conversa desktop.
+
+## Fase início: Início, Histórico e gaveta só no chat
+
+Branch `fase/inicio`, criada de `main`. Um WP só, feito direto pelo orquestrador a pedido do João. Daemon e protocolo não mudam.
+
+### WP-H1: Início, Nova sessão, Histórico e gaveta só no chat
+
+- **Dono**: `App/Sources/Home/`, `App/Sources/NewSession/`, `App/Sources/AppShell/`, `App/Sources/Drawer/`, `App/Sources/Chat/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `MochaKit/Sources/MochaClient/Presentation/` e testes.
+- A Home vira o Histórico, a Início nova (§6.3) fica à direita dele num paginador, a folha Nova sessão substitui o `+` da gaveta, a gaveta só abre no chat pela borda esquerda e a bússola fica desabilitada. Aceite: `scripts/test.sh` e `scripts/build-app.sh` passam; o João confere gestos e a criação de uma tab no iPhone.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1004,6 +1053,14 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-I18 | feito (foco local pelo pedido visto primeiro, senão a última mudança de status; o daemon corrige no primeiro update) | ed1484e, 17bff10, merge d297c23 |
 | WP-M19 | feito (causa: `allow` sem `updatedInput` no `ExitPlanMode`, ignorado pelo Claude; aprovar manda o input original + `setMode` `auto`; pedido de subagente não fecha o do agente principal; 404 avisa; fixture de entrada sintetizada pela doc) | fix(daemon), fix(app), test(daemon), merge |
 | WP-XF | feito (aprovado pelo João no iPhone em 2026-09-27) | |
+| S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | 26067bd, merge e704dcb |
+| WP-C1 | feito (73 testes do protocolo passaram; pacote completo aguarda C2/C3 para tratar os novos casos) | d166607, 8fe544f, merge 1361c9f |
+| WP-C2 | feito (peças sem a ligação no daemon; ver WP-C2-wiring) | 3ce45c9, 22f5a52, merge f8d43da |
+| WP-C3 | feito | 2f44cfb, 1e74585, f8defbf, 9a65999, df1e7e4, e01a435, merge c62b69d; correções 66d0821, 826fafa, 9f88a98, 7e16e2b |
+| WP-C2-wiring | feito (testes e builds passaram; sem teste real, que fica no WP-XC) | merge em `fase/codex` |
+| WP-XC | todo | |
+| WP-CD | todo | |
+| WP-H1 | feito sem device (testes e build passaram; gestos e tab real a conferir no iPhone) | `fase/inicio` |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |

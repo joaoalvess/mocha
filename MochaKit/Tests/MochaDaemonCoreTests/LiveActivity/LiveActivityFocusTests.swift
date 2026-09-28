@@ -126,14 +126,14 @@ struct LiveActivityFocusTests {
         }
     }
 
-    @Test func onlyClaudeAgentsTakeTheFocus() async throws {
+    @Test func onlySupportedAgentsTakeTheFocus() async throws {
         try await withLiveActivity { harness in
-            let codex = LiveActivitySample.agent("w0:p1", .working, kind: "codex")
-            let device = try await card(harness, agents: [codex, agent("w1:p1")])
+            let unknown = LiveActivitySample.agent("w0:p1", .working, kind: "unknown")
+            let device = try await card(harness, agents: [unknown, agent("w1:p1")])
             try await harness.advance(10)
-            var busyCodex = codex
-            busyCodex.status = .blocked
-            try await harness.agents([busyCodex, agent("w1:p1")])
+            var busyUnknown = unknown
+            busyUnknown.status = .blocked
+            try await harness.agents([busyUnknown, agent("w1:p1")])
             try await harness.advance(60)
             #expect(harness.sent.map(\.push.agentId) == ["w1:p1"])
             #expect(await harness.service.focus(on: device) == "w1:p1")

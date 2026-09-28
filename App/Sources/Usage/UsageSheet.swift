@@ -56,9 +56,9 @@ private struct UsageCard: View {
         let windows = UsagePace.summaries(of: usage, now: now)
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                ClaudeTile(size: 40, cornerRadius: 11, background: Palette.claudeTile, markSize: 25)
+                ProviderTile(provider: usage.provider, size: 40, cornerRadius: 11, markSize: 25)
                 VStack(alignment: .leading, spacing: 3.5) {
-                    Text(UsagePace.accountTitle(plan: usage.plan, account: usage.account))
+                    Text(UsagePace.accountTitle(plan: usage.plan, account: usage.account, provider: usage.provider))
                         .systemText(.cardTitle)
                         .systemLinePitch(21, size: 16)
                         .foregroundStyle(Palette.textPrimary)
@@ -108,8 +108,9 @@ private struct UsageCard: View {
     }
 
     private var subtitle: String {
-        guard let hostName else { return "Claude Code" }
-        return "Claude Code · \(hostName)"
+        let name = usage.provider == .codex ? "Codex" : "Claude Code"
+        guard let hostName else { return name }
+        return "\(name) · \(hostName)"
     }
 }
 
