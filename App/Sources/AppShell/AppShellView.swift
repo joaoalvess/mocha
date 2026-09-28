@@ -17,10 +17,10 @@ struct AppShellView: View {
             NavigationStack(path: chatPath) {
                 RootPager(session: session)
                     .toolbar(.hidden, for: .navigationBar)
+                    .background(InteractivePopEnabler())
                     .navigationDestination(for: ChatTarget.self) { target in
                         ChatScreen(session: session, target: target)
                             .toolbar(.hidden, for: .navigationBar)
-                            .gesture(DrawerEdgeGesture { session.openDrawer() })
                     }
             }
             DrawerLayer(session: session)

@@ -30,7 +30,7 @@ struct ChatHeaderBar: View {
             }
             .buttonStyle(.plain)
             .padding(.leading, 2)
-            .accessibilityLabel("Voltar para a Início")
+            .accessibilityLabel("Abrir gaveta")
             .accessibilityValue(indicator.accessibilityLabel)
             Button(action: onTitleTap) {
                 titleBlock

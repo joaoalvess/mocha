@@ -163,7 +163,7 @@ struct ChatConversation: View {
             indicator: indicator,
             title: title,
             subtitle: subtitle,
-            onStatusTap: { session.closeChat() },
+            onStatusTap: { session.openDrawer() },
             onTitleTap: { session.showDetail(liveTarget) }
         )
     }
