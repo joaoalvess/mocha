@@ -14,7 +14,7 @@ struct RootHeader: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 RootPageButton(
-                    counts: AgentRingCounts(statuses: session.supportedAgents.map(\.status)),
+                    counts: AgentRingCounts(agents: session.supportedAgents),
                     isOffline: offlineMessage != nil,
                     historyProgress: historyProgress,
                     action: togglePage

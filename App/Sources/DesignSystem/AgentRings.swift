@@ -2,51 +2,91 @@ import MochaProtocol
 import SwiftUI
 
 struct AgentRingCounts: Equatable {
-    static let blockedCapacity = 3
-    static let workingCapacity = 4
+    static let autoCapacity = 3
+    static let planCapacity = 4
+    static let planMode = "plan"
+    static let autoModes: Set<String> = ["auto", "acceptEdits", "bypassPermissions"]
 
-    let blocked: Int
+    let auto: Int
+    let plan: Int
     let working: Int
+    let blocked: Int
 
-    init(statuses: [AgentStatus]) {
-        blocked = statuses.filter { $0 == .blocked }.count
-        working = statuses.filter { $0 == .working }.count
+    init(agents: [AgentSummary]) {
+        let modes = agents.filter { $0.kind == AgentKind.claude }.compactMap(\.permissionMode)
+        auto = modes.filter { Self.autoModes.contains($0) }.count
+        plan = modes.filter { $0 == Self.planMode }.count
+        working = agents.filter { $0.status == .working }.count
+        blocked = agents.filter { $0.status == .blocked }.count
     }
 
-    var blockedFraction: CGFloat {
-        CGFloat(min(blocked, Self.blockedCapacity)) / CGFloat(Self.blockedCapacity)
+    var autoFraction: CGFloat {
+        CGFloat(min(auto, Self.autoCapacity)) / CGFloat(Self.autoCapacity)
     }
 
-    var workingFraction: CGFloat {
-        CGFloat(min(working, Self.workingCapacity)) / CGFloat(Self.workingCapacity)
+    var planFraction: CGFloat {
+        CGFloat(min(plan, Self.planCapacity)) / CGFloat(Self.planCapacity)
+    }
+
+    var activity: AgentRingActivity? {
+        if blocked > 0 { return .needsYou }
+        if working > 0 { return .working }
+        return nil
     }
 
     var accessibilityValue: String {
-        "\(blocked) precisam de você, \(working) trabalhando"
+        "\(blocked) precisam de você, \(working) trabalhando, \(auto) em modo auto, \(plan) em modo plan"
+    }
+}
+
+enum AgentRingActivity: Equatable {
+    case working
+    case needsYou
+
+    var color: Color {
+        switch self {
+        case .working: Palette.statusOk
+        case .needsYou: Palette.dirty
+        }
     }
 }
 
 struct AgentRings: View {
     let counts: AgentRingCounts
     let isOffline: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let lineWidth: CGFloat = 4.3
     private static let outerRadius: CGFloat = 12
     private static let innerRadius: CGFloat = 7.5
     private static let dotDiameter: CGFloat = 10
     private static let dotDistance: CGFloat = 10
+    private static let pulsePeriod: Double = 1.4
+    private static let minimumPulseOpacity: Double = 0.3
 
     var body: some View {
         ZStack {
-            ring(radius: Self.outerRadius, fraction: counts.blockedFraction, track: Palette.ringBlockedTrack, fill: Palette.ringBlocked)
-            ring(radius: Self.innerRadius, fraction: counts.workingFraction, track: Palette.ringWorkingTrack, fill: Palette.ringWorking)
-            if !isOffline && counts.working > 0 {
-                Circle()
-                    .fill(Palette.statusOk)
-                    .frame(width: Self.dotDiameter, height: Self.dotDiameter)
-                    .offset(x: Self.dotDistance * cos(.pi / 4), y: -Self.dotDistance * sin(.pi / 4))
+            ring(radius: Self.outerRadius, fraction: counts.autoFraction, track: Palette.ringAutoTrack, fill: Palette.ringAuto)
+            ring(radius: Self.innerRadius, fraction: counts.planFraction, track: Palette.ringPlanTrack, fill: Palette.ringPlan)
+            if !isOffline, let activity = counts.activity {
+                if reduceMotion {
+                    activityDot(activity, opacity: 1)
+                } else {
+                    TimelineView(.animation) { context in
+                        let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.pulsePeriod) / Self.pulsePeriod
+                        activityDot(activity, opacity: Self.minimumPulseOpacity + (1 - Self.minimumPulseOpacity) * (0.5 + 0.5 * cos(phase * 2 * .pi)))
+                    }
+                }
             }
         }
+    }
+
+    private func activityDot(_ activity: AgentRingActivity, opacity: Double) -> some View {
+        Circle()
+            .fill(activity.color)
+            .frame(width: Self.dotDiameter, height: Self.dotDiameter)
+            .opacity(opacity)
+            .offset(x: Self.dotDistance * cos(.pi / 4), y: -Self.dotDistance * sin(.pi / 4))
     }
 
     private func ring(radius: CGFloat, fraction: CGFloat, track: Color, fill: Color) -> some View {
