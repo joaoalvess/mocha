@@ -59,7 +59,7 @@ struct AgentRings: View {
     private static let lineWidth: CGFloat = 4.3
     private static let outerRadius: CGFloat = 12
     private static let innerRadius: CGFloat = 7.5
-    private static let dotDiameter: CGFloat = 6
+    private static let dotDiameter: CGFloat = 10.4
     private static let pulsePeriod: Double = 1.4
     private static let minimumPulseOpacity: Double = 0.3
 
@@ -84,7 +84,18 @@ struct AgentRings: View {
         Circle()
             .fill(activity.color)
             .frame(width: Self.dotDiameter, height: Self.dotDiameter)
+            .overlay { glyph(for: activity) }
             .opacity(opacity)
+    }
+
+    @ViewBuilder
+    private func glyph(for activity: AgentRingActivity) -> some View {
+        switch activity {
+        case .working:
+            BoltGlyph().fill(Palette.glyphOnAccent).frame(width: 4.3, height: 7.4)
+        case .needsYou:
+            AttentionGlyph()
+        }
     }
 
     private func ring(radius: CGFloat, fraction: CGFloat, track: Color, fill: Color) -> some View {

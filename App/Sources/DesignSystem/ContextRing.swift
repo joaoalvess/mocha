@@ -96,14 +96,7 @@ struct ContextRing: View {
     private var badgeGlyph: some View {
         switch style {
         case .blocked:
-            VStack(spacing: 0.7) {
-                Capsule()
-                    .frame(width: 1.4, height: 3.7)
-                Circle()
-                    .frame(width: 1.6, height: 1.6)
-            }
-            .foregroundStyle(Palette.glyphOnDirty)
-            .offset(y: -0.1)
+            AttentionGlyph()
         case .offline:
             BoltGlyph().fill(Palette.offlineRingGlyph).frame(width: 4.3, height: 7.4)
         case .ready, .working, .archived:
@@ -114,6 +107,19 @@ struct ContextRing: View {
     private var accessibilityText: String {
         guard let percent else { return "Contexto desconhecido" }
         return "\(percent)% de contexto livre"
+    }
+}
+
+struct AttentionGlyph: View {
+    var body: some View {
+        VStack(spacing: 0.7) {
+            Capsule()
+                .frame(width: 1.4, height: 3.7)
+            Circle()
+                .frame(width: 1.6, height: 1.6)
+        }
+        .foregroundStyle(Palette.glyphOnDirty)
+        .offset(y: -0.1)
     }
 }
 
