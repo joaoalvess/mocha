@@ -18,7 +18,7 @@ public struct AgentsActivityTracker: Sendable, Equatable {
     public mutating func update(_ agents: [AgentSummary], at now: Date) -> Set<AgentID> {
         var next: [AgentID: Entry] = [:]
         var becameBusy: Set<AgentID> = []
-        for agent in agents where agent.kind == HomeSections.claudeKind && next[agent.id] == nil {
+        for agent in agents where (agent.kind == HomeSections.claudeKind || agent.kind == HomeSections.codexKind) && next[agent.id] == nil {
             guard let status = Self.effectiveStatus(of: agent) else { continue }
             let previous = entries[agent.id]
             if previous == nil {

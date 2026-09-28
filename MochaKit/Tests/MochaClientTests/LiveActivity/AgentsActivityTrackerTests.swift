@@ -19,12 +19,21 @@ struct AgentsActivityTrackerTests {
 
     @Test func eachAgentThatBecomesBusyIsReportedOnce() {
         var tracker = AgentsActivityTracker()
-        #expect(tracker.update([Self.agent("w1:p1", .idle), Self.agent("w2:p1", .working, kind: "codex")], at: Self.start).isEmpty)
+        #expect(tracker.update([Self.agent("w1:p1", .idle), Self.agent("w2:p1", .working, kind: "shell")], at: Self.start).isEmpty)
         let first = tracker.update([Self.agent("w1:p1", .working), Self.agent("w2:p1", .idle, pendingCount: 1)], at: Self.start)
         #expect(first == ["w1:p1", "w2:p1"])
         #expect(tracker.update([Self.agent("w1:p1", .blocked), Self.agent("w2:p1", .working)], at: Self.start).isEmpty)
         #expect(tracker.update([Self.agent("w1:p1", .idle)], at: Self.start).isEmpty)
         #expect(tracker.update([Self.agent("w1:p1", .working)], at: Self.start) == ["w1:p1"])
+    }
+
+    @Test func codexAgentStartsAnActivity() throws {
+        var tracker = AgentsActivityTracker()
+        let codex = Self.agent("w2:p1", .working, kind: "codex", title: "Codex")
+        #expect(tracker.update([codex], at: Self.start) == ["w2:p1"])
+        let content = try #require(tracker.content(for: "w2:p1", at: Self.start))
+        #expect(content.title == "Codex")
+        #expect(content.status == "working")
     }
 
     @Test func theStartPolicyNeedsTheForegroundNoActivityForTheAgentAndPermission() {
