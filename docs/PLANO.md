@@ -909,7 +909,7 @@ Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contr
 
 ### WP-C3: Codex no app e no demo
 
-- **Dono**: `App/Sources/`, `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaDemo/`, `docs/design/` e testes correspondentes. Mudanças em `project.yml` e `MochaProtocol` são propostas ao orquestrador.
+- **Dono**: `App/Sources/`, `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaClient/Pending/`, `MochaKit/Sources/MochaDemo/`, `docs/design/` e testes correspondentes. Mudanças em `project.yml` e `MochaProtocol` são propostas ao orquestrador.
 - Estender o mock em `docs/design/` antes da UI, com imagens de referência 3x. Mostrar Codex na Home, gaveta, Detalhe, chat, nova tab, Uso, inbox, alertas e Live Activity, inclusive estado indisponível e capacidade limitada do CLI antigo. Aceite: capturas comparadas ao mock e testes de navegação e apresentação.
 
 ### WP-XC: integração do CLI

@@ -47,12 +47,14 @@ public enum PendingKind: Codable, Sendable, Hashable {
 }
 
 public struct PendingQuestion: Codable, Sendable, Hashable {
+    public var id: String?
     public var header: String
     public var question: String
     public var options: [PendingOption]
     public var multiSelect: Bool
 
-    public init(header: String, question: String, options: [PendingOption], multiSelect: Bool) {
+    public init(header: String, question: String, options: [PendingOption], multiSelect: Bool, id: String? = nil) {
+        self.id = id
         self.header = header
         self.question = question
         self.options = options
