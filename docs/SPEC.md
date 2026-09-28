@@ -1608,7 +1608,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Tocar numa linha abre o Navegador (§9.3). Só em Debug, `-open-web-servers` abre a folha ao iniciar; com `-demo`, a lista traz os dois servidores do print, e com `-demo-empty` vem vazia. Sem servidores: "Nenhum servidor web rodando no Mac". Sem conexão: a lista some e fica a mesma mensagem da cápsula "Sem conexão com o Mac".
 
 **Navegador** (preview web)
-- Tela cheia por cima de tudo (`fullScreenCover`), fundo `black`. Barra superior de vidro com o botão de fechar à esquerda, o título da página (ou "localhost:<porta>") no centro e recarregar à direita; embaixo dela, o `WKWebView`.
+- Tela cheia por cima de tudo (`fullScreenCover`), fundo `black`. Barra superior de vidro com o botão de fechar à esquerda, o título da página (ou "localhost:<porta>") no centro, com o projeto e a branch embaixo em `textSecondary` ("<repoName ou label> • <branch>" do workspace do servidor; sem workspace, o nome da pasta de `directory`) e recarregar à direita; embaixo dela, o `WKWebView`.
 - Enquanto o túnel abre, um indicador com "Conectando ao Mac…"; falha do SSH mostra o erro e "Tentar de novo". Sem a chave autorizada no Mac, o erro aponta para Ajustes (chave pública, §9.1). Abrir o Navegador fecha a folha ou o painel aberto. Só em Debug, `-open-web-preview <porta>` abre o Navegador ao iniciar; com `-demo`, a página vem do próprio app (`StaticPageTunnelChannel`), sem SSH.
 
 **Uso do plano** (`03-uso-plano`)
