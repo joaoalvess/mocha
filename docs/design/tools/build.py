@@ -501,6 +501,68 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 .wf .ag .sm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .wf .wm{padding:9px 15px 11px 24px;font:400 12px/16px var(--mono);color:var(--ts);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+.caps{position:absolute;right:16px;top:47px;height:44px;border-radius:22px;display:flex;align-items:center;padding:0 4px;z-index:30}
+.caps div{position:relative;width:40px;height:44px;display:grid;place-items:center;color:#fff}
+.caps .ic{width:21px;height:21px;stroke-width:1.8}
+.caps .off{color:rgba(255,255,255,.32)}
+.caps .bdg{position:absolute;right:1px;top:4px;min-width:17px;height:17px;border-radius:9px;background:var(--dirty);color:#1a1206;font:700 11px/17px var(--sf);text-align:center;padding:0 4px}
+.hsrch{position:absolute;left:16px;right:16px;top:107px;height:46px;border-radius:23px;background:#15171A;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);display:flex;align-items:center;gap:10px;padding:0 16px;color:var(--ts);font:400 17px/1 var(--sf);z-index:30}
+.hsrch .ic{width:20px;height:20px;stroke-width:2}
+.sec.two{display:flex;justify-content:space-between}
+.sec.two span+span{text-transform:none;letter-spacing:0;color:#6F747B}
+.car{display:flex;gap:12px;padding:0 16px;overflow:hidden}
+.rc{width:162px;flex:none}
+.thumb{position:relative;height:162px;border-radius:16px;background:var(--bg);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.thumb .tx{position:absolute;left:10px;right:10px;top:38px;font:400 9.5px/13px var(--mono);color:var(--tp)}
+.thumb .tx .ci{color:var(--link)}
+.thumb .tx .ub{margin:0 0 7px auto;width:fit-content;max-width:88%;background:var(--userBubble);border-radius:8px;padding:4px 7px}
+.thumb .tx .tt{display:flex;align-items:center;height:18px;border-radius:9px;background:var(--toolCard);padding:0 7px;color:var(--ts);margin-bottom:6px;white-space:nowrap;overflow:hidden}
+.thumb .tx .tt b{color:var(--tp);margin-right:4px}
+.thumb .fade{position:absolute;left:0;right:0;bottom:0;height:46px;background:linear-gradient(rgba(30,30,30,0),var(--bg))}
+.thumb .chips{position:absolute;left:8px;right:8px;top:8px;display:flex;justify-content:space-between;z-index:2}
+.chipw{display:flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 7px;border-radius:11px;background:rgba(18,20,22,.86);font:500 11px/1 var(--sf);color:var(--tp)}
+.chipw i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.chipw i.w{box-shadow:0 0 6px rgba(0,255,0,.8)}
+.chipw i.b{background:var(--dirty)}
+.chipp{display:grid;place-items:center;width:22px;height:22px;border-radius:11px;background:rgba(18,20,22,.86);color:var(--claude)}
+.chipp .ic{width:13px;height:13px;stroke-width:2.4}
+.chipp.cx{color:#E8E8EA}
+.rc .t1{margin-top:8px;font:600 15px/20px var(--sf);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc .t2{margin-top:1px;display:flex;align-items:center;gap:5px;font:400 13px/17px var(--sf);color:var(--ts);white-space:nowrap}
+.rc .t2 .w{font:500 12.5px/1 var(--mono);color:var(--ok)}
+.fab{position:absolute;right:20px;bottom:40px;width:60px;height:60px;border-radius:30px;background:var(--ok);color:#021402;display:grid;place-items:center;z-index:40;box-shadow:0 10px 30px rgba(0,255,0,.18),0 8px 22px rgba(0,0,0,.5)}
+.fab .ic{width:26px;height:26px;stroke-width:2.6}
+.htitle{position:absolute;left:0;right:0;top:58px;text-align:center;font:600 17px/22px var(--sf);z-index:30}
+.nsheet{position:absolute;left:0;right:0;bottom:0;background:var(--drawerBg);border-radius:38px 38px 0 0;z-index:70;box-shadow:0 -1px 0 rgba(255,255,255,.05),0 -10px 40px rgba(0,0,0,.45);padding:0 16px}
+.nsub{text-align:center;font:600 19px/25px var(--sf);color:var(--tp);margin-top:34px;margin-bottom:36px}
+.mt{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none}
+.mt .ic{width:21px;height:21px}
+.mt.cl{background:var(--claudeTile);color:var(--claude)}
+.mt.cl .ic{stroke-width:2.3}
+.mt.cx{background:#26282B;color:#E8E8EA}
+.mt.sh{background:#1D1F21;color:#6A6E74}
+.mt.fo{background:#15251A;color:var(--ok)}
+.mt.fo .ic{width:19px;height:19px;stroke-width:1.8}
+.pk{display:flex;align-items:center;gap:14px;height:78px;padding:0 16px;border-radius:18px;background:var(--toolCard);margin-top:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+.pk .mt{width:48px;height:48px;border-radius:14px}
+.pk .mt .ic{width:27px;height:27px}
+.pk .c{flex:1;min-width:0}
+.pk .l{font:600 17px/22px var(--sf)}
+.pk .d{font:400 13px/18px var(--sf);color:var(--ts);margin-top:2px}
+.pk .cv{width:13px;height:13px;color:var(--ts);stroke-width:2.4}
+.pk.off{opacity:.45}
+.pk .soon{font:600 11px/1 var(--sf);color:var(--ts);background:var(--controlBg);border-radius:6px;padding:5px 7px}
+.wl{background:var(--toolCard);border-radius:18px;overflow:hidden}
+.wr{display:flex;align-items:center;gap:13px;height:66px;padding:0 16px}
+.wr+.wr{border-top:1px solid var(--divider)}
+.wr .c{flex:1;min-width:0}
+.wr .l{font:500 16px/21px var(--sf)}
+.wr .d{display:flex;align-items:center;gap:4px;font:400 13px/17px var(--sf);color:var(--ts)}
+.wr .d .ic{width:12px;height:12px;stroke-width:1.9}
+.wr .cv{width:12px;height:12px;color:var(--ts);stroke-width:2.4;margin-left:8px}
+.wr .sp{width:18px;height:18px;border-radius:50%;border:2.2px solid rgba(0,255,0,.25);border-top-color:var(--ok)}
+.hdr .hb.nav.off{opacity:.32}
+
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(0,255,0,.12),0 0 8px 1px rgba(0,255,0,.25)}50%{box-shadow:0 0 0 6px rgba(0,255,0,.2),0 0 16px 4px rgba(0,255,0,.45)}}
 @keyframes astp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.82)}}
@@ -511,14 +573,15 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 .hdr .dot.pulse{animation:pulse 1.6s ease-in-out infinite}
 .dr .ti.pl,.rr .ti.pl{animation:astp 1.4s ease-in-out infinite}
 .caret{animation:blink 1.1s step-end infinite}
-.sa .spin,.rop .spin,.sal .spin,.wf .wsp{animation:spin .9s linear infinite}
+.sa .spin,.rop .spin,.sal .spin,.wf .wsp,.wr .sp{animation:spin .9s linear infinite}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 """
 
 SYMBOLS = """
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="i-claude" viewBox="0 0 24 24"><path d="%(AST)s"/></symbol>
-<symbol id="i-codex" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12Z"/><path d="M12 7.5 16.5 12 12 16.5 7.5 12Z"/></symbol>
+<symbol id="i-codex" viewBox="0 0 24 24"><rect x="3.2" y="4.2" width="17.6" height="15.6" rx="4.2"/><path d="M7.6 9.6l2.6 2.4-2.6 2.4M12.4 14.8h4"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.2a1.8 1.8 0 0 1 1.8-1.8h4.2l2 2.2h7.2a1.8 1.8 0 0 1 1.8 1.8v8.4a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8z"/></symbol>
 <symbol id="i-gear" viewBox="0 0 24 24"><path d="%(GEAR)s"/><circle cx="12" cy="12" r="3.3"/></symbol>
 <symbol id="i-house" viewBox="0 0 24 24"><path d="M3.5 11 12 3.9l8.5 7.1"/><path d="M5.8 9.3V20h4.6v-5.7h3.2V20h4.6V9.3"/></symbol>
 <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3.3"/><path d="M9.3 4.5v15M5.7 8.4h1.2M5.7 11.2h1.2M5.7 14h1.2"/></symbol>
@@ -640,7 +703,7 @@ def tools(*items):
 def header(title, sub, dot='', ttl_style=''):
     return (f'<div class="hdr gl gl-chat"><div class="dot {dot}"></div>{I("claude", "ast")}'
             f'<div class="ttl"{ttl_style}>{title}</div><div class="sub">{sub}</div>'
-            f'<div class="hb git">{I("branch")}</div><div class="hb nav">{I("compass")}</div></div>')
+            f'<div class="hb git">{I("branch")}</div><div class="hb nav off">{I("compass")}</div></div>')
 
 def composer(text=None, send_on=False):
     if text:
@@ -973,15 +1036,16 @@ chat_q_last = screen('s-chat-q-last', '', sb() +
 # ---------------------------------------------------------------- 11 Gaveta
 ADD = f'<span class="add">{I("plus")}</span>'
 
-def trow(level, kind, text, sel=False, extra='', pulse=False, dot=False):
+def trow(level, kind, text, sel=False, extra='', pulse=False, dot=False, add=True):
     base = 9.7 + 17.3 * level
+    plus = ADD if add else ''
     cls = 'dr sel' if sel else 'dr'
     if kind == 'ws':
         return (f'<div class="{cls}">{I("chev-d", "cv").replace("<svg", f"<svg style=\"left:{base:.1f}px\"")}'
-                f'<span class="wn" style="margin-left:{base + 17.6:.1f}px">{text}</span>{extra}{ADD}</div>')
+                f'<span class="wn" style="margin-left:{base + 17.6:.1f}px">{text}</span>{extra}{plus}</div>')
     if kind == 'wsc':
         return (f'<div class="{cls}">{I("chev-r", "cv").replace("<svg", f"<svg style=\"left:{base:.1f}px\"")}'
-                f'<span class="wn" style="margin-left:{base + 17.6:.1f}px">{text}</span>{extra}{ADD}</div>')
+                f'<span class="wn" style="margin-left:{base + 17.6:.1f}px">{text}</span>{extra}{plus}</div>')
     ic = I('claude', 'ti cl' + (' pl' if pulse else '')) if kind == 'cl' else I('term', 'ti sh')
     ic = ic.replace('<svg', f'<svg style="left:{base + 17:.1f}px"')
     bd = '<span class="bd"></span>' if dot else ''
@@ -992,26 +1056,29 @@ def brn(name, dirty=False):
     return f'<span class="br2">{I("branch")}{name}</span>{d}'
 
 def drawer_top(mode):
+    if mode == 'search':
+        return f'<div class="dtop"><div class="srch">{I("search")}<span>Buscar workspaces, agentes…</span></div></div>'
     a = ' class="on"' if mode == 'rec' else ''
     b = ' class="on"' if mode == 'tree' else ''
     return (f'<div class="dtop"><div class="srch">{I("search")}<span>Buscar workspaces, agentes…</span></div>'
             f'<div class="seg"><div{a}>{I("clock")}</div><div{b}>{I("listrect")}</div></div><div class="dgear">{I("gear")}</div></div>')
 
 tree = ('<div class="tree">'
-    + trow(0, 'ws', 'demo-app', extra=brn('main', True))
+    + trow(0, 'ws', 'demo-app', extra=brn('main', True), add=False)
     + trow(0, 'cl', 'Testes e tela de ajustes')
+    + trow(0, 'cl', 'Codex · Revisão do login').replace('i-claude', 'i-codex').replace('ti cl', 'ti codex-icon')
     + trow(0, 'sh', 'zsh')
-    + trow(1, 'ws', 'login-social', extra=brn('feat/login-social', True))
+    + trow(1, 'ws', 'login-social', extra=brn('feat/login-social', True), add=False)
     + trow(1, 'cl', 'Login com a Apple', sel=True, pulse=True)
-    + trow(0, 'ws', 'site-pessoal', extra=brn('main'))
+    + trow(0, 'ws', 'site-pessoal', extra=brn('main'), add=False)
     + trow(0, 'cl', 'Modo escuro e RSS', dot=True)
     + trow(0, 'sh', 'npm run dev')
-    + trow(0, 'ws', 'receitas-api', extra=brn('development'))
+    + trow(0, 'ws', 'receitas-api', extra=brn('development'), add=False)
     + trow(0, 'cl', 'Paginação com cursor em /receitas', pulse=True)
     + trow(0, 'cl', 'Sessão limpa')
     + trow(0, 'sh', 'go run ./cmd/api')
     + trow(0, 'sh', 'psql')
-    + trow(0, 'wsc', 'anotacoes')
+    + trow(0, 'wsc', 'anotacoes', add=False)
     + '</div>')
 
 chat_under = ('<div class="chat" style="bottom:95px">' + '<div class="ub">implementa login com a Apple nesse worktree. usa AuthenticationServices e guarda a sessão no Keychain</div>' + EARLY_LOGIN +
@@ -1021,7 +1088,7 @@ chat_under = ('<div class="chat" style="bottom:95px">' + '<div class="ub">implem
     '<div class="foot">Brewed for 45s</div></div>' + CHAT_HDR + composer())
 
 drawer1 = screen('s-drawer', '', sb() + chat_under + '<div class="scrim"></div><div class="drawer">'
-    + drawer_top('tree') + '<div class="dsec">WORKSPACES</div>' + tree + '</div>')
+    + drawer_top('search') + '<div class="dsec">WORKSPACES</div>' + tree + '</div>')
 
 def rrow(title, sub, pulse=False, dot=False, sel=False):
     return (f'<div class="rr{" sel" if sel else ""}">{I("claude", "ti" + (" pl" if pulse else ""))}<div class="c"><div class="t">{title}</div>'
@@ -1146,7 +1213,7 @@ def sa_card(atype, desc, state, meta, act=None):
 def sub_header(title, parent):
     return (f'<div class="hdr subh gl gl-chat"><div class="hb back">{I("chev-l")}</div>{I("agent", "ast")}'
             f'<div class="ttl">{title}</div><div class="sub">subagente de {parent}</div>'
-            f'<div class="hb nav">{I("compass")}</div></div>')
+            f'<div class="hb nav off">{I("compass")}</div></div>')
 
 def task_card(text):
     return (f'<div class="pcard task"><div class="h1">{I("agent")}Tarefa</div>'
@@ -1331,6 +1398,71 @@ codex_limited = screen('s-codex-limited', '', sb() +
 codex_uso = uso.replace('s-uso', 's-codex-uso').replace('class="screen home"', 'class="screen home codex-usage"').replace('Claude Code', 'Codex').replace('do Claude', 'do Codex').replace('i-claude', 'i-codex')
 codex_detail = det1.replace('s-det', 's-codex-detail').replace('class="screen home"', 'class="screen home codex-detail"').replace('i-claude', 'i-codex').replace('Claude', 'Codex')
 
+# ---------------------------------------------------------------- 21-22 Início e Histórico
+def codex_card(html):
+    return html.replace('Claude Code', 'Codex CLI').replace('class="cc"', 'class="cc" style="color:var(--tp)"')
+
+def rcard(state, dot, title, ws, tm, body, codex=False):
+    prov = f'<div class="chipp cx">{I("codex")}</div>' if codex else f'<div class="chipp">{I("claude")}</div>'
+    return (f'<div class="rc"><div class="thumb"><div class="chips"><div class="chipw"><i class="{dot}"></i>{state}</div>{prov}</div>'
+            f'<div class="tx">{body}</div><div class="fade"></div></div>'
+            f'<div class="t1">{title}</div><div class="t2"><span class="w">{ws}</span>·<span>{tm}</span></div></div>')
+
+START_TOP = (f'<div class="gbtn l gl gl-home">{I("history")}</div>'
+    f'<div class="caps gl gl-home"><div>{I("bell")}<span class="bdg">1</span></div><div class="off">{I("globe")}</div><div>{I("gear")}</div></div>'
+    f'<div class="hsrch">{I("search")}Buscar</div>')
+FAB = f'<div class="fab">{I("plus")}</div>'
+
+recents = ('<div class="sec two"><span>Recentes</span><span>Segure para opções</span></div><div class="car">'
+    + rcard('Precisa de você', 'b', 'Posso rodar npm run build?', 'site-pessoal', 'há 1 min',
+            '<div class="ub">troca o tema pra escuro</div><div class="tt"><b>Edit</b>theme.css</div><div class="tt"><b>Shell</b>npm run build</div>Posso rodar <span class="ci">npm run build</span> para conferir o CSS?')
+    + rcard('Trabalhando', 'w', 'Login com a Apple', 'login-social', 'agora',
+            '<div class="ub">implementa login com a Apple</div>Vou criar o <span class="ci">AppleSignIn</span> e ligar no fluxo existente.<div class="tt"><b>Shell</b>swift test --filter Apple</div>')
+    + rcard('Trabalhando', 'w', 'Revise o fluxo de login', 'demo-app', 'agora',
+            '<div class="ub">revise o fluxo de login</div>Lendo <span class="ci">LoginView.swift</span> e os testes do fluxo.', codex=True)
+    + '</div>')
+
+actives = ('<div class="sec" style="margin-top:22px">Precisa de você</div>'
+    + hcard('Posso rodar npm run build para validar o feed?', 'site-pessoal', 'há 1 min', 58, 'warn', sub='Precisa de você · Shell', subwarn=True, warn=True)
+    + '<div class="sec">Trabalhando</div>'
+    + hcard('Você: implementa login com a Apple nesse worktree…', 'login-social', 'agora', 71, 'work', sub='Shell: swift test --filter AppleSignIn')
+    + codex_card(hcard('Você: revise o fluxo de login no iPhone', 'demo-app', 'agora', 71, 'work', sub='Lendo arquivos')))
+
+def start(sid, extra=''):
+    return screen(sid, 'home', sb() + START_TOP + f'<div class="list" style="top:165px">{recents}{actives}</div>' + FAB + extra)
+
+def pick(cls, icon, label, desc, off=False):
+    tail = '<span class="soon">FASE 2</span>' if off else I('chev-r', 'cv')
+    return f'<div class="pk{" off" if off else ""}"><div class="mt {cls}">{I(icon)}</div><div class="c"><div class="l">{label}</div><div class="d">{desc}</div></div>{tail}</div>'
+
+def wsrow(name, branch, dirty=False, busy=False):
+    d = ' <span style="color:var(--dirty)">*</span>' if dirty else ''
+    tail = '<span class="sp"></span>' if busy else I('chev-r', 'cv')
+    return f'<div class="wr"><div class="mt fo">{I("folder")}</div><div class="c"><div class="l">{name}</div><div class="d">{I("branch")}{branch}{d}</div></div>{tail}</div>'
+
+sheet_agent = ('<div class="scrimf"></div><div class="nsheet" style="top:416px"><div class="grab"></div>'
+    '<div class="nsub">O que você quer abrir no Herdr?</div><div style="margin-top:-10px">'
+    + pick('cl', 'claude', 'Claude', 'Claude Code numa tab nova')
+    + pick('cx', 'codex', 'Codex', 'Codex CLI ligado ao Mocha')
+    + pick('sh', 'term', 'Shell', 'Terminal fish', off=True)
+    + '</div></div>')
+
+def sheet_ws(busy=False):
+    return ('<div class="scrimf"></div><div class="nsheet" style="top:378px"><div class="grab"></div>'
+        '<div class="nsub">Escolha o workspace do Herdr</div><div class="wl">'
+        + wsrow('demo-app', 'main', dirty=True, busy=busy) + wsrow('login-social', 'feat/login-social')
+        + wsrow('receitas-api', 'development') + wsrow('site-pessoal', 'main')
+        + '</div></div>')
+
+start1 = start('s-start')
+start_agent = start('s-start-agent', sheet_agent)
+start_ws = start('s-start-ws', sheet_ws())
+start_busy = start('s-start-busy', sheet_ws(busy=True))
+start_empty = screen('s-start-empty', 'home', sb() + START_TOP +
+    '<div class="empty" style="top:372px"><h3>Nenhum agente aberto no Herdr</h3>'
+    '<p>Toque em + para abrir uma tab com Claude ou Codex num workspace.</p></div>' + FAB)
+history = screen('s-history', 'home', sb() + f'<div class="gbtn r gl gl-home">{I("house")}</div><div class="htitle">Histórico</div>' + home_list() + upill())
+
 # ---------------------------------------------------------------- page
 N = lambda *xs: list(xs)
 
@@ -1358,25 +1490,35 @@ page += group('Entrada', [
         '<b>Primeira execução ou token recusado.</b> "Ler QR" abre a câmera; "Colar" aceita o link <code>mocha://pair?url=…&amp;code=…</code>, que também chega por deep link.',
         'O botão "Colar" só aparece quando a área de transferência tem um link <code>mocha://pair</code>.')),
     shot('1b · Lendo o QR', ['core'], pair2, N(
-        'Câmera em tela cheia. Ao reconhecer o QR, os cantos ficam verdes e a pílula mostra "Conectando ao MacBook-Pro…"; pareado, vai direto para a Home.',
+        'Câmera em tela cheia. Ao reconhecer o QR, os cantos ficam verdes e a pílula mostra "Conectando ao MacBook-Pro…"; pareado, vai direto para a Início.',
         'X volta para a tela anterior.')),
     shot('1c · Erro de pareamento', ['core'], pair3, N(
         'O aviso fica acima do botão até a próxima tentativa. Outras mensagens: "O Mac respondeu, mas o mochad não está rodando" (502), "Sem conexão com o Mac" (timeout) e "Este iPhone não está mais pareado" (<code>unauthorized</code>).')),
 ])
 
+page += group('Início e Histórico', [
+    shot('21 · Início', ['core'], start1, N(
+        '<b>Tela inicial do app.</b> Topo: à esquerda, o Histórico (também arrastando da esquerda para a direita; ele entra pela esquerda). A cápsula à direita tem o sino da Inbox com a contagem, o globo reservado ao preview web (desabilitado) e Ajustes.',
+        'A busca é só visual por enquanto. RECENTES é um carrossel horizontal com as últimas conversas por atividade: a miniatura mostra a última mensagem (<code>preview</code>) e a ferramenta em uso (<code>activity</code>), com chip de estado e o ícone do provedor. Pode repetir agentes da lista de baixo.',
+        'Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os cards da Home. CONCLUÍDOS e ARQUIVADOS ficam no Histórico; sem a pílula de uso. O <b>+</b> verde abre a folha de nova sessão.')),
+    shot('21b · Nova sessão: agente', ['core'], start_agent, N(
+        'Folha média, sem título, X ou indicador de passo. Passo 1: Claude ou Codex; Shell fica desabilitado até a fase 2. Fecha arrastando para baixo ou tocando fora, e reabre sempre no passo 1.')),
+    shot('21c · Nova sessão: workspace', ['core'], start_ws, N(
+        'Passo 2: os workspaces do Herdr, com nome, branch e <code>*</code> quando há mudanças. Tocar manda <code>newAgentTab{workspaceId, kind}</code>.')),
+    shot('21d · Abrindo a tab', ['core'], start_busy, N(
+        'Só um indicador de progresso na linha escolhida, sem texto. No <code>ack</code>, a folha fecha e o chat novo abre por push. Um erro aparece no rodapé da folha.')),
+    shot('21e · Início vazia', ['core'], start_empty, N(
+        'Sem agentes abertos nem conversas recentes. O + continua disponível.')),
+    shot('22 · Histórico', ['core'], history, N(
+        '<b>A Home de antes</b>, entrando pela esquerda a partir da Início: todas as seções, incluindo CONCLUÍDOS e ARQUIVADOS, a pílula de limites e o arrastar do card para arquivar. Vazio, sem o botão "Ver workspaces".',
+        'Início e Histórico são telas irmãs: a casa à direita (ou arrastar da direita para a esquerda) volta à Início. Sem engrenagem.')),
+])
+
 page += group('Central de agentes', [
-    shot('2 · Home, central de agentes', ['core'], home1, N(
-        '<b>Tela inicial do app.</b> Seções, nesta ordem: PRECISA DE VOCÊ (agente <code>blocked</code>, card em âmbar); TRABALHANDO (só <code>working</code>); CONCLUÍDOS (turno terminado há menos de 10 min); ARQUIVADOS (turno terminado há mais de 10 min, sessão com mais de 6 h, sessão substituída por <code>/clear</code>, pane fechado ou card arquivado). <b>Arrastar o card para o lado arquiva.</b>',
-        'Card: tocar abre o chat; segurar abre o detalhe. Título = última mensagem (ou "Você: …"); a linha cinza é a última ferramenta. O anel mostra o contexto livre (%) e o arco curto gira enquanto trabalha.',
-        'Esquerda abre a árvore de workspaces (gaveta); engrenagem abre Ajustes; a pílula abre o Uso.')),
-    shot('2b · Home sem conexão', ['core'], home2, N(
-        'A lista mostra o último estado conhecido, com anéis parados em cinza. A cápsula no topo abre Ajustes com o motivo. Nada some da tela, e a reconexão é automática.')),
-    shot('2c · Home vazia', ['core'], home3, N(
-        'Nenhum Claude aberto no Herdr. "Ver workspaces" abre a gaveta. Criar uma tab com Claude pelo iPhone chega na 1b ("+" no workspace).')),
     shot('3 · Uso do plano', ['core'], uso, N(
-        'Folha média sobre a Home; arrastar fecha. Barras de 5h e 7d, com % e o tempo até zerar. O traço cinza marca o ritmo constante; a linha de baixo resume o ritmo. Só Claude.', '"Atualizado há X" no topo: os dados vêm de um cache local no Mac, que fica velho quando não há turnos.')),
+        'Folha média sobre o Histórico, aberta pela pílula; arrastar fecha. Barras de 5h e 7d, com % e o tempo até zerar. O traço cinza marca o ritmo constante; a linha de baixo resume o ritmo. Só Claude.', '"Atualizado há X" no topo: os dados vêm de um cache local no Mac, que fica velho quando não há turnos.')),
     shot('4 · Detalhe do agente', ['core', 'f2'], det1, N(
-        '<b>Abre tocando no título do header do chat</b> ou segurando um card da Home. X ou arrastar para baixo fecha.',
+        '<b>Abre tocando no título do header do chat</b> ou segurando um card da Início ou do Histórico. X ou arrastar para baixo fecha.',
         '"Abrir terminal" é da fase 2 e fica oculto até lá. Tocar na sessão copia o ID inteiro.'), det_variants),
     shot('4b · Detalhe, precisa de você', ['core'], det2, N(
         'Mesmo layout com o selo âmbar. Na 1b, um botão "Responder" leva ao card do pedido no chat.')),
@@ -1384,7 +1526,7 @@ page += group('Central de agentes', [
 
 page += group('Chat', [
     shot('5 · Chat, conversa (início do turno)', ['core'], chat_a, N(
-        '<b>Header de vidro:</b> disco de status (tocar volta à Home), título (tocar abre o detalhe), git reservado e desabilitado, bússola abre a gaveta. A lista rola por baixo do header e do composer.',
+        '<b>Header de vidro:</b> disco de status (tocar volta à Início), título (tocar abre o detalhe), git e bússola reservados e desabilitados (a bússola fica para o preview web). A lista rola por baixo do header e do composer.',
         'Chip <code>/clear</code> e aviso centralizado marcam a sessão nova. Chamadas seguidas da mesma ferramenta viram um card com ×N; ✗ vermelho quando alguma falhou. <b>Composer recolhido: uma linha só.</b>')),
     shot('5b · Chat, conversa (fim do turno)', ['core'], chat_b, N(
         'Markdown: título, lista, tabela com borda, código inline azul e bloco de código com rolagem horizontal (a borda esmaecida e a barrinha indicam que há mais à direita).',
@@ -1414,16 +1556,13 @@ page += group('Chat', [
 
 page += group('Navegação e sistema', [
     shot('11 · Gaveta, árvore', ['core', 'fin'], drawer1, N(
-        'Abre pela bússola do chat ou pelo botão da esquerda da Home; <b>ao abrir, fecha o teclado</b>. Fecha tocando no scrim ou arrastando para a esquerda.',
-        '<b>O asterisco com brilho pulsa</b> (trabalhando); o ponto âmbar é "precisa de você"; a linha verde é o chat aberto. Worktree fica aninhado sob o repositório. Tocar numa tab de shell mostra "Terminal chega na fase 2".',
-        'O <b>+</b> à direita de cada workspace abre uma tab nova com Claude nele. Enquanto o Claude inicia, o + vira o indicador de progresso do iOS; pronto, a gaveta fecha e o chat novo abre.')),
-    shot('11b · Gaveta, recentes', ['core'], drawer2, N(
-        'Agentes por última atividade, com workspace e estado. A busca filtra por workspace, tab e título nas duas abas.')),
+        '<b>Só dentro do chat, só por gesto:</b> arrastar da esquerda para a direita; <b>ao abrir, fecha o teclado</b>. Fecha tocando no scrim ou arrastando para a esquerda. Voltar à Início é pelo disco de status do header. Só busca e árvore: sem segmentado, engrenagem ou + por workspace (nova sessão é pelo + da Início).',
+        '<b>O asterisco com brilho pulsa</b> (trabalhando); o ponto âmbar é "precisa de você"; a linha verde é o chat aberto. Worktree fica aninhado sob o repositório. Tocar numa tab de shell mostra "Terminal chega na fase 2".')),
     shot('12 · Ajustes', ['core', 'fin'], settings, N(
-        'Folha aberta pela engrenagem da Home (ou da gaveta). O estado da conexão usa as mesmas mensagens do pareamento. O perfil fica âmbar abaixo de 7 dias.',
+        'Folha aberta pela engrenagem da Início. O estado da conexão usa as mesmas mensagens do pareamento. O perfil fica âmbar abaixo de 7 dias.',
         '"Desparear" pede confirmação, manda <code>unpair</code>, limpa o Keychain e volta ao pareamento.')),
     shot('13 · Inbox', ['b'], inbox, N(
-        'Sino na Home, ao lado da engrenagem, com a contagem. Um cartão por pedido pendente, com agente, workspace e tempo. Tocar no nome do agente abre o chat.')),
+        'Sino na cápsula da Início, com a contagem. Um cartão por pedido pendente, com agente, workspace e tempo. Tocar no nome do agente abre o chat.')),
     shot('14 · Tela bloqueada: Live Activity e alerta', ['fin', 'b'], lock, N(
         'O iPhone 14 não tem Dynamic Island: a Live Activity (1b) aparece na tela bloqueada, com o destaque mais urgente e o timer desde o início da espera.',
         'O alerta de turno concluído (1a-final) traz o começo da última mensagem. Tocar abre <code>mocha://agent/&lt;paneId&gt;</code>.')),
@@ -1457,8 +1596,6 @@ page += group('Subagentes e workflows', [
 page += group('Codex CLI', [
     shot('20 · Home com Codex CLI', ['codex'], codex_home, N(
         'Codex participa das seções existentes. O cartão da tab sem App Server verificado indica controle indisponível; o chat continua legível.')),
-    shot('20b · Nova tab Claude ou Codex', ['codex'], codex_drawer, N(
-        'O + de um workspace apresenta Claude como escolha inicial e Codex como segunda opção. Ambas as tabs abrem na mesma árvore.')),
     shot('20c · Chat Codex', ['codex'], codex_chat, N(
         'O chat Codex usa o mesmo desenho e as mesmas ações de Claude quando o controle está disponível.')),
     shot('20d · CLI antigo sem controle', ['codex'], codex_limited, N(

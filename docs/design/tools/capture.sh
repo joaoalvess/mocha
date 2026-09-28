@@ -16,9 +16,6 @@ done <<'MAP'
 s-pair 01-pareamento
 s-pair-cam 01b-lendo-qr
 s-pair-err 01c-erro-pareamento
-s-home 02-home
-s-home-off 02b-home-sem-conexao
-s-home-empty 02c-home-vazia
 s-uso 03-uso-plano
 s-det 04-detalhe-agente
 s-det-need 04b-detalhe-precisa-de-voce
@@ -34,7 +31,6 @@ s-chat-q 10b-pergunta
 s-chat-q-step 10c-pergunta-passo
 s-chat-q-last 10d-pergunta-ultima
 s-drawer 11-gaveta-arvore
-s-drawer-rec 11b-gaveta-recentes
 s-settings 12-ajustes
 s-inbox 13-inbox
 s-lock 14-tela-bloqueada
@@ -46,4 +42,10 @@ s-sub-done 16c-transcript-concluido
 s-home-sub 17-home-subagentes
 s-det-sub 18-detalhe-subagentes
 s-chat-wf 19-chat-workflow
+s-start 21-inicio
+s-start-agent 21b-nova-sessao-agente
+s-start-ws 21c-nova-sessao-workspace
+s-start-busy 21d-nova-sessao-abrindo
+s-start-empty 21e-inicio-vazia
+s-history 22-historico
 MAP
