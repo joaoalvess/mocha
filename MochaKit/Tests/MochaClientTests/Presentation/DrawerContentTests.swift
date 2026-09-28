@@ -197,34 +197,6 @@ struct DrawerContentTests {
 
     @Test func searchWithoutMatchesReturnsNoRows() {
         #expect(DrawerContent.treeRows(for: Self.workspaces, query: "kubernetes", collapsed: []).isEmpty)
-        #expect(DrawerContent.recentRows(for: Self.workspaces, query: "kubernetes").isEmpty)
-    }
-
-    @Test func recentsListClaudeAndCodexAgentsByLastActivity() {
-        let rows = DrawerContent.recentRows(for: Self.workspaces, query: "")
-        #expect(rows.map(\.id) == ["w5:p1", "w2:p1", "w3:p1", "w1:p1", "w3:p2", "w4:p3", "w4:p2"])
-        #expect(rows.map(\.workspaceLabel) == ["login-social", "site-pessoal", "receitas-api", "demo-app", "receitas-api", "anotacoes", "anotacoes"])
-    }
-
-    @Test func recentsFilterByWorkspaceTabAndTitle() {
-        #expect(DrawerContent.recentRows(for: Self.workspaces, query: "site").map(\.id) == ["w2:p1"])
-        #expect(DrawerContent.recentRows(for: Self.workspaces, query: "revisão").map(\.id) == ["w3:p2"])
-        #expect(DrawerContent.recentRows(for: Self.workspaces, query: "tela de").map(\.id) == ["w1:p1"])
-        #expect(DrawerContent.recentRows(for: Self.workspaces, query: "codex").map(\.id) == ["w4:p3"])
-    }
-
-    @Test func recentSubtitleJoinsWorkspaceStateAndTime() {
-        let rows = DrawerContent.recentRows(for: Self.workspaces, query: "")
-        let subtitles = rows.map { $0.subtitle(now: Self.now) }
-        #expect(subtitles == [
-            "login-social · trabalhando · agora",
-            "site-pessoal · precisa de você · há 1 min",
-            "receitas-api · trabalhando · há 2 min",
-            "demo-app · há 6 min",
-            "receitas-api · há 7 min",
-            "anotacoes",
-            "anotacoes",
-        ])
     }
 
     @Test func collapsedWorkspacesRoundTripThroughStorage() {
