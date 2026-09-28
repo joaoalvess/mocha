@@ -257,6 +257,8 @@ extension SessionHub {
             }
         case .listSubagents(let agentId):
             await listSubagents(agentId, id: id, clientId: clientId)
+        case .listWebServers:
+            send(.webServers(host: configuration.hostName, servers: []), id: id, to: clientId)
         case .respond(let requestId, let response) where pending != nil:
             await respond(to: requestId, with: response, id: id, clientId: clientId)
         case .registerLiveActivity(let registration):

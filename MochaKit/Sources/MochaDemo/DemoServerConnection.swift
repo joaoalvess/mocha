@@ -230,6 +230,8 @@ public actor DemoServerConnection: ServerConnection {
             reply(id, .ack())
         case .listSubagents(let agentId):
             listSubagents(agentId: agentId, id: id)
+        case .listWebServers:
+            reply(id, .webServers(host: "MacBook", servers: []))
         case .archive(let sessionId, let provider):
             archive(sessionId: sessionId, provider: provider, id: id)
         case .sendPrompt(let agentId, let text):
