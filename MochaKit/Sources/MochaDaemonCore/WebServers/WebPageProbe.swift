@@ -12,7 +12,7 @@ public protocol WebPageProbing: Sendable {
 }
 
 public struct URLSessionWebPageProbe: WebPageProbing {
-    public static let host = "127.0.0.1"
+    public static let host = "localhost"
     public static let maxRedirects = 3
 
     public init() {}
