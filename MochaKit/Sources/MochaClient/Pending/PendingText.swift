@@ -43,6 +43,14 @@ public enum PendingText {
     public static let otherPlaceholder = "Outro…"
     public static let answerPlaceholder = "Sua resposta"
     public static let send = "Enviar"
+    public static let next = "Próximo"
+    public static let back = "Voltar"
+
+    public static func questionStep(header: String, step: Int, total: Int) -> String {
+        let position = "\(step + 1) de \(total)"
+        let trimmed = header.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? position : "\(trimmed) · \(position)"
+    }
     public static let unknownAgent = "Claude"
     public static let unreachableTitle = "Não consegui falar com o Mac"
     public static let unreachableBody = "A resposta não foi enviada. Abra o Mocha para responder."
