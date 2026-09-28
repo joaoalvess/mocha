@@ -1352,7 +1352,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `agentStatus` | `{agentId, status: AgentStatus, title?: String}` | Evento: mudança de status |
 | `chatPage` | `{<ChatTarget>, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
 | `subagentList` | `{agentId, items: [SubagentSummary]}` (lista tolerante, na ordem da §5.3.1) | Resposta a `listSubagents` |
-| `webServers` | `{host: String, servers: [WebServer]}` (`host` é o `hostName` do daemon; `WebServer` = `{pid: Int, process: String, port: Int, title?: String, directory?: String}`; lista tolerante, por porta crescente) | Resposta a `listWebServers` (§9.3) |
+| `webServers` | `{host: String, servers: [WebServer]}` (`host` é o `hostName` do daemon; `WebServer` = `{pid: Int, process: String, port: Int, title?: String, directory?: String, workspaceId?: WorkspaceID}`; lista tolerante, por porta crescente) | Resposta a `listWebServers` (§9.3) |
 | `chatAppend` | `{<ChatTarget>, items: [ChatItem]}` | Evento: itens novos num chat aberto |
 | `chatUpdate` | `{<ChatTarget>, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
 | `chatMeta` | `{<ChatTarget>, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
@@ -1604,7 +1604,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Servidores web** (referência: `docs/referencias/moshi/servidores-web.jpg`, sem o card de usos grátis)
 - Painel próprio igual ao do Uso (`BottomPanelLayer`), colado às bordas, com o topo em 50% da tela; arrastar para baixo fecha. Fundo `drawerBg`, título "Servidores web". Ao abrir, manda `listWebServers` e mostra um indicador até a resposta; a lista também recarrega quando a conexão volta. Não há puxar para recarregar, que conflitaria com arrastar para fechar.
-- Uma seção por host, com o `host` em maiúsculas no estilo de cabeçalho de seção. As linhas ficam num cartão arredondado com divisórias: ícone de disco (`externaldrive`) à esquerda, o `title` (ou, sem ele, o nome da pasta de `directory`, ou "Porta <port>") em 17 pt semibold e, embaixo, "PID <pid> · <process> · PORT <port>" em mono `textSecondary`.
+- Uma seção por workspace do Herdr, na ordem da árvore (worktrees como workspaces próprios), com o `label` em maiúsculas no estilo de cabeçalho de seção; servidores sem `workspaceId` (ou de um workspace fora da árvore) vão numa última seção com o `host`. As linhas ficam num cartão arredondado com divisórias: ícone de disco (`externaldrive`) à esquerda, o `title` (ou, sem ele, o nome da pasta de `directory`, ou "Porta <port>") em 17 pt semibold e, embaixo, "PID <pid> · <process> · PORT <port>" em mono `textSecondary`.
 - Tocar numa linha abre o Navegador (§9.3). Só em Debug, `-open-web-servers` abre a folha ao iniciar; com `-demo`, a lista traz os dois servidores do print, e com `-demo-empty` vem vazia. Sem servidores: "Nenhum servidor web rodando no Mac". Sem conexão: a lista some e fica a mesma mensagem da cápsula "Sem conexão com o Mac".
 
 **Navegador** (preview web)
@@ -1632,7 +1632,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - asterisco do Claude e título (truncado no meio); tocar no título abre o Detalhe;
   - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
-  - bússola, que abre o painel Servidores web (§6.3).
+  - bússola, presa ao workspace do agente: pede `listWebServers` e filtra pelo `workspaceId` do workspace que contém o agente. Com 1 servidor, abre direto o Navegador; com 0 ou vários, abre o painel Servidores web só com esse workspace (vazio: "Nenhum servidor web neste workspace"). Sem workspace conhecido (thread Codex, sessão arquivada sem agente vivo), abre o painel global.
   - O conteúdo rola por baixo do header e do composer.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
@@ -1701,7 +1701,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Transcript do subagente** (`16b-transcript-subagente`, `16c-transcript-concluido`)
 - `ChatScreen(target: .subagent)`, só de leitura, por push (§6.1).
-- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola abre o painel Servidores web. Tocar no título não faz nada.
+- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola segue o workspace do agente pai, como no chat do agente. Tocar no título não faz nada.
 - **Topo da lista**, quando a página chega ao começo do arquivo (`hasMore == false`): aviso centralizado "<tipo> · <hora de startedAt> · <modelo abreviado>" (ex.: "general-purpose · 13:52 · opus-5-5"); um campo que falta sai do texto.
 - `task`: card "Tarefa" (fundo `toolCard`), com o ícone de subagente e "Tarefa" em `textSecondary`, o texto em até 4 linhas e "Ver tarefa completa" com chevron, que expande o texto inteiro.
 - A lista segue o chat; um `subagent` aninhado abre o transcript dele.
@@ -2011,7 +2011,8 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
   - uma porta aparece uma vez (a primeira pelo menor PID);
   - sonda cada porta com `GET /` em `http://localhost:<porta>` (o `localhost` cobre servidores só em `::1`, como o Vite no Node recente), timeout de 800 ms, todas em paralelo; fica quem responde HTTP com `Content-Type` `text/html`, seguindo até 3 redirecionamentos para o mesmo host;
   - `title` = o `<title>` do HTML (primeiros 64 KB, entidades básicas decodificadas, espaços colapsados); `directory` = o cwd do processo (`PROC_PIDVNODEPATHINFO`); `process` = o nome do processo (`proc_name`);
-  - responde em até 2 s; porta que não respondeu a tempo fica de fora.
+  - responde em até 2 s; porta que não respondeu a tempo fica de fora;
+  - `workspaceId` = o workspace do Herdr cuja raiz (o `checkout_path` da worktree ou o cwd do pane da tab ativa) é o prefixo mais longo do `directory`; no empate, vence o `checkout_path`. `/` e a home nunca são raiz. Sem raiz que contenha o diretório, o campo fica ausente.
 - **Túnel** (app): uma conexão SSH por aparelho (§9.1: host MagicDNS, porta 22, chave da Secure Enclave), compartilhada com o terminal. Para cada preview, o `PortForwarder` abre um `NWListener` em `127.0.0.1` com porta efêmera no iPhone; cada conexão aceita vira um canal `direct-tcpip` do Citadel para `localhost:<porta do Mac>` (o `sshd` tenta IPv4 e IPv6), com bytes copiados nos dois sentidos até um lado fechar: o canal sai de `SSHClient.createDirectTCPIPChannel(using: .init(targetHost: "localhost", targetPort:, originatorAddress:))`, embrulhado no `initialize` num `NIOAsyncChannel<ByteBuffer, ByteBuffer>` com `isOutboundHalfClosureEnabled`; o `NWListener` usa `requiredLocalEndpoint` em `.ipv4(.loopback)`, sem `acceptLocalOnly` (com ele, o simulador reseta toda conexão aceita); a ponte copia com dois filhos num task group e propaga o fim de cada lado (`outbound.finish()` e `.finalMessage`). O `TunnelPortForwarder` (actor em `MochaClient/Tunnel/`, sem depender do Citadel) recebe um `TunnelChannelOpener` (`@Sendable (Int) async throws -> any TunnelChannel`), trocado por um falso nos testes; no app, o `SSHTunnelChannel` adapta o `NIOAsyncChannel`. O `stop()` é `async` e espera o listener cancelar, para reabrir na mesma porta ao voltar do background. O `WKWebView` carrega `http://127.0.0.1:<porta local>/`, e assim HMR, WebSocket e caminhos absolutos funcionam sem reescrita.
 - **Ciclo de vida**: o listener fecha quando o Navegador fecha. Ao voltar do background, o app reabre a conexão SSH e o listener na mesma porta local, se livre, e recarrega a página.
 - **ATS**: o `App/Info.plist` tem `NSAppTransportSecurity › NSAllowsLocalNetworking`, que libera só `127.0.0.1`/`localhost` em HTTP.
