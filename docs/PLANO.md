@@ -974,7 +974,7 @@ Branch `fase/inicio`, criada de `main`. Um WP só, feito direto pelo orquestrado
 
 ## Fase preview-web: servidores web do Mac no iPhone
 
-Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: contrato (orquestrador) → WP-W1 ∥ WP-W2 ∥ WP-W3 → WP-W4 → WP-W5. SPEC §5.3 (`listWebServers`, `webServers`), §6.3 (cápsula do header, Servidores web, Navegador) e §9.3. Referência visual: `docs/referencias/moshi/servidores-web.jpg`, sem o card de usos grátis. Bloqueio B5 só no WP-W5. O WP-W1 e o WP-W4 adiantam o WP-T1 e o WP-T3 da Fase 2: a conexão SSH e a chave são as mesmas, e na Fase 2 falta só o PTY com `herdr agent attach`.
+Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: contrato (orquestrador) → WP-W1 ∥ WP-W2 ∥ WP-W3 → contrato da chave do host → WP-W3b ∥ WP-W4 → WP-W5. SPEC §5.3 (`listWebServers`, `webServers`), §6.3 (cápsula do header, Servidores web, Navegador) e §9.3. Referência visual: `docs/referencias/moshi/servidores-web.jpg`, sem o card de usos grátis. Bloqueio B5 só no WP-W5. O WP-W1 e o WP-W4 adiantam o WP-T1 e o WP-T3 da Fase 2: a conexão SSH e a chave são as mesmas, e na Fase 2 falta só o PTY com `herdr agent attach`.
 
 ### Contrato (orquestrador)
 
@@ -1111,6 +1111,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W1 | feito (build passou; conexão real depende do B5, no WP-W5) | deedcf1 |
 | WP-W2 | feito (testes do WP e integração passaram; suíte completa com 1 falha de latência fora do WP, sob carga) | 990f09a |
 | WP-W3 | feito com pendência visual (folha recuada das bordas; decisão do João) | d49ccf2 |
+| WP-W3b | todo | |
 | WP-W4 | todo | |
 | WP-W5 | todo | |
 | WP-T1 | todo | |
