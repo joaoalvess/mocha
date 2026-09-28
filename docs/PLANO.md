@@ -1113,7 +1113,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W3 | feito com pendência visual (folha recuada das bordas; decisão do João) | d49ccf2 |
 | WP-W3b | done | `32b5b7f` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
 | WP-W4 | done | `80e683d` (SSH e Navegador; conexão real no WP-W5 com o B5) |
-| WP-W5 | todo | |
+| WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |
