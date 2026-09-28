@@ -1041,8 +1041,8 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-XF | feito (aprovado pelo João no iPhone em 2026-09-27) | |
 | S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | 26067bd, merge e704dcb |
 | WP-C1 | feito (73 testes do protocolo passaram; pacote completo aguarda C2/C3 para tratar os novos casos) | d166607, 8fe544f, merge 1361c9f |
-| WP-C2 | todo | |
-| WP-C3 | todo | |
+| WP-C2 | feito | 3ce45c9, 22f5a52, merge f8d43da |
+| WP-C3 | feito | 2f44cfb, 1e74585, f8defbf, 9a65999, df1e7e4, e01a435, merge c62b69d; correções 66d0821, 826fafa, 9f88a98, 7e16e2b |
 | WP-XC | todo | |
 | WP-CD | todo | |
 | WP-T1 | todo | |
