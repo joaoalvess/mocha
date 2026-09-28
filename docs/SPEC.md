@@ -1493,7 +1493,7 @@ public protocol ServerConnection: Sendable {
 **`AppSession`** (`App/Sources/AppShell/`, `@MainActor @Observable`):
 - é o único consumidor de `messages` e `states`;
 - guarda o host, as preferências, a árvore, as sessões arquivadas, o uso, o `herdrConnected`, o estado da conexão, o chat visível e a navegação;
-- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`); arrastar da esquerda para a direita na Início (ou o botão de relógio) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda (o gesto de voltar do sistema, religado com a barra de navegação escondida). A gaveta é uma camada por cima que só existe dentro do chat, aberta tocando no disco de status do header. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
+- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`); arrastar da esquerda para a direita na Início (ou o botão de anéis) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda (o gesto de voltar do sistema, religado com a barra de navegação escondida). A gaveta é uma camada por cima que só existe dentro do chat, aberta tocando no disco de status do header. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
 - **chat de subagente** (fase subagentes): entra por push sobre a pilha atual (o chat pai, outro transcript de subagente ou, a partir do Detalhe, a pilha que está sob a folha: a Home ou o chat que abriu o Detalhe), e voltar volta à tela de baixo. Os chats da pilha ficam abertos no daemon (sem `closeChat`) enquanto estão nela, e cada um recebe `closeChat` ao sair dela;
 - correlaciona as respostas pelo id;
 - ao voltar para `.connected`, reabre com `openChat` o chat visível e os que estão abaixo dele na pilha, e substitui as listas;
@@ -1531,6 +1531,8 @@ O visual segue o **mock aprovado**: `docs/design/mock.html`, com uma captura 3x 
 | `badgeWarn` | `#342C1F` | Fundo dos selos âmbar (texto `dirty`) |
 | `sepDot` | `#55595F` | Ponto separador "•" da linha de metadados do card |
 | `ringTrack` | `#2F3032` | Trilho do anel de contexto |
+| `ringBlocked` / `ringBlockedTrack` | `#CE7A5E` / `#42362A` | Arco e trilho do anel externo (precisa de você) do botão de anéis da Início |
+| `ringWorking` / `ringWorkingTrack` | `#45A37F` / `#253F32` | Arco e trilho do anel interno (trabalhando) do botão de anéis da Início |
 | `divider` | `#202223` | Divisórias de lista e de folha |
 | `barTrack` | `#191B1D` | Trilho das barras de uso |
 | `paceMark` | `#979899` | Traço do ritmo constante nas barras de uso |
@@ -1568,7 +1570,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - "Este iPhone não está mais pareado" (`unauthorized`).
 
 **Início** (`21-inicio`, `21e-inicio-vazia`)
-- Tela inicial. Topo: à esquerda, botão redondo do Histórico; à direita, uma cápsula de vidro com o sino da Inbox (contagem só quando há pedido), o globo desabilitado (reservado ao preview web) e a engrenagem de Ajustes. Abaixo, a barra "Buscar", só visual por enquanto. Sem conexão, a cápsula "Sem conexão com o Mac" fica logo abaixo da busca.
+- Tela inicial. Topo: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, a engrenagem de Ajustes e, antes dela, o sino da Inbox com a contagem, só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringBlocked`) é a fração em `blocked` e o interno (`ringWorking`) a fração em `working`, os dois das 12 h no sentido horário; uma bolinha `statusOk` no canto superior direito aparece quando algum está `working`. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some. Abaixo, a barra "Buscar", só visual por enquanto. Sem conexão, a cápsula "Sem conexão com o Mac" fica logo abaixo da busca.
 - RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
 - Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os mesmos cards do Histórico. Sem a pílula de uso.
 - Botão + verde (60 pt) no canto inferior direito: abre a folha Nova sessão.
@@ -1579,7 +1581,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Tocar num workspace manda `newAgentTab{workspaceId, kind}` e mostra só um indicador de progresso na linha. No `ack{agentId}`, a folha fecha e o chat abre por push; um erro aparece no rodapé. Fechar (arrastar ou tocar fora) e reabrir volta ao passo 1.
 
 **Histórico** (`22-historico`)
-- Tela irmã da Início, à esquerda. Título "Histórico" e, à direita, o botão de casa que volta à Início. Sem engrenagem e sem sino.
+- Tela irmã da Início, à esquerda. Topo sem título: à esquerda, o botão de casa que volta à Início; à direita, a engrenagem de Ajustes. Sem sino.
 - Mostra só agentes com `kind == "claude"` e as sessões de `archived`. Seções, nesta ordem, cada uma só quando tem card:
   - **PRECISA DE VOCÊ**: `status == blocked`. Card com borda âmbar;
   - **TRABALHANDO**: `status == working`;
