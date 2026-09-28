@@ -11,6 +11,7 @@ struct LaunchConfiguration: Equatable {
     var opensDrawer = false
     var opensSettings = false
     var opensHistory = false
+    var opensWebServers = false
     var newSession: NewSessionLaunch?
     var pairingProblem: ConnectionProblem?
     #endif
@@ -24,6 +25,7 @@ struct LaunchConfiguration: Equatable {
     static let openDrawerFlag = "-open-drawer"
     static let openSettingsFlag = "-open-settings"
     static let openHistoryFlag = "-open-history"
+    static let openWebServersFlag = "-open-web-servers"
     #endif
 
     static func current(
@@ -46,6 +48,7 @@ struct LaunchConfiguration: Equatable {
         configuration.opensDrawer = arguments.contains(openDrawerFlag)
         configuration.opensSettings = arguments.contains(openSettingsFlag)
         configuration.opensHistory = arguments.contains(openHistoryFlag)
+        configuration.opensWebServers = arguments.contains(openWebServersFlag)
         configuration.newSession = (argumentDomain[NewSessionLaunch.argumentKey] as? String).flatMap(NewSessionLaunch.init(rawValue:))
         configuration.pairingProblem = (argumentDomain[LaunchArguments.pairingErrorKey] as? String).flatMap(ConnectionProblem.init(rawValue:))
         #endif

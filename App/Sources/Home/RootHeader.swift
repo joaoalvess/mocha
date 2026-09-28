@@ -10,8 +10,6 @@ struct RootHeader: View {
     static let offlineHeight: CGFloat = 34
     static let offlineExtent: CGFloat = offlineGap + offlineHeight
 
-    private static let buttonSpacing: CGFloat = 8
-
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -22,16 +20,12 @@ struct RootHeader: View {
                     action: togglePage
                 )
                 Spacer()
-                HStack(spacing: Self.buttonSpacing) {
-                    if session.pending.count > 0 {
-                        HomeInboxButton(pendingCount: session.pending.count) { session.showInbox() }
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                    GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
-                        session.showSettings()
-                    }
-                }
-                .animation(.smooth(duration: 0.25), value: session.pending.count > 0)
+                HeaderActionsCapsule(
+                    pendingCount: session.pending.count,
+                    showInbox: { session.showInbox() },
+                    showWebServers: { session.showWebServers() },
+                    showSettings: { session.showSettings() }
+                )
             }
             if let offlineMessage {
                 OfflineCapsule(message: offlineMessage) { session.showSettings() }
@@ -91,14 +85,43 @@ private struct RootPageButton: View {
     }
 }
 
-private struct HomeInboxButton: View {
+private struct HeaderActionsCapsule: View {
     let pendingCount: Int
-    let action: () -> Void
+    let showInbox: () -> Void
+    let showWebServers: () -> Void
+    let showSettings: () -> Void
+
+    private static let style = GlassRoundButtonStyle.home
+    private static let itemSpacing: CGFloat = 4
+    private static let sideInset: CGFloat = 6
 
     var body: some View {
-        GlassRoundButton(systemImage: "bell", accessibilityLabel: "Pedidos pendentes", style: .home, action: action)
-            .overlay(alignment: .topTrailing) { badge }
-            .accessibilityValue("\(pendingCount)")
+        HStack(spacing: Self.itemSpacing) {
+            if pendingCount > 0 {
+                item(systemImage: "bell", accessibilityLabel: "Pedidos pendentes", action: showInbox)
+                    .overlay(alignment: .topTrailing) { badge }
+                    .accessibilityValue("\(pendingCount)")
+                    .transition(.scale.combined(with: .opacity))
+            }
+            item(systemImage: "globe", accessibilityLabel: "Servidores web", action: showWebServers)
+            item(systemImage: "gearshape", accessibilityLabel: "Ajustes", action: showSettings)
+        }
+        .padding(.horizontal, Self.sideInset)
+        .frame(height: Self.style.diameter)
+        .mochaGlass(Self.style.tint, interactive: true, in: Capsule())
+        .animation(.smooth(duration: 0.25), value: pendingCount > 0)
+    }
+
+    private func item(systemImage: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: Self.style.iconSize, weight: .regular))
+                .foregroundStyle(Palette.textPrimary)
+                .frame(width: Self.style.diameter, height: Self.style.diameter)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
     }
 
     @ViewBuilder

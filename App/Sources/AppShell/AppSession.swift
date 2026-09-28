@@ -33,6 +33,7 @@ enum AppSheet: Identifiable, Hashable {
     case usage
     case settings
     case newSession
+    case webServers
 
     var id: Self { self }
 }
@@ -84,6 +85,7 @@ final class AppSession {
     private(set) var pairedAt: Date?
     private(set) var pending = PendingInbox()
     private(set) var pendingReveal: AgentID?
+    private(set) var webServers: WebServersLoad = .loading
     var sheet: AppSheet?
     var isInboxOpen = false
 
@@ -99,6 +101,7 @@ final class AppSession {
     @ObservationIgnored private var lifecycleTask: Task<Void, Never>?
     @ObservationIgnored private var isSceneActive = false
     @ObservationIgnored private var foreground = ForegroundReporter()
+    @ObservationIgnored private var webServersGeneration = 0
 
     init(connection: any ServerConnection, uploader: any ImageUploading, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
         self.connection = connection
@@ -284,6 +287,30 @@ final class AppSession {
 
     func dismissSheet() {
         sheet = nil
+    }
+
+    func showWebServers() {
+        isDrawerOpen = false
+        webServers = .loading
+        sheet = .webServers
+        Task { await reloadWebServers() }
+    }
+
+    func reloadWebServers() async {
+        webServersGeneration += 1
+        let generation = webServersGeneration
+        let result: WebServersLoad
+        do {
+            let reply = try await request(.listWebServers)
+            guard case .webServers(let host, let servers) = reply else {
+                throw AppSessionError.unexpectedReply(type: reply.type)
+            }
+            result = .loaded([WebServersSection(host: host, servers: servers.sorted { $0.port < $1.port })])
+        } catch {
+            result = .failed(Self.sessionError(from: error).message)
+        }
+        guard generation == webServersGeneration else { return }
+        webServers = result
     }
 
     func showInbox() {

@@ -21,6 +21,10 @@ public actor DemoServerConnection: ServerConnection {
     static let subagentNotFoundMessage = "Subagente não encontrado"
     static let agentBlockedMessage = "O agente está esperando uma resposta no terminal."
     static let clearCommand = "/clear"
+    static let webServers = [
+        WebServer(pid: 53243, process: "node", port: 5190, title: "Portal do cliente", directory: "/Users/joao/Developer/portal-cliente"),
+        WebServer(pid: 5335, process: "node", port: 6173, title: "Portal do cliente", directory: "/Users/joao/Developer/portal-cliente-admin"),
+    ]
     static let replyMarkdown = """
     Isto é o **modo demo** do Mocha: nenhuma mensagem saiu do iPhone.
 
@@ -231,7 +235,7 @@ public actor DemoServerConnection: ServerConnection {
         case .listSubagents(let agentId):
             listSubagents(agentId: agentId, id: id)
         case .listWebServers:
-            reply(id, .webServers(host: "MacBook", servers: []))
+            reply(id, .webServers(host: Self.host.hostName, servers: options.isEmpty ? [] : Self.webServers))
         case .archive(let sessionId, let provider):
             archive(sessionId: sessionId, provider: provider, id: id)
         case .sendPrompt(let agentId, let text):
