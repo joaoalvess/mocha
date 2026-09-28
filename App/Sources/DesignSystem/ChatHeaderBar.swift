@@ -20,6 +20,7 @@ struct ChatHeaderBar: View {
     let subtitle: String
     var onStatusTap: () -> Void = {}
     var onTitleTap: () -> Void = {}
+    var onPreviewTap: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -44,7 +45,7 @@ struct ChatHeaderBar: View {
                 HeaderRoundButton(accessibilityLabel: "Git", isEnabled: false, action: {}) {
                     LineIconView(icon: .branch, size: 16, strokeWidth: 2.1, color: Palette.glyphOnAccent)
                 }
-                HeaderRoundButton(accessibilityLabel: "Preview web", isEnabled: false, action: {}) {
+                HeaderRoundButton(accessibilityLabel: "Preview web", isEnabled: onPreviewTap != nil, action: { onPreviewTap?() }) {
                     CompassNeedle()
                         .stroke(Palette.glyphOnAccent, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
                         .frame(width: 8.5, height: 8.5)

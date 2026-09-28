@@ -150,7 +150,8 @@ struct ChatConversation: View {
             SubagentHeaderBar(
                 title: title,
                 subtitle: subagentInfo.map { SubagentText.parentSubtitle($0.parentTitle) } ?? session.connectionState.statusText,
-                onBack: { session.goBack() }
+                onBack: { session.goBack() },
+                onPreviewTap: { session.showWebServers() }
             )
         } else {
             agentHeader
@@ -164,7 +165,8 @@ struct ChatConversation: View {
             title: title,
             subtitle: subtitle,
             onStatusTap: { session.openDrawer() },
-            onTitleTap: { session.showDetail(liveTarget) }
+            onTitleTap: { session.showDetail(liveTarget) },
+            onPreviewTap: { session.showWebServers() }
         )
     }
 

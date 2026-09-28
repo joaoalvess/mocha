@@ -6,6 +6,7 @@ struct SubagentHeaderBar: View {
     let title: String
     let subtitle: String
     let onBack: () -> Void
+    let onPreviewTap: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -17,14 +18,11 @@ struct SubagentHeaderBar: View {
             titleBlock
                 .padding(.leading, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            SubagentHeaderButton(accessibilityLabel: "Preview web", action: {}) {
+            SubagentHeaderButton(accessibilityLabel: "Preview web", action: onPreviewTap) {
                 CompassNeedle()
                     .stroke(Palette.glyphOnAccent, style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
                     .frame(width: 8.5, height: 8.5)
             }
-            .compositingGroup()
-            .opacity(0.32)
-            .disabled(true)
             .padding(.leading, 12)
             .padding(.trailing, 16)
         }
