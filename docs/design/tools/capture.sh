@@ -31,6 +31,8 @@ s-chat-menu 09-menu-slash
 s-chat-clear 09b-confirma-clear
 s-chat-perm 10-pedido-aprovacao
 s-chat-q 10b-pergunta
+s-chat-q-step 10c-pergunta-passo
+s-chat-q-last 10d-pergunta-ultima
 s-drawer 11-gaveta-arvore
 s-drawer-rec 11b-gaveta-recentes
 s-settings 12-ajustes

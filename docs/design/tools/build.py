@@ -283,6 +283,11 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 .opt .od{font:400 12px/16px var(--sf);color:var(--ts);margin-top:1px}
 .other{margin-top:8px;height:40px;border-radius:12px;background:var(--codeInner);display:flex;align-items:center;padding:0 12px;font:400 13px/1 var(--mono);color:var(--ts)}
 .pbtns .ans{flex:none;width:130px;margin-left:auto;background:var(--ok);color:#021402}
+.pbtns .back{flex:none;width:110px;background:var(--controlBg);color:var(--tp)}
+.qstep{margin:10px 2px 0;display:flex;align-items:center;gap:10px;font:400 12px/16px var(--mono);color:var(--ts)}
+.qstep .segs{display:flex;gap:4px;margin-left:auto}
+.qstep .seg{width:22px;height:4px;border-radius:2px;background:var(--accBar)}
+.qstep .seg.on{background:var(--dirty)}
 
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:60}
 .drawer{position:absolute;left:0;top:0;bottom:0;width:351px;background:var(--drawerBg);z-index:70;box-shadow:14px 0 40px rgba(0,0,0,.45)}
@@ -931,6 +936,37 @@ chat_q = screen('s-chat-q', '', sb() +
     '<div class="pbtns"><div class="ans">Responder</div></div></div>'
     '</div>' + SITE_HDR + composer())
 
+def question_step(header, step, total, question, options, buttons):
+    segs = ''.join(f'<span class="seg{" on" if i <= step else ""}"></span>' for i in range(1, total + 1))
+    opts = ''.join(
+        f'<div class="opt{" sel" if sel else ""}"><span class="rd{" on" if sel else ""}"></span><div><div class="ol">{label}</div><div class="od">{desc}</div></div></div>'
+        for label, desc, sel in options)
+    return (f'<div class="pcard"><div class="h1">{I("q")}Pergunta do Claude<span class="tm">há 40 s</span></div>'
+            f'<div class="qstep"><span>{header} · {step} de {total}</span><span class="segs">{segs}</span></div>'
+            f'<div class="pt">{question}</div><div class="opts">{opts}</div><div class="other">Outro…</div>'
+            f'<div class="pbtns">{buttons}</div></div>')
+
+chat_q_step = screen('s-chat-q-step', '', sb() +
+    '<div class="chat" style="bottom:95px">' + EARLY_SITE
+    + tools(tool('pencil', 'Edit', 'src/styles/theme.css', count=2), tool('term', 'Shell', 'npm run check')) +
+    '<div class="p">O layout novo já respeita <span class="ci">prefers-color-scheme</span>.</div>'
+    + question_step('Formato', 1, 2, 'Qual formato de feed você quer publicar?', [
+        ('RSS 2.0', 'O mais compatível com leitores antigos', False),
+        ('Atom', 'Datas e ids mais rígidos', True),
+        ('Os dois', '/feed.xml e /atom.xml', False)],
+        '<div class="ans">Próximo</div>') +
+    '</div>' + SITE_HDR + composer())
+chat_q_last = screen('s-chat-q-last', '', sb() +
+    '<div class="chat" style="bottom:95px">' + EARLY_SITE
+    + tools(tool('pencil', 'Edit', 'src/styles/theme.css', count=2), tool('term', 'Shell', 'npm run check')) +
+    '<div class="p">O layout novo já respeita <span class="ci">prefers-color-scheme</span>.</div>'
+    + question_step('Posts', 2, 2, 'Quantos posts entram no feed?', [
+        ('Os 10 últimos', 'Feed leve', False),
+        ('Os 20 últimos', 'O padrão da maioria dos blogs', True),
+        ('Todos', 'Arquivo completo', False)],
+        '<div class="back">Voltar</div><div class="ans">Enviar</div>') +
+    '</div>' + SITE_HDR + composer())
+
 # ---------------------------------------------------------------- 11 Gaveta
 ADD = f'<span class="add">{I("plus")}</span>'
 
@@ -1333,7 +1369,11 @@ page += group('Chat', [
     shot('10 · Pedido de aprovação no chat', ['b'], chat_perm, N(
         'O card entra no fim da lista e o disco do header fica âmbar. Permitir e Negar respondem na hora; "Ver entrada completa" abre o JSON do input.')),
     shot('10b · Pergunta no chat', ['b'], chat_q, N(
-        'Seleção única com rádio (múltipla usa caixas). "Outro…" vira resposta livre. Com várias perguntas, cada uma tem o seu bloco e há um "Responder" só.')),
+        'Uma pergunta só. Seleção única com rádio (múltipla usa caixas). "Outro…" vira resposta livre.')),
+    shot('10c · Várias perguntas, uma por vez', ['b'], chat_q_step, N(
+        'Com mais de uma pergunta, o card mostra uma por vez: cabeçalho da pergunta, "1 de 2" e um segmento por pergunta. Na seleção única, tocar numa opção já avança; com caixas ou "Outro…", o avanço é pelo "Próximo". Nada vai para o Mac antes do "Enviar".')),
+    shot('10d · Última pergunta', ['b'], chat_q_last, N(
+        '"Voltar" reabre a pergunta anterior com a resposta marcada. "Enviar" manda todas as respostas juntas, num <code>answers</code> só.')),
 ])
 
 page += group('Navegação e sistema', [

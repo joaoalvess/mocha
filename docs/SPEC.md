@@ -1641,7 +1641,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 **Pedido no chat** (1b, `10-pedido-aprovacao`, `10b-pergunta`)
 - O card do `PendingRequest` do agente entra no fim da lista, e o disco do header fica âmbar.
 - Aprovação: ferramenta, resumo, "Ver entrada completa" (abre o JSON do input) e os botões "Permitir" e "Negar", que respondem na hora.
-- Pergunta: seleção única com rádio, múltipla com caixas, "Outro…" como resposta livre; com várias perguntas, um bloco por pergunta e um "Responder" só.
+- Pergunta: seleção única com rádio, múltipla com caixas, "Outro…" como resposta livre. Uma pergunta: um bloco e "Responder" (`10b`). Várias perguntas: uma por vez (`10c`, `10d`), com "<header> · N de M" e um segmento por pergunta; na seleção única, tocar numa opção avança; com caixas ou "Outro…", avança pelo "Próximo"; "Voltar" reabre a anterior com a resposta; na última, "Enviar" manda todas num `answers` só.
 
 **Gaveta** (`11-gaveta-arvore`, `11b-gaveta-recentes`)
 - Camada por cima da Home ou do chat, aberta pelo botão esquerdo da Home ou pela bússola do chat, **sem gesto de borda**. Ao abrir, fecha o teclado. Ocupa ~90 % da largura com `scrim` no restante; fecha tocando no scrim ou arrastando para a esquerda.
