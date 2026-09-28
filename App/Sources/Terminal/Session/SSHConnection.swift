@@ -50,7 +50,7 @@ actor SSHConnection {
     func openTunnelChannel(toLoopbackPort port: Int) async throws -> SSHTunnelChannel {
         let slot = SSHByteChannelSlot()
         let settings = SSHChannelType.DirectTCPIP(
-            targetHost: "127.0.0.1",
+            targetHost: "localhost",
             targetPort: port,
             originatorAddress: try SocketAddress(ipAddress: "127.0.0.1", port: 0)
         )
