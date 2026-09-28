@@ -10,7 +10,8 @@
         "process": "node",
         "port": 5190,
         "title": "Portal do cliente",
-        "directory": "/Users/joaoalves/Developer/portal-cliente"
+        "directory": "/Users/joaoalves/Developer/portal-cliente",
+        "workspaceId": "w1"
       },
       {
         "pid": 5335,

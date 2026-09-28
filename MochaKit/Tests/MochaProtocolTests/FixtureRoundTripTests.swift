@@ -210,7 +210,7 @@ enum CanonicalExamples {
         ),
         CanonicalExample(
             fixture: "server.webServers.json",
-            json: #"{"v":1,"id":"c-21","type":"webServers","payload":{"host":"MacBook","servers":[{"pid":53243,"process":"node","port":5190,"title":"Portal do cliente","directory":"/Users/joaoalves/Developer/portal-cliente"},{"pid":5335,"process":"node","port":6173}]}}"#
+            json: #"{"v":1,"id":"c-21","type":"webServers","payload":{"host":"MacBook","servers":[{"pid":53243,"process":"node","port":5190,"title":"Portal do cliente","directory":"/Users/joaoalves/Developer/portal-cliente","workspaceId":"w1"},{"pid":5335,"process":"node","port":6173}]}}"#
         ),
         CanonicalExample(
             fixture: "server.usage.json",
