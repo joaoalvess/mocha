@@ -121,13 +121,18 @@ public enum UsagePace {
     }
 
     public static func summaries(of snapshot: UsageSnapshot, now: Date) -> [UsageWindowSummary] {
-        snapshot.windows.enumerated().compactMap { index, window in
+        let valid = snapshot.windows.compactMap { window -> (window: UsageWindow, label: String)? in
             guard let label = label(of: window) else { return nil }
+            return (window, label)
+        }
+        let sorted = valid.sorted { (duration(of: $0.window) ?? .greatestFiniteMagnitude) < (duration(of: $1.window) ?? .greatestFiniteMagnitude) }
+        return sorted.enumerated().map { index, entry in
+            let window = entry.window
             let elapsed = elapsedFraction(of: window, now: now)
             return UsageWindowSummary(
                 id: index,
                 kind: window.kind,
-                label: label,
+                label: entry.label,
                 usedPercent: window.usedPercent,
                 elapsedFraction: elapsed,
                 trend: elapsed.map { trend(usedPercent: window.usedPercent, elapsedFraction: $0) },
