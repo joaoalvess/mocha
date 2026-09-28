@@ -1,5 +1,27 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
+
+struct ProviderMark: View {
+    let provider: AgentProvider
+    var size: CGFloat = Metrics.claudeMarkHeaderSize
+
+    var body: some View {
+        Group {
+            switch provider {
+            case .claude:
+                ClaudeMark(size: size)
+            case .codex:
+                Image(systemName: "diamond.inset.filled")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Palette.textPrimary)
+                    .frame(width: size, height: size)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
 
 struct ClaudeMark: View {
     var size: CGFloat = Metrics.claudeMarkHeaderSize

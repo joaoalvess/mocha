@@ -1,4 +1,5 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 struct HomeCardRow: View {
@@ -6,7 +7,7 @@ struct HomeCardRow: View {
     let isOffline: Bool
     let open: () -> Void
     let showDetail: () -> Void
-    let archive: @MainActor (String) async -> Bool
+    let archive: @MainActor (String, AgentProvider) async -> Bool
 
     @State private var offset: CGFloat = 0
     @State private var width: CGFloat = 0
@@ -43,7 +44,7 @@ struct HomeCardRow: View {
         .accessibilityActions {
             if let sessionId = card.archiveSessionId, !isOffline {
                 Button("Arquivar") {
-                    Task { _ = await archive(sessionId) }
+                    Task { _ = await archive(sessionId, card.provider) }
                 }
             }
         }
@@ -69,7 +70,7 @@ struct HomeCardRow: View {
         }
         withAnimation(Self.settleAnimation) { offset = -(width + Self.dismissOvershoot) }
         Task {
-            let archived = await archive(sessionId)
+            let archived = await archive(sessionId, card.provider)
             withAnimation(archived ? nil : Self.settleAnimation) { offset = 0 }
         }
     }
@@ -94,7 +95,7 @@ private struct HomeCardText: View {
             } else if let subtitle = card.subtitle {
                 HomeCardSubtitle(text: subtitle, isWarning: card.subtitleIsWarning && !isOffline)
             }
-            HomeCardMeta(workspace: card.workspace, time: card.time, tone: isOffline ? .offline : .normal)
+            HomeCardMeta(provider: card.provider, workspace: card.workspace, time: card.time, tone: isOffline ? .offline : .normal)
                 .padding(.top, hasSecondLine ? 5.5 : 2.5)
         }
     }

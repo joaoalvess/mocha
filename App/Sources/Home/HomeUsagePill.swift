@@ -1,7 +1,9 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 struct HomeUsagePill: View {
+    var provider: AgentProvider = .claude
     let windows: [UsageWindowSummary]
     let isDimmed: Bool
     let action: () -> Void
@@ -38,7 +40,7 @@ struct HomeUsagePill: View {
     private func half(_ window: UsageWindowSummary, showsMark: Bool) -> some View {
         HStack(spacing: 0) {
             if showsMark {
-                ClaudeMark(size: 16)
+                ProviderMark(provider: provider, size: 16)
                     .padding(.trailing, 8)
             }
             Text(window.label)

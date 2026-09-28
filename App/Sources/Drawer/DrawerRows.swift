@@ -116,7 +116,7 @@ struct DrawerNewTabButton: View {
         }
         .buttonStyle(.pressable)
         .disabled(isCreating)
-        .accessibilityLabel(isCreating ? "Abrindo tab com Claude em \(workspaceLabel)" : "Nova tab com Claude em \(workspaceLabel)")
+        .accessibilityLabel(isCreating ? "Abrindo tab em \(workspaceLabel)" : "Nova tab em \(workspaceLabel)")
     }
 }
 
@@ -138,6 +138,7 @@ struct DrawerBranchLabel: View {
 
 enum DrawerTabIcon: Equatable {
     case claude(isWorking: Bool)
+    case codex(isWorking: Bool)
     case otherAgent(isWorking: Bool)
     case shell
 }
@@ -202,7 +203,7 @@ struct DrawerRecentRowView: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 11) {
-                DrawerTabIconView(icon: .claude(isWorking: row.agent.status == .working), size: 14)
+                DrawerTabIconView(icon: row.agent.kind == "codex" ? .codex(isWorking: row.agent.status == .working) : .claude(isWorking: row.agent.status == .working), size: 14)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(row.agent.title)
                         .drawerText(.recentTitle)
@@ -256,6 +257,9 @@ struct DrawerTabIconView: View {
             ClaudeMark(size: size * DrawerLayout.claudeMarkScale)
                 .frame(width: size, height: size)
                 .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.claude))
+        case .codex(let isWorking):
+            ProviderMark(provider: .codex, size: size)
+                .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.textPrimary))
         case .otherAgent(let isWorking):
             LineIconView(icon: .sparkles, size: size, strokeWidth: 2.2, color: Palette.textSecondary)
                 .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.textSecondary))

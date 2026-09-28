@@ -68,7 +68,7 @@ private struct HomeContent: View {
         }
         .overlay(alignment: .bottom) {
             if !usageWindows.isEmpty {
-                HomeUsagePill(windows: usageWindows, isDimmed: offlineMessage != nil) {
+                HomeUsagePill(provider: session.usage?.provider ?? .claude, windows: usageWindows, isDimmed: offlineMessage != nil) {
                     session.showUsage()
                 }
                 .padding(.horizontal, Self.pillSide)
@@ -147,9 +147,9 @@ private struct HomeList: View {
         .animation(.smooth(duration: 0.3), value: sections)
     }
 
-    private func archive(_ sessionId: String) async -> Bool {
+    private func archive(_ sessionId: String, provider: AgentProvider) async -> Bool {
         do {
-            try await session.archive(sessionId: sessionId)
+            try await session.archive(sessionId: sessionId, provider: provider)
             return true
         } catch {
             return false

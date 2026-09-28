@@ -1,4 +1,5 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 enum ChatSubtitle {
@@ -13,6 +14,7 @@ enum ChatSubtitle {
 }
 
 struct ChatHeaderBar: View {
+    var provider: AgentProvider = .claude
     let indicator: StatusIndicator
     let title: String
     let subtitle: String
@@ -59,7 +61,7 @@ struct ChatHeaderBar: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6.5) {
-                ClaudeMark(size: Metrics.claudeMarkHeaderSize)
+                ProviderMark(provider: provider, size: Metrics.claudeMarkHeaderSize)
                 Text(title)
                     .font(Typography.headerTitle)
                     .foregroundStyle(Palette.textPrimary)
