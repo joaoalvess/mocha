@@ -1988,6 +1988,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 
 - Emulador `SwiftTerm` (UIKit `TerminalView` embrulhado em SwiftUI). SSH com `Citadel` (swift-nio-ssh).
 - **Chave**: P-256 criada na Secure Enclave (`SecureEnclave.P256.Signing.PrivateKey`, com `.biometryCurrentSet`), usada como `ecdsa-sha2-nistp256` via `NIOSSHPrivateKey(secureEnclaveP256Key:)`. Se o Citadel não expuser isso, um delegate de autenticação próprio.
+- A chave é criada com `.biometryCurrentSet`, então cada assinatura (cada conexão nova, inclusive ao voltar do background) pede Face ID; o `App/Info.plist` tem `NSFaceIDUsageDescription`. No simulador, só em Debug, a chave é P-256 em software.
 - A chave pública aparece em Ajustes para colar em `~/.ssh/authorized_keys` do Mac. O Remote Login precisa estar ligado no Mac (bloqueio B5).
 - **Host**: o mesmo nome MagicDNS, porta 22, dentro do tailnet.
 - **Sessão**: `herdr agent attach <paneId>` pelo "Abrir terminal" do Detalhe do agente, ou `herdr` puro por uma tab de shell da gaveta (§6.3). Ao reconectar, reanexa no mesmo alvo.
@@ -2039,6 +2040,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 | Swift Testing | testes | — | todas |
 | `SwiftTerm` (github.com/migueldeicaza/SwiftTerm) | app | MIT | 2 |
 | `Citadel` (github.com/orlandos-nl/Citadel), `exactVersion: 0.12.1` | app | MIT | preview-web e 2 |
+| `swift-nio-ssh` do fork `Wellz26/swift-nio-ssh` 0.3.x, transitiva do `Citadel` 0.12.1 (não é o pacote da Apple). Traz `NIOSSHPrivateKey(secureEnclaveP256Key:)`, usada na chave da §9.1 | app | Apache-2.0 | preview-web e 2 |
 | `blinksh/mosh` + protobuf | app | GPLv3 / BSD | 3 |
 
 Não há outras dependências. Uma nova precisa entrar nesta tabela, com licença e motivo, antes de ser adicionada.
