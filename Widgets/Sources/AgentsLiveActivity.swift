@@ -36,9 +36,9 @@ struct AgentsLiveActivity: Widget {
                     .foregroundStyle(AgentsPalette.labelColor(for: tone))
                     .accessibilityHidden(true)
             } compactTrailing: {
-                ProviderTile(provider: header.provider, size: 24, markSize: 14)
+                ProviderTile(provider: header.provider, size: 24, markSize: 16)
             } minimal: {
-                ProviderTile(provider: header.provider, size: 22, markSize: 13)
+                ProviderTile(provider: header.provider, size: 22, markSize: 15)
             }
             .widgetURL(AgentsActivityText.deepLink(forAgent: content.agentId))
             .keylineTint(AgentsPalette.color(for: tone, provider: header.provider))
