@@ -32,8 +32,14 @@ enum AppSheet: Identifiable, Hashable {
     case detail(ChatTarget)
     case usage
     case settings
+    case newSession
 
     var id: Self { self }
+}
+
+enum RootPage: Hashable {
+    case start
+    case history
 }
 
 enum AppSessionError: Error, Equatable {
@@ -73,6 +79,7 @@ final class AppSession {
     private(set) var chatStack: [ChatState] = []
     private var departingChats: [ChatState] = []
     private(set) var isDrawerOpen = false
+    var rootPage: RootPage = .start
     private(set) var pairing = PairingGate()
     private(set) var pairedAt: Date?
     private(set) var pending = PendingInbox()
@@ -212,6 +219,7 @@ final class AppSession {
     }
 
     func closeChat() {
+        isDrawerOpen = false
         guard !chatStack.isEmpty else { return }
         navigate(ChatNavigation.setPath([], stack: stackEntries))
     }
@@ -230,7 +238,21 @@ final class AppSession {
     }
 
     func openDrawer() {
+        guard !chatStack.isEmpty else { return }
         isDrawerOpen = true
+    }
+
+    func showHistory() {
+        rootPage = .history
+    }
+
+    func showStart() {
+        rootPage = .start
+    }
+
+    func showNewSession() {
+        isDrawerOpen = false
+        sheet = .newSession
     }
 
     func closeDrawer() {

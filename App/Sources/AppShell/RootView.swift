@@ -25,7 +25,15 @@ struct RootView: View {
     private var content: some View {
         switch startup {
         case .session(let session):
-            AppShellView(session: session, launchURL: launchURL, opensDrawerAtLaunch: opensDrawerAtLaunch, opensSettingsAtLaunch: opensSettingsAtLaunch)
+            AppShellView(
+                session: session,
+                launchURL: launchURL,
+                opensDrawerAtLaunch: opensDrawerAtLaunch,
+                opensSettingsAtLaunch: opensSettingsAtLaunch,
+                opensHistoryAtLaunch: opensHistoryAtLaunch,
+                opensNewSessionAtLaunch: newSessionLaunch != nil,
+                newSessionKindAtLaunch: newSessionLaunch == .workspace ? .claude : nil
+            )
                 .onOpenURL { session.handle($0) }
         case .demoUnavailable:
             SplashView(message: "Não foi possível abrir o modo demo.")
@@ -53,6 +61,22 @@ struct RootView: View {
         launch.opensSettings
         #else
         false
+        #endif
+    }
+
+    private var opensHistoryAtLaunch: Bool {
+        #if DEBUG
+        launch.opensHistory
+        #else
+        false
+        #endif
+    }
+
+    private var newSessionLaunch: NewSessionLaunch? {
+        #if DEBUG
+        launch.newSession
+        #else
+        nil
         #endif
     }
 }
