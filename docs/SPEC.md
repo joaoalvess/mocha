@@ -2038,7 +2038,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 | JetBrains Mono 2.304 (github.com/JetBrains/JetBrainsMono), pesos Regular, Italic, Bold e BoldItalic em `App/Resources/Fonts/`, com a `OFL.txt`. Motivo: é a fonte mono dos prints (§6.2) | app (`DesignSystem/`) | OFL-1.1 | 1a-core |
 | Swift Testing | testes | — | todas |
 | `SwiftTerm` (github.com/migueldeicaza/SwiftTerm) | app | MIT | 2 |
-| `Citadel` (github.com/orlandos-nl/Citadel) | app | MIT | 2 |
+| `Citadel` (github.com/orlandos-nl/Citadel), `exactVersion: 0.12.1` | app | MIT | preview-web e 2 |
 | `blinksh/mosh` + protobuf | app | GPLv3 / BSD | 3 |
 
 Não há outras dependências. Uma nova precisa entrar nesta tabela, com licença e motivo, antes de ser adicionada.
