@@ -196,7 +196,9 @@ extension SessionHub {
         let host = HostInfo(
             hostName: configuration.hostName,
             daemonVersion: configuration.daemonVersion,
-            herdrConnected: herdrAvailable
+            herdrConnected: herdrAvailable,
+            sshUser: configuration.sshIdentity?.user,
+            sshHostKeys: configuration.sshIdentity?.hostKeys
         )
         send(
             .helloOk(HelloOkPayload(host: host, deviceId: device.id, deviceToken: deviceToken, preferences: device.preferences)),

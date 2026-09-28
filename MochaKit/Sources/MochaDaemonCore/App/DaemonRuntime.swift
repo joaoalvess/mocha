@@ -96,7 +96,8 @@ public actor DaemonRuntime {
             archive: archive,
             subagents: subagents,
             pending: pending,
-            webServers: WebServerScanner(configuration: .init(excludedPorts: [Int(port), Int(hookPort)]))
+            webServers: WebServerScanner(configuration: .init(excludedPorts: [Int(port), Int(hookPort)])),
+            configuration: SessionHubConfiguration(sshIdentity: SSHHostIdentity.current())
         )
         let push = PushService(
             devices: devices,

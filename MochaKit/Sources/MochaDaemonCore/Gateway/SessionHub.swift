@@ -9,17 +9,20 @@ public struct SessionHubConfiguration: Sendable {
     public var daemonVersion: String
     public var treeDebounce: Duration
     public var homeLiveRelease: Duration
+    public var sshIdentity: SSHHostIdentity?
 
     public init(
         hostName: String = SessionHubConfiguration.defaultHostName,
         daemonVersion: String = DaemonVersion.current,
         treeDebounce: Duration = .milliseconds(150),
-        homeLiveRelease: Duration = .seconds(30)
+        homeLiveRelease: Duration = .seconds(30),
+        sshIdentity: SSHHostIdentity? = nil
     ) {
         self.hostName = hostName
         self.daemonVersion = daemonVersion
         self.treeDebounce = treeDebounce
         self.homeLiveRelease = homeLiveRelease
+        self.sshIdentity = sshIdentity
     }
 
     public static var defaultHostName: String {
