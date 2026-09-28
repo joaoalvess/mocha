@@ -1099,7 +1099,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-CD | todo | |
 | WP-H1 | feito sem device (testes e build passaram; gestos e tab real a conferir no iPhone) | `fase/inicio` |
 | WP-W1 | todo | |
-| WP-W2 | todo | |
+| WP-W2 | feito (testes do WP e integração passaram; suíte completa com 1 falha de latência fora do WP, sob carga) | 990f09a |
 | WP-W3 | todo | |
 | WP-W4 | todo | |
 | WP-W5 | todo | |
