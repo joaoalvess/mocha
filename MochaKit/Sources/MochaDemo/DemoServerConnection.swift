@@ -22,8 +22,8 @@ public actor DemoServerConnection: ServerConnection {
     static let agentBlockedMessage = "O agente está esperando uma resposta no terminal."
     static let clearCommand = "/clear"
     static let webServers = [
-        WebServer(pid: 53243, process: "node", port: 5190, title: "Portal do cliente", directory: "/Users/joao/Developer/portal-cliente"),
-        WebServer(pid: 5335, process: "node", port: 6173, title: "Portal do cliente", directory: "/Users/joao/Developer/portal-cliente-admin"),
+        WebServer(pid: 53243, process: "node", port: 5190, title: "Portal do cliente", directory: "/Users/joao/Developer/portal-cliente", workspaceId: "w1"),
+        WebServer(pid: 5335, process: "node", port: 6173, title: "Portal do cliente", directory: "/Users/joao/Developer/portal-cliente-admin", workspaceId: "w1"),
     ]
     static let replyMarkdown = """
     Isto é o **modo demo** do Mocha: nenhuma mensagem saiu do iPhone.

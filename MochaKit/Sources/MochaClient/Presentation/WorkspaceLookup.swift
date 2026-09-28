@@ -20,6 +20,22 @@ extension [WorkspaceNode] {
         flatMap(\.allAgents)
     }
 
+    public var flattenedWorkspaces: [WorkspaceNode] {
+        flatMap { [$0] + $0.children.flattenedWorkspaces }
+    }
+
+    public func workspaceNode(containingAgent id: AgentID) -> WorkspaceNode? {
+        for workspace in self {
+            if let child = workspace.children.workspaceNode(containingAgent: id) {
+                return child
+            }
+            if workspace.tabs.contains(where: { $0.agents.contains { $0.id == id } }) {
+                return workspace
+            }
+        }
+        return nil
+    }
+
     public func agent(withId id: AgentID) -> AgentSummary? {
         allAgents.first { $0.id == id }
     }
