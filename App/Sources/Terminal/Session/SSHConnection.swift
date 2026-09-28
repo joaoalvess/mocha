@@ -5,8 +5,6 @@ import NIOCore
 import NIOSSH
 import Synchronization
 
-typealias SSHByteChannel = NIOAsyncChannel<ByteBuffer, ByteBuffer>
-
 actor SSHConnection {
     let endpoint: SSHEndpoint
     private let client: SSHClient
@@ -48,26 +46,25 @@ actor SSHConnection {
     }
 
     func openTunnelChannel(toLoopbackPort port: Int) async throws -> SSHTunnelChannel {
-        let slot = SSHByteChannelSlot()
+        let slot = SSHTunnelChannelSlot()
         let settings = SSHChannelType.DirectTCPIP(
             targetHost: "localhost",
             targetPort: port,
             originatorAddress: try SocketAddress(ipAddress: "127.0.0.1", port: 0)
         )
         _ = try await client.createDirectTCPIPChannel(using: settings) { channel in
+            let (inbound, continuation) = AsyncThrowingStream<ByteBuffer, any Error>.makeStream()
             do {
-                let wrapped = try SSHByteChannel(
-                    wrappingChannelSynchronously: channel,
-                    configuration: .init(isOutboundHalfClosureEnabled: true)
-                )
-                slot.store(wrapped)
+                try channel.pipeline.syncOperations.addHandler(SSHTunnelInboundHandler(continuation: continuation))
+                slot.store(SSHTunnelChannel(channel: channel, inbound: inbound))
                 return channel.eventLoop.makeSucceededVoidFuture()
             } catch {
+                continuation.finish(throwing: error)
                 return channel.eventLoop.makeFailedFuture(error)
             }
         }
         guard let wrapped = slot.take() else { throw SSHSessionError.channelNotWrapped }
-        return SSHTunnelChannel(channel: wrapped)
+        return wrapped
     }
 
     func close() async {
@@ -75,14 +72,14 @@ actor SSHConnection {
     }
 }
 
-private final class SSHByteChannelSlot: Sendable {
-    private let channel = Mutex<SSHByteChannel?>(nil)
+private final class SSHTunnelChannelSlot: Sendable {
+    private let channel = Mutex<SSHTunnelChannel?>(nil)
 
-    func store(_ value: SSHByteChannel) {
+    func store(_ value: SSHTunnelChannel) {
         channel.withLock { $0 = value }
     }
 
-    func take() -> SSHByteChannel? {
+    func take() -> SSHTunnelChannel? {
         channel.withLock { value in
             defer { value = nil }
             return value
@@ -91,17 +88,47 @@ private final class SSHByteChannelSlot: Sendable {
 }
 
 struct SSHTunnelChannel: TunnelChannel {
-    let channel: SSHByteChannel
+    let channel: any Channel
+    let inbound: AsyncThrowingStream<ByteBuffer, any Error>
 
     func exchange(_ body: @Sendable (any TunnelChannelInbound, any TunnelChannelOutbound) async throws -> Void) async throws {
-        try await channel.executeThenClose { inbound, outbound in
-            try await body(SSHTunnelInbound(stream: inbound), SSHTunnelOutbound(writer: outbound))
+        defer { channel.close(promise: nil) }
+        try await body(SSHTunnelInbound(stream: inbound), SSHTunnelOutbound(channel: channel))
+    }
+}
+
+private final class SSHTunnelInboundHandler: ChannelInboundHandler {
+    typealias InboundIn = ByteBuffer
+
+    private let continuation: AsyncThrowingStream<ByteBuffer, any Error>.Continuation
+
+    init(continuation: AsyncThrowingStream<ByteBuffer, any Error>.Continuation) {
+        self.continuation = continuation
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        continuation.yield(unwrapInboundIn(data))
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if case .some(ChannelEvent.inputClosed) = event as? ChannelEvent {
+            continuation.finish()
         }
+        context.fireUserInboundEventTriggered(event)
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        continuation.finish()
+        context.fireChannelInactive()
+    }
+
+    func errorCaught(context: ChannelHandlerContext, error: any Error) {
+        continuation.finish(throwing: error)
     }
 }
 
 private struct SSHTunnelInbound: TunnelChannelInbound {
-    let stream: NIOAsyncChannelInboundStream<ByteBuffer>
+    let stream: AsyncThrowingStream<ByteBuffer, any Error>
 
     func forEachChunk(_ body: @Sendable (Data) async throws -> Void) async throws {
         for try await buffer in stream {
@@ -111,13 +138,13 @@ private struct SSHTunnelInbound: TunnelChannelInbound {
 }
 
 private struct SSHTunnelOutbound: TunnelChannelOutbound {
-    let writer: NIOAsyncChannelOutboundWriter<ByteBuffer>
+    let channel: any Channel
 
     func write(_ data: Data) async throws {
-        try await writer.write(ByteBuffer(bytes: data))
+        try await channel.writeAndFlush(ByteBuffer(bytes: data))
     }
 
     func finish() {
-        writer.finish()
+        channel.close(mode: .output, promise: nil)
     }
 }
