@@ -41,7 +41,7 @@ struct PendingPlanTests {
             throw PendingTestError.notAPermissionRequest
         }
         #expect(toolName == "ExitPlanMode")
-        #expect(summary == "Criar o arquivo f.txt Rodar touch f.txt Conferir com ls")
+        #expect(summary == "Criar o arquivo f.txt")
         #expect(PushAlertText.pendingCategory(request) == PushAlertText.planCategory)
     }
 

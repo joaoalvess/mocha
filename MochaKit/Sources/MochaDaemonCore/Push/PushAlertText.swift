@@ -95,7 +95,7 @@ enum PushAlertText {
         case "AskUserQuestion":
             return nonEmpty(input["questions"]?.arrayValue?.first?["question"])
         case PendingRequestFactory.planToolName:
-            return nonEmpty(input["plan"]).map { PlainText.preview(fromMarkdown: $0, limit: summaryLimit) }
+            return nonEmpty(input["plan"]).map { PlainText.preview(fromMarkdown: firstNonEmptyLine($0)) }
         case "Skill":
             return nonEmpty(input["skill"])
         case "TaskOutput", "TaskStop":

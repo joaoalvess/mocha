@@ -56,7 +56,7 @@ struct PendingDaemonContractTests {
     @Test func planActionsEncodeLikeTheFixtureAndShowThePlainFirstLine() throws {
         let request = try Self.hook("PermissionRequest.ExitPlanMode.json")
         #expect(PushAlertText.pendingCategory(request) == PendingNotificationCategory.plan)
-        #expect(PushAlertText.needsInputBody(request) == "Criar o arquivo f.txt Rodar touch f.txt Conferir com ls")
+        #expect(PushAlertText.needsInputBody(request) == "Criar o arquivo f.txt")
         let kind = PendingRequestFactory.kind(for: request)
         let pending = LiveActivityContentState.Pending(PendingRequest(id: "req-1", agentId: "w1:p1", createdAt: Date(), kind: kind))
         let content = AgentsActivityContent.Pending(requestId: pending.requestId, kind: .permission, toolName: pending.toolName, text: pending.text, options: [])
