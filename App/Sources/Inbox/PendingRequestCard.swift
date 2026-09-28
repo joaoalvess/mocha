@@ -202,23 +202,23 @@ private struct PendingQuestionBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if draft.isStepped {
+                steppedBody
+            } else {
+                singleBody
+            }
+        }
+    }
+
+    private var singleBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(draft.questions.enumerated()), id: \.offset) { index, question in
-                PendingQuestionBlock(
-                    draft: question,
-                    showsHeader: draft.questions.count > 1,
-                    onToggle: { draft.toggle($0, inQuestion: index) },
-                    otherText: Binding(
-                        get: { draft.questions[index].otherText },
-                        set: { draft.setOtherText($0, inQuestion: index) }
-                    )
-                )
-                .padding(.top, index == 0 ? 0 : Self.blockSpacing)
+                block(question, at: index)
             }
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
                 PendingActionButton(title: PendingText.answer, style: .primary, isEnabled: draft.isComplete && !isSending) {
-                    guard let response = draft.response else { return }
-                    onRespond(response)
+                    send()
                 }
                 .frame(width: Self.answerWidth)
             }
@@ -226,8 +226,91 @@ private struct PendingQuestionBody: View {
         }
     }
 
-    private static let blockSpacing: CGFloat = 16
+    private var steppedBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PendingQuestionStepHeader(
+                text: PendingText.questionStep(header: draft.questions[draft.step].question.header, step: draft.step, total: draft.questions.count),
+                step: draft.step,
+                total: draft.questions.count
+            )
+            .padding(.top, 10)
+            block(draft.questions[draft.step], at: draft.step)
+                .id(draft.step)
+            HStack(spacing: 8) {
+                if draft.step > 0 {
+                    PendingActionButton(title: PendingText.back, style: .secondary, isEnabled: !isSending) {
+                        withAnimation(.smooth(duration: 0.2)) { draft.goBack() }
+                    }
+                    .frame(width: Self.backWidth)
+                }
+                Spacer(minLength: 0)
+                if draft.isLastStep {
+                    PendingActionButton(title: PendingText.send, style: .primary, isEnabled: draft.isComplete && !isSending) {
+                        send()
+                    }
+                    .frame(width: Self.answerWidth)
+                } else {
+                    PendingActionButton(title: PendingText.next, style: .primary, isEnabled: draft.isCurrentStepAnswered && !isSending) {
+                        withAnimation(.smooth(duration: 0.2)) { draft.advance() }
+                    }
+                    .frame(width: Self.answerWidth)
+                }
+            }
+            .padding(.top, 12)
+        }
+    }
+
+    private func block(_ question: PendingQuestionDraft, at index: Int) -> some View {
+        PendingQuestionBlock(
+            draft: question,
+            showsHeader: false,
+            onToggle: { label in
+                if draft.isStepped {
+                    withAnimation(.smooth(duration: 0.2)) { draft.choose(label) }
+                } else {
+                    draft.toggle(label, inQuestion: index)
+                }
+            },
+            otherText: Binding(
+                get: { draft.questions[index].otherText },
+                set: { draft.setOtherText($0, inQuestion: index) }
+            )
+        )
+    }
+
+    private func send() {
+        guard let response = draft.response else { return }
+        onRespond(response)
+    }
+
     private static let answerWidth: CGFloat = 130
+    private static let backWidth: CGFloat = 110
+}
+
+private struct PendingQuestionStepHeader: View {
+    let text: String
+    let step: Int
+    let total: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(text)
+                .font(Typography.toolCard)
+                .foregroundStyle(Palette.textSecondary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            HStack(spacing: 4) {
+                ForEach(0..<total, id: \.self) { index in
+                    Capsule()
+                        .fill(index <= step ? Palette.dirty : Palette.accessoryBar)
+                        .frame(width: 22, height: 4)
+                }
+            }
+            .accessibilityHidden(true)
+        }
+        .frame(minHeight: 16)
+        .padding(.horizontal, 2)
+    }
 }
 
 private struct PendingQuestionBlock: View {
