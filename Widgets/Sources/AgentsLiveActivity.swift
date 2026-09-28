@@ -23,7 +23,7 @@ struct AgentsLiveActivity: Widget {
                         .padding(.leading, 6)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    AgentsCardBadge(context: header.context, metrics: .island)
+                    AgentsCardBadge(context: header.context, provider: header.provider, metrics: .island)
                         .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -31,7 +31,7 @@ struct AgentsLiveActivity: Widget {
                         .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
+                ProviderMark(provider: header.provider, size: 16, color: AgentsPalette.color(for: tone, provider: header.provider))
             } compactTrailing: {
                 Text(header.project)
                     .font(.system(size: 13, weight: .semibold))
@@ -39,10 +39,10 @@ struct AgentsLiveActivity: Widget {
                     .lineLimit(1)
                     .frame(maxWidth: 64)
             } minimal: {
-                ClaudeMark(size: 16, color: AgentsPalette.color(for: tone))
+                ProviderMark(provider: header.provider, size: 16, color: AgentsPalette.color(for: tone, provider: header.provider))
             }
             .widgetURL(AgentsActivityText.deepLink(forAgent: content.agentId))
-            .keylineTint(AgentsPalette.color(for: tone))
+            .keylineTint(AgentsPalette.color(for: tone, provider: header.provider))
         }
     }
 }

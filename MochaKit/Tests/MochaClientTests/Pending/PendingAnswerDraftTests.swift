@@ -95,4 +95,16 @@ struct PendingAnswerDraftTests {
         draft.toggle("Os dois", inQuestion: 1)
         #expect(try #require(draft.response) == .answers(["Qual formato de feed você quer publicar?": ["Atom"]]))
     }
+
+    @Test func codexQuestionUsesStableIdEvenWhenTextRepeats() throws {
+        let options = [PendingOption(label: "Sim"), PendingOption(label: "Não")]
+        let questions = [
+            PendingQuestion(header: "Primeira", question: "Prosseguir?", options: options, multiSelect: false, id: "first"),
+            PendingQuestion(header: "Segunda", question: "Prosseguir?", options: options, multiSelect: false, id: "second"),
+        ]
+        var draft = PendingAnswerDraft(questions: questions)
+        draft.toggle("Sim", inQuestion: 0)
+        draft.toggle("Não", inQuestion: 1)
+        #expect(try #require(draft.response) == .answers(["first": ["Sim"], "second": ["Não"]]))
+    }
 }

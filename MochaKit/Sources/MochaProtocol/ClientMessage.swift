@@ -30,11 +30,11 @@ public enum ClientMessage: Sendable, Hashable {
     case setForeground(agentId: AgentID?, isActive: Bool)
     case unpair
     case ping
-    case archive(sessionId: String)
+    case archive(sessionId: String, provider: AgentProvider = .claude)
     case slash(agentId: AgentID, command: String)
     case setPreferences(DevicePreferences)
     case respond(requestId: RequestID, response: PendingResponse)
-    case newAgentTab(workspaceId: WorkspaceID)
+    case newAgentTab(workspaceId: WorkspaceID, kind: AgentProvider = .claude)
     case registerLiveActivity(LiveActivityRegistration)
     case unknown(type: String)
 
@@ -62,7 +62,7 @@ public enum ClientMessage: Sendable, Hashable {
 
 extension ClientMessage {
     private enum PayloadKey: String, CodingKey {
-        case agentId, sessionId, subagentId, before, limit, text, isActive, command, requestId, response, workspaceId
+        case agentId, sessionId, subagentId, provider, before, limit, text, isActive, command, requestId, response, workspaceId, kind
     }
 
     init(type: String, envelope: KeyedDecodingContainer<EnvelopeCodingKey>) throws {
@@ -72,14 +72,14 @@ extension ClientMessage {
         case "openChat":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .openChat(
-                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId),
+                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider),
                 before: try payload.decodeIfPresent(String.self, forKey: .before),
                 limit: try payload.decodeIfPresent(Int.self, forKey: .limit)
             )
         case "closeChat":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .closeChat(
-                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
+                target: try payload.decodeChatTarget(agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
             )
         case "listSubagents":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
@@ -105,7 +105,10 @@ extension ClientMessage {
             self = .ping
         case "archive":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
-            self = .archive(sessionId: try payload.decode(String.self, forKey: .sessionId))
+            self = .archive(
+                sessionId: try payload.decode(String.self, forKey: .sessionId),
+                provider: try payload.decodeIfPresent(AgentProvider.self, forKey: .provider) ?? .claude
+            )
         case "slash":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .slash(
@@ -122,7 +125,10 @@ extension ClientMessage {
             )
         case "newAgentTab":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
-            self = .newAgentTab(workspaceId: try payload.decode(WorkspaceID.self, forKey: .workspaceId))
+            self = .newAgentTab(
+                workspaceId: try payload.decode(WorkspaceID.self, forKey: .workspaceId),
+                kind: try payload.decodeIfPresent(AgentProvider.self, forKey: .kind) ?? .claude
+            )
         case "registerLiveActivity":
             self = .registerLiveActivity(try envelope.decode(LiveActivityRegistration.self, forKey: .payload))
         default:
@@ -136,12 +142,12 @@ extension ClientMessage {
             try envelope.encode(hello, forKey: .payload)
         case .openChat(let target, let before, let limit):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
-            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
+            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
             try payload.encodeIfPresent(before, forKey: .before)
             try payload.encodeIfPresent(limit, forKey: .limit)
         case .closeChat(let target):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
-            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId)
+            try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
         case .listSubagents(let agentId):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
@@ -158,9 +164,12 @@ extension ClientMessage {
             try payload.encode(isActive, forKey: .isActive)
         case .unpair, .ping, .unknown:
             envelope.emptyPayload()
-        case .archive(let sessionId):
+        case .archive(let sessionId, let provider):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(sessionId, forKey: .sessionId)
+            if provider != .claude {
+                try payload.encode(provider, forKey: .provider)
+            }
         case .slash(let agentId, let command):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
@@ -171,9 +180,12 @@ extension ClientMessage {
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(requestId, forKey: .requestId)
             try payload.encode(response, forKey: .response)
-        case .newAgentTab(let workspaceId):
+        case .newAgentTab(let workspaceId, let kind):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(workspaceId, forKey: .workspaceId)
+            if kind != .claude {
+                try payload.encode(kind, forKey: .kind)
+            }
         case .registerLiveActivity(let registration):
             try envelope.encode(registration, forKey: .payload)
         }

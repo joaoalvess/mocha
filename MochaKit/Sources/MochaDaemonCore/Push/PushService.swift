@@ -173,6 +173,23 @@ public actor PushService {
         }
     }
 
+    func handle(_ alert: CodexAlert) async {
+        guard !isShutDown else { return }
+        switch alert {
+        case .turnDone(let agentId, let lastMessage):
+            await self.alert(.turnDone, agentId: agentId, body: PushAlertText.turnDoneBody(lastMessage))
+        case .needsInput(let request):
+            rememberNeedsInput(request.agentId, at: clock.now())
+            await self.alert(
+                .needsInput,
+                agentId: request.agentId,
+                body: PushAlertText.codexNeedsInputBody(request.kind),
+                category: PushAlertText.codexCategory(request.kind),
+                requestId: request.id
+            )
+        }
+    }
+
     public func agentStatusChanged(_ agentId: AgentID, to status: AgentStatus) {
         guard !isShutDown else { return }
         guard status == .blocked else {
@@ -301,12 +318,13 @@ public actor PushService {
     private func alert(_ kind: PushAlertKind, agentId: AgentID, body: String, category: String? = nil, requestId: RequestID? = nil) async {
         let recipients = await recipients(for: kind, agentId: agentId)
         guard !recipients.isEmpty, let sender = loadSender() else { return }
-        let label = await audience.agentSummary(agentId)?.workspaceLabel
+        let summary = await audience.agentSummary(agentId)
+        let provider: AgentProvider? = summary?.kind == TreeComposer.codexKind ? .codex : nil
         let now = clock.now()
         let payload: Data
         do {
             payload = try ApnsAlertPush(
-                title: PushAlertText.title(kind, workspaceLabel: label),
+                title: PushAlertText.title(kind, workspaceLabel: summary?.workspaceLabel, provider: provider),
                 body: body,
                 threadId: agentId,
                 category: category ?? kind.category,

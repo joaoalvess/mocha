@@ -15,6 +15,7 @@ public struct MochaAgentAttributes: ActivityAttributes, Sendable {
         public var workspaceLabel: String
         public var since: Date
         public var model: String?
+        public var provider: AgentProvider?
         public var contextLeftPercent: Int?
         public var preview: String?
         public var activity: String?
@@ -28,6 +29,7 @@ public struct MochaAgentAttributes: ActivityAttributes, Sendable {
             workspaceLabel: String,
             since: Date,
             model: String? = nil,
+            provider: AgentProvider? = nil,
             contextLeftPercent: Int? = nil,
             preview: String? = nil,
             activity: String? = nil,
@@ -40,6 +42,7 @@ public struct MochaAgentAttributes: ActivityAttributes, Sendable {
             self.workspaceLabel = workspaceLabel
             self.since = since
             self.model = model
+            self.provider = provider
             self.contextLeftPercent = contextLeftPercent
             self.preview = preview
             self.activity = activity

@@ -44,12 +44,12 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
             let envelope = try assertRoundTrip(ClientEnvelope.self, from: data)
             #expect(envelope.message.type == type)
             #expect(envelope.message != .unknown(type: type))
-            #expect(envelope.version == 1)
+            #expect([1, ProtocolVersion.current].contains(envelope.version))
         case "server":
             let envelope = try assertRoundTrip(ServerEnvelope.self, from: data)
             #expect(envelope.message.type == type)
             #expect(envelope.message != .unknown(type: type))
-            #expect(envelope.version == 1)
+            #expect([1, ProtocolVersion.current].contains(envelope.version))
         case "chatItem":
             let item = try assertRoundTrip(ChatItem.self, from: data)
             if type == "unsupported" {

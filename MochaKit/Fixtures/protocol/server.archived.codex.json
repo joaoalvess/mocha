@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "type": "archived",
+  "payload": {
+    "sessions": [
+      {
+        "id": "d9a36f15-7b82-4e61-927f-b38c82055144",
+        "provider": "codex",
+        "title": "Codex no laboratório",
+        "workspaceLabel": "Mocha",
+        "reason": "ended",
+        "endedAt": "2026-09-27T20:00:00.000Z"
+      }
+    ]
+  }
+}

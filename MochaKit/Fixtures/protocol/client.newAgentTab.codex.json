@@ -1,0 +1,9 @@
+{
+  "v": 2,
+  "id": "c-20",
+  "type": "newAgentTab",
+  "payload": {
+    "workspaceId": "w17",
+    "kind": "codex"
+  }
+}

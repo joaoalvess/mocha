@@ -53,7 +53,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
             "notice", "unsupported",
         ]
         let bundled = dataset.chats.filter { $0.agentId != DemoLongChat.agentId }
-        #expect(bundled.count == 5)
+        #expect(bundled.count == 6)
         #expect(Set(bundled.flatMap { $0.items.map { kindName($0.kind) } }) == everyKind)
         for chat in bundled {
             #expect(Set(chat.items.map(\.id)).count == chat.items.count, "\(chat.agentId) repete ids")
@@ -129,12 +129,12 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
         #expect(DemoLongChat.items() == DemoLongChat.items())
     }
 
-    @Test func everyClaudeAgentInTheTreeHasAChatWithTheSameStatus() throws {
+    @Test func everySupportedAgentInTheTreeHasAChatWithTheSameStatus() throws {
         let agents = dataset.workspaces.allAgents
-        let claudeAgents = agents.filter { $0.kind == "claude" }
-        #expect(claudeAgents.count == dataset.chats.count)
+        let supportedAgents = agents.filter { $0.kind == "claude" || $0.kind == "codex" }
+        #expect(supportedAgents.count == dataset.chats.count)
         #expect(agents.contains { $0.kind != "claude" })
-        for agent in claudeAgents {
+        for agent in supportedAgents {
             let chat = try #require(dataset.chats.first { $0.agentId == agent.id }, "\(agent.id) sem chat")
             #expect(chat.meta.status == agent.status)
             #expect(chat.meta.title == agent.title)
@@ -155,7 +155,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
             .deletingLastPathComponent()
             .appending(path: "Sources/MochaDemo/Resources", directoryHint: .isDirectory)
         let files = try FileManager.default.contentsOfDirectory(at: resources, includingPropertiesForKeys: nil)
-        #expect(files.count == 8)
+        #expect(files.count == 9)
         var texts = try files.map { ($0.lastPathComponent, try String(contentsOf: $0, encoding: .utf8)) }
         let generated = try JSONEncoder().encode(DemoLongChat.chat())
         texts.append(("chat gerado", String(decoding: generated, as: UTF8.self)))

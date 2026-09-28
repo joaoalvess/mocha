@@ -13,6 +13,7 @@ public enum ArchiveReason: String, Codable, Sendable, Hashable {
 
 public struct ArchivedSession: Codable, Sendable, Hashable, Identifiable {
     public var id: String
+    public var provider: AgentProvider
     public var agentId: AgentID?
     public var title: String
     public var workspaceLabel: String
@@ -27,6 +28,7 @@ public struct ArchivedSession: Codable, Sendable, Hashable, Identifiable {
 
     public init(
         id: String,
+        provider: AgentProvider = .claude,
         agentId: AgentID? = nil,
         title: String,
         workspaceLabel: String,
@@ -40,6 +42,7 @@ public struct ArchivedSession: Codable, Sendable, Hashable, Identifiable {
         lastActivityAt: Date? = nil
     ) {
         self.id = id
+        self.provider = provider
         self.agentId = agentId
         self.title = title
         self.workspaceLabel = workspaceLabel
@@ -54,13 +57,14 @@ public struct ArchivedSession: Codable, Sendable, Hashable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, agentId, title, workspaceLabel, model, branch, preview, contextLeftPercent, reason, endedAt
+        case id, provider, agentId, title, workspaceLabel, model, branch, preview, contextLeftPercent, reason, endedAt
         case sessionStartedAt, lastActivityAt
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
+        provider = try container.decodeIfPresent(AgentProvider.self, forKey: .provider) ?? .claude
         agentId = try container.decodeIfPresent(AgentID.self, forKey: .agentId)
         title = try container.decode(String.self, forKey: .title)
         workspaceLabel = try container.decode(String.self, forKey: .workspaceLabel)
@@ -77,6 +81,9 @@ public struct ArchivedSession: Codable, Sendable, Hashable, Identifiable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        if provider != .claude {
+            try container.encode(provider, forKey: .provider)
+        }
         try container.encodeIfPresent(agentId, forKey: .agentId)
         try container.encode(title, forKey: .title)
         try container.encode(workspaceLabel, forKey: .workspaceLabel)

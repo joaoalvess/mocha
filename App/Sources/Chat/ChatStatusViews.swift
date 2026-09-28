@@ -1,16 +1,16 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 struct WorkingStatusLine: View {
+    var provider: AgentProvider = .claude
     let startedAt: Date?
     let canStop: Bool
     let onStop: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
-            WorkingAsterisk()
-                .stroke(Palette.textPrimary, style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
-                .frame(width: 10, height: 10)
+            ProviderMark(provider: provider, size: 10)
                 .padding(.leading, 1)
                 .padding(.trailing, 8)
             Text("Trabalhando…")
@@ -23,7 +23,7 @@ struct WorkingStatusLine: View {
                 }
             }
             Spacer(minLength: 8)
-            StopTurnButton(isEnabled: canStop, action: onStop)
+            StopTurnButton(provider: provider, isEnabled: canStop, action: onStop)
         }
         .font(Typography.toolCard)
         .lineLimit(1)
@@ -48,6 +48,7 @@ struct WorkingAsterisk: Shape {
 }
 
 struct StopTurnButton: View {
+    var provider: AgentProvider = .claude
     let isEnabled: Bool
     let action: () -> Void
 
@@ -73,7 +74,7 @@ struct StopTurnButton: View {
         .buttonStyle(.pressable)
         .padding(-12)
         .disabled(!isEnabled)
-        .accessibilityLabel("Parar o Claude")
+        .accessibilityLabel(provider == .codex ? "Parar o Codex" : "Parar o Claude")
     }
 }
 

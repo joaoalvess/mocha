@@ -1,3 +1,3 @@
 public enum ProtocolVersion {
-    public static let current = 1
+    public static let current = 2
 }

@@ -41,6 +41,7 @@ enum StatusCommand {
             herdr: HerdrProbe(socketPath: HerdrSocketPath.resolve(override: options.value("--herdr-socket"))),
             local: LocalControlClient(socketPath: paths.controlSocket.path(percentEncoded: false)),
             serve: ServeInspector(gatewayPort: gatewayPort),
+            codex: CodexInspector(executable: CodexExecutable.resolve(home: paths.home)),
             signer: CodeSigner(),
             keyPresence: KeychainApnsKeyPresence(),
             executable: CurrentExecutable.url

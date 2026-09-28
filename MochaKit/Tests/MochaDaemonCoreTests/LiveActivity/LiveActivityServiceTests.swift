@@ -63,10 +63,10 @@ struct LiveActivityServiceTests {
         }
     }
 
-    @Test func onlyBusyClaudeAgentsStartTheCard() async throws {
+    @Test func onlyBusySupportedAgentsStartTheCard() async throws {
         try await withLiveActivity { harness in
             _ = try await harness.pairWithPushToStart()
-            try await harness.agents([LiveActivitySample.agent("w1:p2", .working, kind: "codex"), LiveActivitySample.agent("w1:p1", .idle)])
+            try await harness.agents([LiveActivitySample.agent("w1:p2", .working, kind: "unknown"), LiveActivitySample.agent("w1:p1", .idle)])
             try await harness.advance(3600)
             #expect(harness.sent.isEmpty)
 

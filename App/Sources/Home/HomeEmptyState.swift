@@ -8,12 +8,12 @@ struct HomeEmptyState: View {
     var body: some View {
         VStack(spacing: 0) {
             ClaudeTile(size: 64, cornerRadius: 18, background: Palette.claudeTile, markSize: 36)
-            Text("Nenhum Claude aberto")
+            Text("Nenhum agente aberto")
                 .font(.system(size: 19, weight: .semibold))
                 .systemLinePitch(24, size: 19)
                 .foregroundStyle(Palette.textPrimary)
                 .padding(.top, 22)
-            Text("Quando você abrir o Claude Code num workspace do Herdr no Mac, ele aparece aqui.")
+            Text("Quando você abrir Claude ou Codex num workspace do Herdr no Mac, ele aparece aqui.")
                 .font(.system(size: 15))
                 .systemLinePitch(21, size: 15)
                 .foregroundStyle(Palette.textSecondary)

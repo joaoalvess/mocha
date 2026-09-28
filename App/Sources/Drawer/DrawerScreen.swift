@@ -9,6 +9,7 @@ struct DrawerScreen: View {
     @State private var query = ""
     @State private var hint: String?
     @State private var creatingTabs: Set<WorkspaceID> = []
+    @State private var newTabWorkspaceId: WorkspaceID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,6 +60,15 @@ struct DrawerScreen: View {
                 return
             }
         }
+        .confirmationDialog("Nova tab", isPresented: Binding(
+            get: { newTabWorkspaceId != nil },
+            set: { if !$0 { newTabWorkspaceId = nil } }
+        )) {
+            Button("Claude Code") { createSelectedAgentTab(kind: .claude) }
+            Button("Codex CLI") { createSelectedAgentTab(kind: .codex) }
+        } message: {
+            Text("Escolha o agente para este workspace")
+        }
         #if DEBUG
         .task(id: session.connectionState) {
             await runDebugLaunch()
@@ -100,7 +110,7 @@ struct DrawerScreen: View {
                 row: workspace,
                 isCreatingTab: creatingTabs.contains(workspace.id),
                 action: { toggle(workspace.id) },
-                onNewTab: { createAgentTab(in: workspace.id) }
+                onNewTab: { newTabWorkspaceId = workspace.id }
             )
         case .shell(let shell):
             DrawerTabRowView(icon: .shell, title: shell.title, level: shell.level) {
@@ -109,7 +119,7 @@ struct DrawerScreen: View {
         case .agent(let agentRow):
             let agent = agentRow.agent
             DrawerTabRowView(
-                icon: agentRow.isClaude ? .claude(isWorking: agent.status == .working) : .otherAgent(isWorking: agent.status == .working),
+                icon: agentRow.isClaude ? .claude(isWorking: agent.status == .working) : agentRow.isCodex ? .codex(isWorking: agent.status == .working) : .otherAgent(isWorking: agent.status == .working),
                 title: agentRow.title,
                 branch: agentRow.branch,
                 level: agentRow.level,
@@ -117,10 +127,10 @@ struct DrawerScreen: View {
                 isSelected: isVisible(agent.id),
                 statusLabel: DrawerContent.stateText(for: agent.status)
             ) {
-                if agentRow.isClaude {
+                if agentRow.supportsChat {
                     session.openChat(.agent(agent.id))
                 } else {
-                    show(hint: Self.claudeOnlyHint)
+                    show(hint: Self.unsupportedAgentHint)
                 }
             }
         }
@@ -157,9 +167,9 @@ struct DrawerScreen: View {
     }
 
     private static let emptyTreeText = "Nenhum workspace aberto no Herdr"
-    private static let emptyRecentText = "Nenhum Claude aberto no Herdr"
+    private static let emptyRecentText = "Nenhum agente aberto no Herdr"
     private static let terminalHint = "Terminal chega na fase 2"
-    private static let claudeOnlyHint = "Chat disponível só para Claude Code"
+    private static let unsupportedAgentHint = "Chat indisponível para este agente"
 
     private var collapsed: Set<WorkspaceID> {
         DrawerContent.collapsedWorkspaces(from: storedCollapsed)
@@ -176,11 +186,17 @@ struct DrawerScreen: View {
         }
     }
 
-    private func createAgentTab(in workspaceId: WorkspaceID) {
+    private func createSelectedAgentTab(kind: AgentProvider) {
+        guard let workspaceId = newTabWorkspaceId else { return }
+        newTabWorkspaceId = nil
+        createAgentTab(in: workspaceId, kind: kind)
+    }
+
+    private func createAgentTab(in workspaceId: WorkspaceID, kind: AgentProvider = .claude) {
         guard creatingTabs.insert(workspaceId).inserted else { return }
         Task {
             do {
-                let reply = try await session.request(.newAgentTab(workspaceId: workspaceId))
+                let reply = try await session.request(.newAgentTab(workspaceId: workspaceId, kind: kind))
                 guard case .ack(let agentId?) = reply else {
                     throw AppSessionError.unexpectedReply(type: reply.type)
                 }

@@ -61,7 +61,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 
 ### §1.4 Fora de escopo
 
-Nada disto entra em nenhuma fase acima: outros agentes (Codex, Antigravity e demais), vários hosts, diff viewer, preview de dev server, temas, fontes e atalhos configuráveis, Apple Watch, iPad, criação de worktree pelo app, relay em nuvem, publicação na App Store, Android.
+Nada disto entra em nenhuma fase acima: outros agentes além de Claude e Codex (Antigravity e demais), vários hosts, diff viewer, preview de dev server, temas, fontes e atalhos configuráveis, Apple Watch, iPad, criação de worktree pelo app, relay em nuvem, publicação na App Store, Android. Codex entra na fase Codex (§13).
 
 ### §1.5 Glossário
 
@@ -2033,3 +2033,34 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | O plano e a conta vêm de chaves de `~/.claude.json` inferidas, sem leitura real pelos agentes | Só `organizationRateLimitTier` e `emailAddress`, com fallback para "Claude" sem plano; conferência do João no WP-X1 |
 | Os arquivos de subagentes e workflows (`meta.json`, `journal.jsonl`, `wf_*.json`) e a notificação de tarefa são internos do Claude Code e mudam sem aviso | Estado derivado de mais de um sinal, com o mais recente valendo (§3.5.2), leitura tolerante, fases com reserva pelo journal (§3.5.3), fixtures redigidas versionadas e o aviso de versão do `doctor` (§3.2.2) |
 | A janela de contexto do modelo é inferida pelo nome | Primeiro o `used_percent` do plugin, que vem do próprio Claude Code; a tabela de `ContextWindow` é só reserva |
+
+---
+
+## §13 Codex CLI e desktop
+
+Esta fase acrescenta Codex sem alterar os contratos específicos do Claude das §§3–8. O foco é o Codex CLI em panes do Herdr; o desktop é uma etapa posterior, somente de leitura. O spike S7 é um bloqueio técnico: se dois clientes não puderem observar e decidir a mesma thread pelo App Server, a implementação de controle para no relatório do spike, sem fallback por teclas no terminal.
+
+### §13.1 CLI e fonte de dados
+
+- O `mochad` usa o Codex App Server local por socket Unix. Ele mesmo sobe o App Server como processo filho (`codex app-server --listen unix://~/Library/Application Support/Mocha/codex.sock`) e o reinicia 5 s depois de uma queda. O executável vem de `/opt/homebrew/bin`, `/usr/local/bin` ou `~/.local/bin`; sem ele, as tabs Codex ficam indisponíveis e o `doctor` avisa. A tab Codex criada pelo Mocha roda `codex --remote unix://<socket>` no Herdr. O pane continua sendo a identidade de agente da Home; a thread do App Server é a identidade da conversa. O observador envia `thread/resume` para receber eventos e pedidos pendentes; `thread/list` sozinho não o inscreve. A associação pane–thread deve ser verificável pelo daemon, pois o TUI remoto apareceu com `source=vscode` no S7 e `source` não identifica o pane.
+- Associação pane–thread (lab de 2026-09-28): com `--remote`, os hooks rodam no App Server e o Herdr não recebe `agent_session`; o `herdr agent start` expira esperando prontidão. Por isso, ao criar a tab, o daemon anota (pane, cwd, instante) e liga o pane ao próximo `thread/started` global com o mesmo cwd normalizado, numa janela de 120 s; panes no mesmo cwd são atendidos em ordem. No `/new`, com um único pane Codex naquele cwd, o pane passa para a thread nova.
+- A thread nova não tem rollout antes do primeiro turno: `thread/resume` falha com "no rollout found", mas `turn/start` funciona. O daemon repete o resume a cada 2 s até a inscrição passar. Criar a thread pelo daemon (`thread/start`) e abrir o TUI com `codex resume --remote … <id>` falha pelo mesmo motivo.
+- O status das tabs Codex vem do App Server (`thread/status/changed`, `turn/started`, `turn/completed`; pedido pendente é `blocked`), não do Herdr. Os pedidos Codex usam o prefixo `codex:` no `requestId` interno para o `respond` rotear pelo provedor.
+- `thread/list`, `thread/read` e as notificações do App Server alimentam histórico, estado, itens do chat e subagentes. `turn/start` ou `turn/steer`, `turn/interrupt` e as respostas aos pedidos do servidor fazem as ações do iPhone. O daemon não lê o JSONL do Codex como contrato e não digita aprovações no pane.
+- Um CLI já aberto fora do App Server gerenciado pode ser mostrado com os dados disponíveis, mas só recebe ações depois que a ligação pane–thread e a capacidade de controle forem verificadas. O Mocha não reinicia nem migra a sessão automaticamente.
+- A perda da conexão marca o agente como indisponível para ações. Na reconexão, o daemon relê a thread e reconcilia itens por ID; não reenvia prompts nem decisões cuja confirmação se perdeu. O S7 validou reconexão ociosa sem duplicar itens; queda com operação em trânsito fica no WP-XC. A versão `codex-cli 0.157.1` validada em S7 entra no `doctor`. O daemon não tenta aplicar novos overrides de permissão ao retomar uma thread remota, pois o S7 recebeu `Permission overrides are not supported when resuming a remote task`.
+- O uso da conta vem de `account/rateLimits/read`; o uso da thread, de `thread/tokenUsage/updated` quando houver. A UI usa duração e reset devolvidos pela API, sem fixar janelas de 5 h e 7 dias.
+
+### §13.2 Protocolo e apresentação
+
+- O protocolo app–daemon passa a v2, com identificação de provedor para sessões e arquivos. Registros antigos sem provedor são Claude. `newAgentTab` aceita `kind` Claude ou Codex; o campo omitido significa Claude para migração dos dados e fixtures. IDs de agente do Herdr permanecem opacos.
+- `AgentSummary.controlAvailable` indica se uma tab Codex tem ligação de controle verificada; `false` desabilita envio e interrupção. A ausência do campo mantém o comportamento Claude já existente. Sessões Codex arquivadas e threads desktop usam alvo de chat distinto do alvo Claude, ainda que os IDs coincidam.
+- `openChat`, `sendPrompt`, `interrupt` e `respond` usam a mesma experiência visual dos agentes Claude, com roteamento pelo provedor no daemon. Só pedidos ainda pendentes podem ser respondidos; a primeira decisão entre terminal e iPhone vence. A origem do pedido e sua thread entram na chave interna do `PendingStore` para não confundir sessões dos dois provedores. O ID do pedido JSON-RPC é escopado à conexão que o recebeu; a resposta deve sair nessa conexão. Em Codex Default, `request_user_input` é recusado pelo App Server 0.157.1; perguntas estruturadas aparecem apenas nos modos em que a API as disponibilizar (Plan validado no S7). Essa limitação não bloqueia chat e aprovações no Default (decisão do João em 2026-09-27).
+- `PendingQuestion.id` é opcional e guarda o ID da pergunta do App Server. Respostas Codex usam esse ID como chave; perguntas Claude sem ID continuam usando o texto da pergunta. Isso evita confundir duas perguntas Codex com texto igual.
+- Home, gaveta, Detalhe, chat, Uso, notificações e Live Activity mostram o provedor e usam o nome “Codex” no texto relativo a agentes Codex. O seletor de nova tab oferece Claude como opção inicial e Codex. UI nova ou alterada segue o mock da §6.2, que deve ganhar os estados Codex antes da implementação da tela.
+- O app e o daemon devem informar incompatibilidade de versão em vez de interpretar mensagens v1 como v2. O modo demo recebe fixtures dos dois provedores.
+
+### §13.3 Desktop, após o aceite do CLI
+
+- O desktop fornece `thread/list` e leitura paginada pelo App Server sem `thread/resume`, envio, interrupção ou resposta. A Home mostra até 20 conversas recentes; a gaveta pagina o histórico inteiro. As conversas desktop não se associam a panes Herdr.
+- Uma conexão separada pode devolver `notLoaded` para uma conversa ativa no desktop; nesse caso o Mocha mostra estado desconhecido. Hooks `SessionStart`, `UserPromptSubmit`, `Stop`, `PermissionRequest`, `Interrupt` e `SessionEnd` podem complementar estado e alertas, mas sua configuração exata deve ser revista pelo João antes da instalação real. A leitura não depende dos hooks.

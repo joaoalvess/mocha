@@ -76,6 +76,21 @@ public enum DoctorChecks {
         }
     }
 
+    public static func codex(executable: String?, version: String?, socketReady: Bool) -> DoctorItem {
+        guard let executable else {
+            return DoctorItem("Codex", .warning, "codex não encontrado; tabs Codex ficam indisponíveis")
+        }
+        let summary = "\(version ?? "versão desconhecida") · \(executable) · App Server \(socketReady ? "no ar" : "fora do ar")"
+        var notes: [String] = []
+        if let version, ClaudeCodeVersion.isNewer(version, than: CodexExecutable.lastValidatedVersion) {
+            notes.append("versão mais nova que a \(CodexExecutable.lastValidatedVersion) validada")
+        }
+        if !socketReady {
+            notes.append("o mochad sobe o App Server; rode o mochad e confira de novo")
+        }
+        return DoctorItem("Codex", notes.isEmpty ? .ok : .warning, summary, details: notes)
+    }
+
     public static func serve(_ diagnosis: ServeDiagnosis, setupCommand: String, expectedTarget: String) -> DoctorItem {
         switch diagnosis {
         case .ready(let host):

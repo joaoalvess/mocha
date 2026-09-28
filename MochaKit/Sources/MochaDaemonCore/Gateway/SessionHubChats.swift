@@ -14,6 +14,11 @@ extension SessionHub {
                 send(.agentNotFound, id: id, to: clientId)
                 return
             }
+            if agent.kind == TreeComposer.codexKind {
+                let threadId = await codex?.threadId(for: resolved)
+                await openCodexChat(.agent(resolved), threadId: threadId, before: before, limit: limit, id: id, clientId: clientId)
+                return
+            }
             guard agent.kind == TreeComposer.claudeKind else {
                 send(.notClaude, id: id, to: clientId)
                 return
@@ -31,6 +36,9 @@ extension SessionHub {
             }
             target = requested
             sessionId = requestedSessionId
+        case .codexThread(let threadId):
+            await openCodexChat(requested, threadId: threadId, before: before, limit: limit, id: id, clientId: clientId)
+            return
         case .subagent(let requestedSessionId, let agentId):
             guard let transcript = await resolveSubagentTranscript(sessionId: requestedSessionId, agentId: agentId, id: id, clientId: clientId) else {
                 return
@@ -63,6 +71,8 @@ extension SessionHub {
                 send(.sessionNotFound, id: id, to: clientId)
                 return
             }
+            removeChat(at: target, clientId: clientId)
+        case .codexThread:
             removeChat(at: target, clientId: clientId)
         case .subagent(let sessionId, let agentId):
             if clients[clientId]?.chats[target] == nil,
@@ -260,6 +270,8 @@ extension SessionHub {
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta)
         case .session:
             return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
+        case .codexThread:
+            return ChatMeta(title: "Codex", workspaceLabel: "", status: .unknown)
         case .subagent(let sessionId, let agentId):
             return subagentChatMeta(sessionId: sessionId, agentId: agentId, meta: subagentMeta)
         }

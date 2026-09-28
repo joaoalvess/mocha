@@ -112,7 +112,7 @@ struct ChatConversation: View {
                         .padding(.bottom, ChatRowSpacing.standard)
                 }
                 if showsWorkingLine {
-                    WorkingStatusLine(startedAt: agent?.turnStartedAt, canStop: isConnected) { stop() }
+                    WorkingStatusLine(provider: provider, startedAt: agent?.turnStartedAt, canStop: isConnected && controlAvailable) { stop() }
                         .padding(.horizontal, Metrics.contentMargin)
                         .padding(.bottom, ChatRowSpacing.standard)
                 }
@@ -160,6 +160,7 @@ struct ChatConversation: View {
 
     private var agentHeader: some View {
         ChatHeaderBar(
+            provider: provider,
             indicator: indicator,
             title: title,
             subtitle: subtitle,
@@ -177,13 +178,14 @@ struct ChatConversation: View {
         if isSubagent {
             SubagentStatePill(status: subagentInfo?.status ?? .running)
         } else if isReadOnly {
-            ReadOnlyComposerPill()
+            ReadOnlyComposerPill(text: controlAvailable ? "Sessão encerrada · só leitura" : "Controle indisponível nesta tab Codex")
         } else {
             ChatComposer(
                 draft: $draft,
                 isExpanded: $isComposing,
                 isFocused: $isFieldFocused,
                 attachments: attachments,
+                showsSlashMenu: provider == .claude,
                 onSend: send,
                 onSlashAction: runSlashAction
             )
@@ -230,9 +232,20 @@ struct ChatConversation: View {
 
     private var isReadOnly: Bool {
         switch liveTarget {
-        case .agent: false
-        case .session, .subagent: true
+        case .agent: !controlAvailable
+        case .session, .codexThread, .subagent: true
         }
+    }
+
+    private var controlAvailable: Bool {
+        guard let agent else { return true }
+        return agent.kind != AgentKind.codex || agent.controlAvailable == true
+    }
+
+    private var provider: AgentProvider {
+        if case .codexThread = liveTarget { return .codex }
+        if let archived { return archived.provider }
+        return agent?.kind == AgentKind.codex ? .codex : .claude
     }
 
     private var isSubagent: Bool {
@@ -272,8 +285,14 @@ struct ChatConversation: View {
     }
 
     private var archived: ArchivedSession? {
-        guard case .session(let sessionId) = liveTarget else { return nil }
-        return session.archivedSessions.first { $0.id == sessionId }
+        switch liveTarget {
+        case .session(let sessionId):
+            return session.archivedSessions.first { $0.id == sessionId && $0.provider == .claude }
+        case .codexThread(let threadId):
+            return session.archivedSessions.first { $0.id == threadId && $0.provider == .codex }
+        case .agent, .subagent:
+            return nil
+        }
     }
 
     private var status: AgentStatus {

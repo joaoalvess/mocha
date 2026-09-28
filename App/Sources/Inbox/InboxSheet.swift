@@ -62,7 +62,8 @@ struct InboxSheet: View {
 
     private func card(for request: PendingRequest) -> some View {
         let agent = session.workspaces.agent(withId: request.agentId)
-        let title = agent.map(\.title).flatMap { $0.isEmpty ? nil : $0 } ?? PendingText.unknownAgent
+        let name = agent.map(\.title).flatMap { $0.isEmpty ? nil : $0 } ?? PendingText.unknownAgent
+        let title = agent?.kind == AgentKind.codex ? "Codex · \(name)" : name
         return PendingRequestCard(
             request: request,
             heading: .inbox(agentTitle: title, workspace: agent?.workspaceLabel) {

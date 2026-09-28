@@ -1,4 +1,5 @@
 import Foundation
+import MochaProtocol
 import MochaTranscript
 
 public enum PushAlertKind: String, Sendable, Equatable {
@@ -29,10 +30,11 @@ enum PushAlertText {
     static let questionCategory = "QUESTION"
     static let planCategory = "PLAN"
 
-    static func title(_ kind: PushAlertKind, workspaceLabel: String?) -> String {
+    static func title(_ kind: PushAlertKind, workspaceLabel: String?, provider: AgentProvider? = nil) -> String {
+        let name = provider == .codex ? "Codex" : "Claude"
         let base = switch kind {
-        case .turnDone: "Claude terminou"
-        case .needsInput: "Claude precisa de você"
+        case .turnDone: "\(name) terminou"
+        case .needsInput: "\(name) precisa de você"
         }
         return title(base, workspaceLabel: workspaceLabel)
     }
@@ -40,6 +42,22 @@ enum PushAlertText {
     static func title(_ base: String, workspaceLabel: String?) -> String {
         guard let label = workspaceLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty else { return base }
         return base + " · " + label
+    }
+
+    static func codexNeedsInputBody(_ kind: PendingKind) -> String {
+        switch kind {
+        case .permission(_, let summary, _):
+            return String(firstNonEmptyLine(summary).prefix(summaryLimit))
+        case .question(let questions):
+            return PlainText.preview(fromMarkdown: questions.first?.question ?? "", limit: bodyLimit)
+        }
+    }
+
+    static func codexCategory(_ kind: PendingKind) -> String {
+        switch kind {
+        case .permission: permissionCategory
+        case .question: PushAlertKind.needsInput.category
+        }
     }
 
     static func turnDoneBody(_ lastAssistantMessage: String?) -> String {
