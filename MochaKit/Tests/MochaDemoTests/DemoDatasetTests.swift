@@ -53,7 +53,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
             "notice", "unsupported",
         ]
         let bundled = dataset.chats.filter { $0.agentId != DemoLongChat.agentId }
-        #expect(bundled.count == 5)
+        #expect(bundled.count == 6)
         #expect(Set(bundled.flatMap { $0.items.map { kindName($0.kind) } }) == everyKind)
         for chat in bundled {
             #expect(Set(chat.items.map(\.id)).count == chat.items.count, "\(chat.agentId) repete ids")

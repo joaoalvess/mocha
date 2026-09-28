@@ -26,6 +26,11 @@ public actor DemoServerConnection: ServerConnection {
 
     No uso real, o prompt vai para o Claude Code no Mac pelo `mochad`, e a resposta aparece aqui assim que o Claude a grava no transcript.
     """
+    static let codexReplyMarkdown = """
+    Isto é o **modo demo** do Mocha: nenhuma mensagem saiu do iPhone.
+
+    No uso real, o prompt vai para o Codex CLI no Mac pelo `mochad`, e a resposta aparece aqui quando o turno é atualizado.
+    """
 
     private enum SessionSource {
         case live(DemoChat)
@@ -203,13 +208,19 @@ public actor DemoServerConnection: ServerConnection {
         case .openChat(.agent(let agentId), let before, let limit):
             openChat(agentId: agentId, before: before, limit: limit, id: id)
         case .openChat(.session(let sessionId), let before, let limit):
-            openSessionChat(sessionId: sessionId, before: before, limit: limit, id: id)
+            openSessionChat(sessionId: sessionId, provider: .claude, before: before, limit: limit, id: id)
+        case .openChat(.codexThread(let threadId), let before, let limit):
+            openSessionChat(sessionId: threadId, provider: .codex, before: before, limit: limit, id: id)
         case .closeChat(.agent(let agentId)):
             openChats.remove(currentId(for: agentId))
             reply(id, .ack())
         case .closeChat(.session(let sessionId)):
             guard sessionSource(sessionId, replyingTo: id) != nil else { return }
             openSessions.remove(sessionId)
+            reply(id, .ack())
+        case .closeChat(.codexThread(let threadId)):
+            guard sessionSource(threadId, provider: .codex, replyingTo: id) != nil else { return }
+            openSessions.remove(threadId)
             reply(id, .ack())
         case .openChat(.subagent(let sessionId, let agentId), let before, let limit):
             openSubagentChat(sessionId: sessionId, agentId: agentId, before: before, limit: limit, id: id)
@@ -219,8 +230,8 @@ public actor DemoServerConnection: ServerConnection {
             reply(id, .ack())
         case .listSubagents(let agentId):
             listSubagents(agentId: agentId, id: id)
-        case .archive(let sessionId):
-            archive(sessionId: sessionId, id: id)
+        case .archive(let sessionId, let provider):
+            archive(sessionId: sessionId, provider: provider, id: id)
         case .sendPrompt(let agentId, let text):
             sendPrompt(agentId: agentId, text: text, id: id)
         case .interrupt(let agentId):
@@ -241,20 +252,20 @@ public actor DemoServerConnection: ServerConnection {
             reply(id, .ack())
         case .respond:
             fail(id, .requestNotFound, "Pedido não encontrado.")
-        case .newAgentTab(let workspaceId):
-            newAgentTab(in: workspaceId, id: id)
+        case .newAgentTab(let workspaceId, let kind):
+            newAgentTab(in: workspaceId, kind: kind, id: id)
         case .unknown:
             fail(id, .unknownType, "Tipo de mensagem desconhecido: \(message.type).")
         }
     }
 
-    private func claudeChat(_ agentId: AgentID, replyingTo id: String) -> DemoChat? {
+    private func agentChat(_ agentId: AgentID, replyingTo id: String) -> DemoChat? {
         let current = currentId(for: agentId)
         guard let agent = workspaces.agent(withId: current) else {
             fail(id, .agentNotFound, Self.agentNotFoundMessage)
             return nil
         }
-        guard agent.kind == "claude" else {
+        guard agent.kind == "claude" || agent.kind == "codex" else {
             fail(id, .invalidPayload, Self.claudeOnlyMessage)
             return nil
         }
@@ -265,15 +276,15 @@ public actor DemoServerConnection: ServerConnection {
         return chat
     }
 
-    private func sessionSource(_ sessionId: String, replyingTo id: String) -> SessionSource? {
+    private func sessionSource(_ sessionId: String, provider: AgentProvider = .claude, replyingTo id: String) -> SessionSource? {
         guard UUID(uuidString: sessionId) != nil else {
             fail(id, .invalidPayload, Self.invalidSessionMessage)
             return nil
         }
-        if let agent = workspaces.agent(withSessionId: sessionId), let chat = chats[agent.id] {
+        if let agent = workspaces.agent(withSessionId: sessionId), agent.kind == provider.rawValue, let chat = chats[agent.id] {
             return .live(chat)
         }
-        if let chat = sessionChats[sessionId] {
+        if let chat = sessionChats[sessionId], chat.session.provider == provider {
             return .archived(chat)
         }
         fail(id, .sessionNotFound, Self.sessionNotFoundMessage)
@@ -290,7 +301,7 @@ public actor DemoServerConnection: ServerConnection {
     }
 
     private func openChat(agentId: AgentID, before: String?, limit: Int?, id: String) {
-        guard let chat = claudeChat(agentId, replyingTo: id) else { return }
+        guard let chat = agentChat(agentId, replyingTo: id) else { return }
         guard let page = page(of: chat.items, target: .agent(chat.agentId), meta: chat.meta, before: before, limit: limit, id: id) else {
             return
         }
@@ -298,9 +309,9 @@ public actor DemoServerConnection: ServerConnection {
         reply(id, .chatPage(page))
     }
 
-    private func openSessionChat(sessionId: String, before: String?, limit: Int?, id: String) {
-        guard let source = sessionSource(sessionId, replyingTo: id) else { return }
-        let target = ChatTarget.session(sessionId)
+    private func openSessionChat(sessionId: String, provider: AgentProvider, before: String?, limit: Int?, id: String) {
+        guard let source = sessionSource(sessionId, provider: provider, replyingTo: id) else { return }
+        let target = provider == .codex ? ChatTarget.codexThread(sessionId) : .session(sessionId)
         guard let page = page(of: source.items, target: target, meta: source.meta, before: before, limit: limit, id: id) else {
             return
         }
@@ -390,8 +401,8 @@ public actor DemoServerConnection: ServerConnection {
         )
     }
 
-    private func archive(sessionId: String, id: String) {
-        guard let agent = workspaces.agent(withSessionId: sessionId) else {
+    private func archive(sessionId: String, provider: AgentProvider, id: String) {
+        guard let agent = workspaces.agent(withSessionId: sessionId), agent.kind == provider.rawValue else {
             return fail(id, .sessionNotFound, Self.sessionNotFoundMessage)
         }
         let now = Date()
@@ -401,7 +412,10 @@ public actor DemoServerConnection: ServerConnection {
     }
 
     private func sendPrompt(agentId: AgentID, text: String, id: String) {
-        guard let chat = claudeChat(agentId, replyingTo: id) else { return }
+        guard let chat = agentChat(agentId, replyingTo: id) else { return }
+        guard workspaces.agent(withId: chat.agentId)?.controlAvailable != false else {
+            return fail(id, .codexUnavailable, "Controle indisponível nesta tab Codex.")
+        }
         guard chat.meta.status != .blocked else {
             return fail(id, .agentBlocked, Self.agentBlockedMessage)
         }
@@ -439,9 +453,10 @@ public actor DemoServerConnection: ServerConnection {
         let current = currentId(for: agentId)
         turns[current] = nil
         let now = Date()
+        let markdown = workspaces.agent(withId: current)?.kind == "codex" ? Self.codexReplyMarkdown : Self.replyMarkdown
         append(
             [
-                ChatItem(id: Self.newItemId(), at: now, kind: .assistantText(markdown: Self.replyMarkdown)),
+                ChatItem(id: Self.newItemId(), at: now, kind: .assistantText(markdown: markdown)),
                 ChatItem(id: Self.newItemId(), at: now, kind: .turnFooter(durationMs: Self.milliseconds(from: startedAt, to: now))),
             ],
             to: current
@@ -450,14 +465,17 @@ public actor DemoServerConnection: ServerConnection {
     }
 
     private func interrupt(agentId: AgentID, id: String) {
-        guard let chat = claudeChat(agentId, replyingTo: id) else { return }
+        guard let chat = agentChat(agentId, replyingTo: id) else { return }
+        guard workspaces.agent(withId: chat.agentId)?.controlAvailable != false else {
+            return fail(id, .codexUnavailable, "Controle indisponível nesta tab Codex.")
+        }
         reply(id, .ack())
         turns.removeValue(forKey: chat.agentId)?.cancel()
         guard chat.meta.status == .working else { return }
         setStatus(.idle, for: chat.agentId)
     }
 
-    private func newAgentTab(in workspaceId: WorkspaceID, id: String) {
+    private func newAgentTab(in workspaceId: WorkspaceID, kind: AgentProvider, id: String) {
         guard workspaces.workspace(withId: workspaceId) != nil else {
             return fail(id, .invalidPayload, DemoNewAgentTab.workspaceNotFoundMessage)
         }
@@ -468,11 +486,11 @@ public actor DemoServerConnection: ServerConnection {
             } catch {
                 return
             }
-            await self?.openAgentTab(in: workspaceId, id: id, handshake: handshake)
+            await self?.openAgentTab(in: workspaceId, kind: kind, id: id, handshake: handshake)
         }
     }
 
-    private func openAgentTab(in workspaceId: WorkspaceID, id: String, handshake: Int) {
+    private func openAgentTab(in workspaceId: WorkspaceID, kind: AgentProvider, id: String, handshake: Int) {
         let isSameConnection = state == .connected && handshakeCount == handshake
         guard let workspace = workspaces.workspace(withId: workspaceId) else {
             if isSameConnection {
@@ -484,7 +502,7 @@ public actor DemoServerConnection: ServerConnection {
             .union(movedAgents.keys)
             .union(movedAgents.values)
             .union(DemoScript.reservedAgentIds)
-        let newTab = DemoNewAgentTab(in: workspace, takenAgentIds: takenAgentIds, now: Date())
+        let newTab = DemoNewAgentTab(in: workspace, kind: kind, takenAgentIds: takenAgentIds, now: Date())
         chats[newTab.agentId] = newTab.chat
         workspaces.updateWorkspace(withId: workspaceId) { workspace in
             workspace.tabs.append(newTab.tab)
@@ -497,7 +515,10 @@ public actor DemoServerConnection: ServerConnection {
     }
 
     private func runSlash(agentId: AgentID, command: String, id: String) {
-        guard let chat = claudeChat(agentId, replyingTo: id) else { return }
+        guard let chat = agentChat(agentId, replyingTo: id) else { return }
+        guard workspaces.agent(withId: chat.agentId)?.kind == "claude" else {
+            return fail(id, .invalidPayload, "Comandos ↻ indisponíveis no Codex.")
+        }
         guard chat.meta.status != .blocked else {
             return fail(id, .agentBlocked, Self.agentBlockedMessage)
         }
@@ -587,7 +608,8 @@ public actor DemoServerConnection: ServerConnection {
             emit(message(.agent(agentId)))
         }
         if let sessionId = workspaces.agent(withId: agentId)?.sessionId, openSessions.contains(sessionId) {
-            emit(message(.session(sessionId)))
+            let provider: AgentProvider = workspaces.agent(withId: agentId)?.kind == "codex" ? .codex : .claude
+            emit(message(provider == .codex ? .codexThread(sessionId) : .session(sessionId)))
         }
     }
 

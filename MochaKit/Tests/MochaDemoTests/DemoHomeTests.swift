@@ -167,7 +167,7 @@ private func age(_ date: Date?, at now: Date) throws -> TimeInterval {
         let empty = try DemoDataset.bundled(now: launch, isEmpty: true)
         #expect(empty.workspaces.map(\.id) == dataset.workspaces.map(\.id))
         #expect(!empty.workspaces.allAgents.contains { $0.kind == "claude" })
-        #expect(empty.workspaces.allAgents.contains { $0.kind == "codex" })
+        #expect(!empty.workspaces.allAgents.contains { $0.kind == "codex" })
         #expect(empty.chats.isEmpty)
         #expect(empty.archived.isEmpty)
         #expect(empty.usage.windows.map(\.usedPercent) == [3, 64])

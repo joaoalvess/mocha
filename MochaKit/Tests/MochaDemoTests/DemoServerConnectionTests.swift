@@ -55,16 +55,16 @@ struct DemoServerConnectionTests {
         #expect(error.code == .invalidPayload)
     }
 
-    @Test func openChatRejectsAgentsThatAreNotClaude() async throws {
+    @Test func codexWithoutControlOpensForReadingButRejectsPrompt() async throws {
         let harness = try DemoHarness()
         let codex = try #require(harness.dataset.workspaces.agent(withId: "w4:p3"))
         #expect(codex.kind != "claude")
         try await harness.connect()
 
-        let error = try await harness.error(for: .openChat(target: .agent(codex.id)))
-
-        #expect(error.code == .invalidPayload)
-        #expect(error.message == "Chat disponível só para Claude Code.")
+        let page = try await harness.page(codex.id)
+        #expect(page.items.last?.kind == .assistantText(markdown: "O build foi concluído."))
+        let error = try await harness.error(for: .sendPrompt(agentId: codex.id, text: "oi"))
+        #expect(error.code == .codexUnavailable)
     }
 
     @Test func openChatRejectsUnknownAgents() async throws {

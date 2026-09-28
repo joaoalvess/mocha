@@ -76,7 +76,7 @@ struct DemoDataset: Sendable {
         try dataset.addLongChat()
         try dataset.addSubagents()
         if isEmpty {
-            dataset = dataset.withoutClaude(usage: usage.empty)
+            dataset = dataset.withoutSupportedAgents(usage: usage.empty)
         }
         return dataset.shifted(by: now.timeIntervalSince(anchor))
     }
@@ -119,8 +119,8 @@ struct DemoDataset: Sendable {
         chats[index].items = (chats[index].items + items).sorted { $0.at < $1.at }
     }
 
-    private func withoutClaude(usage: UsageSnapshot) -> DemoDataset {
-        DemoDataset(workspaces: workspaces.map { $0.withoutClaude() }, chats: [], sessionChats: [], usage: usage)
+    private func withoutSupportedAgents(usage: UsageSnapshot) -> DemoDataset {
+        DemoDataset(workspaces: workspaces.map { $0.withoutSupportedAgents() }, chats: [], sessionChats: [], usage: usage)
     }
 
     private func shifted(by interval: TimeInterval) -> DemoDataset {
