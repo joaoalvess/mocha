@@ -1,4 +1,3 @@
-import MochaClient
 import SwiftUI
 import UIKit
 
@@ -19,7 +18,6 @@ struct RootPager: View {
                 .offset(x: historyOffset + width + dragOffset)
                 .allowsHitTesting(session.rootPage == .start)
         }
-        .clipped()
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .gesture(
             PagerSwipeGesture(
@@ -100,7 +98,7 @@ private struct PagerSwipeGesture: UIGestureRecognizerRepresentable {
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer, let view = pan.view else { return false }
             let velocity = pan.velocity(in: view)
-            guard HomeCardSwipe.begins(velocityX: velocity.x, velocityY: velocity.y) else { return false }
+            guard abs(velocity.x) > abs(velocity.y) else { return false }
             guard page == .start ? velocity.x > 0 : velocity.x < 0 else { return false }
             return !startsInHorizontalScroll(pan, in: view)
         }
