@@ -1442,7 +1442,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
 - **Deep links**: `mocha://agent/<paneId>` abre o chat por cima da Home (substitui o chat aberto, se houver) e `mocha://pair?url=…&code=…` inicia o pareamento, lido com `PairingLink`. O `paneId` vai percent-encoded, porque contém `:`. Os testes abrem deep links pelo argumento de launch `-open-url <url>` (só em Debug) e por teste unitário, nunca por `simctl openurl` (o aviso "Open in Mocha?" trava o simulador).
-- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), `-demo-offline` (junto com `-demo`, a conexão cai logo depois de entregar a árvore, as arquivadas e o uso, e fica em `waitingToRetry(.unreachable)`: Home sem conexão), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-open-settings` (abre Ajustes ao iniciar, para a captura da tela 12), só em Debug, `-pairing-error <unreachable|daemonNotRunning|unauthorized|pairingExpired>` (par chave-valor; junto com `-demo -demo-unpaired`, troca o `pairingRequired(nil)` pelo problema, para a captura da tela 01c), só em Debug, `-open-drawer` (abre a gaveta ao iniciar, depois do `-open-url`; com `-drawer.mode recent|tree` e `-drawer.collapsedWorkspaces <ids separados por quebra de linha>` no domínio de argumentos, serve às capturas da gaveta; os pares `-chave valor` vêm antes das flags), só em Debug, `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`, ou da `MarkdownPreviewScreen` com `turn|elements|blocks|perf`), e, só em Debug e lidos dentro do chat, `-chat-open-session`, `-chat-scroll-to`, `-chat-scroll-anchor center|bottom`, `-chat-expand-tool`, `-chat-focus-composer`, `-chat-draft`, `-chat-send`, `-chat-older-delay`, `-chat-perf-sweep`, `-chat-attach-samples <n>` (par chave-valor; anexa n imagens de amostra geradas no app, antes do `-chat-focus-composer` e do `-chat-send`; com `-chat-send ''`, envia só as imagens) e `-chat-attach-menu` (com `-chat-focus-composer`, abre o menu do `+`), `-chat-slash-menu` (com `-chat-focus-composer`, abre o menu `↻`), `-chat-confirm-clear` (mostra a confirmação do `/clear`), `-chat-slash <comando>` (executa um item do menu `↻` sem confirmação) e `-chat-close-after <s>` (volta para a Home depois de s segundos) (servem às capturas e à medição do chat, §6.3 e §6.5), e, só em Debug e lidos em `Notifications/`, `-notification-tap <agentId>` (injeta um alerta de turno concluído desse agente pelo mesmo caminho do toque na notificação) e `-notification-tap-delay <s>` (atrasa essa injeção), e, só em Debug e lidos em `Drawer/`, `-drawer-new-tab <workspaceId>` (aciona o `+` desse workspace uma vez, quando a conexão chega a `.connected`), `-drawer-new-tab-delay <s>` (atrasa esse toque) e `-drawer-reopen-after <s>` (reabre a gaveta s segundos depois do toque, para a captura da tab nova), e, só em Debug e lido dentro do chat, `-chat-open-subagent <agentId>` (abre por push o transcript desse subagente da sessão do chat aberto, para as capturas 16b e 16c), e, só em Debug e lido em `Home/`, `-home-open-detail <agentId>` (abre o Detalhe desse agente ao iniciar, para a captura 18). O `-preview` é lido só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
+- **Argumentos de launch**: `-demo`, `-demo-script` (§2.2), `-demo-unpaired` (junto com `-demo`, abre em `pairingRequired(nil)`), `-demo-empty` (junto com `-demo`, árvore sem nenhum Claude: Home vazia), `-demo-offline` (junto com `-demo`, a conexão cai logo depois de entregar a árvore, as arquivadas e o uso, e fica em `waitingToRetry(.unreachable)`: Home sem conexão), e, só em Debug, `-open-url <url>` (entrega a URL ao `AppSession` como um deep link), só em Debug, `-open-settings` (abre Ajustes ao iniciar, para a captura da tela 12), só em Debug, `-pairing-error <unreachable|daemonNotRunning|unauthorized|pairingExpired>` (par chave-valor; junto com `-demo -demo-unpaired`, troca o `pairingRequired(nil)` pelo problema, para a captura da tela 01c), só em Debug, `-open-drawer` (abre a gaveta ao iniciar, depois do `-open-url` de um chat; com `-drawer.collapsedWorkspaces <ids separados por quebra de linha>` no domínio de argumentos, serve às capturas da gaveta; os pares `-chave valor` vêm antes das flags), só em Debug, `-open-history` (abre no Histórico), `-open-new-session agent|workspace` (par chave-valor; abre a folha Nova sessão no passo 1 ou no passo 2 com Claude), só em Debug, `-preview design-system|markdown` (a tela `DesignSystemPreview` ou a `MarkdownPreviewScreen`; `-preview-section <seção>` mostra uma seção só da `DesignSystemPreview`, ou da `MarkdownPreviewScreen` com `turn|elements|blocks|perf`), e, só em Debug e lidos dentro do chat, `-chat-open-session`, `-chat-scroll-to`, `-chat-scroll-anchor center|bottom`, `-chat-expand-tool`, `-chat-focus-composer`, `-chat-draft`, `-chat-send`, `-chat-older-delay`, `-chat-perf-sweep`, `-chat-attach-samples <n>` (par chave-valor; anexa n imagens de amostra geradas no app, antes do `-chat-focus-composer` e do `-chat-send`; com `-chat-send ''`, envia só as imagens) e `-chat-attach-menu` (com `-chat-focus-composer`, abre o menu do `+`), `-chat-slash-menu` (com `-chat-focus-composer`, abre o menu `↻`), `-chat-confirm-clear` (mostra a confirmação do `/clear`), `-chat-slash <comando>` (executa um item do menu `↻` sem confirmação) e `-chat-close-after <s>` (volta para a Home depois de s segundos) (servem às capturas e à medição do chat, §6.3 e §6.5), e, só em Debug e lidos em `Notifications/`, `-notification-tap <agentId>` (injeta um alerta de turno concluído desse agente pelo mesmo caminho do toque na notificação) e `-notification-tap-delay <s>` (atrasa essa injeção), e, só em Debug e lido dentro do chat, `-chat-open-subagent <agentId>` (abre por push o transcript desse subagente da sessão do chat aberto, para as capturas 16b e 16c), e, só em Debug e lido em `Home/`, `-home-open-detail <agentId>` (abre o Detalhe desse agente ao iniciar, para a captura 18). O `-preview` é lido só dos argumentos de launch (domínio de argumentos do `UserDefaults`), nunca de um valor gravado.
 
 **Conexão**: esboço normativo em `MochaProtocol`, como a §5.2.
 
@@ -1493,7 +1493,7 @@ public protocol ServerConnection: Sendable {
 **`AppSession`** (`App/Sources/AppShell/`, `@MainActor @Observable`):
 - é o único consumidor de `messages` e `states`;
 - guarda o host, as preferências, a árvore, as sessões arquivadas, o uso, o `herdrConnected`, o estado da conexão, o chat visível e a navegação;
-- **navegação**: a Home é a raiz de um `NavigationStack`; o chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda ou tocar no disco de status do header. A gaveta é uma camada por cima (sem gesto de borda), aberta pelo botão esquerdo da Home e pela bússola do chat. Detalhe do agente, Uso e Ajustes são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
+- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`); arrastar da esquerda para a direita na Início (ou o botão de relógio) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é só tocar no disco de status do header. A gaveta é uma camada por cima que só existe dentro do chat, aberta arrastando da borda esquerda. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
 - **chat de subagente** (fase subagentes): entra por push sobre a pilha atual (o chat pai, outro transcript de subagente ou, a partir do Detalhe, a pilha que está sob a folha: a Home ou o chat que abriu o Detalhe), e voltar volta à tela de baixo. Os chats da pilha ficam abertos no daemon (sem `closeChat`) enquanto estão nela, e cada um recebe `closeChat` ao sair dela;
 - correlaciona as respostas pelo id;
 - ao voltar para `.connected`, reabre com `openChat` o chat visível e os que estão abaixo dele na pilha, e substitui as listas;
@@ -1567,8 +1567,19 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - "Código vencido; gere outro com `mochad pair`" (`pairingExpired`);
   - "Este iPhone não está mais pareado" (`unauthorized`).
 
-**Home** (`02-home`, `02b-home-sem-conexao`, `02c-home-vazia`)
-- Tela inicial. Botão redondo à esquerda abre a gaveta; engrenagem à direita abre Ajustes (na 1b, o sino da Inbox fica ao lado dela, com a contagem).
+**Início** (`21-inicio`, `21e-inicio-vazia`)
+- Tela inicial. Topo: à esquerda, botão redondo do Histórico; à direita, uma cápsula de vidro com o sino da Inbox (contagem só quando há pedido), o globo desabilitado (reservado ao preview web) e a engrenagem de Ajustes. Abaixo, a barra "Buscar", só visual por enquanto. Sem conexão, a cápsula "Sem conexão com o Mac" fica logo abaixo da busca.
+- RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
+- Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os mesmos cards do Histórico. Sem a pílula de uso.
+- Botão + verde (60 pt) no canto inferior direito: abre a folha Nova sessão.
+- Vazia: "Nenhum agente aberto no Herdr" e "Toque em + para abrir uma tab com Claude ou Codex num workspace."
+
+**Nova sessão** (`21b-nova-sessao-agente`, `21c-nova-sessao-workspace`, `21d-nova-sessao-abrindo`)
+- Folha `drawerBg` na altura do conteúdo, sem título, X ou indicador de passo. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": os workspaces (inclusive worktrees) com nome, branch e `*` em `dirty`.
+- Tocar num workspace manda `newAgentTab{workspaceId, kind}` e mostra só um indicador de progresso na linha. No `ack{agentId}`, a folha fecha e o chat abre por push; um erro aparece no rodapé. Fechar (arrastar ou tocar fora) e reabrir volta ao passo 1.
+
+**Histórico** (`22-historico`)
+- Tela irmã da Início, à esquerda. Título "Histórico" e, à direita, o botão de casa que volta à Início. Sem engrenagem e sem sino.
 - Mostra só agentes com `kind == "claude"` e as sessões de `archived`. Seções, nesta ordem, cada uma só quando tem card:
   - **PRECISA DE VOCÊ**: `status == blocked`. Card com borda âmbar;
   - **TRABALHANDO**: `status == working`;
@@ -1583,7 +1594,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - tocar abre o chat (`agentId`, ou `sessionId` numa `ArchivedSession`); segurar abre o Detalhe; arrastar para a esquerda um card de CONCLUÍDOS manda `archive{sessionId}` (a ação "Arquivar"). Os outros cards não arrastam.
 - **Pílula de uso** flutuante no rodapé (`glassPill`): asterisco, "5h" com barra e %, divisória, "7d" com barra e %. Tocar abre o Uso. Some sem `usage`.
 - **Sem conexão**: a lista fica com o último estado conhecido, anéis parados em cinza, e uma cápsula no topo ("Sem conexão com o Mac", ou a mensagem do estado) abre Ajustes. Nada some; a reconexão é automática.
-- **Vazia**: nenhum agente Claude nem sessão arquivada. Texto "Nenhum Claude aberto no Herdr" e o botão "Ver workspaces", que abre a gaveta.
+- **Vazio**: nenhum agente nem sessão arquivada. Texto "Nenhum agente aberto", sem botão.
 
 **Uso do plano** (`03-uso-plano`)
 - Folha média sobre a Home (arrastar fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
@@ -1602,11 +1613,11 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Chat** (`05-chat-inicio-turno`, `05b-chat-fim-turno`, `06-card-expandido`, `07-chat-trabalhando`)
 - **Header flutuante de vidro** (`glassChat`), com:
-  - disco de status (§6.2); tocar volta à Home;
+  - disco de status (§6.2); tocar volta à Início (ou ao Histórico, conforme a página raiz);
   - asterisco do Claude e título (truncado no meio); tocar no título abre o Detalhe;
   - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
-  - bússola, que abre a gaveta.
+  - bússola, desabilitada (reservada ao preview web).
   - O conteúdo rola por baixo do header e do composer.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
@@ -1643,20 +1654,20 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Aprovação: ferramenta, resumo, "Ver entrada completa" (abre o JSON do input) e os botões "Permitir" e "Negar", que respondem na hora.
 - Pergunta: seleção única com rádio, múltipla com caixas, "Outro…" como resposta livre. Uma pergunta: um bloco e "Responder" (`10b`). Várias perguntas: uma por vez (`10c`, `10d`), com "<header> · N de M" e um segmento por pergunta; na seleção única, tocar numa opção avança; com caixas ou "Outro…", avança pelo "Próximo"; "Voltar" reabre a anterior com a resposta; na última, "Enviar" manda todas num `answers` só.
 
-**Gaveta** (`11-gaveta-arvore`, `11b-gaveta-recentes`)
-- Camada por cima da Home ou do chat, aberta pelo botão esquerdo da Home ou pela bússola do chat, **sem gesto de borda**. Ao abrir, fecha o teclado. Ocupa ~90 % da largura com `scrim` no restante; fecha tocando no scrim ou arrastando para a esquerda.
-- Topo: campo de busca ("Buscar workspaces, agentes…") filtrando por workspace, tab e título do agente nas duas abas, o controle segmentado **Recentes** (relógio: agentes por `lastActivityAt`, com workspace e estado) | **Árvore** (lista), e a engrenagem, que abre Ajustes.
+**Gaveta** (`11-gaveta-arvore`)
+- Camada por cima do chat, **só dentro do chat e só por gesto**: arrastar da borda esquerda para a direita. Nunca na Início nem no Histórico. Ao abrir, fecha o teclado. Ocupa ~90 % da largura com `scrim` no restante; fecha tocando no scrim ou arrastando para a esquerda; voltar do chat fecha a gaveta.
+- Topo: só o campo de busca ("Buscar workspaces, agentes…"), filtrando por workspace, tab e título do agente.
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados sob o repositório.
 - Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador. Em `working` o asterisco pulsa com brilho; em `blocked` aparece um ponto `dirty` à direita.
 - A linha do chat aberto fica com `selectedRow`. Tocar numa tab com agente fecha a gaveta e abre o chat (por push sobre a Home, substituindo o chat aberto); tocar numa tab de shell mostra "Terminal chega na fase 2" (na fase 2, abre o terminal).
-- 1a-final: botão `+` na linha de cada workspace (visual no mock, `11-gaveta-arvore`) → "Nova tab com Claude": manda `newAgentTab` e, enquanto espera (até ~30 s), troca o `+` por um indicador de progresso. No `ack{agentId}`, fecha a gaveta e abre o chat do agente novo por push sobre a Home. Um `error` aparece com a `message` no mesmo aviso da gaveta que mostra "Terminal chega na fase 2".
+- Sem `+` por workspace: nova tab é pela folha Nova sessão da Início.
 
 **Ajustes** (`12-ajustes`)
-- Folha aberta pela engrenagem da Home ou da gaveta.
+- Folha aberta pela engrenagem da Início.
 - Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com o controle "Turno concluído" (`setPreferences`, 1a-final; volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
 
 **Inbox** (1b, `13-inbox`)
-- Sino na Home, ao lado da engrenagem, com a contagem. Abre uma folha.
+- Sino na cápsula da Início, com a contagem. Abre uma folha.
 - Um cartão por `PendingRequest`, com agente, workspace e tempo, e as mesmas ações do pedido no chat.
 - Tocar no nome do agente abre o chat.
 
@@ -1675,7 +1686,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Transcript do subagente** (`16b-transcript-subagente`, `16c-transcript-concluido`)
 - `ChatScreen(target: .subagent)`, só de leitura, por push (§6.1).
-- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola abre a gaveta. Tocar no título não faz nada.
+- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola fica desabilitada. Tocar no título não faz nada.
 - **Topo da lista**, quando a página chega ao começo do arquivo (`hasMore == false`): aviso centralizado "<tipo> · <hora de startedAt> · <modelo abreviado>" (ex.: "general-purpose · 13:52 · opus-5-5"); um campo que falta sai do texto.
 - `task`: card "Tarefa" (fundo `toolCard`), com o ícone de subagente e "Tarefa" em `textSecondary`, o texto em até 4 linhas e "Ver tarefa completa" com chevron, que expande o texto inteiro.
 - A lista segue o chat; um `subagent` aninhado abre o transcript dele.
