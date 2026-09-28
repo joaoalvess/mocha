@@ -17,8 +17,6 @@ private struct UsageSheetContent: View {
     let hostName: String?
     let now: Date
 
-    static let footnote = "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
-
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
@@ -31,14 +29,6 @@ private struct UsageSheetContent: View {
                 UsageCard(usage: usage, hostName: hostName, now: now)
                     .padding(.horizontal, 20)
                     .padding(.top, 19.3)
-                Text(Self.footnote)
-                    .font(.system(size: 12))
-                    .systemLinePitch(17, size: 12)
-                    .foregroundStyle(Palette.usageFootnote)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 35)
-                    .padding(.top, 22)
             }
             Spacer(minLength: 0)
         }
@@ -53,11 +43,6 @@ private struct UsageSheetContent: View {
                 .foregroundStyle(Palette.textPrimary)
                 .accessibilityAddTraits(.isHeader)
             Spacer()
-            if let usage {
-                Text(UsagePace.updatedText(fetchedAt: usage.fetchedAt, now: now))
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.textSecondary)
-            }
         }
     }
 }
@@ -85,7 +70,12 @@ private struct UsageCard: View {
                         .foregroundStyle(Palette.textSecondary)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
+                Text(RelativeTime.text(from: usage.fetchedAt, now: now))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .padding(.horizontal, 16)
             .frame(height: 66)
