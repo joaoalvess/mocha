@@ -66,6 +66,15 @@ import Testing
         #expect(try JSONDecoder().decode(AgentSummary.self, from: encoded).controlAvailable == false)
     }
 
+    @Test func questionIdIsOptionalForClaudeAndStableForCodex() throws {
+        let claude = PendingQuestion(header: "Cor", question: "Qual cor?", options: [], multiSelect: false)
+        let codex = PendingQuestion(header: "Cor", question: "Qual cor?", options: [], multiSelect: false, id: "q-1")
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        #expect(try decoder.decode(PendingQuestion.self, from: encoder.encode(claude)).id == nil)
+        #expect(try decoder.decode(PendingQuestion.self, from: encoder.encode(codex)).id == "q-1")
+    }
+
     @Test func codexArchiveRetainsProviderAcrossRoundTrip() throws {
         let envelope = try JSONDecoder().decode(
             ServerEnvelope.self,
