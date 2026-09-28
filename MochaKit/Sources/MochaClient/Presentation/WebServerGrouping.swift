@@ -1,3 +1,4 @@
+import Foundation
 import MochaProtocol
 
 public struct WebServerGroup: Sendable, Equatable, Identifiable {
@@ -37,5 +38,19 @@ public enum WebServerGrouping {
             groups.append(WebServerGroup(id: unassignedGroupId, title: host, servers: unassigned))
         }
         return groups
+    }
+
+    public static let subtitleSeparator = " • "
+
+    public static func subtitle(for server: WebServer, workspaces: [WorkspaceNode]) -> String? {
+        if let id = server.workspaceId, let workspace = workspaces.flattenedWorkspaces.first(where: { $0.id == id }) {
+            return [workspace.repoName ?? workspace.label, workspace.branch]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+                .joined(separator: subtitleSeparator)
+        }
+        guard let directory = server.directory else { return nil }
+        let folder = URL(filePath: directory).lastPathComponent
+        return folder.isEmpty || folder == "/" ? nil : folder
     }
 }

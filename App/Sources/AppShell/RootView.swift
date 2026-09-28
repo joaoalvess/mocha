@@ -1,3 +1,4 @@
+import MochaClient
 import MochaProtocol
 import SwiftUI
 
@@ -49,6 +50,7 @@ struct RootView: View {
                         model: BrowserModel(server: page.server) { [isDemo] in
                             try await session.browserTunnel(for: page.server, isDemo: isDemo)
                         },
+                        subtitle: WebServerGrouping.subtitle(for: page.server, workspaces: session.workspaces),
                         onClose: WebPreviewOpener.close,
                         onOpenSettings: session.showSettings
                     )

@@ -2,13 +2,14 @@ import SwiftUI
 
 struct BrowserScreen: View {
     @State var model: BrowserModel
+    var subtitle: String?
     let onClose: () -> Void
     let onOpenSettings: () -> Void
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 8) {
-            BrowserBar(title: model.title, onClose: close, onReload: model.reload)
+            BrowserBar(title: model.title, subtitle: subtitle, onClose: close, onReload: model.reload)
                 .padding(.horizontal, Metrics.contentMargin)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -69,19 +70,29 @@ struct BrowserScreen: View {
 
 private struct BrowserBar: View {
     let title: String
+    let subtitle: String?
     let onClose: () -> Void
     let onReload: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
             barButton(systemImage: "xmark", label: "Fechar", action: onClose)
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Palette.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity)
-                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: 0) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .accessibilityAddTraits(.isHeader)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(Typography.headerSubtitle)
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .frame(maxWidth: .infinity)
             barButton(systemImage: "arrow.clockwise", label: "Recarregar", action: onReload)
         }
         .padding(.horizontal, 6)
