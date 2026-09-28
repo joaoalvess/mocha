@@ -52,6 +52,7 @@ public enum ServerMessage: Sendable, Hashable {
     case agentStatus(agentId: AgentID, status: AgentStatus, title: String? = nil)
     case chatPage(ChatPage)
     case subagentList(agentId: AgentID, items: [SubagentSummary])
+    case webServers(host: String, servers: [WebServer])
     case chatAppend(target: ChatTarget, items: [ChatItem])
     case chatUpdate(target: ChatTarget, items: [ChatItem])
     case chatMeta(target: ChatTarget, meta: ChatMeta)
@@ -72,6 +73,7 @@ public enum ServerMessage: Sendable, Hashable {
         case .agentStatus: "agentStatus"
         case .chatPage: "chatPage"
         case .subagentList: "subagentList"
+        case .webServers: "webServers"
         case .chatAppend: "chatAppend"
         case .chatUpdate: "chatUpdate"
         case .chatMeta: "chatMeta"
@@ -86,7 +88,7 @@ public enum ServerMessage: Sendable, Hashable {
 
 extension ServerMessage {
     private enum PayloadKey: String, CodingKey {
-        case workspaces, sessions, connected, agentId, sessionId, subagentId, provider, status, title, items, meta, requests, code, message
+        case workspaces, sessions, connected, agentId, sessionId, subagentId, provider, status, title, items, meta, requests, code, message, host, servers
     }
 
     init(type: String, envelope: KeyedDecodingContainer<EnvelopeCodingKey>) throws {
@@ -121,6 +123,12 @@ extension ServerMessage {
             self = .subagentList(
                 agentId: try payload.decode(AgentID.self, forKey: .agentId),
                 items: try payload.decodeLossyArray(of: SubagentSummary.self, forKey: .items)
+            )
+        case "webServers":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .webServers(
+                host: try payload.decode(String.self, forKey: .host),
+                servers: try payload.decodeLossyArray(of: WebServer.self, forKey: .servers)
             )
         case "chatAppend":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
@@ -185,6 +193,10 @@ extension ServerMessage {
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
             try payload.encode(items, forKey: .items)
+        case .webServers(let host, let servers):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(host, forKey: .host)
+            try payload.encode(servers, forKey: .servers)
         case .chatAppend(let target, let items), .chatUpdate(let target, let items):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
