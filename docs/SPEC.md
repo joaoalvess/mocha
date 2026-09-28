@@ -837,7 +837,7 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 - `AgentSummary.title`: `TranscriptMeta.title` (ai-title) quando existe; senão, o título do terminal do Herdr (`terminal_title_stripped`); senão, o `label` da tab; senão, "Claude Code". `ChatMeta.title` segue a mesma ordem. `AgentSummary.model` vem de `TranscriptMeta.model`.
 - `AgentSummary.branch`: `HEAD` do `foreground_cwd` (§3.1.4). `ChatMeta.branch`: `gitBranch` do transcript (§3.2.2).
 - `WorkspaceNode.agentStatus`: agregado dos agentes das tabs do próprio workspace (os worktrees filhos têm o agregado deles), com a prioridade `blocked` > `working` > `done` > `idle` > `unknown`. Workspace sem agente fica `unknown`.
-- `WorkspaceNode.repoName` = `worktree.repo_name`; sem `worktree`, `nil`. `AgentSummary.lastActivityAt` = `TranscriptMeta.lastModified`. `HostInfo.hostName` = nome do Mac (`Host.current().localizedName`).
+- `WorkspaceNode.repoName` = `worktree.repo_name`; sem `worktree`, `nil`. `AgentSummary.lastActivityAt` = `TranscriptMeta.lastModified`. `HostInfo.hostName` = nome do Mac (`Host.current().localizedName`). `HostInfo.sshUser` = `NSUserName()` e `HostInfo.sshHostKeys` = as linhas de `/etc/ssh/ssh_host_ed25519_key.pub` e `ssh_host_ecdsa_key.pub` que existirem, só tipo e base64, sem o comentário (`SSHHostIdentity`, lido uma vez na subida do daemon); sem nenhuma, `[]`.
 - `ChatMeta`: `title`, `model`, `branch` e `permissionMode` vêm do transcript; `workspaceLabel` e `status`, do Herdr.
 - **Eventos para os clientes**:
   - mudança de status gera `agentStatus` na hora e `treeChanged` com debounce de 150 ms;
@@ -1024,6 +1024,8 @@ public struct HostInfo: Codable, Sendable {
     public var hostName: String
     public var daemonVersion: String
     public var herdrConnected: Bool
+    public var sshUser: String?           // preview-web: NSUserName() do daemon
+    public var sshHostKeys: [String]?     // preview-web: "<tipo> <base64>" de /etc/ssh/ssh_host_{ed25519,ecdsa}_key.pub
 }
 
 public struct WorkspaceNode: Codable, Sendable, Identifiable {
@@ -1314,7 +1316,7 @@ Envelope completo:
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
-Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json` e `server.webServers.json`.
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json`, `server.webServers.json` e `server.helloOk.ssh.json` (com `sshUser` e `sshHostKeys`).
 
 **Cliente → servidor**
 
@@ -1991,7 +1993,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 - **Autenticação** (spike W1): a chave fica com `[.privateKeyUsage, .biometryCurrentSet]` e `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, e o `dataRepresentation` vai no Keychain. O Citadel 0.12.1 não aceita chave da Secure Enclave nos métodos prontos: a autenticação usa `SSHAuthenticationMethod.custom` com um `NIOSSHClientUserAuthenticationDelegate` próprio, que oferece `NIOSSHPrivateKey(secureEnclaveP256Key:)` uma única vez (sem novas ofertas nem novos Face ID depois de uma recusa) e completa a promise com `assumeIsolated()`. A chave do host é conferida por `SSHHostKeyValidator.custom`. `SSHClient.connect(…, reconnect: .never, connectTimeout: .seconds(10))`: quem reconecta é o app.
 - A chave é criada com `.biometryCurrentSet`, então cada assinatura (cada conexão nova, inclusive ao voltar do background) pede Face ID; o `App/Info.plist` tem `NSFaceIDUsageDescription`. No simulador, só em Debug, a chave é P-256 em software.
 - A chave pública aparece em Ajustes para colar em `~/.ssh/authorized_keys` do Mac. O Remote Login precisa estar ligado no Mac (bloqueio B5).
-- **Host**: o mesmo nome MagicDNS, porta 22, dentro do tailnet.
+- **Host**: o mesmo nome MagicDNS, porta 22, dentro do tailnet. O usuário é o `HostInfo.sshUser` do `helloOk`, e o `SSHHostKeyValidator.custom` só aceita a chave apresentada pelo servidor se ela for igual a uma das `HostInfo.sshHostKeys` (sem confiar na primeira conexão). Sem `sshHostKeys` (daemon antigo ou lista vazia), a conexão SSH é recusada com a mensagem "Atualize o mochad no Mac".
 - **Sessão**: `herdr agent attach <paneId>` pelo "Abrir terminal" do Detalhe do agente, ou `herdr` puro por uma tab de shell da gaveta (§6.3). Ao reconectar, reanexa no mesmo alvo.
 - **Barra de teclas** (`terminal.png`): Ctrl (trava), Esc, Tab, setas (joystick), prefixo do Herdr (`ctrl+space`), colar, histórico e recolher teclado. Cores em §6.2.
 
