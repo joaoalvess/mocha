@@ -91,6 +91,8 @@ public actor SessionHub {
         var subagent: SubagentTranscript?
         var subagentMeta: TranscriptMeta?
         var cards: [String: ChatItem] = [:]
+        var codexThreadId: String?
+        var codexItems: [String: ChatItem] = [:]
 
         func cancel() {
             subscription?.cancel()
@@ -152,6 +154,15 @@ public actor SessionHub {
     let liveActivityInputs: AsyncStream<LiveActivityInput>
     let liveActivityInputContinuation: AsyncStream<LiveActivityInput>.Continuation
     var liveActivityRegistrar: (any LiveActivityRegistering)?
+    var codex: CodexService?
+    var codexPanes: [AgentID: CodexPaneState] = [:]
+    var codexConnected = false
+    var codexUsage: UsageSnapshot?
+    var storePendingRequests: [PendingRequest] = []
+    var codexPendingRequests: [PendingRequest] = []
+    var codexRefreshes: [String: Task<Void, Never>] = [:]
+    let codexAlerts: AsyncStream<CodexAlert>
+    let codexAlertContinuation: AsyncStream<CodexAlert>.Continuation
 
     private var lastSentTree: [WorkspaceNode] = []
     private var liveFollows: [AgentID: LiveFollow] = [:]
@@ -198,12 +209,14 @@ public actor SessionHub {
         )
         self.liveActivityInputs = liveActivityInputs
         self.liveActivityInputContinuation = liveActivityInputContinuation
+        (codexAlerts, codexAlertContinuation) = AsyncStream.makeStream(of: CodexAlert.self)
     }
 
     public func start() async {
         guard eventsTask == nil, !isShuttingDown else { return }
         await startSessionServices()
         await startPendingUpdates()
+        startCodexUpdates()
         startSubagentServices()
         let updates = openChatUpdates
         openChatPublisher = Task { [herdr] in
@@ -245,6 +258,11 @@ public actor SessionHub {
         subagentTasks.removeAll()
         observedSessionContinuation.finish()
         liveActivityInputContinuation.finish()
+        codexAlertContinuation.finish()
+        for task in codexRefreshes.values {
+            task.cancel()
+        }
+        codexRefreshes.removeAll()
         for throttle in cardThrottles.values {
             throttle.pending?.cancel()
         }
@@ -309,7 +327,7 @@ public actor SessionHub {
     }
 
     func composedTree() -> [WorkspaceNode] {
-        TreeComposer.compose(
+        let tree = TreeComposer.compose(
             baseTree,
             metas: metas,
             contexts: pluginContexts,
@@ -317,6 +335,7 @@ public actor SessionHub {
             runningSubagents: runningSubagentCounts,
             pendingCounts: pendingCounts()
         )
+        return TreeComposer.codexOverlay(tree, panes: codexPanes, connected: codexConnected)
     }
 
     func composedAgent(_ id: AgentID) -> AgentSummary? {
@@ -325,7 +344,7 @@ public actor SessionHub {
     }
 
     func composedSummary(_ agent: AgentSummary) -> AgentSummary {
-        var agent = agent
+        var agent = TreeComposer.codexSummary(agent, pane: codexPanes[agent.id], connected: codexConnected)
         agent.pendingCount = pendingRequests.count { $0.agentId == agent.id }
         guard let sessionId = agent.sessionId else { return agent }
         return TreeComposer.summary(
@@ -397,7 +416,9 @@ public actor SessionHub {
             scheduleTreeFlush()
         case .agentStatus(let agentId, let status, let title):
             baseTree = TreeComposer.updatingAgent(agentId, in: baseTree) { $0.status = status }
-            broadcast(.agentStatus(agentId: agentId, status: status, title: statusTitle(for: agentId, eventTitle: title)))
+            if codexPanes[agentId] == nil {
+                broadcast(.agentStatus(agentId: agentId, status: status, title: statusTitle(for: agentId, eventTitle: title)))
+            }
             updateLiveFollows()
             refreshChatMetas()
             scheduleTreeFlush()
@@ -459,6 +480,7 @@ public actor SessionHub {
     }
 
     private func flushTree() async {
+        await retainCodexPanes()
         await refreshUnfollowedMetas()
         pruneMetas()
         publishObservedSessions()

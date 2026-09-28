@@ -13,7 +13,14 @@ public protocol HerdrBridging: Sendable {
     func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async
     func refreshDirtyState(ofAgent id: AgentID) async
     func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID
+    func newCodexTab(in workspaceId: WorkspaceID, remote: String) async throws -> (paneId: AgentID, cwd: String?)
     var serverInfo: HerdrServerInfo? { get async }
+}
+
+extension HerdrBridging {
+    public func newCodexTab(in workspaceId: WorkspaceID, remote: String) async throws -> (paneId: AgentID, cwd: String?) {
+        throw HerdrBridgeError.unavailable
+    }
 }
 
 public struct HerdrServerInfo: Sendable, Equatable {

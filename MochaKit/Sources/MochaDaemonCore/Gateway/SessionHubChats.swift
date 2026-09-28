@@ -14,6 +14,11 @@ extension SessionHub {
                 send(.agentNotFound, id: id, to: clientId)
                 return
             }
+            if agent.kind == TreeComposer.codexKind {
+                let threadId = await codex?.threadId(for: resolved)
+                await openCodexChat(.agent(resolved), threadId: threadId, before: before, limit: limit, id: id, clientId: clientId)
+                return
+            }
             guard agent.kind == TreeComposer.claudeKind else {
                 send(.notClaude, id: id, to: clientId)
                 return
@@ -31,8 +36,8 @@ extension SessionHub {
             }
             target = requested
             sessionId = requestedSessionId
-        case .codexThread:
-            send(.notClaude, id: id, to: clientId)
+        case .codexThread(let threadId):
+            await openCodexChat(requested, threadId: threadId, before: before, limit: limit, id: id, clientId: clientId)
             return
         case .subagent(let requestedSessionId, let agentId):
             guard let transcript = await resolveSubagentTranscript(sessionId: requestedSessionId, agentId: agentId, id: id, clientId: clientId) else {
@@ -68,8 +73,7 @@ extension SessionHub {
             }
             removeChat(at: target, clientId: clientId)
         case .codexThread:
-            send(.notClaude, id: id, to: clientId)
-            return
+            removeChat(at: target, clientId: clientId)
         case .subagent(let sessionId, let agentId):
             if clients[clientId]?.chats[target] == nil,
                await resolveSubagentTranscript(sessionId: sessionId, agentId: agentId, id: id, clientId: clientId) == nil {

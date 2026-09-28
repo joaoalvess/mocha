@@ -64,6 +64,9 @@ public actor DaemonRuntime {
     private var pending: PendingStore?
     private var liveActivity: LiveActivityService?
     private var uploadCleanup: Task<Void, Never>?
+    private var codexProcess: CodexAppServerProcess?
+    private var codex: CodexService?
+    private var codexAlerts: Task<Void, Never>?
 
     public init(options: DaemonOptions = DaemonOptions(), events: @escaping Gateway.EventSink = { _ in }) {
         self.options = options
@@ -102,6 +105,10 @@ public actor DaemonRuntime {
         let liveActivity = LiveActivityService(devices: devices, sender: push)
         await push.attachLiveActivity(liveActivity)
         await hub.attachLiveActivity(liveActivity)
+        let codexSocket = paths.codexSocket.fileSystemPath
+        let codexProcess = CodexAppServerProcess(socketPath: codexSocket)
+        let codex = CodexService(socketPath: codexSocket, uploadsDirectory: paths.uploadsDirectory)
+        await hub.attachCodex(codex)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
         let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, liveActivities: liveActivity, events: events)
@@ -137,12 +144,22 @@ public actor DaemonRuntime {
         self.pending = pending
         self.liveActivity = liveActivity
         self.hookRouter = hookRouter
+        self.codexProcess = codexProcess
+        self.codex = codex
         uploads.removeExpired(now: Date())
         let clock = SystemGatewayClock()
         uploadCleanup = Task {
             await uploads.removeExpiredPeriodically(clock: clock)
         }
         await usage.start()
+        await codexProcess.start()
+        await codex.start()
+        let alerts = hub.codexAlerts
+        codexAlerts = Task {
+            for await alert in alerts {
+                await push.handle(alert)
+            }
+        }
         await herdr.start()
         await hub.start()
         await pending.start()
@@ -204,6 +221,12 @@ public actor DaemonRuntime {
         usage = nil
         uploadCleanup?.cancel()
         uploadCleanup = nil
+        codexAlerts?.cancel()
+        codexAlerts = nil
+        await codex?.stop()
+        codex = nil
+        await codexProcess?.stop()
+        codexProcess = nil
     }
 
     private static func gatewayError(_ error: any Error, port: UInt16) -> DaemonStartError {

@@ -10,11 +10,20 @@ enum CodexServiceError: Error, Sendable, Equatable {
     case invalidResponse
 }
 
+struct CodexPaneState: Sendable, Equatable {
+    let threadId: String
+    var status: AgentStatus
+    var title: String?
+}
+
 enum CodexServiceUpdate: Sendable {
     case availability(Bool)
+    case panes([AgentID: CodexPaneState])
     case thread(String)
     case pending([PendingRequest])
     case usage(UsageSnapshot)
+    case turnDone(AgentID, lastMessage: String?)
+    case needsInput(PendingRequest)
 }
 
 actor CodexService {
@@ -34,6 +43,14 @@ actor CodexService {
     private let server: CodexAppServer
     private let uploadsDirectory: URL
     private var paneThreads: [AgentID: String] = [:]
+    private var paneCwds: [AgentID: String] = [:]
+    private var subscribed: Set<String> = []
+    private var threadStatuses: [String: AgentStatus] = [:]
+    private var threadTitles: [String: String] = [:]
+    private var activeTurns: [String: String] = [:]
+    private var lastAgentMessages: [String: String] = [:]
+    private var matcher = CodexPaneMatcher()
+    private var publishedPanes: [AgentID: CodexPaneState] = [:]
     private var decisions: [RequestID: Decision] = [:]
     private var eventTask: Task<Void, Never>?
     private var connectTask: Task<Void, Never>?
@@ -67,41 +84,33 @@ actor CodexService {
         connectTask?.cancel()
         eventTask = nil
         connectTask = nil
-        paneThreads.removeAll()
-        decisions.removeAll()
+        clearThreads()
         await server.shutdown()
         continuation.finish()
     }
 
-    func verify(_ agent: HerdrAgent) async -> Bool {
-        guard agent.kind == "codex", let id = agent.sessionId, UUID(uuidString: id) != nil,
-              await server.isConnected else { return false }
-        do {
-            let result = try await server.request("thread/read", params: .object([
-                .init("threadId", .string(id)), .init("includeTurns", .bool(false)),
-            ]))
-            guard let threadId = result["thread"]?["id"]?.stringValue, threadId == id,
-                  let threadCwd = result["thread"]?["cwd"]?.stringValue,
-                  let paneCwd = agent.cwd ?? agent.foregroundCwd,
-                  URL(fileURLWithPath: threadCwd).standardizedFileURL.resolvingSymlinksInPath().path ==
-                    URL(fileURLWithPath: paneCwd).standardizedFileURL.resolvingSymlinksInPath().path
-            else { return false }
-            guard !paneThreads.contains(where: { $0.key != agent.paneId && $0.value == id }) else { return false }
-            if paneThreads[agent.paneId] != id {
-                _ = try await server.request("thread/resume", params: .object([
-                    .init("threadId", .string(id)), .init("excludeTurns", .bool(true)),
-                ]))
-                let previous = paneThreads[agent.paneId]
-                paneThreads[agent.paneId] = id
-                if let previous {
-                    decisions = decisions.filter { $0.value.threadId != previous }
-                    publishPending()
-                }
+    func expectPane(_ paneId: AgentID, cwd: String, since: Date) {
+        paneCwds[paneId] = CodexPaneMatcher.normalized(cwd)
+        guard let threadId = matcher.expect(paneId, cwd: cwd, since: since, now: Date()) else { return }
+        associate(paneId, threadId: threadId)
+    }
+
+    func retainPanes(_ paneIds: Set<AgentID>) {
+        let gone = Set(paneThreads.keys).union(paneCwds.keys).subtracting(paneIds)
+        guard !gone.isEmpty else { return }
+        for paneId in gone {
+            if let threadId = paneThreads.removeValue(forKey: paneId) {
+                decisions = decisions.filter { $0.value.threadId != threadId }
             }
-            return true
-        } catch {
-            return false
+            paneCwds[paneId] = nil
+            matcher.forget(paneId)
         }
+        publishPending()
+        publishPanes()
+    }
+
+    func verify(_ agent: HerdrAgent) async -> Bool {
+        await controlThread(for: agent) != nil
     }
 
     func threadId(for paneId: AgentID) -> String? { paneThreads[paneId] }
@@ -118,7 +127,12 @@ actor CodexService {
             .init("limit", .number(String(min(max(limit, 1), 200)))),
         ]
         if let before { members.append(.init("cursor", .string(before))) }
-        let turns = try await server.request("thread/turns/list", params: .object(members))
+        let turns: OrderedJSON
+        do {
+            turns = try await server.request("thread/turns/list", params: .object(members))
+        } catch CodexAppServerError.rejected where before == nil {
+            turns = .object([])
+        }
         guard let page = CodexProjection.page(thread: metadata["thread"] ?? .null, turns: turns) else {
             throw CodexAppServerError.invalidResponse
         }
@@ -126,10 +140,9 @@ actor CodexService {
     }
 
     func prompt(_ agent: HerdrAgent, text: String) async throws {
-        guard await verify(agent), let threadId = paneThreads[agent.paneId] else { throw CodexServiceError.unverifiedAgent }
+        guard let threadId = await controlThread(for: agent) else { throw CodexServiceError.unverifiedAgent }
         let input = try Self.promptInput(text, uploadsDirectory: uploadsDirectory)
-        let page = try await page(threadId: threadId, before: nil, limit: 1)
-        if let activeTurnId = page.activeTurnId {
+        if let activeTurnId = await activeTurn(threadId) {
             _ = try await server.request("turn/steer", params: .object([
                 .init("threadId", .string(threadId)),
                 .init("expectedTurnId", .string(activeTurnId)),
@@ -141,12 +154,12 @@ actor CodexService {
                 .init("input", .array(input)),
             ]))
         }
+        await subscribe(threadId)
     }
 
     func interrupt(_ agent: HerdrAgent) async throws {
-        guard await verify(agent), let threadId = paneThreads[agent.paneId] else { throw CodexServiceError.unverifiedAgent }
-        let page = try await page(threadId: threadId, before: nil, limit: 1)
-        guard let turnId = page.activeTurnId else { throw CodexServiceError.noActiveTurn }
+        guard let threadId = await controlThread(for: agent) else { throw CodexServiceError.unverifiedAgent }
+        guard let turnId = await activeTurn(threadId) else { throw CodexServiceError.noActiveTurn }
         _ = try await server.request("turn/interrupt", params: .object([
             .init("threadId", .string(threadId)), .init("turnId", .string(turnId)),
         ]))
@@ -172,6 +185,7 @@ actor CodexService {
             throw CodexServiceError.invalidResponse
         }
         try await server.respond(to: decision.rpcId, on: decision.connectionId, result: result)
+        publishPanes()
     }
 
     func refreshUsage() async {
@@ -206,42 +220,167 @@ actor CodexService {
         return input
     }
 
+    private func controlThread(for agent: HerdrAgent) async -> String? {
+        guard agent.kind == "codex", await server.isConnected else { return nil }
+        if let threadId = paneThreads[agent.paneId] { return threadId }
+        guard let id = agent.sessionId, UUID(uuidString: id) != nil else { return nil }
+        do {
+            let result = try await server.request("thread/read", params: .object([
+                .init("threadId", .string(id)), .init("includeTurns", .bool(false)),
+            ]))
+            guard let threadId = result["thread"]?["id"]?.stringValue, threadId == id,
+                  let threadCwd = result["thread"]?["cwd"]?.stringValue,
+                  let paneCwd = agent.cwd ?? agent.foregroundCwd,
+                  CodexPaneMatcher.normalized(threadCwd) == CodexPaneMatcher.normalized(paneCwd),
+                  !paneThreads.values.contains(id)
+            else { return nil }
+            associate(agent.paneId, threadId: id)
+            return id
+        } catch {
+            return nil
+        }
+    }
+
+    private func activeTurn(_ threadId: String) async -> String? {
+        if let turnId = activeTurns[threadId] { return turnId }
+        guard subscribed.contains(threadId) else { return nil }
+        return try? await page(threadId: threadId, before: nil, limit: 1).activeTurnId
+    }
+
+    private func associate(_ paneId: AgentID, threadId: String) {
+        let previous = paneThreads[paneId]
+        guard previous != threadId else { return }
+        paneThreads[paneId] = threadId
+        if let previous {
+            decisions = decisions.filter { $0.value.threadId != previous }
+            publishPending()
+        }
+        publishPanes()
+        Task { await self.subscribe(threadId) }
+    }
+
+    private func subscribe(_ threadId: String) async {
+        guard !subscribed.contains(threadId), paneThreads.values.contains(threadId) else { return }
+        do {
+            _ = try await server.request("thread/resume", params: .object([
+                .init("threadId", .string(threadId)), .init("excludeTurns", .bool(true)),
+            ]))
+            subscribed.insert(threadId)
+            continuation.yield(.thread(threadId))
+        } catch {}
+    }
+
     private func connectLoop() async {
         while !stopped && !Task.isCancelled {
-            if !(await server.isConnected) {
-                if (try? await server.connect()) != nil {
-                    continuation.yield(.availability(true))
-                    await refreshUsage()
+            if await server.isConnected {
+                for threadId in Set(paneThreads.values).subtracting(subscribed) {
+                    await subscribe(threadId)
                 }
+            } else if (try? await server.connect()) != nil {
+                continuation.yield(.availability(true))
+                await refreshUsage()
             }
             try? await Task.sleep(for: .seconds(2))
         }
     }
 
+    private func clearThreads() {
+        paneThreads.removeAll()
+        paneCwds.removeAll()
+        subscribed.removeAll()
+        threadStatuses.removeAll()
+        threadTitles.removeAll()
+        activeTurns.removeAll()
+        lastAgentMessages.removeAll()
+        matcher.reset()
+        decisions.removeAll()
+    }
+
     private func handle(_ event: CodexServerEvent) {
-        if event.method == "mocha/disconnected" {
-            paneThreads.removeAll()
-            decisions.removeAll()
+        switch event.method {
+        case "mocha/disconnected":
+            clearThreads()
             publishPending()
+            publishPanes()
             continuation.yield(.availability(false))
             return
-        }
-        if event.method == "serverRequest/resolved" {
+        case "serverRequest/resolved":
             let resolved = event.params["requestId"]
             decisions = decisions.filter { $0.value.connectionId != event.connectionId || $0.value.rpcId != resolved }
             publishPending()
+            publishPanes()
             return
+        default:
+            break
         }
         if let requestId = event.requestId {
             addDecision(event, rpcId: requestId)
             return
         }
-        if let threadId = event.params["threadId"]?.stringValue, paneThreads.values.contains(threadId) {
+        let threadId = event.params["threadId"]?.stringValue
+        switch event.method {
+        case "thread/started":
+            threadStarted(event.params["thread"] ?? .null)
+        case "thread/status/changed":
+            if let threadId { threadStatuses[threadId] = CodexProjection.status(event.params["status"]) }
+        case "thread/name/updated":
+            if let threadId { threadTitles[threadId] = event.params["threadName"]?.stringValue }
+        case "turn/started":
+            if let threadId {
+                threadStatuses[threadId] = .working
+                activeTurns[threadId] = event.params["turn"]?["id"]?.stringValue
+            }
+        case "turn/completed":
+            if let threadId {
+                threadStatuses[threadId] = .idle
+                activeTurns[threadId] = nil
+                if let paneId = paneThreads.first(where: { $0.value == threadId })?.key {
+                    continuation.yield(.turnDone(paneId, lastMessage: lastAgentMessages[threadId]))
+                }
+            }
+        case "item/completed":
+            if let threadId, event.params["item"]?["type"]?.stringValue == "agentMessage",
+               let text = event.params["item"]?["text"]?.stringValue {
+                lastAgentMessages[threadId] = text
+            }
+        case "account/rateLimits/updated":
+            if let snapshot = CodexProjection.usage(event.params) { continuation.yield(.usage(snapshot)) }
+        default:
+            break
+        }
+        publishPanes()
+        if let threadId, paneThreads.values.contains(threadId) {
             continuation.yield(.thread(threadId))
         }
-        if event.method == "account/rateLimits/updated", let snapshot = CodexProjection.usage(event.params) {
-            continuation.yield(.usage(snapshot))
+    }
+
+    private func threadStarted(_ thread: OrderedJSON) {
+        guard let threadId = thread["id"]?.stringValue, let cwd = thread["cwd"]?.stringValue,
+              thread["parentThreadId"]?.stringValue == nil, thread["ephemeral"]?.boolValue != true else { return }
+        threadStatuses[threadId] = CodexProjection.status(thread["status"])
+        threadTitles[threadId] = thread["name"]?.stringValue
+        let at = thread["createdAt"]?.doubleValue.map { Date(timeIntervalSince1970: $0) } ?? Date()
+        if let paneId = matcher.threadStarted(threadId, cwd: cwd, at: at) {
+            associate(paneId, threadId: threadId)
+            return
         }
+        let normalized = CodexPaneMatcher.normalized(cwd)
+        let sameCwd = paneCwds.filter { $0.value == normalized && paneThreads[$0.key] != nil }
+        if sameCwd.count == 1, let paneId = sameCwd.first?.key {
+            associate(paneId, threadId: threadId)
+        }
+    }
+
+    private func publishPanes() {
+        var panes: [AgentID: CodexPaneState] = [:]
+        let blocked = Set(decisions.values.map(\.threadId))
+        for (paneId, threadId) in paneThreads {
+            let status = blocked.contains(threadId) ? .blocked : threadStatuses[threadId] ?? .idle
+            panes[paneId] = CodexPaneState(threadId: threadId, status: status, title: threadTitles[threadId])
+        }
+        guard panes != publishedPanes else { return }
+        publishedPanes = panes
+        continuation.yield(.panes(panes))
     }
 
     private func addDecision(_ event: CodexServerEvent, rpcId: OrderedJSON) {
@@ -288,6 +427,8 @@ actor CodexService {
             questionIds: questionIds
         )
         publishPending()
+        publishPanes()
+        continuation.yield(.needsInput(request))
     }
 
     private func publishPending() {
