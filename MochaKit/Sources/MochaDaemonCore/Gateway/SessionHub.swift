@@ -122,6 +122,7 @@ public actor SessionHub {
     let archive: any SessionArchiving
     let subagents: (any SubagentProviding)?
     let pending: (any PendingProviding)?
+    let webServers: (any WebServerScanning)?
     let clock: any GatewayClock
     let configuration: SessionHubConfiguration
     let encoder = JSONEncoder()
@@ -185,6 +186,7 @@ public actor SessionHub {
         archive: any SessionArchiving,
         subagents: (any SubagentProviding)? = nil,
         pending: (any PendingProviding)? = nil,
+        webServers: (any WebServerScanning)? = nil,
         clock: any GatewayClock = SystemGatewayClock(),
         configuration: SessionHubConfiguration = SessionHubConfiguration()
     ) {
@@ -196,6 +198,7 @@ public actor SessionHub {
         self.archive = archive
         self.subagents = subagents
         self.pending = pending
+        self.webServers = webServers
         self.clock = clock
         self.configuration = configuration
         let (updates, continuation) = AsyncStream.makeStream(of: Set<AgentID>.self)
