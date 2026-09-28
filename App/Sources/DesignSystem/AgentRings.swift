@@ -2,22 +2,23 @@ import MochaProtocol
 import SwiftUI
 
 struct AgentRingCounts: Equatable {
-    let total: Int
+    static let blockedCapacity = 3
+    static let workingCapacity = 4
+
     let blocked: Int
     let working: Int
 
     init(statuses: [AgentStatus]) {
-        total = statuses.count
         blocked = statuses.filter { $0 == .blocked }.count
         working = statuses.filter { $0 == .working }.count
     }
 
     var blockedFraction: CGFloat {
-        total == 0 ? 0 : CGFloat(blocked) / CGFloat(total)
+        CGFloat(min(blocked, Self.blockedCapacity)) / CGFloat(Self.blockedCapacity)
     }
 
     var workingFraction: CGFloat {
-        total == 0 ? 0 : CGFloat(working) / CGFloat(total)
+        CGFloat(min(working, Self.workingCapacity)) / CGFloat(Self.workingCapacity)
     }
 
     var accessibilityValue: String {
