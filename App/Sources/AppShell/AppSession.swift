@@ -102,6 +102,7 @@ final class AppSession {
     @ObservationIgnored private var isSceneActive = false
     @ObservationIgnored private var foreground = ForegroundReporter()
     @ObservationIgnored private var webServersGeneration = 0
+    @ObservationIgnored let ssh = SSHSession()
 
     init(connection: any ServerConnection, uploader: any ImageUploading, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
         self.connection = connection
