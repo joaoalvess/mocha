@@ -88,6 +88,7 @@ struct AgentsActivityContentTests {
 
     @Test func codexProviderRoundTripsThroughActivityContent() throws {
         let content = AgentsActivityContent(
+            agentId: "w1:p1",
             status: "working",
             title: "Codex",
             workspaceLabel: "mocha",
@@ -97,7 +98,7 @@ struct AgentsActivityContentTests {
         )
         let encoded = try JSONEncoder().encode(content)
         let decoded = try JSONDecoder().decode(AgentsActivityContent.self, from: encoded)
-        #expect(decoded.provider == .codex)
+        #expect(decoded.provider == AgentProvider.codex)
         #expect(AgentsActivityText.header(of: decoded).provider == .codex)
     }
 
