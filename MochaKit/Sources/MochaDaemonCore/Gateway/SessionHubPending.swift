@@ -2,9 +2,12 @@ import Foundation
 import MochaProtocol
 
 extension SessionHub {
+    static let codexRequestPrefix = "codex:"
+
     func startPendingUpdates() async {
         guard let pending else { return }
-        pendingRequests = await pending.requests
+        storePendingRequests = await pending.requests
+        pendingRequests = storePendingRequests
         let updates = pending.updates()
         sessionServiceTasks.append(Task { [weak self] in
             for await requests in updates {
@@ -25,6 +28,10 @@ extension SessionHub {
     }
 
     func respond(to requestId: RequestID, with response: PendingResponse, id: String, clientId: UUID) async {
+        if requestId.hasPrefix(Self.codexRequestPrefix) {
+            await respondCodex(to: requestId, with: response, id: id, clientId: clientId)
+            return
+        }
         guard let pending else {
             send(.unknownType("respond"), id: id, to: clientId)
             return
@@ -42,10 +49,18 @@ extension SessionHub {
         }
     }
 
-    private func pendingChanged(_ requests: [PendingRequest]) {
-        guard requests != pendingRequests else { return }
-        pendingRequests = requests
-        broadcast(.pending(requests: requests))
+    func mergePending() {
+        let merged = codexPendingRequests.isEmpty
+            ? storePendingRequests
+            : (storePendingRequests + codexPendingRequests).sorted { $0.createdAt < $1.createdAt }
+        guard merged != pendingRequests else { return }
+        pendingRequests = merged
+        broadcast(.pending(requests: merged))
         scheduleTreeFlush()
+    }
+
+    private func pendingChanged(_ requests: [PendingRequest]) {
+        storePendingRequests = requests
+        mergePending()
     }
 }

@@ -14,10 +14,11 @@ struct AgentDetailSheet: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
             ScrollView {
+                let info = AgentDetailInfo(session: session, target: target)
                 AgentDetailContent(
-                    info: AgentDetailInfo(session: session, target: target),
+                    info: info,
                     hostName: session.host?.hostName,
-                    usage: session.usage,
+                    usage: session.usage(for: info.provider),
                     now: context.date,
                     subagents: subagents,
                     onOpenSubagent: { session.openChat($0) },

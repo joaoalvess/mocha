@@ -44,6 +44,22 @@ enum PushAlertText {
         return base + " · " + label
     }
 
+    static func codexNeedsInputBody(_ kind: PendingKind) -> String {
+        switch kind {
+        case .permission(_, let summary, _):
+            return String(firstNonEmptyLine(summary).prefix(summaryLimit))
+        case .question(let questions):
+            return PlainText.preview(fromMarkdown: questions.first?.question ?? "", limit: bodyLimit)
+        }
+    }
+
+    static func codexCategory(_ kind: PendingKind) -> String {
+        switch kind {
+        case .permission: permissionCategory
+        case .question: PushAlertKind.needsInput.category
+        }
+    }
+
     static func turnDoneBody(_ lastAssistantMessage: String?) -> String {
         let preview = PlainText.preview(fromMarkdown: lastAssistantMessage ?? "", limit: bodyLimit)
         return preview.isEmpty ? turnDoneFallback : preview

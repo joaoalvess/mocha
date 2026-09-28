@@ -27,6 +27,10 @@ public struct DaemonPaths: Sendable, Equatable {
         supportDirectory.appending(path: "mochad.sock", directoryHint: .notDirectory)
     }
 
+    public var codexSocket: URL {
+        supportDirectory.appending(path: "codex.sock", directoryHint: .notDirectory)
+    }
+
     public var uploadsDirectory: URL {
         supportDirectory.appending(path: "uploads", directoryHint: .isDirectory)
     }
