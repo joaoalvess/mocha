@@ -6,6 +6,7 @@ struct WebServersSheet: View {
     @Bindable var session: AppSession
 
     static let emptyMessage = "Nenhum servidor web rodando no Mac"
+    static let panelHeight = BottomPanelHeight.screenFraction(0.5)
 
     private static let titleTop: CGFloat = 46
     private static let titleSide: CGFloat = 21
@@ -51,9 +52,9 @@ struct WebServersSheet: View {
                     .tint(Palette.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let text):
-                refreshableMessage(text)
+                message(text)
             case .loaded(let sections) where sections.allSatisfy(\.servers.isEmpty):
-                refreshableMessage(Self.emptyMessage)
+                message(Self.emptyMessage)
             case .loaded(let sections):
                 list(sections)
             }
@@ -77,18 +78,6 @@ struct WebServersSheet: View {
             .padding(.bottom, Self.listBottom)
         }
         .scrollIndicators(.hidden)
-        .refreshable { await session.reloadWebServers() }
-    }
-
-    private func refreshableMessage(_ text: String) -> some View {
-        GeometryReader { proxy in
-            ScrollView {
-                message(text)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-            }
-            .scrollIndicators(.hidden)
-            .refreshable { await session.reloadWebServers() }
-        }
     }
 
     private func message(_ text: String) -> some View {

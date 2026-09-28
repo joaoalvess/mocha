@@ -5,6 +5,8 @@ import SwiftUI
 struct UsageSheet: View {
     @Bindable var session: AppSession
 
+    static let panelHeight = BottomPanelHeight.fixed(473)
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
             UsageSheetContent(usage: session.usage, hostName: session.host?.hostName, now: context.date)
