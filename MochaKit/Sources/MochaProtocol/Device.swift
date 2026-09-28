@@ -25,11 +25,15 @@ public struct HostInfo: Codable, Sendable, Hashable {
     public var hostName: String
     public var daemonVersion: String
     public var herdrConnected: Bool
+    public var sshUser: String?
+    public var sshHostKeys: [String]?
 
-    public init(hostName: String, daemonVersion: String, herdrConnected: Bool) {
+    public init(hostName: String, daemonVersion: String, herdrConnected: Bool, sshUser: String? = nil, sshHostKeys: [String]? = nil) {
         self.hostName = hostName
         self.daemonVersion = daemonVersion
         self.herdrConnected = herdrConnected
+        self.sshUser = sshUser
+        self.sshHostKeys = sshHostKeys
     }
 }
 

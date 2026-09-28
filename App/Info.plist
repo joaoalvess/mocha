@@ -33,8 +33,15 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>O Mocha usa a câmera para ler o QR de pareamento do Mac e para tirar fotos que você anexa aos prompts.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>O Mocha usa o Face ID para liberar a chave SSH que conecta ao seu Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>O Mocha usa o microfone para ditar prompts em português, transcritos no próprio iPhone.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

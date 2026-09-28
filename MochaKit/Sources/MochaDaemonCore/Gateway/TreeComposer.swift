@@ -44,6 +44,7 @@ enum TreeComposer {
                 summary.title = title
             }
             summary.model = meta.model
+            summary.permissionMode = meta.permissionMode
             summary.lastActivityAt = meta.lastModified
             summary.preview = meta.preview
             summary.activity = meta.activity

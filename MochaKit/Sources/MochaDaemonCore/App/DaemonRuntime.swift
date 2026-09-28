@@ -86,6 +86,7 @@ public actor DaemonRuntime {
         let archive = SessionArchive(fileURL: paths.sessionsFile)
         let subagents = SubagentStore(projectsRoot: options.projectsRoot)
         let pending = PendingStore(herdr: herdr, transcripts: transcripts)
+        let hookPort = options.hookPort ?? preparation.config.hookPort
         let hub = SessionHub(
             herdr: herdr,
             transcripts: transcripts,
@@ -94,7 +95,9 @@ public actor DaemonRuntime {
             usage: usage,
             archive: archive,
             subagents: subagents,
-            pending: pending
+            pending: pending,
+            webServers: WebServerScanner(configuration: .init(excludedPorts: [Int(port), Int(hookPort)])),
+            configuration: SessionHubConfiguration(sshIdentity: SSHHostIdentity.current())
         )
         let push = PushService(
             devices: devices,
@@ -114,7 +117,6 @@ public actor DaemonRuntime {
         let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, liveActivities: liveActivity, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let configFile = paths.configFile
-        let hookPort = options.hookPort ?? preparation.config.hookPort
         let hooks = HookServer(
             secrets: HookSecretVerifier(
                 secret: preparation.config.hookSecret,

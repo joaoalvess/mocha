@@ -38,6 +38,10 @@ enum Palette {
     static let tableBorder = Color(hex: 0x2B2B2B)
     static let codeInner = Color(hex: 0x17191B)
     static let grabber = Color(hex: 0x47474B)
+    static let ringAutoTrack = Color(hex: 0x352C47)
+    static let ringAuto = Color(hex: 0xA482E6)
+    static let ringPlanTrack = Color(hex: 0x1D3A38)
+    static let ringPlan = Color(hex: 0x48A89E)
 
     static let glassChat = Color(hex: 0x424242, opacity: 0.8)
     static let glassComposer = Color(hex: 0x3E3E3E, opacity: 0.84)

@@ -33,6 +33,7 @@ enum AppSheet: Identifiable, Hashable {
     case usage
     case settings
     case newSession
+    case webServers
 
     var id: Self { self }
 }
@@ -84,6 +85,8 @@ final class AppSession {
     private(set) var pairedAt: Date?
     private(set) var pending = PendingInbox()
     private(set) var pendingReveal: AgentID?
+    private(set) var webServers: WebServersLoad = .loading
+    private(set) var webServersScope: WorkspaceID?
     var sheet: AppSheet?
     var isInboxOpen = false
 
@@ -99,6 +102,8 @@ final class AppSession {
     @ObservationIgnored private var lifecycleTask: Task<Void, Never>?
     @ObservationIgnored private var isSceneActive = false
     @ObservationIgnored private var foreground = ForegroundReporter()
+    @ObservationIgnored private var webServersGeneration = 0
+    @ObservationIgnored let ssh = SSHSession()
 
     init(connection: any ServerConnection, uploader: any ImageUploading, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
         self.connection = connection
@@ -284,6 +289,62 @@ final class AppSession {
 
     func dismissSheet() {
         sheet = nil
+    }
+
+    func showWebServers() {
+        isDrawerOpen = false
+        webServersScope = nil
+        webServers = .loading
+        sheet = .webServers
+        Task { await reloadWebServers() }
+    }
+
+    func showWorkspaceWebServers(for target: ChatTarget) {
+        guard let workspace = workspaceNode(for: target) else {
+            showWebServers()
+            return
+        }
+        isDrawerOpen = false
+        webServersScope = workspace.id
+        webServers = .loading
+        Task {
+            await reloadWebServers()
+            guard webServersScope == workspace.id else { return }
+            if case .loaded(let groups) = webServers, let server = groups.first?.servers.first,
+               groups.count == 1, groups.first?.servers.count == 1 {
+                WebPreviewOpener.open(server)
+            } else {
+                sheet = .webServers
+            }
+        }
+    }
+
+    private func workspaceNode(for target: ChatTarget) -> WorkspaceNode? {
+        switch target {
+        case .agent(let agentId):
+            workspaces.workspaceNode(containingAgent: agentId)
+        case .session(let sessionId), .subagent(let sessionId, _):
+            workspaces.agent(withSessionId: sessionId).flatMap { workspaces.workspaceNode(containingAgent: $0.id) }
+        case .codexThread:
+            nil
+        }
+    }
+
+    func reloadWebServers() async {
+        webServersGeneration += 1
+        let generation = webServersGeneration
+        let result: WebServersLoad
+        do {
+            let reply = try await request(.listWebServers)
+            guard case .webServers(let host, let servers) = reply else {
+                throw AppSessionError.unexpectedReply(type: reply.type)
+            }
+            result = .loaded(WebServerGrouping.groups(servers: servers, host: host, workspaces: workspaces, scope: webServersScope))
+        } catch {
+            result = .failed(Self.sessionError(from: error).message)
+        }
+        guard generation == webServersGeneration else { return }
+        webServers = result
     }
 
     func showInbox() {
@@ -561,7 +622,7 @@ final class AppSession {
             updateChats(target: target) { $0.meta = meta }
         case .pending(let requests):
             pending.replace(with: requests)
-        case .chatPage, .subagentList, .ack, .pong, .error, .unknown:
+        case .chatPage, .subagentList, .webServers, .ack, .pong, .error, .unknown:
             break
         }
     }

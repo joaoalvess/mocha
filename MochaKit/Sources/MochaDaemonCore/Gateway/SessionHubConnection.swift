@@ -196,7 +196,9 @@ extension SessionHub {
         let host = HostInfo(
             hostName: configuration.hostName,
             daemonVersion: configuration.daemonVersion,
-            herdrConnected: herdrAvailable
+            herdrConnected: herdrAvailable,
+            sshUser: configuration.sshIdentity?.user,
+            sshHostKeys: configuration.sshIdentity?.hostKeys
         )
         send(
             .helloOk(HelloOkPayload(host: host, deviceId: device.id, deviceToken: deviceToken, preferences: device.preferences)),
@@ -257,6 +259,10 @@ extension SessionHub {
             }
         case .listSubagents(let agentId):
             await listSubagents(agentId, id: id, clientId: clientId)
+        case .listWebServers:
+            let scanned = await webServers?.scan() ?? []
+            let servers = WorkspaceRoot.assign(scanned, to: await herdr.workspaceRoots())
+            send(.webServers(host: configuration.hostName, servers: servers), id: id, to: clientId)
         case .respond(let requestId, let response) where pending != nil:
             await respond(to: requestId, with: response, id: id, clientId: clientId)
         case .registerLiveActivity(let registration):

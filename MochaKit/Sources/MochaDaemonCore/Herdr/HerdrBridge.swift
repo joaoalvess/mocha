@@ -90,6 +90,14 @@ public actor HerdrBridge: HerdrBridging {
         currentServerInfo
     }
 
+    public func workspaceRoots() -> [WorkspaceRoot] {
+        state.workspaces.compactMap { workspace in
+            HerdrTreeBuilder.workspaceDirectory(workspace, in: state).map {
+                WorkspaceRoot(workspaceId: workspace.workspaceId, path: $0, isCheckout: workspace.worktree?.checkoutPath != nil)
+            }
+        }
+    }
+
     public func agent(_ id: AgentID) -> HerdrAgent? {
         guard let pane = state.pane(id), let kind = pane.agent else { return nil }
         return HerdrAgent(

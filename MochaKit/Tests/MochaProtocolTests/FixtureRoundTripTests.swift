@@ -79,10 +79,12 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
         let clientTypes = [
             "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "setForeground", "unpair", "ping",
             "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity", "listSubagents",
+            "listWebServers",
         ]
         let serverTypes = [
             "helloOk", "tree", "archived", "usage", "herdrStatus", "treeChanged", "agentStatus", "chatPage",
             "chatAppend", "chatUpdate", "chatMeta", "pending", "ack", "pong", "error", "subagentList",
+            "webServers",
         ]
         let chatItemTypes = [
             "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
@@ -197,6 +199,18 @@ enum CanonicalExamples {
         CanonicalExample(
             fixture: "server.subagentList.json",
             json: #"{"v":1,"id":"c-13","type":"subagentList","payload":{"agentId":"w17:p1","items":[{"agentId":"a0123456789abcdef","agentType":"general-purpose","description":"Teste de carga /receitas","status":"running","toolUses":9,"startedAt":"2026-09-26T13:52:11.000Z"},{"agentId":"a76543210fedcba98","parentAgentId":"a0123456789abcdef","agentType":"Explore","description":"Achar o script de carga","status":"completed","toolUses":5,"startedAt":"2026-09-26T13:52:20.000Z","durationMs":41000}]}}"#
+        ),
+        CanonicalExample(
+            fixture: "server.helloOk.ssh.json",
+            json: #"{"v":1,"id":"c-1","type":"helloOk","payload":{"host":{"hostName":"MacBook Pro de João","daemonVersion":"0.1.0","herdrConnected":true,"sshUser":"joaoalves","sshHostKeys":["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMochaHostKeyExampleOnlyForFixturesAAAAAAA","ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMochaExample"]},"deviceId":"0F8E2B6A-3C1D-4E5F-9A7B-8C6D5E4F3A2B","preferences":{"turnDoneAlerts":true}}}"#
+        ),
+        CanonicalExample(
+            fixture: "client.listWebServers.json",
+            json: #"{"v":1,"id":"c-21","type":"listWebServers","payload":{}}"#
+        ),
+        CanonicalExample(
+            fixture: "server.webServers.json",
+            json: #"{"v":1,"id":"c-21","type":"webServers","payload":{"host":"MacBook","servers":[{"pid":53243,"process":"node","port":5190,"title":"Portal do cliente","directory":"/Users/joaoalves/Developer/portal-cliente","workspaceId":"w1"},{"pid":5335,"process":"node","port":6173}]}}"#
         ),
         CanonicalExample(
             fixture: "server.usage.json",

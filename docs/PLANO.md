@@ -35,6 +35,7 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | 1b | Inbox e ações na notificação, Live Activity, voz | WP-X3 |
 | 1b-feed | Live Activity única que acompanha o último evento (§7.5); aceitar plano pela tela bloqueada | WP-XF |
 | codex | Codex CLI no Herdr com chat e ações; desktop como leitura posterior | WP-XC |
+| preview-web | Servidores web do Mac listados no app e abertos no iPhone por túnel SSH | WP-W5 |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
@@ -48,7 +49,7 @@ A `main` só recebe uma fase depois do checklist do WP de integração dela. Enq
 | B2 | Criar uma chave **APNs** (developer.apple.com › Certificates, IDs & Profiles › Keys › "+" › Apple Push Notifications service), baixar a `.p8` e informar o **Key ID**. A importação é feita com `mochad apns import`. **Resolvido**: chave Team Scoped nova, só para o Mocha; o João informa o caminho da `.p8` e o Key ID ao orquestrador (fora do git) | S4 |
 | B3 | iPhone com **Modo de Desenvolvedor** ligado (Ajustes › Privacidade e Segurança) e pareado com o Xcode (Window › Devices and Simulators), no mesmo Wi-Fi ou por cabo. **Resolvido**: iPhone 14 (iOS 27), Modo de Desenvolvedor ligado e aparelho registrado no time. Sem Dynamic Island: ela é verificada no simulador | S4, WP-X1 |
 | B4 | Os certificados HTTPS do tailnet já estão ativos. Resta **autorizar** o comando `tailscale serve` quando o S5 pedir (ele altera a config do Tailscale do Mac). **Autorizado** em 2026-09-25 para o S5: `tailscale serve --bg --https=443` com os alvos `unix:` e `http://127.0.0.1:47421`, e `tailscale serve reset` no fim. **Autorizado** também para o WP-X1: `mochad serve-setup --apply`, que fica como config definitiva | S5 |
-| B5 | Ligar o **Login Remoto** (Ajustes do Sistema › Geral › Compartilhamento › Login Remoto) e adicionar a chave pública do app em `~/.ssh/authorized_keys` | Fase 2 |
+| B5 | Ligar o **Login Remoto** (Ajustes do Sistema › Geral › Compartilhamento › Login Remoto) e adicionar a chave pública do app em `~/.ssh/authorized_keys` | preview-web (depois do WP-W4) e Fase 2 |
 | B6 | No app Tailscale do iPhone, ligar **VPN On Demand** (sempre conectado) | WP-X2 |
 | B7 | Remover os hooks do Moshi: `moshi-hook uninstall` e `brew services stop moshi-hook`. Só **depois** que o Mocha estiver cobrindo o uso diário (fim da 1a-final) | Antes da fase 1b |
 | B8 | Testar no iPhone e dar o ok visual em cada marco (checklists dos WPs de integração) | WP-X1…X5 |
@@ -971,6 +972,52 @@ Branch `fase/inicio`, criada de `main`. Um WP só, feito direto pelo orquestrado
 - **Dono**: `App/Sources/Home/`, `App/Sources/NewSession/`, `App/Sources/AppShell/`, `App/Sources/Drawer/`, `App/Sources/Chat/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `MochaKit/Sources/MochaClient/Presentation/` e testes.
 - A Home vira o Histórico, a Início nova (§6.3) fica à direita dele num paginador, a folha Nova sessão substitui o `+` da gaveta, a gaveta só abre no chat pela borda esquerda e a bússola fica desabilitada. Aceite: `scripts/test.sh` e `scripts/build-app.sh` passam; o João confere gestos e a criação de uma tab no iPhone.
 
+## Fase preview-web: servidores web do Mac no iPhone
+
+Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: contrato (orquestrador) → WP-W1 ∥ WP-W2 ∥ WP-W3 → contrato da chave do host → WP-W3b ∥ WP-W4 → WP-W5. SPEC §5.3 (`listWebServers`, `webServers`), §6.3 (cápsula do header, Servidores web, Navegador) e §9.3. Referência visual: `docs/referencias/moshi/servidores-web.jpg`, sem o card de usos grátis. Bloqueio B5 só no WP-W5. O WP-W1 e o WP-W4 adiantam o WP-T1 e o WP-T3 da Fase 2: a conexão SSH e a chave são as mesmas, e na Fase 2 falta só o PTY com `herdr agent attach`.
+
+### Contrato (orquestrador)
+
+- Protocolo e fixtures (`WebServer`, `listWebServers`, `webServers`), tratamento mínimo no demo e no daemon (lista vazia), `NSAllowsLocalNetworking` no `App/Info.plist`, SPEC e este bloco.
+
+### WP-W1, spike: SSH com a chave da Secure Enclave e `direct-tcpip`
+
+- **Dono**: `docs/spikes/W1.md` e `App/Sources/Debug/SSHProbe*`.
+- Confere na API do Citadel: autenticação `ecdsa-sha2-nistp256` com `SecureEnclave.P256.Signing.PrivateKey` (ou um delegate próprio), abertura de canal `direct-tcpip` e cópia de bytes nos dois sentidos, e um `NWListener` em `127.0.0.1` repassando cada conexão por um canal. Com o B5 feito, carrega um Vite do Mac num `WKWebView` com HMR; sem ele, fica compilado com a chamada real num botão da tela de Debug.
+- **Aceite**: `W1.md` com a API exata do Citadel usada, os tipos e o que muda em §9.1/§9.3 ("Impacto").
+
+### WP-W2: descoberta de servidores no daemon
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/WebServers/`, o caso `listWebServers` em `SessionHubConnection.swift` e `MochaKit/Tests/MochaDaemonCoreTests/WebServers/`.
+- `WebServerScanner` como em §9.3: processos por `libproc`, filtros, sonda HTTP com timeout e `<title>`. A leitura de processos e a sonda ficam atrás de protocolos injetáveis; os testes usam falsos (nada de rede real). Um teste `.integration` sobe um `HttpServer` do próprio MochaKit numa porta efêmera e confere que ele aparece.
+- **Aceite**: `scripts/test.sh` verde; parse do `<title>` com entidades, sem título, HTML grande e sem HTML; timeout; porta duplicada; portas do `mochad` excluídas.
+
+### WP-W3: cápsula do header e folha Servidores web
+
+- **Dono**: `App/Sources/Home/RootHeader.swift`, `App/Sources/WebPreview/` (menos `Browser*`), o estado da lista em `App/Sources/AppShell/AppSession*` (só o necessário: `showWebServers()`, pedir e guardar a resposta) e o `listWebServers` do demo em `MochaKit/Sources/MochaDemo/` (dois servidores como no print).
+- Cápsula de vidro com sino (só com pedido), globo e engrenagem; folha Servidores web da §6.3 com estados carregando, vazia e sem conexão; `-open-web-servers` só em Debug para a captura. Tocar numa linha chama `WebPreviewOpener.open(_:)`, que por enquanto não faz nada.
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes; capturas da Início e da folha comparadas ao print, com as diferenças listadas.
+
+### Contrato da chave do host (orquestrador, antes da onda 2)
+
+- `HostInfo.sshUser` e `HostInfo.sshHostKeys`, `SSHHostIdentity` no daemon, `server.helloOk.ssh.json` e SPEC §5.2 e §9.1. Decisão do João: fixar a chave do host pelo `helloOk`, sem confiar na primeira conexão.
+
+### WP-W3b: painel próprio para Servidores web
+
+- **Dono**: `App/Sources/WebPreview/` (menos `Browser*`) e a apresentação em `App/Sources/AppShell/AppShellView.swift`.
+- Decisão do João: a folha do sistema sai (fica recuada das bordas no iOS 26) e entra o mesmo painel da folha de Uso (`UsagePanelLayer` em `App/Sources/Usage/`), colado às bordas, com o topo em ~50% da tela como no print. Generalizar o painel do Uso sem mudar o visual dele. O puxar para recarregar sai (conflita com arrastar para fechar): a lista recarrega ao abrir e quando a conexão volta.
+- **Aceite**: `scripts/build-app.sh` verde; captura com `-demo -open-web-servers` comparada ao print (bordas, altura do topo, tipos) e a do Uso sem regressão.
+
+### WP-W4: sessão SSH, túnel e Navegador
+
+- **Dono**: `App/Sources/Terminal/Session/`, `App/Sources/Settings/SSH*`, `App/Sources/WebPreview/Browser*` e `WebPreviewOpener`.
+- Conexão SSH única (§9.1) com a chave da Secure Enclave, a chave pública em Ajustes (copiar), `PortForwarder` e o Navegador da §6.3, com reabertura ao voltar do background (§9.3). Parte do `docs/spikes/W1.md` e do código `App/Sources/Debug/SSHProbe*`. Usuário e chave do host vêm do `helloOk` (§9.1). O `SSHProbe*` sai no fim do WP, substituído pelo código de produção.
+- **Aceite**: `scripts/test.sh` (o `PortForwarder` com canal falso) e `scripts/build-app.sh` verdes; captura do Navegador com uma página local servida pelo próprio teste.
+
+### WP-W5: checklist no iPhone
+
+- Com o B5: a folha lista os servidores reais; "Portal do cliente" abre; uma edição no código atualiza a página por HMR; fechar e reabrir; mandar o app para o background e voltar recarrega.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1061,6 +1108,12 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-XC | todo | |
 | WP-CD | todo | |
 | WP-H1 | feito sem device (testes e build passaram; gestos e tab real a conferir no iPhone) | `fase/inicio` |
+| WP-W1 | feito (build passou; conexão real depende do B5, no WP-W5) | deedcf1 |
+| WP-W2 | feito (testes do WP e integração passaram; suíte completa com 1 falha de latência fora do WP, sob carga) | 990f09a |
+| WP-W3 | feito com pendência visual (folha recuada das bordas; decisão do João) | d49ccf2 |
+| WP-W3b | done | `32b5b7f` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
+| WP-W4 | done | `80e683d` (SSH e Navegador; conexão real no WP-W5 com o B5) |
+| WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |

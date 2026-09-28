@@ -166,6 +166,15 @@ struct SessionHubScopeBTests {
         }
     }
 
+    @Test func permissionModeComesFromTheTranscript() async throws {
+        try await withHub(configure: { transcripts in
+            await transcripts.setMeta(TranscriptMeta(permissionMode: "plan"), forSession: Sample.sessionA)
+        }) { harness in
+            let (socket, _) = try await harness.pairedClient()
+            #expect(TreeComposer.agent("w1:p1", in: try #require(socket.initialTree))?.permissionMode == "plan")
+        }
+    }
+
     @Test func contextLeftComesFromContextTokensAndTheModelWindow() async throws {
         let meta = TranscriptMeta(model: "claude-opus-5-5", contextTokens: 250_000)
         try await withHub(configure: { transcripts in

@@ -263,6 +263,7 @@ struct TargetedMessage: Sendable, CustomTestStringConvertible {
         }
         #expect(!complete.isEmpty)
         #expect(agents.contains { $0.kind == "claude" && $0.sessionId != nil && $0.preview == nil })
+        #expect(agents.first { $0.id == "w17:p1" }?.permissionMode == "plan")
     }
 
     private func allAgents(in workspaces: [WorkspaceNode]) -> [AgentSummary] {

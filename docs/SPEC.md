@@ -837,7 +837,7 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 - `AgentSummary.title`: `TranscriptMeta.title` (ai-title) quando existe; senão, o título do terminal do Herdr (`terminal_title_stripped`); senão, o `label` da tab; senão, "Claude Code". `ChatMeta.title` segue a mesma ordem. `AgentSummary.model` vem de `TranscriptMeta.model`.
 - `AgentSummary.branch`: `HEAD` do `foreground_cwd` (§3.1.4). `ChatMeta.branch`: `gitBranch` do transcript (§3.2.2).
 - `WorkspaceNode.agentStatus`: agregado dos agentes das tabs do próprio workspace (os worktrees filhos têm o agregado deles), com a prioridade `blocked` > `working` > `done` > `idle` > `unknown`. Workspace sem agente fica `unknown`.
-- `WorkspaceNode.repoName` = `worktree.repo_name`; sem `worktree`, `nil`. `AgentSummary.lastActivityAt` = `TranscriptMeta.lastModified`. `HostInfo.hostName` = nome do Mac (`Host.current().localizedName`).
+- `WorkspaceNode.repoName` = `worktree.repo_name`; sem `worktree`, `nil`. `AgentSummary.lastActivityAt` = `TranscriptMeta.lastModified`. `HostInfo.hostName` = nome do Mac (`Host.current().localizedName`). `HostInfo.sshUser` = `NSUserName()` e `HostInfo.sshHostKeys` = as linhas de `/etc/ssh/ssh_host_ed25519_key.pub` e `ssh_host_ecdsa_key.pub` que existirem, só tipo e base64, sem o comentário (`SSHHostIdentity`, lido uma vez na subida do daemon); sem nenhuma, `[]`.
 - `ChatMeta`: `title`, `model`, `branch` e `permissionMode` vêm do transcript; `workspaceLabel` e `status`, do Herdr.
 - **Eventos para os clientes**:
   - mudança de status gera `agentStatus` na hora e `treeChanged` com debounce de 150 ms;
@@ -991,7 +991,7 @@ Mensagens WebSocket de texto, JSON UTF-8. Datas em ISO-8601 com milissegundos. C
 ```
 
 - `v`: versão do protocolo. Um cliente com `v` diferente recebe `error{code:"protocolMismatch"}` e é desconectado.
-- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `subagentList`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `archived`, `usage`, `herdrStatus`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
+- `id`: obrigatório em toda mensagem do cliente, gerado pelo cliente e único por conexão. O app usa `c-<n>`; o `hello` que a própria conexão manda (§6.1) usa `hello-<n>`. Toda **resposta direta** repete o `id` da requisição: `helloOk`, `tree` (a primeira, logo após `helloOk`, repete o `id` do `hello`), `chatPage`, `subagentList`, `webServers`, `ack`, `pong` e `error`. **Eventos** do servidor (`treeChanged`, `archived`, `usage`, `herdrStatus`, `agentStatus`, `chatAppend`, `chatUpdate`, `chatMeta`, `pending`) não têm `id`.
 - Tipo desconhecido vindo do cliente: o daemon responde `error{code:"unknownType"}` e segue. Tipo desconhecido vindo do servidor: o app ignora a mensagem.
 - `payload` ausente equivale a `{}`.
 
@@ -1024,6 +1024,8 @@ public struct HostInfo: Codable, Sendable {
     public var hostName: String
     public var daemonVersion: String
     public var herdrConnected: Bool
+    public var sshUser: String?           // preview-web: NSUserName() do daemon
+    public var sshHostKeys: [String]?     // preview-web: "<tipo> <base64>" de /etc/ssh/ssh_host_{ed25519,ecdsa}_key.pub
 }
 
 public struct WorkspaceNode: Codable, Sendable, Identifiable {
@@ -1063,6 +1065,7 @@ public struct AgentSummary: Codable, Sendable, Identifiable {
     public var turnEndedAt: Date?
     public var archivedAt: Date?           // arquivado pelo usuário e sem turno novo depois (§4.9)
     public var runningSubagents: Int?      // subagentes running da sessão atual (§3.5); nil ou 0 esconde o selo
+    public var permissionMode: String?     // última linha `permission-mode` do transcript (`default`, `auto`, `acceptEdits`, `plan`, `bypassPermissions`); só muda no transcript quando o próximo prompt sai
 }
 
 public enum MessageAuthor: String, Codable, Sendable { case user, assistant }
@@ -1314,7 +1317,7 @@ Envelope completo:
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
-Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage` e `LiveActivityRegistration`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`.
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json`, `server.webServers.json` e `server.helloOk.ssh.json` (com `sshUser` e `sshHostKeys`).
 
 **Cliente → servidor**
 
@@ -1335,6 +1338,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
 | `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
+| `listWebServers` | `{}` | `webServers` (§9.3) | preview-web |
 
 **Servidor → cliente**
 
@@ -1349,6 +1353,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `agentStatus` | `{agentId, status: AgentStatus, title?: String}` | Evento: mudança de status |
 | `chatPage` | `{<ChatTarget>, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
 | `subagentList` | `{agentId, items: [SubagentSummary]}` (lista tolerante, na ordem da §5.3.1) | Resposta a `listSubagents` |
+| `webServers` | `{host: String, servers: [WebServer]}` (`host` é o `hostName` do daemon; `WebServer` = `{pid: Int, process: String, port: Int, title?: String, directory?: String, workspaceId?: WorkspaceID}`; lista tolerante, por porta crescente) | Resposta a `listWebServers` (§9.3) |
 | `chatAppend` | `{<ChatTarget>, items: [ChatItem]}` | Evento: itens novos num chat aberto |
 | `chatUpdate` | `{<ChatTarget>, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
 | `chatMeta` | `{<ChatTarget>, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
@@ -1493,7 +1498,7 @@ public protocol ServerConnection: Sendable {
 **`AppSession`** (`App/Sources/AppShell/`, `@MainActor @Observable`):
 - é o único consumidor de `messages` e `states`;
 - guarda o host, as preferências, a árvore, as sessões arquivadas, o uso, o `herdrConnected`, o estado da conexão, o chat visível e a navegação;
-- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`); arrastar da esquerda para a direita na Início (ou o botão de relógio) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda (o gesto de voltar do sistema, religado com a barra de navegação escondida). A gaveta é uma camada por cima que só existe dentro do chat, aberta tocando no disco de status do header. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
+- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`), sob um header fixo que não desliza com as páginas: só o conteúdo troca, e o botão da esquerda passa dos anéis para a casa acompanhando o arraste; arrastar da esquerda para a direita na Início (ou o botão de anéis) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda (o gesto de voltar do sistema, religado com a barra de navegação escondida). A gaveta é uma camada por cima que só existe dentro do chat, aberta tocando no disco de status do header. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
 - **chat de subagente** (fase subagentes): entra por push sobre a pilha atual (o chat pai, outro transcript de subagente ou, a partir do Detalhe, a pilha que está sob a folha: a Home ou o chat que abriu o Detalhe), e voltar volta à tela de baixo. Os chats da pilha ficam abertos no daemon (sem `closeChat`) enquanto estão nela, e cada um recebe `closeChat` ao sair dela;
 - correlaciona as respostas pelo id;
 - ao voltar para `.connected`, reabre com `openChat` o chat visível e os que estão abaixo dele na pilha, e substitui as listas;
@@ -1531,6 +1536,8 @@ O visual segue o **mock aprovado**: `docs/design/mock.html`, com uma captura 3x 
 | `badgeWarn` | `#342C1F` | Fundo dos selos âmbar (texto `dirty`) |
 | `sepDot` | `#55595F` | Ponto separador "•" da linha de metadados do card |
 | `ringTrack` | `#2F3032` | Trilho do anel de contexto |
+| `ringAuto` / `ringAutoTrack` | `#A482E6` / `#352C47` | Arco e trilho do anel externo (agentes em modo auto ou edição) do botão de anéis da Início |
+| `ringPlan` / `ringPlanTrack` | `#48A89E` / `#1D3A38` | Arco e trilho do anel interno (agentes em modo plan) do botão de anéis da Início |
 | `divider` | `#202223` | Divisórias de lista e de folha |
 | `barTrack` | `#191B1D` | Trilho das barras de uso |
 | `paceMark` | `#979899` | Traço do ritmo constante nas barras de uso |
@@ -1568,7 +1575,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - "Este iPhone não está mais pareado" (`unauthorized`).
 
 **Início** (`21-inicio`, `21e-inicio-vazia`)
-- Tela inicial. Topo: à esquerda, botão redondo do Histórico; à direita, uma cápsula de vidro com o sino da Inbox (contagem só quando há pedido), o globo desabilitado (reservado ao preview web) e a engrenagem de Ajustes. Abaixo, a barra "Buscar", só visual por enquanto. Sem conexão, a cápsula "Sem conexão com o Mac" fica logo abaixo da busca.
+- Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringAuto`) enche um quinto por agente Claude com `permissionMode` `auto`, `acceptEdits` ou `bypassPermissions` (cheio com 5 ou mais) e o interno (`ringPlan`) um quarto por agente Claude em `plan` (cheio com 4 ou mais), os dois das 12 h no sentido horário e sem animação; `default` e os agentes Codex não entram nos anéis. A bolinha de 9,2 pt no centro dos anéis, com o mesmo glifo do selo do anel de contexto (raio quando trabalhando, exclamação quando bloqueado), pulsa (opacidade de 30% a 100% num ciclo de 1,4 s; fixa com Reduzir movimento): `dirty` quando algum agente está `blocked`, senão `statusOk` quando algum está `working`, e some quando nenhum. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
 - RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
 - Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os mesmos cards do Histórico. Sem a pílula de uso.
 - Botão + verde (60 pt) no canto inferior direito: abre a folha Nova sessão.
@@ -1579,7 +1586,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Tocar num workspace manda `newAgentTab{workspaceId, kind}` e mostra só um indicador de progresso na linha. No `ack{agentId}`, a folha fecha e o chat abre por push; um erro aparece no rodapé. Fechar (arrastar ou tocar fora) e reabrir volta ao passo 1.
 
 **Histórico** (`22-historico`)
-- Tela irmã da Início, à esquerda. Título "Histórico" e, à direita, o botão de casa que volta à Início. Sem engrenagem e sem sino.
+- Tela irmã da Início, à esquerda, sob o mesmo header fixo, sem título: no lugar dos anéis, o botão de casa que volta à Início; a cápsula (sino só com pedido pendente, globo e engrenagem) continua.
 - Mostra só agentes com `kind == "claude"` e as sessões de `archived`. Seções, nesta ordem, cada uma só quando tem card:
   - **PRECISA DE VOCÊ**: `status == blocked`. Card com borda âmbar;
   - **TRABALHANDO**: `status == working`;
@@ -1595,6 +1602,15 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - **Pílula de uso** flutuante no rodapé (`glassPill`): asterisco, "5h" com barra e %, divisória, "7d" com barra e %. Tocar abre o Uso. Some sem `usage`.
 - **Sem conexão**: a lista fica com o último estado conhecido, anéis parados em cinza, e uma cápsula no topo ("Sem conexão com o Mac", ou a mensagem do estado) abre Ajustes. Nada some; a reconexão é automática.
 - **Vazio**: nenhum agente nem sessão arquivada. Texto "Nenhum agente aberto", sem botão.
+
+**Servidores web** (referência: `docs/referencias/moshi/servidores-web.jpg`, sem o card de usos grátis)
+- Painel próprio igual ao do Uso (`BottomPanelLayer`), colado às bordas, com o topo em 50% da tela; arrastar para baixo fecha. Fundo `drawerBg`, título "Servidores web". Ao abrir, manda `listWebServers` e mostra um indicador até a resposta; a lista também recarrega quando a conexão volta. Não há puxar para recarregar, que conflitaria com arrastar para fechar.
+- Uma seção por workspace do Herdr, na ordem da árvore (worktrees como workspaces próprios), com o `label` em maiúsculas no estilo de cabeçalho de seção; servidores sem `workspaceId` (ou de um workspace fora da árvore) vão numa última seção com o `host`. As linhas ficam num cartão arredondado com divisórias: ícone de disco (`externaldrive`) à esquerda, o `title` (ou, sem ele, o nome da pasta de `directory`, ou "Porta <port>") em 17 pt semibold e, embaixo, "PID <pid> · <process> · PORT <port>" em mono `textSecondary`.
+- Tocar numa linha abre o Navegador (§9.3). Só em Debug, `-open-web-servers` abre a folha ao iniciar; com `-demo`, a lista traz os dois servidores do print, e com `-demo-empty` vem vazia. Sem servidores: "Nenhum servidor web rodando no Mac". Sem conexão: a lista some e fica a mesma mensagem da cápsula "Sem conexão com o Mac".
+
+**Navegador** (preview web)
+- Tela cheia por cima de tudo (`fullScreenCover`), fundo `black`. Barra superior de vidro com o botão de fechar à esquerda, o título da página (ou "localhost:<porta>") no centro, com a branch do workspace do servidor embaixo em `textSecondary` (sem workspace ou sem branch, só o título) e recarregar à direita; embaixo dela, o `WKWebView`.
+- Enquanto o túnel abre, um indicador com "Conectando ao Mac…"; falha do SSH mostra o erro e "Tentar de novo". Sem a chave autorizada no Mac, o erro aponta para Ajustes (chave pública, §9.1). Abrir o Navegador fecha a folha ou o painel aberto. Só em Debug, `-open-web-preview <porta>` abre o Navegador ao iniciar; com `-demo`, a página vem do próprio app (`StaticPageTunnelChannel`), sem SSH.
 
 **Uso do plano** (`03-uso-plano`)
 - Folha média sobre a Home (arrastar fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
@@ -1617,7 +1633,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - asterisco do Claude e título (truncado no meio); tocar no título abre o Detalhe;
   - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
-  - bússola, desabilitada (reservada ao preview web).
+  - bússola, presa ao workspace do agente: pede `listWebServers` e filtra pelo `workspaceId` do workspace que contém o agente. Com 1 servidor, abre direto o Navegador; com 0 ou vários, abre o painel Servidores web só com esse workspace (vazio: "Nenhum servidor web neste workspace"). Sem workspace conhecido (thread Codex, sessão arquivada sem agente vivo), abre o painel global.
   - O conteúdo rola por baixo do header e do composer.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
@@ -1686,7 +1702,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Transcript do subagente** (`16b-transcript-subagente`, `16c-transcript-concluido`)
 - `ChatScreen(target: .subagent)`, só de leitura, por push (§6.1).
-- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola fica desabilitada. Tocar no título não faz nada.
+- **Header de vidro**: botão de voltar no lugar do disco de status; ícone de subagente em `claude` no lugar do asterisco; título = `ChatMeta.title` (a descrição); subtítulo "subagente de <parentTitle>" em `textSecondary`; sem o botão de git; a bússola segue o workspace do agente pai, como no chat do agente. Tocar no título não faz nada.
 - **Topo da lista**, quando a página chega ao começo do arquivo (`hasMore == false`): aviso centralizado "<tipo> · <hora de startedAt> · <modelo abreviado>" (ex.: "general-purpose · 13:52 · opus-5-5"); um campo que falta sai do texto.
 - `task`: card "Tarefa" (fundo `toolCard`), com o ícone de subagente e "Tarefa" em `textSecondary`, o texto em até 4 linhas e "Ver tarefa completa" com chevron, que expande o texto inteiro.
 - A lista segue o chat; um `subagent` aninhado abre o transcript dele.
@@ -1969,14 +1985,16 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 
 ---
 
-## §9 Terminal (fases 2 e 3)
+## §9 Terminal e preview web (fases 2, 3 e preview-web)
 
 ### §9.1 SSH (fase 2)
 
 - Emulador `SwiftTerm` (UIKit `TerminalView` embrulhado em SwiftUI). SSH com `Citadel` (swift-nio-ssh).
 - **Chave**: P-256 criada na Secure Enclave (`SecureEnclave.P256.Signing.PrivateKey`, com `.biometryCurrentSet`), usada como `ecdsa-sha2-nistp256` via `NIOSSHPrivateKey(secureEnclaveP256Key:)`. Se o Citadel não expuser isso, um delegate de autenticação próprio.
+- **Autenticação** (spike W1): a chave fica com `[.privateKeyUsage, .biometryCurrentSet]` e `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, e o `dataRepresentation` vai no Keychain. O Citadel 0.12.1 não aceita chave da Secure Enclave nos métodos prontos: a autenticação usa `SSHAuthenticationMethod.custom` com um `NIOSSHClientUserAuthenticationDelegate` próprio, que oferece `NIOSSHPrivateKey(secureEnclaveP256Key:)` uma única vez (sem novas ofertas nem novos Face ID depois de uma recusa) e completa a promise com `assumeIsolated()`. A chave do host é conferida por `SSHHostKeyValidator.custom`. `SSHClient.connect(…, reconnect: .never, connectTimeout: .seconds(10))`: quem reconecta é o app.
+- A chave é criada com `.biometryCurrentSet`, então cada assinatura (cada conexão nova, inclusive ao voltar do background) pede Face ID; o `App/Info.plist` tem `NSFaceIDUsageDescription`. No simulador, só em Debug, a chave é P-256 em software.
 - A chave pública aparece em Ajustes para colar em `~/.ssh/authorized_keys` do Mac. O Remote Login precisa estar ligado no Mac (bloqueio B5).
-- **Host**: o mesmo nome MagicDNS, porta 22, dentro do tailnet.
+- **Host**: o mesmo nome MagicDNS, porta 22, dentro do tailnet. O usuário é o `HostInfo.sshUser` do `helloOk`, e o `SSHHostKeyValidator.custom` só aceita a chave apresentada pelo servidor se ela for igual a uma das `HostInfo.sshHostKeys` (sem confiar na primeira conexão). Sem `sshHostKeys` (daemon antigo ou lista vazia), a conexão SSH é recusada com a mensagem "Atualize o mochad no Mac".
 - **Sessão**: `herdr agent attach <paneId>` pelo "Abrir terminal" do Detalhe do agente, ou `herdr` puro por uma tab de shell da gaveta (§6.3). Ao reconectar, reanexa no mesmo alvo.
 - **Barra de teclas** (`terminal.png`): Ctrl (trava), Esc, Tab, setas (joystick), prefixo do Herdr (`ctrl+space`), colar, histórico e recolher teclado. Cores em §6.2.
 
@@ -1985,6 +2003,21 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 - Build do mosh para iOS a partir de `blinksh/build-mosh` + `blinksh/mosh` (GPLv3; aceitável num app que não é distribuído), com libprotobuf.
 - Bootstrap: `mosh-server new` via SSH (Citadel), com a chave e a porta devolvidas ligadas ao `mosh-client` embutido. O Mac precisa do `mosh-server` (`brew install mosh`).
 - O transporte é trocável na mesma tela de terminal (SSH ou Mosh).
+
+### §9.3 Preview web (fase preview-web)
+
+- **Descoberta** (`mochad`, `WebServerScanner` em `MochaDaemonCore/WebServers/`), a cada `listWebServers`:
+  - lista os PIDs do usuário do daemon (`proc_listpids` + `proc_pidinfo(PROC_PIDTBSDINFO)`, mesmo `uid`) e, de cada um, os sockets TCP em `LISTEN` (`PROC_PIDLISTFDS` + `proc_pidfdinfo(PROC_PIDFDSOCKETINFO)`), sem subprocesso;
+  - descarta as portas do próprio `mochad` (hooks e gateway) e os processos com executável em `/System/`, `/usr/libexec/` ou `/Applications/*.app/`;
+  - uma porta aparece uma vez (a primeira pelo menor PID);
+  - sonda cada porta com `GET /` em `http://localhost:<porta>` (o `localhost` cobre servidores só em `::1`, como o Vite no Node recente), timeout de 800 ms, todas em paralelo; fica quem responde HTTP com `Content-Type` `text/html`, seguindo até 3 redirecionamentos para o mesmo host;
+  - `title` = o `<title>` do HTML (primeiros 64 KB, entidades básicas decodificadas, espaços colapsados); `directory` = o cwd do processo (`PROC_PIDVNODEPATHINFO`); `process` = o nome do processo (`proc_name`);
+  - responde em até 2 s; porta que não respondeu a tempo fica de fora;
+  - `workspaceId` = o workspace do Herdr cuja raiz (o `checkout_path` da worktree ou o cwd do pane da tab ativa) é o prefixo mais longo do `directory`; no empate, vence o `checkout_path`. `/` e a home nunca são raiz. Sem raiz que contenha o diretório, o campo fica ausente.
+- **Túnel** (app): uma conexão SSH por aparelho (§9.1: host MagicDNS, porta 22, chave da Secure Enclave), compartilhada com o terminal. Para cada preview, o `PortForwarder` abre um `NWListener` em `127.0.0.1` com porta efêmera no iPhone; cada conexão aceita vira um canal `direct-tcpip` do Citadel para `localhost:<porta do Mac>` (o `sshd` tenta IPv4 e IPv6), com bytes copiados nos dois sentidos até um lado fechar: o canal sai de `SSHClient.createDirectTCPIPChannel(using: .init(targetHost: "localhost", targetPort:, originatorAddress:))`, embrulhado no `initialize` num `NIOAsyncChannel<ByteBuffer, ByteBuffer>` com `isOutboundHalfClosureEnabled`; o `NWListener` usa `requiredLocalEndpoint` em `.ipv4(.loopback)`, sem `acceptLocalOnly` (com ele, o simulador reseta toda conexão aceita); a ponte copia com dois filhos num task group e propaga o fim de cada lado (`outbound.finish()` e `.finalMessage`). O `TunnelPortForwarder` (actor em `MochaClient/Tunnel/`, sem depender do Citadel) recebe um `TunnelChannelOpener` (`@Sendable (Int) async throws -> any TunnelChannel`), trocado por um falso nos testes; no app, o `SSHTunnelChannel` adapta o `NIOAsyncChannel`. O `stop()` é `async` e espera o listener cancelar, para reabrir na mesma porta ao voltar do background. O `WKWebView` carrega `http://127.0.0.1:<porta local>/`, e assim HMR, WebSocket e caminhos absolutos funcionam sem reescrita.
+- **Ciclo de vida**: o listener fecha quando o Navegador fecha. Ao voltar do background, o app reabre a conexão SSH e o listener na mesma porta local, se livre, e recarrega a página.
+- **ATS**: o `App/Info.plist` tem `NSAppTransportSecurity › NSAllowsLocalNetworking`, que libera só `127.0.0.1`/`localhost` em HTTP.
+- **Segurança**: nada abre no Mac além do SSH que já existe (§9.1); o daemon só lê processos e sonda `localhost`. O túnel só chega a portas de loopback do Mac e exige a chave autorizada em `~/.ssh/authorized_keys` (bloqueio B5).
 
 ---
 
@@ -2011,7 +2044,8 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 | JetBrains Mono 2.304 (github.com/JetBrains/JetBrainsMono), pesos Regular, Italic, Bold e BoldItalic em `App/Resources/Fonts/`, com a `OFL.txt`. Motivo: é a fonte mono dos prints (§6.2) | app (`DesignSystem/`) | OFL-1.1 | 1a-core |
 | Swift Testing | testes | — | todas |
 | `SwiftTerm` (github.com/migueldeicaza/SwiftTerm) | app | MIT | 2 |
-| `Citadel` (github.com/orlandos-nl/Citadel) | app | MIT | 2 |
+| `Citadel` (github.com/orlandos-nl/Citadel), `exactVersion: 0.12.1` | app | MIT | preview-web e 2 |
+| `swift-nio-ssh` do fork `Wellz26/swift-nio-ssh` 0.3.x, transitiva do `Citadel` 0.12.1 (não é o pacote da Apple). Traz `NIOSSHPrivateKey(secureEnclaveP256Key:)`, usada na chave da §9.1 | app | Apache-2.0 | preview-web e 2 |
 | `blinksh/mosh` + protobuf | app | GPLv3 / BSD | 3 |
 
 Não há outras dependências. Uma nova precisa entrar nesta tabela, com licença e motivo, antes de ser adicionada.

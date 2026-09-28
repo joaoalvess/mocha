@@ -36,6 +36,7 @@ public enum ClientMessage: Sendable, Hashable {
     case respond(requestId: RequestID, response: PendingResponse)
     case newAgentTab(workspaceId: WorkspaceID, kind: AgentProvider = .claude)
     case registerLiveActivity(LiveActivityRegistration)
+    case listWebServers
     case unknown(type: String)
 
     public var type: String {
@@ -55,6 +56,7 @@ public enum ClientMessage: Sendable, Hashable {
         case .respond: "respond"
         case .newAgentTab: "newAgentTab"
         case .registerLiveActivity: "registerLiveActivity"
+        case .listWebServers: "listWebServers"
         case .unknown(let type): type
         }
     }
@@ -131,6 +133,8 @@ extension ClientMessage {
             )
         case "registerLiveActivity":
             self = .registerLiveActivity(try envelope.decode(LiveActivityRegistration.self, forKey: .payload))
+        case "listWebServers":
+            self = .listWebServers
         default:
             self = .unknown(type: type)
         }
@@ -162,7 +166,7 @@ extension ClientMessage {
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encodeIfPresent(agentId, forKey: .agentId)
             try payload.encode(isActive, forKey: .isActive)
-        case .unpair, .ping, .unknown:
+        case .unpair, .ping, .listWebServers, .unknown:
             envelope.emptyPayload()
         case .archive(let sessionId, let provider):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)

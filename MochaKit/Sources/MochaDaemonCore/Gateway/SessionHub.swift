@@ -9,17 +9,20 @@ public struct SessionHubConfiguration: Sendable {
     public var daemonVersion: String
     public var treeDebounce: Duration
     public var homeLiveRelease: Duration
+    public var sshIdentity: SSHHostIdentity?
 
     public init(
         hostName: String = SessionHubConfiguration.defaultHostName,
         daemonVersion: String = DaemonVersion.current,
         treeDebounce: Duration = .milliseconds(150),
-        homeLiveRelease: Duration = .seconds(30)
+        homeLiveRelease: Duration = .seconds(30),
+        sshIdentity: SSHHostIdentity? = nil
     ) {
         self.hostName = hostName
         self.daemonVersion = daemonVersion
         self.treeDebounce = treeDebounce
         self.homeLiveRelease = homeLiveRelease
+        self.sshIdentity = sshIdentity
     }
 
     public static var defaultHostName: String {
@@ -122,6 +125,7 @@ public actor SessionHub {
     let archive: any SessionArchiving
     let subagents: (any SubagentProviding)?
     let pending: (any PendingProviding)?
+    let webServers: (any WebServerScanning)?
     let clock: any GatewayClock
     let configuration: SessionHubConfiguration
     let encoder = JSONEncoder()
@@ -185,6 +189,7 @@ public actor SessionHub {
         archive: any SessionArchiving,
         subagents: (any SubagentProviding)? = nil,
         pending: (any PendingProviding)? = nil,
+        webServers: (any WebServerScanning)? = nil,
         clock: any GatewayClock = SystemGatewayClock(),
         configuration: SessionHubConfiguration = SessionHubConfiguration()
     ) {
@@ -196,6 +201,7 @@ public actor SessionHub {
         self.archive = archive
         self.subagents = subagents
         self.pending = pending
+        self.webServers = webServers
         self.clock = clock
         self.configuration = configuration
         let (updates, continuation) = AsyncStream.makeStream(of: Set<AgentID>.self)
