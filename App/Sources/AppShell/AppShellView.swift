@@ -25,7 +25,12 @@ struct AppShellView: View {
                     }
             }
             DrawerLayer(session: session)
-            UsagePanelLayer(session: session)
+            BottomPanelLayer(session: session, sheet: .usage, height: UsageSheet.panelHeight) {
+                UsageSheet(session: session)
+            }
+            BottomPanelLayer(session: session, sheet: .webServers, height: WebServersSheet.panelHeight) {
+                WebServersSheet(session: session)
+            }
             if session.showsPairing {
                 PairingScreen(session: session)
                     .transition(.opacity)
@@ -82,7 +87,7 @@ struct AppShellView: View {
 
     private var systemSheet: Binding<AppSheet?> {
         Binding(
-            get: { session.sheet == .usage ? nil : session.sheet },
+            get: { session.sheet == .usage || session.sheet == .webServers ? nil : session.sheet },
             set: { session.sheet = $0 }
         )
     }
@@ -96,17 +101,11 @@ struct AppShellView: View {
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Palette.black)
                 .presentationCornerRadius(Metrics.sheetCornerRadius)
-        case .usage:
+        case .usage, .webServers:
             EmptyView()
         case .newSession:
             NewSessionSheet(session: session, initialKind: launchNewSessionKind)
                 .onDisappear { launchNewSessionKind = nil }
-        case .webServers:
-            WebServersSheet(session: session)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.hidden)
-                .presentationBackground(Palette.drawerBg)
-                .presentationCornerRadius(Metrics.sheetCornerRadius)
         case .settings:
             SettingsScreen(session: session)
                 .presentationDetents([.large])
@@ -114,55 +113,6 @@ struct AppShellView: View {
                 .presentationBackground(Palette.black)
                 .presentationCornerRadius(Metrics.sheetCornerRadius)
         }
-    }
-}
-
-private struct UsagePanelLayer: View {
-    @Bindable var session: AppSession
-    @State private var dragOffset: CGFloat = 0
-
-    private static let height: CGFloat = 473
-    private static let cornerRadius: CGFloat = 30
-    private static let closeThreshold: CGFloat = 0.25
-
-    private var isPresented: Bool { session.sheet == .usage }
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            if isPresented {
-                UsageSheet(session: session)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Self.height, alignment: .top)
-                    .background(
-                        Palette.drawerBg,
-                        in: UnevenRoundedRectangle(topLeadingRadius: Self.cornerRadius, topTrailingRadius: Self.cornerRadius)
-                    )
-                    .offset(y: dragOffset)
-                    .gesture(closeDrag)
-                    .accessibilityAction(.escape) { session.dismissSheet() }
-                    .transition(.move(edge: .bottom))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .ignoresSafeArea(.container, edges: .bottom)
-        .animation(.smooth(duration: 0.3), value: isPresented)
-        .onChange(of: isPresented) {
-            dragOffset = 0
-        }
-    }
-
-    private var closeDrag: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                dragOffset = max(0, value.translation.height)
-            }
-            .onEnded { value in
-                if value.predictedEndTranslation.height > Self.height * Self.closeThreshold {
-                    session.dismissSheet()
-                } else {
-                    withAnimation(.smooth(duration: 0.2)) { dragOffset = 0 }
-                }
-            }
     }
 }
 
