@@ -233,7 +233,7 @@ struct SessionHubRulesTests {
     @Test func unknownAndLaterPhaseTypesAnswerUnknownType() async throws {
         try await withHub { harness in
             let (socket, _) = try await harness.pairedClient()
-            socket.deliverRaw(#"{"v":1,"id":"c-1","type":"teleport","payload":{}}"#)
+            socket.deliverRaw(#"{"v":2,"id":"c-1","type":"teleport","payload":{}}"#)
             let unknown = try await socket.next()
             #expect(unknown.id == "c-1")
             #expect(unknown.message.errorCode == .unknownType)
@@ -245,7 +245,7 @@ struct SessionHubRulesTests {
     @Test func malformedPayloadIsInvalidPayloadWithTheRequestId() async throws {
         try await withHub { harness in
             let (socket, _) = try await harness.pairedClient()
-            socket.deliverRaw(#"{"v":1,"id":"c-5","type":"openChat","payload":{"agentId":"w1:p1","sessionId":"\#(Sample.sessionA)"}}"#)
+            socket.deliverRaw(#"{"v":2,"id":"c-5","type":"openChat","payload":{"agentId":"w1:p1","sessionId":"\#(Sample.sessionA)"}}"#)
             let reply = try await socket.next()
             #expect(reply.id == "c-5")
             #expect(reply.message.errorCode == .invalidPayload)

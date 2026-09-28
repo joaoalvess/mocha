@@ -1,4 +1,5 @@
 import Foundation
+import MochaProtocol
 
 public enum LiveActivityContentState {
     public struct Pending: Codable, Sendable, Equatable {
@@ -26,6 +27,7 @@ public enum LiveActivityContentState {
 
     public struct Highlight: Codable, Sendable, Equatable {
         public var agentId: String
+        public var provider: AgentProvider?
         public var title: String
         public var workspaceLabel: String
         public var status: String
@@ -38,6 +40,7 @@ public enum LiveActivityContentState {
 
         public init(
             agentId: String,
+            provider: AgentProvider? = nil,
             title: String,
             workspaceLabel: String,
             status: String,
@@ -49,6 +52,7 @@ public enum LiveActivityContentState {
             prompt: String? = nil
         ) {
             self.agentId = agentId
+            self.provider = provider
             self.title = title
             self.workspaceLabel = workspaceLabel
             self.status = status
@@ -61,12 +65,13 @@ public enum LiveActivityContentState {
         }
 
         enum CodingKeys: String, CodingKey {
-            case agentId, title, workspaceLabel, status, since, model, contextLeftPercent, preview, activity, prompt
+            case agentId, provider, title, workspaceLabel, status, since, model, contextLeftPercent, preview, activity, prompt
         }
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             agentId = try container.decode(String.self, forKey: .agentId)
+            provider = try container.decodeIfPresent(AgentProvider.self, forKey: .provider)
             title = try container.decode(String.self, forKey: .title)
             workspaceLabel = try container.decode(String.self, forKey: .workspaceLabel)
             status = try container.decode(String.self, forKey: .status)
@@ -81,6 +86,7 @@ public enum LiveActivityContentState {
         public func encode(to encoder: any Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(agentId, forKey: .agentId)
+            if provider == .codex { try container.encode(AgentProvider.codex, forKey: .provider) }
             try container.encode(title, forKey: .title)
             try container.encode(workspaceLabel, forKey: .workspaceLabel)
             try container.encode(status, forKey: .status)

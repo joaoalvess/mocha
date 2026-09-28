@@ -75,12 +75,13 @@ struct AgentActivitySnapshot: Sendable, Equatable {
         case .needsInput: pendingBody ?? PushAlertText.secondaryBody
         case .turnDone: agent.preview ?? PushAlertText.turnDoneFallback
         }
-        return AgentActivityAlert(title: PushAlertText.title(kind, workspaceLabel: agent.workspaceLabel), body: String(body.prefix(PushAlertText.bodyLimit)))
+        return AgentActivityAlert(title: PushAlertText.title(kind, workspaceLabel: agent.workspaceLabel, provider: agent.provider), body: String(body.prefix(PushAlertText.bodyLimit)))
     }
 
     var startAlert: AgentActivityAlert {
         let title = agent.title.allSatisfy(\.isWhitespace) ? agent.workspaceLabel : agent.title
-        return AgentActivityAlert(title: PushAlertText.title(Self.startTitle, workspaceLabel: agent.workspaceLabel), body: title, sound: nil)
+        let startTitle = agent.provider == .codex ? "Codex trabalhando" : Self.startTitle
+        return AgentActivityAlert(title: PushAlertText.title(startTitle, workspaceLabel: agent.workspaceLabel), body: title, sound: nil)
     }
 
     private var pendingBody: String? {
@@ -147,7 +148,7 @@ struct AgentActivityTracker: Sendable {
         var tracked: [AgentID: Entry] = [:]
         var observed: [AgentID: Observation] = [:]
         var snapshots: [AgentID: AgentActivitySnapshot] = [:]
-        for agent in input.agents where agent.kind == TreeComposer.claudeKind && tracked[agent.id] == nil {
+        for agent in input.agents where (agent.kind == TreeComposer.claudeKind || agent.kind == AgentProvider.codex.rawValue) && tracked[agent.id] == nil {
             let status = Self.effectiveStatus(of: agent, hasPending: pendingAgents.contains(agent.id))
             let entry = entries[agent.id].flatMap { $0.status == status ? $0 : nil } ?? Entry(status: status, since: now)
             tracked[agent.id] = entry

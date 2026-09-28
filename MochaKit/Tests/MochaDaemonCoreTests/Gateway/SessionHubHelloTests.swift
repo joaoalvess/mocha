@@ -33,7 +33,7 @@ struct SessionHubHelloTests {
     @Test func versionIsCheckedBeforeEverythingElse() async throws {
         try await withHub { harness in
             let socket = harness.connect()
-            socket.deliverRaw(#"{"v":2,"id":"hello-1","type":"hello","payload":{"deviceName":"x","appVersion":"1"}}"#)
+            socket.deliverRaw(#"{"v":1,"id":"hello-1","type":"hello","payload":{"deviceName":"x","appVersion":"1"}}"#)
             let reply = try await socket.next()
             #expect(reply.id == "hello-1")
             #expect(reply.message.errorCode == .protocolMismatch)

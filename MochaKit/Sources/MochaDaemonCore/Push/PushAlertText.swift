@@ -1,4 +1,5 @@
 import Foundation
+import MochaProtocol
 import MochaTranscript
 
 public enum PushAlertKind: String, Sendable, Equatable {
@@ -29,10 +30,11 @@ enum PushAlertText {
     static let questionCategory = "QUESTION"
     static let planCategory = "PLAN"
 
-    static func title(_ kind: PushAlertKind, workspaceLabel: String?) -> String {
+    static func title(_ kind: PushAlertKind, workspaceLabel: String?, provider: AgentProvider? = nil) -> String {
+        let name = provider == .codex ? "Codex" : "Claude"
         let base = switch kind {
-        case .turnDone: "Claude terminou"
-        case .needsInput: "Claude precisa de você"
+        case .turnDone: "\(name) terminou"
+        case .needsInput: "\(name) precisa de você"
         }
         return title(base, workspaceLabel: workspaceLabel)
     }
