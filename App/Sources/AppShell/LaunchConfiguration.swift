@@ -12,6 +12,7 @@ struct LaunchConfiguration: Equatable {
     var opensSettings = false
     var opensHistory = false
     var opensWebServers = false
+    var webPreviewPort: Int?
     var newSession: NewSessionLaunch?
     var pairingProblem: ConnectionProblem?
     #endif
@@ -49,6 +50,7 @@ struct LaunchConfiguration: Equatable {
         configuration.opensSettings = arguments.contains(openSettingsFlag)
         configuration.opensHistory = arguments.contains(openHistoryFlag)
         configuration.opensWebServers = arguments.contains(openWebServersFlag)
+        configuration.webPreviewPort = (argumentDomain[LaunchArguments.openWebPreviewKey] as? String).flatMap(Int.init)
         configuration.newSession = (argumentDomain[NewSessionLaunch.argumentKey] as? String).flatMap(NewSessionLaunch.init(rawValue:))
         configuration.pairingProblem = (argumentDomain[LaunchArguments.pairingErrorKey] as? String).flatMap(ConnectionProblem.init(rawValue:))
         #endif
@@ -59,6 +61,7 @@ struct LaunchConfiguration: Equatable {
 enum LaunchArguments {
     static let openURLKey = "open-url"
     static let pairingErrorKey = "pairing-error"
+    static let openWebPreviewKey = "open-web-preview"
 
     static func argumentDomain(_ defaults: UserDefaults = .standard) -> [String: Any] {
         defaults.volatileDomain(forName: UserDefaults.argumentDomain)

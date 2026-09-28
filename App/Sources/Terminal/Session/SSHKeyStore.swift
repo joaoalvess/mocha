@@ -1,10 +1,9 @@
-#if DEBUG
 import CryptoKit
 import Foundation
 import NIOSSH
 import Security
 
-enum SSHProbeKeyError: Error, LocalizedError {
+enum SSHKeyError: Error, LocalizedError {
     case secureEnclaveUnavailable
     case missingFaceIDUsageDescription
     case accessControl
@@ -13,22 +12,22 @@ enum SSHProbeKeyError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .secureEnclaveUnavailable:
-            "Secure Enclave indisponível neste aparelho."
+            "A Secure Enclave não está disponível neste aparelho."
         case .missingFaceIDUsageDescription:
             "Falta NSFaceIDUsageDescription no Info.plist."
         case .accessControl:
-            "Não foi possível criar o controle de acesso da chave."
+            "Não foi possível proteger a chave SSH."
         case .keychain(let status):
-            "Erro do Keychain: \(status)."
+            "Erro do Keychain ao ler a chave SSH (\(status))."
         }
     }
 }
 
-enum SSHProbeSigningKey: Sendable {
+enum SSHSigningKey: Sendable {
     case secureEnclave(SecureEnclave.P256.Signing.PrivateKey)
     case software(P256.Signing.PrivateKey)
 
-    static let comment = "mocha-ssh-probe"
+    static let comment = "mocha-iphone"
 
     var sshPrivateKey: NIOSSHPrivateKey {
         switch self {
@@ -42,33 +41,18 @@ enum SSHProbeSigningKey: Sendable {
     var authorizedKeysLine: String {
         String(openSSHPublicKey: sshPrivateKey.publicKey) + " " + Self.comment
     }
-
-    var kindLabel: String {
-        switch self {
-        case .secureEnclave:
-            "Secure Enclave"
-        case .software:
-            "Software (só simulador)"
-        }
-    }
 }
 
-enum SSHProbeKeyStore {
-    static let service = "com.joaoalves.mocha.ssh-probe"
+enum SSHKeyStore {
+    static let service = "com.joaoalves.mocha.ssh"
     static let faceIDUsageKey = "NSFaceIDUsageDescription"
 
-    static func loadOrCreate() throws -> SSHProbeSigningKey {
-        #if targetEnvironment(simulator)
+    static func loadOrCreate() throws -> SSHSigningKey {
+        #if targetEnvironment(simulator) && DEBUG
         return .software(try loadOrCreateSoftwareKey())
         #else
         return .secureEnclave(try loadOrCreateSecureEnclaveKey())
         #endif
-    }
-
-    static func delete() {
-        for account in [Account.secureEnclave, Account.software] {
-            SecItemDelete(query(account: account) as CFDictionary)
-        }
     }
 
     private enum Account: String {
@@ -77,9 +61,9 @@ enum SSHProbeKeyStore {
     }
 
     private static func loadOrCreateSecureEnclaveKey() throws -> SecureEnclave.P256.Signing.PrivateKey {
-        guard SecureEnclave.isAvailable else { throw SSHProbeKeyError.secureEnclaveUnavailable }
+        guard SecureEnclave.isAvailable else { throw SSHKeyError.secureEnclaveUnavailable }
         guard Bundle.main.object(forInfoDictionaryKey: faceIDUsageKey) != nil else {
-            throw SSHProbeKeyError.missingFaceIDUsageDescription
+            throw SSHKeyError.missingFaceIDUsageDescription
         }
         if let blob = try readBlob(account: .secureEnclave) {
             return try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: blob)
@@ -90,7 +74,7 @@ enum SSHProbeKeyStore {
             [.privateKeyUsage, .biometryCurrentSet],
             nil
         ) else {
-            throw SSHProbeKeyError.accessControl
+            throw SSHKeyError.accessControl
         }
         let key = try SecureEnclave.P256.Signing.PrivateKey(accessControl: accessControl)
         try writeBlob(key.dataRepresentation, account: .secureEnclave)
@@ -126,7 +110,7 @@ enum SSHProbeKeyStore {
         case errSecItemNotFound:
             return nil
         default:
-            throw SSHProbeKeyError.keychain(status)
+            throw SSHKeyError.keychain(status)
         }
     }
 
@@ -135,7 +119,6 @@ enum SSHProbeKeyStore {
         attributes[kSecValueData as String] = blob
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let status = SecItemAdd(attributes as CFDictionary, nil)
-        guard status == errSecSuccess else { throw SSHProbeKeyError.keychain(status) }
+        guard status == errSecSuccess else { throw SSHKeyError.keychain(status) }
     }
 }
-#endif

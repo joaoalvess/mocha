@@ -19,6 +19,8 @@ struct SettingsScreen: View {
                     Color.clear.frame(height: 26)
                     deviceSection
                     Color.clear.frame(height: 26)
+                    SSHKeySection()
+                    Color.clear.frame(height: 26)
                     unpairSection
                 }
                 .padding(.horizontal, Metrics.contentMargin)
