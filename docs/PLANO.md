@@ -925,7 +925,7 @@ Branch `fase/1b-feed`, criada de `main` em 2026-09-27. Onda 1: orquestrador (SPE
 
 ## Fase Codex: CLI no Herdr, desktop como complemento
 
-Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contrato desta fase. Ondas: S7 → WP-C1 → WP-C2 ∥ WP-C3 → WP-XC → WP-CD. O desktop não bloqueia o aceite do CLI. Bloqueios do João: nenhum para S7 e os testes locais; revisar a configuração real do App Server e dos hooks antes da instalação, e validar no iPhone no WP-XC.
+Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contrato desta fase. Ondas: S7 → WP-C1 → WP-C2 ∥ WP-C3 → WP-C2-wiring → WP-XC → WP-CD. O desktop não bloqueia o aceite do CLI. Bloqueios do João: nenhum para S7 e os testes locais; revisar a configuração real do App Server e dos hooks antes da instalação, e validar no iPhone no WP-XC.
 
 ### S7: App Server compartilhado no laboratório
 
@@ -942,6 +942,11 @@ Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contr
 
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/`, adaptação de `Gateway/`, `Herdr/`, `Pending/`, `Push/` e `LiveActivity/` necessária à §13; testes em `MochaKit/Tests/MochaDaemonCoreTests/Codex/` e fixtures em `MochaKit/Fixtures/codex/`.
 - Cliente App Server em actor, reconciliação pane–thread, conversão de itens/eventos, ações, decisões, uso, arquivos, subagentes e diagnóstico. O daemon usa socket local, não JSONL. Aceite: fixtures unitárias sem rede, Herdr ou Codex reais; integração real somente com tag `.integration`.
+
+### WP-C2-wiring: ligar o CodexService no mochad
+
+- **Dono**: o mesmo do WP-C2, mais `App/DaemonRuntime.swift`, `App/Doctor*.swift`, `mochad/StatusCommand.swift` e o uso por provedor em `App/Sources/AppShell/` e `App/Sources/AgentDetail/`. Branch `wp/C2-wiring`.
+- O WP-C2 entregou as peças sem ligá-las ao daemon. Este WP faz o `mochad` subir e supervisionar o App Server, liga o `CodexService` ao `SessionHub` (árvore, status, chat, ações, pendentes, push), abre a nova tab Codex com `codex --remote`, associa pane e thread por `thread/started` (§13.1) e põe o item Codex no `doctor`. Aceite: `scripts/test.sh` verde, com testes do `CodexPaneMatcher`; `scripts/build-daemon.sh` e `scripts/build-app.sh` compilam. O teste real fica no WP-XC.
 
 ### WP-C3: Codex no app e no demo
 
@@ -1041,8 +1046,9 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-XF | feito (aprovado pelo João no iPhone em 2026-09-27) | |
 | S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | 26067bd, merge e704dcb |
 | WP-C1 | feito (73 testes do protocolo passaram; pacote completo aguarda C2/C3 para tratar os novos casos) | d166607, 8fe544f, merge 1361c9f |
-| WP-C2 | feito | 3ce45c9, 22f5a52, merge f8d43da |
+| WP-C2 | feito (peças sem a ligação no daemon; ver WP-C2-wiring) | 3ce45c9, 22f5a52, merge f8d43da |
 | WP-C3 | feito | 2f44cfb, 1e74585, f8defbf, 9a65999, df1e7e4, e01a435, merge c62b69d; correções 66d0821, 826fafa, 9f88a98, 7e16e2b |
+| WP-C2-wiring | feito (testes e builds passaram; sem teste real, que fica no WP-XC) | merge em `fase/codex` |
 | WP-XC | todo | |
 | WP-CD | todo | |
 | WP-T1 | todo | |
