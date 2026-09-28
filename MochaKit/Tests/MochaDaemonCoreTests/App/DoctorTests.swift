@@ -28,7 +28,8 @@ struct DoctorTests {
         local: FakeLocalControl,
         herdrSocket: String,
         codesign: ProcessOutput = CodesignSamples.adHoc,
-        keychain: KeychainItemPresence = .present
+        keychain: KeychainItemPresence = .present,
+        codex: CodexInspector = CodexInspector(executable: nil, runner: FakeProcessRunner { _ in ProcessOutput() })
     ) -> Doctor {
         let tailscale = TailscaleSamples.runner(serve: "{}")
         return Doctor(
@@ -36,6 +37,7 @@ struct DoctorTests {
             herdr: HerdrProbe(socketPath: herdrSocket),
             local: local,
             serve: ServeInspector(tailscale: TailscaleCLI(executable: "/opt/fake/tailscale", runner: tailscale), probe: FakeHttpProbe(.status(200)), gatewayPort: 47421),
+            codex: codex,
             signer: CodeSigner(runner: CodesignSamples.runner(codesign), identities: FakeIdentities(identities: [])),
             keyPresence: FakeKeyPresence(result: keychain),
             executable: home.url.appending(path: "build/mochad"),
@@ -48,13 +50,14 @@ struct DoctorTests {
             let missingHerdr = FakeHerdrServer.temporarySocketPath()
             let items = await Self.doctor(home, local: FakeLocalControl(), herdrSocket: missingHerdr).run()
 
-            #expect(items.map(\.title) == ["mochad", "Herdr", "agent.list", "Hooks", "moshi-hook", "Serve", "APNs", "Dados", "Transcript"])
+            #expect(items.map(\.title) == ["mochad", "Herdr", "agent.list", "Hooks", "moshi-hook", "Codex", "Serve", "APNs", "Dados", "Transcript"])
             #expect(items[0] == DoctorItem("mochad", .failure, "mochad parado: rode mochad install ou scripts/run-daemon.sh"))
             #expect(items[1] == DoctorItem("Herdr", .failure, "o socket não existe em \(missingHerdr)"))
             #expect(items[3] == DoctorItem("Hooks", .warning, "não instalados: sem ~/.claude/settings.json (mochad install-hooks)"))
-            #expect(items[5].status == .failure)
-            #expect(items[5].details == ["rode mochad serve-setup --apply (tailscale serve --bg --https=443 http://127.0.0.1:47421)"])
-            #expect(items[8] == DoctorItem("Transcript", .warning, "precisa do daemon (mochad parado)"))
+            #expect(items[5] == DoctorItem("Codex", .warning, "codex não encontrado; tabs Codex ficam indisponíveis"))
+            #expect(items[6].status == .failure)
+            #expect(items[6].details == ["rode mochad serve-setup --apply (tailscale serve --bg --https=443 http://127.0.0.1:47421)"])
+            #expect(items[9] == DoctorItem("Transcript", .warning, "precisa do daemon (mochad parado)"))
             #expect(DoctorReport.exitCode(items) != 0)
             #expect(DoctorReport.render(items).hasPrefix("❌ mochad: mochad parado"))
         }
@@ -72,7 +75,7 @@ struct DoctorTests {
                 #expect(items[0] == DoctorItem("mochad", .ok, "rodando · 0.1.0 · no ar há 1 h 05 min · 0 clientes"))
                 #expect(items[1].status == .ok)
                 #expect(items[2] == DoctorItem("agent.list", .ok, "2 agentes, 2 do Claude Code"))
-                let transcript = items[8]
+                let transcript = items[9]
                 #expect(transcript.status == .warning)
                 #expect(transcript.summary == "2 sessões acompanhadas (validado até o Claude 2.1.283)")
                 #expect(transcript.details.count == 2)
@@ -122,14 +125,14 @@ struct DoctorTests {
             let issue = ApnsConfigurationIssue(environment: .production, status: 403, reason: "BadEnvironmentKeyInToken", at: Self.startedAt)
             let status = Self.running(apns: LocalStatus.Apns(configurationErrors: [issue]))
             let herdrSocket = FakeHerdrServer.temporarySocketPath()
-            let apns = await Self.doctor(home, local: FakeLocalControl(status: .success(status)), herdrSocket: herdrSocket).run()[6]
+            let apns = await Self.doctor(home, local: FakeLocalControl(status: .success(status)), herdrSocket: herdrSocket).run()[7]
 
             #expect(apns.title == "APNs")
             #expect(apns.status == .failure)
             #expect(apns.summary == "com pendências")
             #expect(apns.details.last == "❌ o APNs production recusou o último envio com 403 BadEnvironmentKeyInToken: a chave não vale para production; importe uma chave desse ambiente (mochad apns import)")
 
-            let clean = await Self.doctor(home, local: FakeLocalControl(status: .success(Self.running(apns: LocalStatus.Apns(configurationErrors: [])))), herdrSocket: herdrSocket).run()[6]
+            let clean = await Self.doctor(home, local: FakeLocalControl(status: .success(Self.running(apns: LocalStatus.Apns(configurationErrors: [])))), herdrSocket: herdrSocket).run()[7]
             #expect(clean.status == .warning)
             #expect(!clean.details.contains { $0.hasPrefix("❌") })
         }
@@ -144,14 +147,36 @@ struct DoctorTests {
                 herdr: HerdrProbe(socketPath: FakeHerdrServer.temporarySocketPath()),
                 local: FakeLocalControl(),
                 serve: ServeInspector(tailscale: TailscaleCLI(executable: "/opt/fake/tailscale", runner: TailscaleSamples.runner(serve: "{}")), probe: FakeHttpProbe(.status(200)), gatewayPort: 47421),
+                codex: CodexInspector(executable: nil, runner: FakeProcessRunner { _ in ProcessOutput() }),
                 signer: CodeSigner(runner: codesign, identities: FakeIdentities(identities: [])),
                 keyPresence: FakeKeyPresence(result: .present),
                 executable: home.url.appending(path: "build/mochad")
             )
-            let apns = await doctor.run()[6]
+            let apns = await doctor.run()[7]
             #expect(codesign.commands == ["codesign -dr - \(home.paths.installedBinary.path(percentEncoded: false))"])
             #expect(apns.details.contains("✅ ~/.local/bin/mochad assinado pelo time (com.joaoalves.mochad)"))
         }
+    }
+
+    @Test func codexItemReadsTheVersionAndTheAppServerSocket() async throws {
+        try await withTemporaryHome { home in
+            let runner = FakeProcessRunner { _ in ProcessOutput(output: "codex-cli 0.157.1\n") }
+            let codex = CodexInspector(executable: "/opt/fake/codex", runner: runner)
+            let herdrSocket = FakeHerdrServer.temporarySocketPath()
+            let down = await Self.doctor(home, local: FakeLocalControl(), herdrSocket: herdrSocket, codex: codex).run()[5]
+            #expect(runner.commands == ["codex --version"])
+            #expect(down == DoctorItem("Codex", .warning, "0.157.1 · /opt/fake/codex · App Server fora do ar", details: ["o mochad sobe o App Server; rode o mochad e confira de novo"]))
+
+            try home.write("", to: "Library/Application Support/Mocha/codex.sock")
+            let up = await Self.doctor(home, local: FakeLocalControl(), herdrSocket: herdrSocket, codex: codex).run()[5]
+            #expect(up == DoctorItem("Codex", .ok, "0.157.1 · /opt/fake/codex · App Server no ar"))
+        }
+    }
+
+    @Test func codexItemWarnsAboutAVersionNewerThanTheValidatedOne() {
+        let item = DoctorChecks.codex(executable: "/opt/fake/codex", version: "0.158.0", socketReady: true)
+        #expect(item.status == .warning)
+        #expect(item.details == ["versão mais nova que a \(CodexExecutable.lastValidatedVersion) validada"])
     }
 
     @Test func dataItemFlagsOpenPermissions() async throws {

@@ -61,7 +61,7 @@ struct SessionHubRulesTests {
     }
 
     @Test func agentsThatAreNotClaudeHaveNoChat() async throws {
-        try await withHub { harness in
+        try await withHub(tree: Sample.unsupportedTree) { harness in
             let (socket, _) = try await harness.pairedClient()
             let reply = try await socket.reply(to: .openChat(target: .agent("w1:p2")))
             #expect(reply == .error(code: .invalidPayload, message: "Chat disponível só para Claude Code"))
@@ -119,12 +119,29 @@ struct SessionHubRulesTests {
     }
 
     @Test func commandsRejectAgentsThatAreNotClaude() async throws {
-        try await withHub { harness in
+        try await withHub(tree: Sample.unsupportedTree) { harness in
             let (socket, _) = try await harness.pairedClient()
             let prompt = try await socket.reply(to: .sendPrompt(agentId: "w1:p2", text: "oi"))
             #expect(prompt == .error(code: .invalidPayload, message: "Chat disponível só para Claude Code"))
             #expect(try await socket.reply(to: .interrupt(agentId: "w1:p2")).errorCode == .invalidPayload)
             #expect(harness.herdr.promptCalls.isEmpty)
+        }
+    }
+
+    @Test func codexTabsWithoutTheAppServerOpenAnEmptyChatAndRejectCommands() async throws {
+        try await withHub { harness in
+            let (socket, _) = try await harness.pairedClient()
+            guard case .chatPage(let page) = try await socket.reply(to: .openChat(target: .agent("w1:p2"))) else {
+                Issue.record("expected an empty chat page for the codex tab")
+                return
+            }
+            #expect(page.items.isEmpty)
+            #expect(page.hasMore == false)
+            let unavailable = ServerMessage.error(code: .internal, message: "Controle indisponível nesta tab Codex.")
+            #expect(try await socket.reply(to: .sendPrompt(agentId: "w1:p2", text: "oi"), id: "c-2") == unavailable)
+            #expect(try await socket.reply(to: .interrupt(agentId: "w1:p2"), id: "c-3") == unavailable)
+            #expect(harness.herdr.promptCalls.isEmpty)
+            #expect(harness.herdr.interruptCalls.isEmpty)
         }
     }
 
