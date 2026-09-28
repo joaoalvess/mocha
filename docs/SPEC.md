@@ -1065,6 +1065,7 @@ public struct AgentSummary: Codable, Sendable, Identifiable {
     public var turnEndedAt: Date?
     public var archivedAt: Date?           // arquivado pelo usuário e sem turno novo depois (§4.9)
     public var runningSubagents: Int?      // subagentes running da sessão atual (§3.5); nil ou 0 esconde o selo
+    public var permissionMode: String?     // última linha `permission-mode` do transcript (`default`, `auto`, `acceptEdits`, `plan`, `bypassPermissions`); só muda no transcript quando o próximo prompt sai
 }
 
 public enum MessageAuthor: String, Codable, Sendable { case user, assistant }
@@ -1535,8 +1536,8 @@ O visual segue o **mock aprovado**: `docs/design/mock.html`, com uma captura 3x 
 | `badgeWarn` | `#342C1F` | Fundo dos selos âmbar (texto `dirty`) |
 | `sepDot` | `#55595F` | Ponto separador "•" da linha de metadados do card |
 | `ringTrack` | `#2F3032` | Trilho do anel de contexto |
-| `ringBlocked` / `ringBlockedTrack` | `#CE7A5E` / `#42362A` | Arco e trilho do anel externo (precisa de você) do botão de anéis da Início |
-| `ringWorking` / `ringWorkingTrack` | `#45A37F` / `#253F32` | Arco e trilho do anel interno (trabalhando) do botão de anéis da Início |
+| `ringAuto` / `ringAutoTrack` | `#A482E6` / `#352C47` | Arco e trilho do anel externo (agentes em modo auto ou edição) do botão de anéis da Início |
+| `ringPlan` / `ringPlanTrack` | `#48A89E` / `#1D3A38` | Arco e trilho do anel interno (agentes em modo plan) do botão de anéis da Início |
 | `divider` | `#202223` | Divisórias de lista e de folha |
 | `barTrack` | `#191B1D` | Trilho das barras de uso |
 | `paceMark` | `#979899` | Traço do ritmo constante nas barras de uso |
@@ -1574,7 +1575,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - "Este iPhone não está mais pareado" (`unauthorized`).
 
 **Início** (`21-inicio`, `21e-inicio-vazia`)
-- Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringBlocked`) enche um terço por agente em `blocked` (cheio com 3 ou mais) e o interno (`ringWorking`) um quarto por agente em `working` (cheio com 4 ou mais), os dois das 12 h no sentido horário; uma bolinha `statusOk` no canto superior direito aparece quando algum está `working`. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
+- Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringAuto`) enche um terço por agente Claude com `permissionMode` `auto`, `acceptEdits` ou `bypassPermissions` (cheio com 3 ou mais) e o interno (`ringPlan`) um quarto por agente Claude em `plan` (cheio com 4 ou mais), os dois das 12 h no sentido horário e sem animação; `default` e os agentes Codex não entram nos anéis. A bolinha no canto superior direito pulsa (opacidade de 30% a 100% num ciclo de 1,4 s; fixa com Reduzir movimento): `dirty` quando algum agente está `blocked`, senão `statusOk` quando algum está `working`, e some quando nenhum. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
 - RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
 - Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os mesmos cards do Histórico. Sem a pílula de uso.
 - Botão + verde (60 pt) no canto inferior direito: abre a folha Nova sessão.
