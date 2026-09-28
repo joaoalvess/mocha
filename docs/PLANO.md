@@ -1111,7 +1111,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W1 | feito (build passou; conexão real depende do B5, no WP-W5) | deedcf1 |
 | WP-W2 | feito (testes do WP e integração passaram; suíte completa com 1 falha de latência fora do WP, sob carga) | 990f09a |
 | WP-W3 | feito com pendência visual (folha recuada das bordas; decisão do João) | d49ccf2 |
-| WP-W3b | todo | |
+| WP-W3b | done | `32b5b7f` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
 | WP-W4 | todo | |
 | WP-W5 | todo | |
 | WP-T1 | todo | |
