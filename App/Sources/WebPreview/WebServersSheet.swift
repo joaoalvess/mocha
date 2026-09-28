@@ -6,6 +6,7 @@ struct WebServersSheet: View {
     @Bindable var session: AppSession
 
     static let emptyMessage = "Nenhum servidor web rodando no Mac"
+    static let workspaceEmptyMessage = "Nenhum servidor web neste workspace"
     static let panelHeight = BottomPanelHeight.screenFraction(0.5)
 
     private static let titleTop: CGFloat = 46
@@ -54,7 +55,7 @@ struct WebServersSheet: View {
             case .failed(let text):
                 message(text)
             case .loaded(let sections) where sections.allSatisfy(\.servers.isEmpty):
-                message(Self.emptyMessage)
+                message(session.webServersScope == nil ? Self.emptyMessage : Self.workspaceEmptyMessage)
             case .loaded(let sections):
                 list(sections)
             }
@@ -66,7 +67,7 @@ struct WebServersSheet: View {
         return HomeSections.offlineProblem(for: session.connectionState, previous: nil)?.message ?? ConnectionProblem.unreachable.message
     }
 
-    private func list(_ sections: [WebServersSection]) -> some View {
+    private func list(_ sections: [WebServerGroup]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(sections.filter { !$0.servers.isEmpty }) { section in
@@ -91,14 +92,14 @@ struct WebServersSheet: View {
 }
 
 private struct WebServersSectionView: View {
-    let section: WebServersSection
+    let section: WebServerGroup
 
     private static let headerSide: CGFloat = 4.5
     private static let headerBottom: CGFloat = 10
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(section.host.uppercased())
+            Text(section.title.uppercased())
                 .systemText(.sectionHeader)
                 .foregroundStyle(Palette.textSecondary)
                 .padding(.horizontal, Self.headerSide)

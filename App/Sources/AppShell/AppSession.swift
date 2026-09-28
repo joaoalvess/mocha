@@ -86,6 +86,7 @@ final class AppSession {
     private(set) var pending = PendingInbox()
     private(set) var pendingReveal: AgentID?
     private(set) var webServers: WebServersLoad = .loading
+    private(set) var webServersScope: WorkspaceID?
     var sheet: AppSheet?
     var isInboxOpen = false
 
@@ -292,9 +293,41 @@ final class AppSession {
 
     func showWebServers() {
         isDrawerOpen = false
+        webServersScope = nil
         webServers = .loading
         sheet = .webServers
         Task { await reloadWebServers() }
+    }
+
+    func showWorkspaceWebServers(for target: ChatTarget) {
+        guard let workspace = workspaceNode(for: target) else {
+            showWebServers()
+            return
+        }
+        isDrawerOpen = false
+        webServersScope = workspace.id
+        webServers = .loading
+        Task {
+            await reloadWebServers()
+            guard webServersScope == workspace.id else { return }
+            if case .loaded(let groups) = webServers, let server = groups.first?.servers.first,
+               groups.count == 1, groups.first?.servers.count == 1 {
+                WebPreviewOpener.open(server)
+            } else {
+                sheet = .webServers
+            }
+        }
+    }
+
+    private func workspaceNode(for target: ChatTarget) -> WorkspaceNode? {
+        switch target {
+        case .agent(let agentId):
+            workspaces.workspaceNode(containingAgent: agentId)
+        case .session(let sessionId), .subagent(let sessionId, _):
+            workspaces.agent(withSessionId: sessionId).flatMap { workspaces.workspaceNode(containingAgent: $0.id) }
+        case .codexThread:
+            nil
+        }
     }
 
     func reloadWebServers() async {
@@ -306,7 +339,7 @@ final class AppSession {
             guard case .webServers(let host, let servers) = reply else {
                 throw AppSessionError.unexpectedReply(type: reply.type)
             }
-            result = .loaded([WebServersSection(host: host, servers: servers.sorted { $0.port < $1.port })])
+            result = .loaded(WebServerGrouping.groups(servers: servers, host: host, workspaces: workspaces, scope: webServersScope))
         } catch {
             result = .failed(Self.sessionError(from: error).message)
         }

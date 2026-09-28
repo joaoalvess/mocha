@@ -1,16 +1,10 @@
 import Foundation
+import MochaClient
 import MochaProtocol
-
-struct WebServersSection: Equatable, Identifiable {
-    let host: String
-    let servers: [WebServer]
-
-    var id: String { host }
-}
 
 enum WebServersLoad: Equatable {
     case loading
-    case loaded([WebServersSection])
+    case loaded([WebServerGroup])
     case failed(String)
 }
 
