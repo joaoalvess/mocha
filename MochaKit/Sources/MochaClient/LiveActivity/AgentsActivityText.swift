@@ -92,11 +92,11 @@ public enum AgentsActivityText {
     }
 
     public static func header(of content: AgentsActivityContent) -> AgentsActivityHeader {
-        let tone = content.pending == nil ? tone(of: content) : .working
+        let tone: AgentsActivityTone = AgentStatus(rawValue: content.status) == .idle ? .done : .working
         let project = singleLine(content.workspaceLabel) ?? appName
         let model = singleLine(content.model).map(ModelName.abbreviated).flatMap(singleLine)
         let context = content.contextLeftPercent.map {
-            AgentsActivityContext(leftPercent: min(max($0, 0), 100), isBlocked: tone == .waiting)
+            AgentsActivityContext(leftPercent: min(max($0, 0), 100), isBlocked: false)
         }
         return AgentsActivityHeader(project: project, tone: tone, model: model, context: context)
     }

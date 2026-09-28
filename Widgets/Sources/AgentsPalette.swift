@@ -11,6 +11,7 @@ enum AgentsPalette {
     static let statusOk = Color(hex: 0x9AF768)
     static let onStatusOk = Color(hex: 0x021402)
     static let waiting = Color(hex: 0xF4B450)
+    static let request = Color(hex: 0xEC9B43)
     static let controlBg = Color(hex: 0x202225)
     static let contextTrack = Color(hex: 0x463B38)
 
