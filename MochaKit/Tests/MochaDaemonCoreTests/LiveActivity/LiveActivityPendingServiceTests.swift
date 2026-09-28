@@ -22,29 +22,20 @@ struct LiveActivityPendingServiceTests {
         LiveActivitySample.agent(id, .blocked, title: title, pendingCount: pendingCount)
     }
 
-    @Test func eachActivityCarriesTheOldestRequestOfItsOwnAgent() async throws {
+    @Test func theOldestRequestHoldsTheCardAndTheNextOneTakesItWithoutAnotherAlert() async throws {
         try await withLiveActivity { harness in
             let device = try await harness.pair()
-            try await harness.registerUpdateToken(LiveActivitySample.token(1), activityId: "a1", agent: "w1:p1", for: device)
-            try await harness.registerUpdateToken(LiveActivitySample.token(3), activityId: "a3", agent: "w3:p1", for: device)
+            try await harness.registerUpdateToken(for: device)
             let permission = LiveActivitySample.permission("req-a", agent: "w1:p1", createdAt: at(10))
             let older = LiveActivitySample.question("req-b", agent: "w3:p1", createdAt: at(5), questions: [question])
             let newer = LiveActivitySample.permission("req-c", agent: "w3:p1", createdAt: at(15))
             let unknown = LiveActivitySample.permission("req-0", agent: "w9:p1", createdAt: at(1))
 
             try await harness.agents([blocked("w1:p1"), blocked("w3:p1", title: "Escrever testes")], pending: [unknown, newer, permission, older])
-
-            let parser = try #require(harness.sent(to: LiveActivitySample.token(1)).last)
-            let tests = try #require(harness.sent(to: LiveActivitySample.token(3)).last)
-            #expect(parser.push.contentState.pending == LiveActivityContentState.Pending(
-                requestId: "req-a",
-                agentId: "w1:p1",
-                kind: .permission,
-                toolName: "Bash",
-                text: "rm -rf build",
-                options: []
-            ))
-            #expect(tests.push.contentState.pending == LiveActivityContentState.Pending(
+            #expect(harness.sent.count == 1)
+            let held = try harness.last()
+            #expect(held.push.agentId == "w3:p1")
+            #expect(held.push.contentState.pending == LiveActivityContentState.Pending(
                 requestId: "req-b",
                 agentId: "w3:p1",
                 kind: .question,
@@ -52,8 +43,96 @@ struct LiveActivityPendingServiceTests {
                 text: "Qual banco?",
                 options: ["Postgres", "SQLite"]
             ))
-            #expect(tests.push.contentState.agent.status == "blocked")
+            #expect(held.push.contentState.agent.status == "blocked")
+            #expect(held.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "Qual banco?")))
+            #expect(await harness.service.cardHolder() == "w3:p1")
+
+            try await harness.advance(10)
+            try await harness.agents([blocked("w1:p1"), LiveActivitySample.agent("w3:p1", .working, title: "Escrever testes")], pending: [unknown, permission])
             #expect(harness.sent.count == 2)
+            let next = try harness.last()
+            #expect(next.priority == .high)
+            #expect(next.push.agentId == "w1:p1")
+            #expect(next.push.contentState.pending?.requestId == "req-a")
+            #expect(next.push.event == .update(alert: nil))
+            #expect(await harness.service.cardHolder() == "w1:p1")
+            #expect(await harness.service.focus(on: device) == "w1:p1")
+        }
+    }
+
+    @Test func aRequestHoldsTheCardAgainstEventsOfOtherAgents() async throws {
+        try await withLiveActivity { harness in
+            let device = try await harness.pair()
+            try await harness.registerUpdateToken(for: device)
+            var parser = LiveActivitySample.agent("w1:p1", .working)
+            let request = LiveActivitySample.permission("req-b", agent: "w2:p1", createdAt: at(10))
+            try await harness.agents([parser, LiveActivitySample.agent("w2:p1", .working)])
+            #expect(try harness.last().push.agentId == "w1:p1")
+
+            try await harness.advance(10)
+            try await harness.agents([parser, blocked("w2:p1")], pending: [request])
+            let ask = try harness.last()
+            #expect(ask.priority == .high)
+            #expect(ask.push.agentId == "w2:p1")
+            #expect(ask.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "rm -rf build")))
+            #expect(await harness.service.cardHolder() == "w2:p1")
+
+            try await harness.advance(10)
+            parser.preview = MessagePreview(author: .assistant, text: "Terminei.")
+            try await harness.agents([parser, blocked("w2:p1")], pending: [request])
+            try await harness.advance(10)
+            parser.status = .idle
+            try await harness.agents([parser, blocked("w2:p1")], pending: [request])
+            try await harness.advance(10)
+            #expect(harness.sent.count == 2)
+            #expect(await harness.service.focus(on: device) == "w2:p1")
+
+            try await harness.agents([parser, LiveActivitySample.agent("w2:p1", .working)])
+            #expect(harness.sent.count == 3)
+            let resolved = try harness.last()
+            #expect(resolved.push.agentId == "w2:p1")
+            #expect(resolved.push.contentState.pending == nil)
+            #expect(resolved.push.event == .update(alert: nil))
+            #expect(await harness.service.cardHolder() == nil)
+
+            try await harness.advance(10)
+            parser.status = .working
+            try await harness.agents([parser, LiveActivitySample.agent("w2:p1", .working)])
+            try await harness.advance(10)
+            parser.status = .idle
+            try await harness.agents([parser, LiveActivitySample.agent("w2:p1", .working)])
+            let done = try harness.last()
+            #expect(done.push.agentId == "w1:p1")
+            #expect(done.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Terminei.")))
+        }
+    }
+
+    @Test func whenTheHolderLeavesTheCardGoesBackToTheLatestEvent() async throws {
+        try await withLiveActivity { harness in
+            let device = try await harness.pair()
+            try await harness.registerUpdateToken(for: device)
+            func agent(_ id: AgentID, preview: String? = nil) -> AgentSummary {
+                var agent = LiveActivitySample.agent(id, .working)
+                agent.preview = preview.map { MessagePreview(author: .assistant, text: $0) }
+                return agent
+            }
+            let request = LiveActivitySample.permission("req-b", agent: "w2:p1", createdAt: at(0))
+            try await harness.agents([agent("w1:p1"), blocked("w2:p1"), agent("w3:p1")], pending: [request])
+            #expect(try harness.last().push.agentId == "w2:p1")
+
+            try await harness.advance(5)
+            try await harness.agents([agent("w1:p1"), blocked("w2:p1"), agent("w3:p1", preview: "Três")], pending: [request])
+            try await harness.advance(5)
+            try await harness.agents([agent("w1:p1", preview: "Um"), blocked("w2:p1"), agent("w3:p1", preview: "Três")], pending: [request])
+            try await harness.advance(10)
+            #expect(harness.sent.count == 1)
+
+            try await harness.agents([agent("w1:p1", preview: "Um"), agent("w3:p1", preview: "Três")])
+            #expect(harness.sent.count == 2)
+            #expect(try harness.last().push.agentId == "w1:p1")
+            #expect(try harness.last().push.contentState.agent.preview == "Um")
+            #expect(try harness.last().priority == .high)
+            #expect(await harness.service.focus(on: device) == "w1:p1")
         }
     }
 
@@ -137,14 +216,14 @@ struct LiveActivityPendingServiceTests {
         }
     }
 
-    @Test func aPushToStartCarriesTheCurrentRequestOfItsAgent() async throws {
+    @Test func aPushToStartCarriesTheRequestThatHoldsTheCard() async throws {
         try await withLiveActivity { harness in
             _ = try await harness.pairWithPushToStart()
-            let request = LiveActivitySample.permission("req-a", agent: "w1:p1")
-            try await harness.agents([LiveActivitySample.agent("w2:p1", .working), blocked("w1:p1")], pending: [request])
-            let starts = harness.sent.sorted { $0.push.agentId < $1.push.agentId }
-            #expect(starts.map(\.push.event.name) == ["start", "start"])
-            #expect(starts.map { $0.push.contentState.pending?.requestId } == ["req-a", nil])
+            let request = LiveActivitySample.permission("req-a", agent: "w2:p1")
+            try await harness.agents([LiveActivitySample.agent("w1:p1", .working), blocked("w2:p1")], pending: [request])
+            #expect(harness.sent.map(\.push.event.name) == ["start"])
+            #expect(try harness.last().push.agentId == "w2:p1")
+            #expect(try harness.last().push.contentState.pending?.requestId == "req-a")
         }
     }
 }

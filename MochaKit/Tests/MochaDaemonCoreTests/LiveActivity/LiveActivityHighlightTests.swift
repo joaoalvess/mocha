@@ -155,6 +155,7 @@ struct LiveActivityHighlightTests {
         let snapshot = try #require(snapshots(LiveActivitySample.input(tree, prompts: ["w1:p1": "Roda os testes"]))["w1:p1"])
         let push = snapshot.push({ _ in .update(alert: nil) }, at: at(5), staleDate: at(905))
         #expect(try LiveActivityAppContentState.decoding(push) == LiveActivityAppContentState(
+            agentId: "w1:p1",
             status: "working",
             title: "Refatorar o parser",
             workspaceLabel: "demo-app",
@@ -177,6 +178,7 @@ struct LiveActivityHighlightTests {
         )
         let decoded = try LiveActivityAppContentState.decoding(AgentActivityPush(agentId: "w1:p1", event: .update(alert: nil), contentState: bare, timestamp: at(5)))
         #expect(decoded == LiveActivityAppContentState(
+            agentId: "w1:p1",
             status: "working",
             title: "Refatorar o parser",
             workspaceLabel: "demo-app",
@@ -190,7 +192,6 @@ struct LiveActivityHighlightTests {
             let device = try await harness.pair()
             try await harness.registerUpdateToken(for: device)
             var parser = agent()
-            let other = agent("w1:p2", .blocked, preview: "Outro")
             func send(_ agents: [AgentSummary], prompt: String = "Roda os testes", pending: [PendingRequest] = []) async throws {
                 try await harness.tree(LiveActivitySample.tree([tab("parser", agents)]), pending: pending, prompts: ["w1:p1": prompt])
                 try await harness.advance(10)
@@ -208,7 +209,7 @@ struct LiveActivityHighlightTests {
             try await send([parser], prompt: "Faz dnv")
             parser.activity?.status = .succeeded
             try await send([parser], prompt: "Faz dnv")
-            try await send([parser, other], prompt: "Faz dnv")
+            try await send([parser, LiveActivitySample.agent("w1:p2", .idle)], prompt: "Faz dnv")
             try await send([parser, LiveActivitySample.agent("w1:p2", .idle)], prompt: "Faz dnv")
             try await send([parser], prompt: "Faz dnv", pending: [LiveActivitySample.permission("req-1", agent: "w1:p1")])
 

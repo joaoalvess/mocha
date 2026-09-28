@@ -2,6 +2,7 @@ import MochaProtocol
 
 enum PendingRequestFactory {
     static let questionToolName = "AskUserQuestion"
+    static let planToolName = "ExitPlanMode"
     static let inputJSONLimit = 4_000
 
     static func kind(for request: PermissionRequestHook) -> PendingKind {

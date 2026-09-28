@@ -128,6 +128,8 @@ public enum AgentsActivityText {
 
     private static func pendingLines(_ pending: AgentsActivityContent.Pending) -> AgentsActivityLines {
         switch pending.kind {
+        case .permission where pending.toolName == PendingText.planToolName:
+            return AgentsActivityLines(headline: PendingText.planTitle, detail: singleLine(pending.text).map(AgentsActivityLines.Detail.text))
         case .permission:
             let headline = permissionHeadline(toolName: pending.toolName)
             let command = singleLine(pending.text).map { headline.showsPrompt ? shellPrompt + $0 : $0 }

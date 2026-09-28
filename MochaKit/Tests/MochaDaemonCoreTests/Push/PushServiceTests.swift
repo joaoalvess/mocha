@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import MochaProtocol
+import MochaTestSupport
 import MochaTranscript
 import Testing
 @testable import MochaDaemonCore
@@ -94,20 +95,154 @@ struct PushServiceTests {
         }
     }
 
-    @Test func aDeviceWithALiveActivityOfTheAgentGetsNoAlert() async throws {
+    @Test func aDeviceWithTheLiveActivityCardGetsNoAlertOfAnyAgent() async throws {
         try await withPush { harness in
             let covered = try await harness.device("iPhone")
             try await harness.device("iPad", token: PushHarness.otherToken)
-            let activity = LiveActivityRegistration(updateToken: String(repeating: "b2", count: 40), agentId: "w1:p1", env: .sandbox)
-            #expect(try await harness.devices.setLiveActivities(pushToStart: nil, agentActivities: [activity], for: covered.id))
+            let card = LiveActivityRegistration(activityId: "act-1", updateToken: String(repeating: "b2", count: 40), env: .sandbox)
+            #expect(try await harness.devices.setLiveActivities(pushToStart: nil, feedActivity: card, for: covered.id))
 
             await harness.deliver(PushHooks.stop())
             await harness.deliver(try PushHooks.fixture(.permissionRequest, "PermissionRequest.bash.json"))
-            #expect(harness.transport.requests.compactMap { $0.url?.lastPathComponent } == [PushHarness.otherToken, PushHarness.otherToken])
-
             await harness.deliver(PushHooks.stop(), agent: "w9:p9")
-            let others = harness.transport.requests.dropFirst(2).compactMap { $0.url?.lastPathComponent }
-            #expect(Set(others) == [PushTestData.deviceToken, PushHarness.otherToken])
+            #expect(harness.transport.requests.compactMap { $0.url?.lastPathComponent } == Array(repeating: PushHarness.otherToken, count: 3))
+        }
+    }
+
+    @Test func anEventOfAnotherAgentWhileARequestHoldsTheCardAlertsAsANotification() async throws {
+        try await withPush { harness in
+            let covered = try await harness.device("iPhone")
+            let card = LiveActivityRegistration(activityId: "act-1", updateToken: String(repeating: "b2", count: 40), env: .sandbox)
+            #expect(try await harness.devices.setLiveActivities(pushToStart: nil, feedActivity: card, for: covered.id))
+            let holder = FakeCardHolder()
+            await harness.service.attachLiveActivity(holder)
+
+            await harness.deliver(PushHooks.stop(), agent: "w2:p1")
+            #expect(harness.transport.requests.isEmpty)
+
+            await holder.hold("w1:p1")
+            await harness.deliver(PushHooks.stop())
+            await harness.deliver(try PushHooks.fixture(.permissionRequest, "PermissionRequest.bash.json"))
+            #expect(harness.transport.requests.isEmpty)
+
+            await harness.deliver(PushHooks.stop(), agent: "w2:p1")
+            await harness.deliver(try PushHooks.fixture(.permissionRequest, "PermissionRequest.bash.json"), agent: "w2:p1")
+            #expect(harness.transport.requests.compactMap { $0.url?.lastPathComponent } == [PushTestData.deviceToken, PushTestData.deviceToken])
+            let kinds = try harness.payloads().map { $0["kind"] as? String }
+            #expect(kinds == ["turnDone", "needsInput"])
+            #expect(try harness.payloads().allSatisfy { $0["agentId"] as? String == "w2:p1" })
+
+            await holder.hold(nil)
+            await harness.deliver(PushHooks.stop(), agent: "w2:p1")
+            #expect(harness.transport.requests.count == 2)
+        }
+    }
+
+    @Test func aCardAlertThatWasNotShownLeavesAsANotificationOnce() async throws {
+        try await withPush { harness in
+            let covered = try await harness.device("iPhone")
+            let card = LiveActivityRegistration(activityId: "act-1", updateToken: String(repeating: "b2", count: 40), env: .sandbox)
+            #expect(try await harness.devices.setLiveActivities(pushToStart: nil, feedActivity: card, for: covered.id))
+            let holder = FakeCardHolder()
+            await harness.service.attachLiveActivity(holder)
+            #expect(await holder.fallback != nil)
+
+            await harness.deliver(PushHooks.stop("parser pronto"))
+            await harness.deliver(PushHooks.stop("testes prontos"), agent: "w2:p1")
+            #expect(harness.transport.requests.isEmpty)
+
+            await harness.service.cardAlert(.turnDone, of: "w2:p1", on: covered.id, wasShown: true)
+            await harness.service.cardAlert(.turnDone, of: "w1:p1", on: covered.id, wasShown: false)
+            await harness.service.waitForDeliveries()
+            #expect(harness.transport.requests.count == 1)
+            let payload = try #require(try harness.payloads().first)
+            #expect(payload["agentId"] as? String == "w1:p1")
+            #expect((payload["aps"] as? [String: Any]).flatMap { $0["alert"] as? [String: Any] }?["body"] as? String == "parser pronto")
+
+            await harness.service.cardAlert(.turnDone, of: "w1:p1", on: covered.id, wasShown: false)
+            await harness.service.cardAlert(.turnDone, of: "w2:p1", on: covered.id, wasShown: false)
+            await harness.service.waitForDeliveries()
+            #expect(harness.transport.requests.count == 1)
+
+            await harness.deliver(PushHooks.stop("de novo"), agent: "w2:p1")
+            #expect(harness.transport.requests.count == 2)
+            #expect(try harness.payloads().last?["agentId"] as? String == "w2:p1")
+        }
+    }
+
+    @Test func aParkedAlertExpiresAfterTheCardWindow() async throws {
+        try await withPush(configuration: PushServiceConfiguration(cardAlertWindow: 60)) { harness in
+            let covered = try await harness.device("iPhone")
+            let card = LiveActivityRegistration(activityId: "act-1", updateToken: String(repeating: "b2", count: 40), env: .sandbox)
+            #expect(try await harness.devices.setLiveActivities(pushToStart: nil, feedActivity: card, for: covered.id))
+            await harness.deliver(PushHooks.stop())
+            harness.clock.advance(by: .seconds(61))
+            await harness.service.cardAlert(.turnDone, of: "w1:p1", on: covered.id, wasShown: false)
+            harness.clock.advance(by: .seconds(61))
+            await harness.deliver(PushHooks.stop())
+            await harness.service.waitForDeliveries()
+            #expect(harness.transport.requests.isEmpty)
+        }
+    }
+
+    @Test func twoTurnsDoneAtOnceGiveOneCardAlertAndOneNotification() async throws {
+        try await withPush { harness in
+            let covered = try await harness.device("iPhone")
+            let cardSender = FakeLiveActivitySender()
+            let cards = LiveActivityService(
+                devices: harness.devices,
+                sender: cardSender,
+                clock: harness.clock,
+                configuration: LiveActivityConfiguration(updateInterval: 0)
+            )
+            await harness.service.attachLiveActivity(cards)
+            try await cards.register(
+                LiveActivityRegistration(activityId: "act-1", updateToken: String(repeating: "b2", count: 40), env: .sandbox),
+                from: covered.id
+            )
+            await cards.apply(LiveActivityInput(agents: [LiveActivitySample.agent("w1:p1", .working), LiveActivitySample.agent("w2:p1", .working)]))
+            await cards.waitForSends()
+
+            await harness.deliver(PushHooks.stop("parser pronto"))
+            await harness.deliver(PushHooks.stop("testes prontos"), agent: "w2:p1")
+            #expect(harness.transport.requests.isEmpty)
+            await cards.apply(LiveActivityInput(agents: [LiveActivitySample.agent("w1:p1", .idle), LiveActivitySample.agent("w2:p1", .idle)]))
+            await cards.waitForSends()
+            await harness.service.waitForDeliveries()
+
+            let update = try #require(cardSender.sent.last)
+            #expect(update.push.agentId == "w1:p1")
+            #expect(update.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
+            #expect(harness.transport.requests.count == 1)
+            #expect(try harness.payloads().first?["agentId"] as? String == "w2:p1")
+            await cards.shutdown()
+        }
+    }
+
+    @Test func theLiveActivityServiceTellsWhichRequestHoldsTheCard() async throws {
+        try await withPush { harness in
+            let covered = try await harness.device("iPhone")
+            let cards = LiveActivityService(devices: harness.devices, sender: FakeLiveActivitySender(), clock: harness.clock)
+            await harness.service.attachLiveActivity(cards)
+            try await cards.register(
+                LiveActivityRegistration(activityId: "act-1", updateToken: String(repeating: "b2", count: 40), env: .sandbox),
+                from: covered.id
+            )
+            let request = LiveActivitySample.permission("req-a", agent: "w1:p1")
+            await cards.apply(LiveActivityInput(
+                agents: [LiveActivitySample.agent("w1:p1", .blocked), LiveActivitySample.agent("w2:p1", .working)],
+                pending: [request]
+            ))
+
+            await harness.deliver(PushHooks.stop())
+            #expect(harness.transport.requests.isEmpty)
+            await harness.deliver(PushHooks.stop(), agent: "w2:p1")
+            #expect(harness.transport.requests.count == 1)
+
+            await cards.apply(LiveActivityInput(agents: [LiveActivitySample.agent("w1:p1", .working), LiveActivitySample.agent("w2:p1", .idle)]))
+            await harness.deliver(PushHooks.stop(), agent: "w2:p1")
+            #expect(harness.transport.requests.count == 1)
+            await cards.shutdown()
         }
     }
 
@@ -332,5 +467,22 @@ struct PushServiceTests {
 
             #expect(harness.transport.requests.count == 1)
         }
+    }
+}
+
+private actor FakeCardHolder: LiveActivityCardHolding {
+    private var holder: AgentID?
+    private(set) var fallback: (any LiveActivityAlertFallback)?
+
+    func attachAlertFallback(_ fallback: any LiveActivityAlertFallback) {
+        self.fallback = fallback
+    }
+
+    func cardHolder() -> AgentID? {
+        holder
+    }
+
+    func hold(_ agentId: AgentID?) {
+        holder = agentId
     }
 }

@@ -84,7 +84,7 @@ struct PendingTextTests {
 
     @Test func failureNoticesOnlyForUndeliveredAnswers() {
         #expect(PendingText.failureNotice(for: .accepted) == nil)
-        #expect(PendingText.failureNotice(for: .gone) == nil)
+        #expect(PendingText.failureNotice(for: .gone) == PendingNotice(title: "Esse pedido já foi resolvido no Mac", body: "Ele foi respondido no terminal ou expirou."))
         #expect(PendingText.failureNotice(for: .unreachable)?.title == "Não consegui falar com o Mac")
         #expect(PendingText.failureNotice(for: .unexpectedStatus(502))?.title == "Não consegui falar com o Mac")
         #expect(PendingText.failureNotice(for: .unauthorized) == PendingNotice(title: "Não consegui falar com o Mac", body: "Este iPhone não está mais pareado."))

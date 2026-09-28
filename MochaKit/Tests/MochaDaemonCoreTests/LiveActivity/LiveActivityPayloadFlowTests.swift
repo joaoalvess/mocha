@@ -22,8 +22,8 @@ struct LiveActivityPayloadFlowTests {
             try await harness.advance(10)
             try await harness.agents([LiveActivitySample.agent("w1:p1", .working, title: "Refatorar o lexer")])
             try await harness.agents([])
-            try await harness.advance(10)
-            #expect(harness.sent.map(\.push.event.name) == ["start", "update", "end"])
+            try await harness.advance(1800)
+            try #require(harness.sent.map(\.push.event.name) == ["start", "update", "end"])
 
             let start = try harness.aps(harness.sent[0])
             #expect(start["timestamp"] as? Int == 1_790_000_000)
@@ -38,12 +38,13 @@ struct LiveActivityPayloadFlowTests {
             #expect(try contentState(update)["since"] as? Double == 811_692_800)
 
             let end = try harness.aps(harness.sent[2])
-            #expect(end["timestamp"] as? Int == 1_790_000_020)
-            #expect(end["dismissal-date"] as? Int == 1_790_000_020)
+            #expect(end["timestamp"] as? Int == 1_790_001_810)
+            #expect(end["dismissal-date"] as? Int == 1_790_001_810)
             #expect(end["stale-date"] == nil)
-            #expect(try contentState(end)["updatedAt"] as? Double == 811_692_820)
+            #expect(try contentState(end)["updatedAt"] as? Double == 811_694_610)
 
             #expect(try LiveActivityAppContentState.decoding(harness.sent[1].push) == LiveActivityAppContentState(
+                agentId: "w1:p1",
                 status: "working",
                 title: "Refatorar o lexer",
                 workspaceLabel: "demo-app",
