@@ -42,8 +42,9 @@ extension SessionHub {
         }
     }
 
-    private func pendingChanged(_ requests: [PendingRequest]) {
+    private func pendingChanged(_ requests: [PendingRequest]) async {
         guard requests != pendingRequests else { return }
+        pendingDecisions = await pending?.decisions ?? [:]
         pendingRequests = requests
         broadcast(.pending(requests: requests))
         scheduleTreeFlush()

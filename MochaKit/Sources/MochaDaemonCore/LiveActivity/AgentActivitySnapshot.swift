@@ -130,8 +130,16 @@ struct AgentActivityTracker: Sendable {
         let requestId: RequestID?
     }
 
+    private struct ShownOutcome: Sendable, Equatable {
+        let requestId: RequestID
+        let outcome: PendingOutcome
+        let preview: String?
+        var isActive = true
+    }
+
     private var entries: [AgentID: Entry] = [:]
     private var observations: [AgentID: Observation] = [:]
+    private var outcomes: [AgentID: ShownOutcome] = [:]
     private var generation = 0
     private(set) var eventGenerations: [AgentID: Int] = [:]
     private(set) var alerts: [AgentID: AgentFeedAlert] = [:]
@@ -152,24 +160,28 @@ struct AgentActivityTracker: Sendable {
             let entry = entries[agent.id].flatMap { $0.status == status ? $0 : nil } ?? Entry(status: status, since: now)
             tracked[agent.id] = entry
             let request = input.pending.filter { $0.agentId == agent.id }.min { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+            let preview = LiveActivityContentState.Highlight.preview(of: agent.preview)
+            var highlight = LiveActivityContentState.Highlight(
+                agent,
+                status: status,
+                since: entry.since,
+                prompt: input.prompts[agent.id],
+                titleLimit: titleLimit,
+                showsProgress: request == nil
+            )
+            highlight.outcome = outcome(of: agent.id, decision: input.decisions[agent.id], preview: preview, hasRequest: request != nil)?.rawValue
             snapshots[agent.id] = AgentActivitySnapshot(
-                agent: LiveActivityContentState.Highlight(
-                    agent,
-                    status: status,
-                    since: entry.since,
-                    prompt: input.prompts[agent.id],
-                    titleLimit: titleLimit,
-                    showsProgress: request == nil
-                ),
+                agent: highlight,
                 pending: request.map { LiveActivityContentState.Pending($0) },
                 status: status
             )
-            let observation = Observation(status: status, preview: LiveActivityContentState.Highlight.preview(of: agent.preview), requestId: request?.id)
+            let observation = Observation(status: status, preview: preview, requestId: request?.id)
             observed[agent.id] = observation
             record(observation, since: observations[agent.id], of: agent.id)
         }
         entries = tracked
         observations = observed
+        outcomes = outcomes.filter { tracked[$0.key] != nil }
         eventGenerations = eventGenerations.filter { tracked[$0.key] != nil }
         for (agentId, alert) in alerts where tracked[agentId] == nil {
             droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: alert))
@@ -195,6 +207,18 @@ struct AgentActivityTracker: Sendable {
             return current
         }
         return tied.min()
+    }
+
+    private mutating func outcome(of agentId: AgentID, decision: PendingDecision?, preview: String?, hasRequest: Bool) -> PendingOutcome? {
+        if let decision, decision.requestId != outcomes[agentId]?.requestId {
+            outcomes[agentId] = ShownOutcome(requestId: decision.requestId, outcome: decision.outcome, preview: preview)
+        }
+        guard let shown = outcomes[agentId], shown.isActive else { return nil }
+        guard !hasRequest, shown.preview == preview else {
+            outcomes[agentId]?.isActive = false
+            return nil
+        }
+        return shown.outcome
     }
 
     private mutating func record(_ observation: Observation, since previous: Observation?, of agentId: AgentID) {

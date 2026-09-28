@@ -116,10 +116,14 @@ extension ToolActivity {
 extension MessagePreview {
     static let imageOnlyText = "[imagem]"
 
+    static func withoutPastedContentTags(_ text: String) -> String {
+        text.replacing(/<\/?pasted_content\b[^>]*>/, with: " ")
+    }
+
     init?(transcriptItem item: ChatItem) {
         switch item.kind {
         case .userPrompt(let text, let imageCount):
-            let plain = PlainText.preview(fromMarkdown: text)
+            let plain = PlainText.preview(fromMarkdown: Self.withoutPastedContentTags(text))
             self.init(author: .user, text: plain.isEmpty && imageCount > 0 ? Self.imageOnlyText : plain)
         case .assistantText(let markdown):
             self.init(author: .assistant, text: PlainText.preview(fromMarkdown: markdown))

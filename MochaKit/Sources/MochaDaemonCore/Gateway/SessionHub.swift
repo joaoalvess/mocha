@@ -147,6 +147,7 @@ public actor SessionHub {
     var metaThrottles: [UUID: MetaThrottle] = [:]
     var subagentTasks: [Task<Void, Never>] = []
     var pendingRequests: [PendingRequest] = []
+    var pendingDecisions: [AgentID: PendingDecision] = [:]
     let observedSessionUpdates: AsyncStream<Set<String>>
     let observedSessionContinuation: AsyncStream<Set<String>>.Continuation
     let liveActivityInputs: AsyncStream<LiveActivityInput>

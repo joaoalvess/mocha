@@ -6,6 +6,6 @@ enum PendingActivityResponder {
         let reply = PendingNotificationReply(requestId: requestId, agentId: agentId, response: choice.response)
         let result = await PendingNotificationResponder.send(reply)
         guard AgentsActivityReply.clearsPending(after: result) else { return }
-        await AgentsActivityController.clearPending(requestId)
+        await AgentsActivityController.clearPending(requestId, outcome: AgentsActivityReply.outcome(of: choice, after: result))
     }
 }

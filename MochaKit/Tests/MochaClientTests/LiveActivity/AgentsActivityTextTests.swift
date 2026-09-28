@@ -14,6 +14,7 @@ struct AgentsActivityTextTests {
         preview: String? = nil,
         activity: String? = nil,
         prompt: String? = nil,
+        outcome: String? = nil,
         pending: AgentsActivityContent.Pending? = nil
     ) -> AgentsActivityContent {
         AgentsActivityContent(
@@ -27,6 +28,7 @@ struct AgentsActivityTextTests {
             preview: preview,
             activity: activity,
             prompt: prompt,
+            outcome: outcome,
             pending: pending,
             updatedAt: since
         )
@@ -59,9 +61,30 @@ struct AgentsActivityTextTests {
         #expect(AgentsActivityText.header(of: Self.content(workspaceLabel: "  ")).project == AgentsActivityText.appName)
     }
 
-    @Test func theContextIsClampedAndTurnsAmberWhileWaiting() {
+    @Test func theHeaderStaysGreenAndAPendingRequestHighlightsTheSecondLine() {
+        let content = Self.content(.blocked, pending: Self.permission())
+        let header = AgentsActivityText.header(of: content)
+        #expect(header.tone == .working)
+        #expect(header.context?.isBlocked == false)
+        #expect(AgentsActivityText.header(of: Self.content(.blocked)).tone == .working)
+        #expect(AgentsActivityText.header(of: Self.content(.blocked)).context?.isBlocked == false)
+        #expect(AgentsActivityText.header(of: Self.content(.idle)).tone == .done)
+        #expect(AgentsActivityText.lines(of: content).emphasizesDetail)
+        #expect(AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.question(["Postgres", "SQLite"]))).emphasizesDetail)
+        #expect(!AgentsActivityText.lines(of: Self.content(.working, preview: "Pronto.")).emphasizesDetail)
+    }
+
+    @Test func anOutcomeNamesTheDecisionAboveTheLastPrompt() {
+        let lines = AgentsActivityText.lines(of: Self.content(.working, preview: "Vou seguir.", prompt: "faz o plano", outcome: "allowed"))
+        #expect(lines == AgentsActivityLines(headline: "Aprovado", detail: .text("Você: faz o plano")))
+        #expect(AgentsActivityText.lines(of: Self.content(outcome: "denied")).headline == "Negado")
+        #expect(AgentsActivityText.lines(of: Self.content(outcome: "answered")).headline == "Respondido")
+        #expect(AgentsActivityText.lines(of: Self.content(preview: "Vou seguir.", outcome: "outro")).headline == "Vou seguir.")
+    }
+
+    @Test func theContextIsClampedAndStaysGreenWhileWaiting() {
         #expect(AgentsActivityText.header(of: Self.content(contextLeftPercent: 130)).context == AgentsActivityContext(leftPercent: 100, isBlocked: false))
-        #expect(AgentsActivityText.header(of: Self.content(.blocked, contextLeftPercent: -3)).context == AgentsActivityContext(leftPercent: 0, isBlocked: true))
+        #expect(AgentsActivityText.header(of: Self.content(.blocked, contextLeftPercent: -3)).context == AgentsActivityContext(leftPercent: 0, isBlocked: false))
         #expect(AgentsActivityText.header(of: Self.content(contextLeftPercent: nil)).context == nil)
     }
 
@@ -88,13 +111,13 @@ struct AgentsActivityTextTests {
     @Test func aPermissionShowsWhatTheToolWantsAndTheCommand() {
         let lines = AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.permission()))
         let headline = AgentsActivityText.permissionHeadline(toolName: "Bash")
-        #expect(lines == AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: .command("$ npm run build")))
+        #expect(lines == AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: .command("$ npm run build"), emphasizesDetail: true))
         #expect(AgentsActivityText.permissionHeadline(toolName: " ").verb == AgentsActivityText.permissionFallbackVerb)
     }
 
     @Test func aPlanAsksToFollowThePlanWithItsFirstLine() {
         let lines = AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.permission("ExitPlanMode", text: "Criar o arquivo f.txt")))
-        #expect(lines == AgentsActivityLines(headline: "Claude quer seguir o plano", detail: .text("Criar o arquivo f.txt")))
+        #expect(lines == AgentsActivityLines(headline: "Exit plan mode", detail: .text("Criar o arquivo f.txt"), emphasizesDetail: true))
     }
 
     @Test func aQuestionFillsBothLinesUnlessItsButtonsNeedTwoRows() {

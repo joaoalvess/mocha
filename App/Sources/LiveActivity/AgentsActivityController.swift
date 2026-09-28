@@ -71,10 +71,10 @@ final class AgentsActivityController {
         start(content)
     }
 
-    nonisolated static func clearPending(_ requestId: String) async {
+    nonisolated static func clearPending(_ requestId: String, outcome: AgentsActivityOutcome?) async {
         for activity in Activity<MochaFeedAttributes>.activities where isLive(activity.activityState) {
             let current = activity.content
-            guard let cleared = AgentsActivityContent(current.state).clearingPending(requestId) else { continue }
+            guard let cleared = AgentsActivityContent(current.state).clearingPending(requestId, outcome: outcome) else { continue }
             await activity.update(
                 ActivityContent(state: cleared.attributesState, staleDate: current.staleDate),
                 alertConfiguration: nil,

@@ -35,6 +35,7 @@ public enum LiveActivityContentState {
         public var preview: String?
         public var activity: String?
         public var prompt: String?
+        public var outcome: String?
 
         public init(
             agentId: String,
@@ -46,7 +47,8 @@ public enum LiveActivityContentState {
             contextLeftPercent: Int? = nil,
             preview: String? = nil,
             activity: String? = nil,
-            prompt: String? = nil
+            prompt: String? = nil,
+            outcome: String? = nil
         ) {
             self.agentId = agentId
             self.title = title
@@ -58,10 +60,11 @@ public enum LiveActivityContentState {
             self.preview = preview
             self.activity = activity
             self.prompt = prompt
+            self.outcome = outcome
         }
 
         enum CodingKeys: String, CodingKey {
-            case agentId, title, workspaceLabel, status, since, model, contextLeftPercent, preview, activity, prompt
+            case agentId, title, workspaceLabel, status, since, model, contextLeftPercent, preview, activity, prompt, outcome
         }
 
         public init(from decoder: any Decoder) throws {
@@ -76,6 +79,7 @@ public enum LiveActivityContentState {
             preview = try container.decodeIfPresent(String.self, forKey: .preview)
             activity = try container.decodeIfPresent(String.self, forKey: .activity)
             prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
+            outcome = try container.decodeIfPresent(String.self, forKey: .outcome)
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -90,6 +94,7 @@ public enum LiveActivityContentState {
             try container.encodeIfPresent(preview, forKey: .preview)
             try container.encodeIfPresent(activity, forKey: .activity)
             try container.encodeIfPresent(prompt, forKey: .prompt)
+            try container.encodeIfPresent(outcome, forKey: .outcome)
         }
     }
 }

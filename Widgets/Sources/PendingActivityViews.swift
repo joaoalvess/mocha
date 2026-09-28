@@ -67,14 +67,30 @@ struct PendingActionButton: View {
 
     private var label: some View {
         Text(action.title)
-            .font(.system(size: action.role == .option ? 14 : 15, weight: action.role == .option ? .medium : .semibold))
-            .foregroundStyle(action.role == .allow ? AgentsPalette.onStatusOk : AgentsPalette.textPrimary)
+            .font(.system(size: action.role == .option ? 14 : 17, weight: action.role == .option ? .medium : .semibold))
+            .foregroundStyle(foreground)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .background(action.role == .allow ? AgentsPalette.statusOk : AgentsPalette.controlBg, in: Capsule())
+            .background(background, in: Capsule())
             .contentShape(Capsule())
+    }
+
+    private var foreground: Color {
+        switch action.role {
+        case .allow: AgentsPalette.onStatusOk
+        case .deny: AgentsPalette.headerSecondary
+        case .option: AgentsPalette.textPrimary
+        }
+    }
+
+    private var background: Color {
+        switch action.role {
+        case .allow: AgentsPalette.statusOk
+        case .deny: .clear
+        case .option: AgentsPalette.controlBg
+        }
     }
 }

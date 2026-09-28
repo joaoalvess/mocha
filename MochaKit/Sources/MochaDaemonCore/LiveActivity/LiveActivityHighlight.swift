@@ -8,6 +8,7 @@ extension LiveActivityContentState.Highlight {
     static let promptLimit = PushAlertText.summaryLimit
 
     static let droppedToFitBudget: [@Sendable (inout Self) -> Void] = [
+        { $0.outcome = nil },
         { $0.preview = nil },
         { $0.activity = nil },
         { $0.prompt = nil },
