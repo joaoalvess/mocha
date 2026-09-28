@@ -260,7 +260,8 @@ extension SessionHub {
         case .listSubagents(let agentId):
             await listSubagents(agentId, id: id, clientId: clientId)
         case .listWebServers:
-            let servers = await webServers?.scan() ?? []
+            let scanned = await webServers?.scan() ?? []
+            let servers = WorkspaceRoot.assign(scanned, to: await herdr.workspaceRoots())
             send(.webServers(host: configuration.hostName, servers: servers), id: id, to: clientId)
         case .respond(let requestId, let response) where pending != nil:
             await respond(to: requestId, with: response, id: id, clientId: clientId)

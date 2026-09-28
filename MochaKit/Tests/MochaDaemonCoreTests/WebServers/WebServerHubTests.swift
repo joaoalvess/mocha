@@ -17,6 +17,27 @@ struct WebServerHubTests {
         }
     }
 
+    @Test func listWebServersTagsEachServerWithItsWorkspace() async throws {
+        let servers = [
+            WebServer(pid: 1, process: "node", port: 5173, directory: "/Users/joao/mocha"),
+            WebServer(pid: 2, process: "node", port: 5174, directory: "/Users/joao/mocha/.claude/worktrees/W4/apps/web"),
+            WebServer(pid: 3, process: "ssh", port: 8181, directory: "/tmp"),
+        ]
+        try await withWebServerHub(FakeWebServerScanner(servers: servers)) { harness in
+            harness.herdr.setWorkspaceRoots([
+                WorkspaceRoot(workspaceId: "w1", path: "/Users/joao/mocha", isCheckout: true),
+                WorkspaceRoot(workspaceId: "w2", path: "/Users/joao/mocha/.claude/worktrees/W4", isCheckout: true),
+            ])
+            let (socket, _) = try await harness.pairedClient()
+            let reply = try await socket.reply(to: .listWebServers, id: "c-3")
+            guard case .webServers(_, let tagged) = reply else {
+                Issue.record("resposta inesperada: \(reply)")
+                return
+            }
+            #expect(tagged.map(\.workspaceId) == ["w1", "w2", nil])
+        }
+    }
+
     @Test func listWebServersWithoutScannerRepliesEmpty() async throws {
         try await withWebServerHub(nil) { harness in
             let (socket, _) = try await harness.pairedClient()

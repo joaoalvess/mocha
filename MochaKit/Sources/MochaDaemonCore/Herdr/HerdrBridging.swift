@@ -15,11 +15,16 @@ public protocol HerdrBridging: Sendable {
     func newAgentTab(in workspaceId: WorkspaceID) async throws -> AgentID
     func newCodexTab(in workspaceId: WorkspaceID, remote: String) async throws -> (paneId: AgentID, cwd: String?)
     var serverInfo: HerdrServerInfo? { get async }
+    func workspaceRoots() async -> [WorkspaceRoot]
 }
 
 extension HerdrBridging {
     public func newCodexTab(in workspaceId: WorkspaceID, remote: String) async throws -> (paneId: AgentID, cwd: String?) {
         throw HerdrBridgeError.unavailable
+    }
+
+    public func workspaceRoots() async -> [WorkspaceRoot] {
+        []
     }
 }
 

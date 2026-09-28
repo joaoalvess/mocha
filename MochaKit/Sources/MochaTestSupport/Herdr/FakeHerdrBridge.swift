@@ -28,6 +28,7 @@ public final class FakeHerdrBridge: HerdrBridging {
         var agents: [AgentID: HerdrAgent]
         var movedPanes: [AgentID: AgentID] = [:]
         var serverInfo: HerdrServerInfo?
+        var workspaceRoots: [WorkspaceRoot] = []
         var promptError: HerdrBridgeError?
         var interruptError: HerdrBridgeError?
         var promptCalls: [FakeHerdrPromptCall] = []
@@ -112,6 +113,10 @@ public final class FakeHerdrBridge: HerdrBridging {
 
     public var serverInfo: HerdrServerInfo? {
         get async { state.withLock { $0.serverInfo } }
+    }
+
+    public func workspaceRoots() async -> [WorkspaceRoot] {
+        state.withLock { $0.workspaceRoots }
     }
 
     public func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async {
@@ -221,6 +226,10 @@ public final class FakeHerdrBridge: HerdrBridging {
 
     public func setServerInfo(_ info: HerdrServerInfo?) {
         state.withLock { $0.serverInfo = info }
+    }
+
+    public func setWorkspaceRoots(_ roots: [WorkspaceRoot]) {
+        state.withLock { $0.workspaceRoots = roots }
     }
 
     public func finishEvents() {
