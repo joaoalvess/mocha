@@ -31,6 +31,7 @@ enum Palette {
     static let divider = Color(hex: 0x202223)
     static let barTrack = Color(hex: 0x191B1D)
     static let paceMark = Color(hex: 0x979899)
+    static let usageBarFill = Color(.displayP3, red: 0, green: 1, blue: 0)
     static let claudeTile = Color(hex: 0x2E221F)
     static let heroBg = Color(hex: 0x120A08)
     static let heroTile = Color(hex: 0x2E1914)

@@ -22,7 +22,7 @@ private struct UsageSheetContent: View {
             ZStack(alignment: .top) {
                 SheetGrabber()
                 header
-                    .padding(.horizontal, 21)
+                    .padding(.horizontal, 20)
                     .padding(.top, 46)
             }
             if let usage {
@@ -38,8 +38,8 @@ private struct UsageSheetContent: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Uso")
-                .systemText(.sheetTitle)
-                .systemLinePitch(22, size: 17)
+                .font(.system(size: 18, weight: .bold))
+                .systemLinePitch(22, size: 18)
                 .foregroundStyle(Palette.textPrimary)
                 .accessibilityAddTraits(.isHeader)
             Spacer()
@@ -55,7 +55,7 @@ private struct UsageCard: View {
     var body: some View {
         let windows = UsagePace.summaries(of: usage, now: now)
         VStack(spacing: 0) {
-            HStack(spacing: 13.3) {
+            HStack(spacing: 12) {
                 ClaudeTile(size: 40, cornerRadius: 11, background: Palette.claudeTile, markSize: 25)
                 VStack(alignment: .leading, spacing: 3.5) {
                     Text(UsagePace.accountTitle(plan: usage.plan, account: usage.account))
@@ -88,10 +88,10 @@ private struct UsageCard: View {
                         UsageWindowRow(window: window)
                     }
                 }
-                .padding(.top, 8.7)
+                .padding(.top, 7.7)
                 .padding(.leading, 16)
                 .padding(.trailing, 17.3)
-                .padding(.bottom, UsagePace.trendLine(windows) == nil ? 10 : 0)
+                .padding(.bottom, UsagePace.trendLine(windows) == nil ? 11 : 0)
                 if let trendLine = UsagePace.trendLine(windows) {
                     Text(trendLine)
                         .font(.system(size: 14))
@@ -99,8 +99,8 @@ private struct UsageCard: View {
                         .foregroundStyle(Palette.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16)
-                        .padding(.top, 9)
-                        .padding(.bottom, 10)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
                 }
             }
         }
@@ -119,16 +119,16 @@ private struct UsageWindowRow: View {
     var body: some View {
         HStack(spacing: 0) {
             Text(window.label)
-                .font(Typography.usageLabel)
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Palette.textSecondary)
-                .frame(width: 38.7, alignment: .trailing)
+                .frame(width: 40.3, alignment: .trailing)
             UsageBar(fraction: window.usedFraction, paceFraction: window.elapsedFraction)
                 .frame(width: 153.7)
-                .padding(.leading, 13.3)
+                .padding(.leading, 11.7)
             Text(window.percentText)
-                .font(Typography.usageValue)
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(Palette.textPrimary)
-                .frame(width: 47.3, alignment: .trailing)
+                .frame(width: 48.1, alignment: .trailing)
             Text(window.timeUntilReset ?? "")
                 .font(.system(size: 12))
                 .foregroundStyle(Palette.textSecondary)

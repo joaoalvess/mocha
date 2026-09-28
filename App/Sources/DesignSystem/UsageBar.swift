@@ -12,7 +12,7 @@ struct UsageBar: View {
                     .fill(Palette.barTrack)
                     .frame(height: height)
                 Capsule()
-                    .fill(Palette.statusOk)
+                    .fill(Palette.usageBarFill)
                     .frame(width: proxy.size.width * clamped(fraction), height: height)
             }
             .overlay(alignment: .leading) {
