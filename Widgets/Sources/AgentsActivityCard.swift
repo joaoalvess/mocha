@@ -1,4 +1,5 @@
 import MochaClient
+import MochaProtocol
 import SwiftUI
 
 struct AgentsCardMetrics {
@@ -78,6 +79,7 @@ struct AgentsCardTitle: View {
 
 struct AgentsCardBadge: View {
     let context: AgentsActivityContext?
+    let provider: AgentProvider
     let metrics: AgentsCardMetrics
 
     var body: some View {
@@ -85,7 +87,7 @@ struct AgentsCardBadge: View {
             if let context {
                 ContextBar(context: context)
             }
-            ClaudeTile(size: metrics.tileSize, markSize: metrics.markSize)
+            ProviderTile(provider: provider, size: metrics.tileSize, markSize: metrics.markSize)
         }
     }
 }
@@ -98,7 +100,7 @@ struct AgentsCardHeader: View {
         HStack(spacing: 8) {
             AgentsCardTitle(header: header, metrics: metrics)
             Spacer(minLength: 0)
-            AgentsCardBadge(context: header.context, metrics: metrics)
+            AgentsCardBadge(context: header.context, provider: header.provider, metrics: metrics)
         }
         .frame(height: metrics.tileSize)
     }

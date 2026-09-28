@@ -34,6 +34,7 @@ struct AgentsActivityTrackerTests {
         let content = try #require(tracker.content(for: "w2:p1", at: Self.start))
         #expect(content.title == "Codex")
         #expect(content.status == "working")
+        #expect(content.provider == .codex)
     }
 
     @Test func theStartPolicyNeedsTheForegroundNoActivityForTheAgentAndPermission() {

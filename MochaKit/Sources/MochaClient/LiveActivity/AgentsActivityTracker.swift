@@ -39,6 +39,7 @@ public struct AgentsActivityTracker: Sendable, Equatable {
             workspaceLabel: entry.agent.workspaceLabel,
             since: entry.since,
             model: entry.agent.model,
+            provider: entry.agent.kind == HomeSections.codexKind ? .codex : nil,
             contextLeftPercent: entry.agent.contextLeftPercent,
             updatedAt: now
         )
