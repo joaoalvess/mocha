@@ -1493,7 +1493,7 @@ public protocol ServerConnection: Sendable {
 **`AppSession`** (`App/Sources/AppShell/`, `@MainActor @Observable`):
 - é o único consumidor de `messages` e `states`;
 - guarda o host, as preferências, a árvore, as sessões arquivadas, o uso, o `herdrConnected`, o estado da conexão, o chat visível e a navegação;
-- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`); arrastar da esquerda para a direita na Início (ou o botão de relógio) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é só tocar no disco de status do header. A gaveta é uma camada por cima que só existe dentro do chat, aberta arrastando da borda esquerda. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
+- **navegação**: a raiz do `NavigationStack` é um paginador com duas telas irmãs, o Histórico à esquerda e a Início à direita (`rootPage`); arrastar da esquerda para a direita na Início (ou o botão de relógio) abre o Histórico, e arrastar da direita para a esquerda no Histórico (ou o botão de casa) volta, a não ser que o gesto comece num card arquivável. O chat entra por push (`ChatScreen(target:)`), e voltar é arrastar da borda esquerda (o gesto de voltar do sistema, religado com a barra de navegação escondida). A gaveta é uma camada por cima que só existe dentro do chat, aberta tocando no disco de status do header. Detalhe do agente, Uso, Ajustes e Nova sessão são folhas. O Pareamento cobre tudo enquanto a conexão está em `pairingRequired`;
 - **chat de subagente** (fase subagentes): entra por push sobre a pilha atual (o chat pai, outro transcript de subagente ou, a partir do Detalhe, a pilha que está sob a folha: a Home ou o chat que abriu o Detalhe), e voltar volta à tela de baixo. Os chats da pilha ficam abertos no daemon (sem `closeChat`) enquanto estão nela, e cada um recebe `closeChat` ao sair dela;
 - correlaciona as respostas pelo id;
 - ao voltar para `.connected`, reabre com `openChat` o chat visível e os que estão abaixo dele na pilha, e substitui as listas;
@@ -1613,7 +1613,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Chat** (`05-chat-inicio-turno`, `05b-chat-fim-turno`, `06-card-expandido`, `07-chat-trabalhando`)
 - **Header flutuante de vidro** (`glassChat`), com:
-  - disco de status (§6.2); tocar volta à Início (ou ao Histórico, conforme a página raiz);
+  - disco de status (§6.2); tocar abre a gaveta;
   - asterisco do Claude e título (truncado no meio); tocar no título abre o Detalhe;
   - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
@@ -1655,7 +1655,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Pergunta: seleção única com rádio, múltipla com caixas, "Outro…" como resposta livre. Uma pergunta: um bloco e "Responder" (`10b`). Várias perguntas: uma por vez (`10c`, `10d`), com "<header> · N de M" e um segmento por pergunta; na seleção única, tocar numa opção avança; com caixas ou "Outro…", avança pelo "Próximo"; "Voltar" reabre a anterior com a resposta; na última, "Enviar" manda todas num `answers` só.
 
 **Gaveta** (`11-gaveta-arvore`)
-- Camada por cima do chat, **só dentro do chat e só por gesto**: arrastar da borda esquerda para a direita. Nunca na Início nem no Histórico. Ao abrir, fecha o teclado. Ocupa ~90 % da largura com `scrim` no restante; fecha tocando no scrim ou arrastando para a esquerda; voltar do chat fecha a gaveta.
+- Camada por cima do chat, **só dentro do chat**: abre tocando no disco de status do header; não há gesto para abrir. Nunca na Início nem no Histórico. Ao abrir, fecha o teclado. Ocupa ~90 % da largura com `scrim` no restante; fecha tocando no scrim ou arrastando para a esquerda; voltar do chat fecha a gaveta.
 - Topo: só o campo de busca ("Buscar workspaces, agentes…"), filtrando por workspace, tab e título do agente.
 - Árvore: cabeçalho "WORKSPACES"; cada workspace tem chevron, nome em peso médio, ícone de branch com o nome, `*` em `dirty` quando `isDirty`, e worktrees aninhados sob o repositório.
 - Tabs: ícone (asterisco do Claude ou `>_`) e título do agente ou da tab. Quando a branch do agente difere da do workspace (§3.1.4), ela aparece em `textSecondary` na linha do agente. Agente ocioso não tem indicador. Em `working` o asterisco pulsa com brilho; em `blocked` aparece um ponto `dirty` à direita.
