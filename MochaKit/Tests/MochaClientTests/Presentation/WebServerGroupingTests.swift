@@ -34,14 +34,11 @@ struct WebServerGroupingTests {
         #expect(workspaces.workspaceNode(containingAgent: "w9:p9") == nil)
     }
 
-    @Test func theSubtitleShowsTheProjectAndBranchOfTheWorkspace() {
+    @Test func theSubtitleIsTheBranchOfTheWorkspace() {
         var tree = workspaces
-        tree[0].repoName = "site-do-portador"
         tree[0].branch = "develop"
-        #expect(WebServerGrouping.subtitle(for: servers[2], workspaces: tree) == "site-do-portador • develop")
-        #expect(WebServerGrouping.subtitle(for: servers[1], workspaces: tree) == "login-social")
-        let loose = WebServer(pid: 9, process: "node", port: 9000, directory: "/Users/joao/portal")
-        #expect(WebServerGrouping.subtitle(for: loose, workspaces: tree) == "portal")
+        #expect(WebServerGrouping.subtitle(for: servers[2], workspaces: tree) == "develop")
+        #expect(WebServerGrouping.subtitle(for: servers[1], workspaces: tree) == nil)
         #expect(WebServerGrouping.subtitle(for: servers[0], workspaces: tree) == nil)
     }
 }
