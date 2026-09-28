@@ -998,10 +998,20 @@ Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: con
 - Cápsula de vidro com sino (só com pedido), globo e engrenagem; folha Servidores web da §6.3 com estados carregando, vazia e sem conexão; `-open-web-servers` só em Debug para a captura. Tocar numa linha chama `WebPreviewOpener.open(_:)`, que por enquanto não faz nada.
 - **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes; capturas da Início e da folha comparadas ao print, com as diferenças listadas.
 
+### Contrato da chave do host (orquestrador, antes da onda 2)
+
+- `HostInfo.sshUser` e `HostInfo.sshHostKeys`, `SSHHostIdentity` no daemon, `server.helloOk.ssh.json` e SPEC §5.2 e §9.1. Decisão do João: fixar a chave do host pelo `helloOk`, sem confiar na primeira conexão.
+
+### WP-W3b: painel próprio para Servidores web
+
+- **Dono**: `App/Sources/WebPreview/` (menos `Browser*`) e a apresentação em `App/Sources/AppShell/AppShellView.swift`.
+- Decisão do João: a folha do sistema sai (fica recuada das bordas no iOS 26) e entra o mesmo painel da folha de Uso (`UsagePanelLayer` em `App/Sources/Usage/`), colado às bordas, com o topo em ~50% da tela como no print. Generalizar o painel do Uso sem mudar o visual dele. O puxar para recarregar sai (conflita com arrastar para fechar): a lista recarrega ao abrir e quando a conexão volta.
+- **Aceite**: `scripts/build-app.sh` verde; captura com `-demo -open-web-servers` comparada ao print (bordas, altura do topo, tipos) e a do Uso sem regressão.
+
 ### WP-W4: sessão SSH, túnel e Navegador
 
 - **Dono**: `App/Sources/Terminal/Session/`, `App/Sources/Settings/SSH*`, `App/Sources/WebPreview/Browser*` e `WebPreviewOpener`.
-- Conexão SSH única (§9.1) com a chave da Secure Enclave, a chave pública em Ajustes (copiar), `PortForwarder` e o Navegador da §6.3, com reabertura ao voltar do background (§9.3). Parte do que o WP-W1 decidir.
+- Conexão SSH única (§9.1) com a chave da Secure Enclave, a chave pública em Ajustes (copiar), `PortForwarder` e o Navegador da §6.3, com reabertura ao voltar do background (§9.3). Parte do `docs/spikes/W1.md` e do código `App/Sources/Debug/SSHProbe*`. Usuário e chave do host vêm do `helloOk` (§9.1). O `SSHProbe*` sai no fim do WP, substituído pelo código de produção.
 - **Aceite**: `scripts/test.sh` (o `PortForwarder` com canal falso) e `scripts/build-app.sh` verdes; captura do Navegador com uma página local servida pelo próprio teste.
 
 ### WP-W5: checklist no iPhone
