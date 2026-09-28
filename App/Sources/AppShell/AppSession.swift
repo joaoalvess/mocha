@@ -67,7 +67,7 @@ final class AppSession {
     private(set) var preferences: DevicePreferences?
     private(set) var workspaces: [WorkspaceNode] = []
     private(set) var archivedSessions: [ArchivedSession] = []
-    private(set) var usage: UsageSnapshot?
+    private(set) var usages: [AgentProvider: UsageSnapshot] = [:]
     private(set) var herdrConnected: Bool?
     private(set) var hasReceivedTree = false
     private(set) var chatStack: [ChatState] = []
@@ -240,6 +240,14 @@ final class AppSession {
     func showDetail(_ target: ChatTarget) {
         isDrawerOpen = false
         sheet = .detail(target)
+    }
+
+    var usage: UsageSnapshot? {
+        usages[.claude] ?? usages[.codex]
+    }
+
+    func usage(for provider: AgentProvider) -> UsageSnapshot? {
+        usages[provider]
     }
 
     func showUsage() {
@@ -517,7 +525,7 @@ final class AppSession {
         case .archived(let sessions):
             archivedSessions = sessions
         case .usage(let snapshot):
-            usage = snapshot
+            usages[snapshot.provider] = snapshot
         case .herdrStatus(let connected):
             herdrConnected = connected
             host?.herdrConnected = connected
