@@ -235,14 +235,22 @@ extension SessionHub {
             await unpair(clientId, id: id)
         case .ping:
             send(.pong, id: id, to: clientId)
-        case .archive(let sessionId):
-            await archiveSession(sessionId, id: id, clientId: clientId)
+        case .archive(let sessionId, let provider):
+            if provider == .claude {
+                await archiveSession(sessionId, id: id, clientId: clientId)
+            } else {
+                send(.notClaude, id: id, to: clientId)
+            }
         case .slash(let agentId, let command):
             await run(.prompt(command), agentId: agentId, id: id, clientId: clientId)
         case .setPreferences(let preferences):
             await setPreferences(preferences, id: id, clientId: clientId)
-        case .newAgentTab(let workspaceId):
-            await openAgentTab(in: workspaceId, id: id, clientId: clientId)
+        case .newAgentTab(let workspaceId, let kind):
+            if kind == .claude {
+                await openAgentTab(in: workspaceId, id: id, clientId: clientId)
+            } else {
+                send(.notClaude, id: id, to: clientId)
+            }
         case .listSubagents(let agentId):
             await listSubagents(agentId, id: id, clientId: clientId)
         case .respond(let requestId, let response) where pending != nil:

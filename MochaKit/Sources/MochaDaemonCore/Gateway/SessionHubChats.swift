@@ -31,6 +31,9 @@ extension SessionHub {
             }
             target = requested
             sessionId = requestedSessionId
+        case .codexThread:
+            send(.notClaude, id: id, to: clientId)
+            return
         case .subagent(let requestedSessionId, let agentId):
             guard let transcript = await resolveSubagentTranscript(sessionId: requestedSessionId, agentId: agentId, id: id, clientId: clientId) else {
                 return
@@ -64,6 +67,9 @@ extension SessionHub {
                 return
             }
             removeChat(at: target, clientId: clientId)
+        case .codexThread:
+            send(.notClaude, id: id, to: clientId)
+            return
         case .subagent(let sessionId, let agentId):
             if clients[clientId]?.chats[target] == nil,
                await resolveSubagentTranscript(sessionId: sessionId, agentId: agentId, id: id, clientId: clientId) == nil {
@@ -260,6 +266,8 @@ extension SessionHub {
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta)
         case .session:
             return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
+        case .codexThread:
+            return ChatMeta(title: "Codex", workspaceLabel: "", status: .unknown)
         case .subagent(let sessionId, let agentId):
             return subagentChatMeta(sessionId: sessionId, agentId: agentId, meta: subagentMeta)
         }
