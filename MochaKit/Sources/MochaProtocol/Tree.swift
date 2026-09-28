@@ -79,6 +79,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
     public var archivedAt: Date?
     public var runningSubagents: Int?
     public var controlAvailable: Bool?
+    public var permissionMode: String?
 
     public init(
         id: AgentID,
@@ -99,7 +100,8 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         turnEndedAt: Date? = nil,
         archivedAt: Date? = nil,
         runningSubagents: Int? = nil,
-        controlAvailable: Bool? = nil
+        controlAvailable: Bool? = nil,
+        permissionMode: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -120,12 +122,13 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         self.archivedAt = archivedAt
         self.runningSubagents = runningSubagents
         self.controlAvailable = controlAvailable
+        self.permissionMode = permissionMode
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, status, title, workspaceLabel, model, branch, sessionId, lastActivityAt, pendingCount
         case preview, activity, contextLeftPercent, sessionStartedAt, turnStartedAt, turnEndedAt, archivedAt
-        case runningSubagents, controlAvailable
+        case runningSubagents, controlAvailable, permissionMode
     }
 
     public init(from decoder: any Decoder) throws {
@@ -149,6 +152,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         archivedAt = try container.decodeProtocolDateIfPresent(forKey: .archivedAt)
         runningSubagents = try container.decodeIfPresent(Int.self, forKey: .runningSubagents)
         controlAvailable = try container.decodeIfPresent(Bool.self, forKey: .controlAvailable)
+        permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -172,6 +176,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         try container.encodeProtocolDateIfPresent(archivedAt, forKey: .archivedAt)
         try container.encodeIfPresent(runningSubagents, forKey: .runningSubagents)
         try container.encodeIfPresent(controlAvailable, forKey: .controlAvailable)
+        try container.encodeIfPresent(permissionMode, forKey: .permissionMode)
     }
 }
 
