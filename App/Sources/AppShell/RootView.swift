@@ -31,6 +31,7 @@ struct RootView: View {
                 opensDrawerAtLaunch: opensDrawerAtLaunch,
                 opensSettingsAtLaunch: opensSettingsAtLaunch,
                 opensHistoryAtLaunch: opensHistoryAtLaunch,
+                opensWebServersAtLaunch: opensWebServersAtLaunch,
                 opensNewSessionAtLaunch: newSessionLaunch != nil,
                 newSessionKindAtLaunch: newSessionLaunch == .workspace ? .claude : nil
             )
@@ -67,6 +68,14 @@ struct RootView: View {
     private var opensHistoryAtLaunch: Bool {
         #if DEBUG
         launch.opensHistory
+        #else
+        false
+        #endif
+    }
+
+    private var opensWebServersAtLaunch: Bool {
+        #if DEBUG
+        launch.opensWebServers
         #else
         false
         #endif

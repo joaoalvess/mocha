@@ -7,6 +7,7 @@ struct AppShellView: View {
     var opensDrawerAtLaunch = false
     var opensSettingsAtLaunch = false
     var opensHistoryAtLaunch = false
+    var opensWebServersAtLaunch = false
     var opensNewSessionAtLaunch = false
     var newSessionKindAtLaunch: AgentProvider?
     @Environment(\.scenePhase) private var scenePhase
@@ -62,6 +63,9 @@ struct AppShellView: View {
             if opensHistoryAtLaunch {
                 session.showHistory()
             }
+            if opensWebServersAtLaunch {
+                session.showWebServers()
+            }
             if opensNewSessionAtLaunch {
                 launchNewSessionKind = newSessionKindAtLaunch
                 session.showNewSession()
@@ -97,6 +101,12 @@ struct AppShellView: View {
         case .newSession:
             NewSessionSheet(session: session, initialKind: launchNewSessionKind)
                 .onDisappear { launchNewSessionKind = nil }
+        case .webServers:
+            WebServersSheet(session: session)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(Palette.drawerBg)
+                .presentationCornerRadius(Metrics.sheetCornerRadius)
         case .settings:
             SettingsScreen(session: session)
                 .presentationDetents([.large])
