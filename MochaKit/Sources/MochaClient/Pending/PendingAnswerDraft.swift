@@ -60,9 +60,38 @@ public struct PendingQuestionDraft: Sendable, Equatable {
 
 public struct PendingAnswerDraft: Sendable, Equatable {
     public private(set) var questions: [PendingQuestionDraft]
+    public private(set) var step = 0
 
     public init(questions: [PendingQuestion]) {
         self.questions = questions.map(PendingQuestionDraft.init(question:))
+    }
+
+    public var isStepped: Bool {
+        questions.count > 1
+    }
+
+    public var isLastStep: Bool {
+        step >= questions.count - 1
+    }
+
+    public var isCurrentStepAnswered: Bool {
+        questions.indices.contains(step) && questions[step].answer != nil
+    }
+
+    public mutating func advance() {
+        guard !isLastStep, isCurrentStepAnswered else { return }
+        step += 1
+    }
+
+    public mutating func goBack() {
+        guard step > 0 else { return }
+        step -= 1
+    }
+
+    public mutating func choose(_ label: String) {
+        toggle(label, inQuestion: step)
+        guard isStepped, questions.indices.contains(step), !questions[step].question.multiSelect else { return }
+        advance()
     }
 
     public var isComplete: Bool {
