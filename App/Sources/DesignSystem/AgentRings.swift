@@ -25,12 +25,10 @@ struct AgentRingCounts: Equatable {
     }
 }
 
-struct AgentRingsButton: View {
+struct AgentRings: View {
     let counts: AgentRingCounts
     let isOffline: Bool
-    let action: () -> Void
 
-    private static let diameter: CGFloat = GlassRoundButtonStyle.home.diameter
     private static let lineWidth: CGFloat = 4.3
     private static let outerRadius: CGFloat = 12
     private static let innerRadius: CGFloat = 7.5
@@ -38,24 +36,16 @@ struct AgentRingsButton: View {
     private static let dotDistance: CGFloat = 10
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                ring(radius: Self.outerRadius, fraction: counts.blockedFraction, track: Palette.ringBlockedTrack, fill: Palette.ringBlocked)
-                ring(radius: Self.innerRadius, fraction: counts.workingFraction, track: Palette.ringWorkingTrack, fill: Palette.ringWorking)
-                if !isOffline && counts.working > 0 {
-                    Circle()
-                        .fill(Palette.statusOk)
-                        .frame(width: Self.dotDiameter, height: Self.dotDiameter)
-                        .offset(x: Self.dotDistance * cos(.pi / 4), y: -Self.dotDistance * sin(.pi / 4))
-                }
+        ZStack {
+            ring(radius: Self.outerRadius, fraction: counts.blockedFraction, track: Palette.ringBlockedTrack, fill: Palette.ringBlocked)
+            ring(radius: Self.innerRadius, fraction: counts.workingFraction, track: Palette.ringWorkingTrack, fill: Palette.ringWorking)
+            if !isOffline && counts.working > 0 {
+                Circle()
+                    .fill(Palette.statusOk)
+                    .frame(width: Self.dotDiameter, height: Self.dotDiameter)
+                    .offset(x: Self.dotDistance * cos(.pi / 4), y: -Self.dotDistance * sin(.pi / 4))
             }
-            .frame(width: Self.diameter, height: Self.diameter)
-            .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .mochaGlass(.home, interactive: true, in: Circle())
-        .accessibilityLabel("Histórico")
-        .accessibilityValue(counts.accessibilityValue)
     }
 
     private func ring(radius: CGFloat, fraction: CGFloat, track: Color, fill: Color) -> some View {

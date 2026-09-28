@@ -4,14 +4,11 @@ import SwiftUI
 
 struct HistoryScreen: View {
     @Bindable var session: AppSession
-    @State private var offlineProblem: ConnectionProblem?
+    let offlineMessage: String?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
-            HomeContent(session: session, now: context.date, offlineMessage: offlineProblem?.message)
-        }
-        .onChange(of: session.connectionState, initial: true) { _, state in
-            offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
+            HomeContent(session: session, now: context.date, offlineMessage: offlineMessage)
         }
         .task { await runDebugLaunch() }
     }
@@ -39,8 +36,6 @@ private struct HomeContent: View {
     private static let pillBottom: CGFloat = 9
     private static let listBottomWithPill: CGFloat = 64
     private static let listBottom: CGFloat = 24
-    private static let capsuleTopInset: CGFloat = 11
-    private static let capsuleSideInset: CGFloat = 52
 
     var body: some View {
         let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
@@ -52,13 +47,14 @@ private struct HomeContent: View {
                     session: session,
                     sections: sections,
                     isOffline: offlineMessage != nil,
+                    topInset: Metrics.homeListTopInset + (offlineMessage == nil ? 0 : RootHeader.offlineExtent),
                     bottomInset: usageWindows.isEmpty ? Self.listBottom : Self.listBottomWithPill
                 )
             } else if session.hasReceivedTree {
                 HomeEmptyState()
             }
-            topBar
         }
+        .animation(.smooth(duration: 0.25), value: offlineMessage)
         .overlay(alignment: .bottom) {
             if !usageWindows.isEmpty {
                 HomeUsagePill(provider: session.usage?.provider ?? .claude, windows: usageWindows, isDimmed: offlineMessage != nil) {
@@ -69,35 +65,13 @@ private struct HomeContent: View {
             }
         }
     }
-
-    private var topBar: some View {
-        ZStack(alignment: .top) {
-            HStack(spacing: 0) {
-                GlassRoundButton(systemImage: "house", accessibilityLabel: "Início", style: .home) {
-                    session.showStart()
-                }
-                Spacer()
-                GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
-                    session.showSettings()
-                }
-            }
-            if let offlineMessage {
-                OfflineCapsule(message: offlineMessage) { session.showSettings() }
-                    .padding(.horizontal, Self.capsuleSideInset)
-                    .padding(.top, Self.capsuleTopInset)
-                    .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, Metrics.homeButtonSide)
-        .padding(.top, Metrics.homeButtonTopInset)
-        .animation(.smooth(duration: 0.25), value: offlineMessage)
-    }
 }
 
 private struct HomeList: View {
     let session: AppSession
     let sections: [HomeSection]
     let isOffline: Bool
+    let topInset: CGFloat
     let bottomInset: CGFloat
 
     var body: some View {
@@ -121,7 +95,7 @@ private struct HomeList: View {
                     }
                 }
             }
-            .padding(.top, Metrics.homeListTopInset)
+            .padding(.top, topInset)
             .padding(.bottom, bottomInset)
         }
         .scrollIndicators(.hidden)

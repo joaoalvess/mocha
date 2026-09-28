@@ -4,14 +4,11 @@ import SwiftUI
 
 struct StartScreen: View {
     @Bindable var session: AppSession
-    @State private var offlineProblem: ConnectionProblem?
+    let offlineMessage: String?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
-            StartContent(session: session, now: context.date, offlineMessage: offlineProblem?.message)
-        }
-        .onChange(of: session.connectionState, initial: true) { _, state in
-            offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
+            StartContent(session: session, now: context.date, offlineMessage: offlineMessage)
         }
     }
 }
@@ -24,13 +21,10 @@ private struct StartContent: View {
     private static let searchTop: CGFloat = 60
     private static let searchHeight: CGFloat = 46
     private static let listTop: CGFloat = 118
-    private static let offlineGap: CGFloat = 10
-    private static let offlineHeight: CGFloat = 34
     private static let activeTopGap: CGFloat = 22
     private static let listBottom: CGFloat = 110
     private static let fabTrailing: CGFloat = 20
     private static let fabBottom: CGFloat = 6
-    private static let headerButtonSpacing: CGFloat = 8
 
     var body: some View {
         let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
@@ -71,8 +65,11 @@ private struct StartContent: View {
             } else if session.hasReceivedTree {
                 StartEmptyState()
             }
-            topBar
+            StartSearchField()
+                .padding(.horizontal, Metrics.homeButtonSide)
+                .padding(.top, Metrics.homeButtonTopInset + Self.searchTop + offlineExtent)
         }
+        .animation(.smooth(duration: 0.25), value: offlineMessage)
         .overlay(alignment: .bottomTrailing) {
             NewSessionButton { session.showNewSession() }
                 .padding(.trailing, Self.fabTrailing)
@@ -80,42 +77,12 @@ private struct StartContent: View {
         }
     }
 
-    private var listTop: CGFloat {
-        Self.listTop + (offlineMessage == nil ? 0 : Self.offlineHeight + Self.offlineGap)
+    private var offlineExtent: CGFloat {
+        offlineMessage == nil ? 0 : RootHeader.offlineExtent
     }
 
-    private var topBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                AgentRingsButton(
-                    counts: AgentRingCounts(statuses: session.supportedAgents.map(\.status)),
-                    isOffline: offlineMessage != nil
-                ) {
-                    session.showHistory()
-                }
-                Spacer()
-                HStack(spacing: Self.headerButtonSpacing) {
-                    if session.pending.count > 0 {
-                        HomeInboxButton(pendingCount: session.pending.count) { session.showInbox() }
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                    GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
-                        session.showSettings()
-                    }
-                }
-                .animation(.smooth(duration: 0.25), value: session.pending.count > 0)
-            }
-            StartSearchField()
-                .padding(.top, Self.searchTop - GlassRoundButtonStyle.home.diameter)
-            if let offlineMessage {
-                OfflineCapsule(message: offlineMessage) { session.showSettings() }
-                    .padding(.top, Self.offlineGap)
-                    .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, Metrics.homeButtonSide)
-        .padding(.top, Metrics.homeButtonTopInset)
-        .animation(.smooth(duration: 0.25), value: offlineMessage)
+    private var listTop: CGFloat {
+        Self.listTop + offlineExtent
     }
 
     private func open(_ target: ChatTarget) {
@@ -143,32 +110,6 @@ private struct RecentsHeader: View {
         .padding(.horizontal, Metrics.contentMargin)
         .padding(.top, 12)
         .padding(.bottom, 8)
-    }
-}
-
-struct HomeInboxButton: View {
-    let pendingCount: Int
-    let action: () -> Void
-
-    var body: some View {
-        GlassRoundButton(systemImage: "bell", accessibilityLabel: "Pedidos pendentes", style: .home, action: action)
-            .overlay(alignment: .topTrailing) { badge }
-            .accessibilityValue("\(pendingCount)")
-    }
-
-    @ViewBuilder
-    private var badge: some View {
-        if let text = PendingText.badge(pendingCount) {
-            Text(text)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Palette.glyphOnDirty)
-                .padding(.horizontal, 4)
-                .frame(minWidth: 17, minHeight: 17)
-                .background(Capsule().fill(Palette.dirty))
-                .offset(x: 3, y: -3)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
     }
 }
 

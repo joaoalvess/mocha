@@ -1,3 +1,5 @@
+import MochaClient
+import MochaProtocol
 import SwiftUI
 import UIKit
 
@@ -5,18 +7,23 @@ struct RootPager: View {
     @Bindable var session: AppSession
     @State private var dragOffset: CGFloat = 0
     @State private var width: CGFloat = 0
+    @State private var offlineProblem: ConnectionProblem?
 
     private static let pageThreshold: CGFloat = 0.3
     private static let settleAnimation = Animation.smooth(duration: 0.3)
 
     var body: some View {
-        ZStack {
-            HistoryScreen(session: session)
+        ZStack(alignment: .top) {
+            HistoryScreen(session: session, offlineMessage: offlineProblem?.message)
                 .offset(x: historyOffset + dragOffset)
                 .allowsHitTesting(session.rootPage == .history)
-            StartScreen(session: session)
+            StartScreen(session: session, offlineMessage: offlineProblem?.message)
                 .offset(x: historyOffset + width + dragOffset)
                 .allowsHitTesting(session.rootPage == .start)
+            RootHeader(session: session, historyProgress: historyProgress, offlineMessage: offlineProblem?.message)
+        }
+        .onChange(of: session.connectionState, initial: true) { _, state in
+            offlineProblem = HomeSections.offlineProblem(for: state, previous: offlineProblem)
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .gesture(
@@ -27,6 +34,12 @@ struct RootPager: View {
             )
         )
         .animation(Self.settleAnimation, value: session.rootPage)
+    }
+
+    private var historyProgress: CGFloat {
+        let base: CGFloat = session.rootPage == .history ? 1 : 0
+        guard width > 0 else { return base }
+        return min(1, max(0, base + dragOffset / width))
     }
 
     private var historyOffset: CGFloat {
