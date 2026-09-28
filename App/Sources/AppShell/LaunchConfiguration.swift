@@ -10,6 +10,8 @@ struct LaunchConfiguration: Equatable {
     var openURL: URL?
     var opensDrawer = false
     var opensSettings = false
+    var opensHistory = false
+    var newSession: NewSessionLaunch?
     var pairingProblem: ConnectionProblem?
     #endif
 
@@ -21,6 +23,7 @@ struct LaunchConfiguration: Equatable {
     #if DEBUG
     static let openDrawerFlag = "-open-drawer"
     static let openSettingsFlag = "-open-settings"
+    static let openHistoryFlag = "-open-history"
     #endif
 
     static func current(
@@ -42,6 +45,8 @@ struct LaunchConfiguration: Equatable {
         configuration.openURL = (argumentDomain[LaunchArguments.openURLKey] as? String).flatMap(URL.init(string:))
         configuration.opensDrawer = arguments.contains(openDrawerFlag)
         configuration.opensSettings = arguments.contains(openSettingsFlag)
+        configuration.opensHistory = arguments.contains(openHistoryFlag)
+        configuration.newSession = (argumentDomain[NewSessionLaunch.argumentKey] as? String).flatMap(NewSessionLaunch.init(rawValue:))
         configuration.pairingProblem = (argumentDomain[LaunchArguments.pairingErrorKey] as? String).flatMap(ConnectionProblem.init(rawValue:))
         #endif
         return configuration
@@ -55,6 +60,13 @@ enum LaunchArguments {
     static func argumentDomain(_ defaults: UserDefaults = .standard) -> [String: Any] {
         defaults.volatileDomain(forName: UserDefaults.argumentDomain)
     }
+}
+
+enum NewSessionLaunch: String {
+    case agent
+    case workspace
+
+    static let argumentKey = "open-new-session"
 }
 
 #if DEBUG

@@ -6,12 +6,16 @@ struct AppShellView: View {
     var launchURL: URL?
     var opensDrawerAtLaunch = false
     var opensSettingsAtLaunch = false
+    var opensHistoryAtLaunch = false
+    var opensNewSessionAtLaunch = false
+    var newSessionKindAtLaunch: AgentProvider?
     @Environment(\.scenePhase) private var scenePhase
+    @State private var launchNewSessionKind: AgentProvider?
 
     var body: some View {
         ZStack {
             NavigationStack(path: chatPath) {
-                HomeScreen(session: session)
+                RootPager(session: session)
                     .toolbar(.hidden, for: .navigationBar)
                     .background(InteractivePopEnabler())
                     .navigationDestination(for: ChatTarget.self) { target in
@@ -30,6 +34,13 @@ struct AppShellView: View {
         .sheet(item: $session.sheet) { sheet in
             sheetContent(sheet)
         }
+        .sheet(isPresented: $session.isInboxOpen) {
+            InboxSheet(session: session)
+                .presentationDetents([InboxSheet.detent])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(Palette.drawerBg)
+                .presentationCornerRadius(Metrics.sheetCornerRadius)
+        }
         .onChange(of: scenePhase, initial: true) { _, phase in
             session.scenePhaseChanged(to: phase)
         }
@@ -46,6 +57,13 @@ struct AppShellView: View {
             }
             if opensSettingsAtLaunch {
                 session.showSettings()
+            }
+            if opensHistoryAtLaunch {
+                session.showHistory()
+            }
+            if opensNewSessionAtLaunch {
+                launchNewSessionKind = newSessionKindAtLaunch
+                session.showNewSession()
             }
         }
     }
@@ -73,6 +91,9 @@ struct AppShellView: View {
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Palette.drawerBg)
                 .presentationCornerRadius(Metrics.sheetCornerRadius)
+        case .newSession:
+            NewSessionSheet(session: session, initialKind: launchNewSessionKind)
+                .onDisappear { launchNewSessionKind = nil }
         case .settings:
             SettingsScreen(session: session)
                 .presentationDetents([.large])

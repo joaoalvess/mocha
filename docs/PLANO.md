@@ -962,6 +962,15 @@ Branch `fase/codex`, criada de `main` antes do WP-X3. A SPEC §13 define o contr
 - **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/`, `App/Sources/Home/`, `App/Sources/Drawer/`, `App/Sources/Chat/` e testes correspondentes. Propor alterações no protocolo ao orquestrador.
 - Listar e paginar threads desktop sem retomá-las, até 20 recentes na Home e todas na gaveta. Estado desconhecido quando o App Server não comprova atividade. Preparar o diff exato dos hooks para revisão do João antes de instalar; a leitura funciona sem eles. Aceite: nenhuma ação de controle aparece para conversa desktop.
 
+## Fase início: Início, Histórico e gaveta só no chat
+
+Branch `fase/inicio`, criada de `main`. Um WP só, feito direto pelo orquestrador a pedido do João. Daemon e protocolo não mudam.
+
+### WP-H1: Início, Nova sessão, Histórico e gaveta só no chat
+
+- **Dono**: `App/Sources/Home/`, `App/Sources/NewSession/`, `App/Sources/AppShell/`, `App/Sources/Drawer/`, `App/Sources/Chat/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `MochaKit/Sources/MochaClient/Presentation/` e testes.
+- A Home vira o Histórico, a Início nova (§6.3) fica à direita dele num paginador, a folha Nova sessão substitui o `+` da gaveta, a gaveta só abre no chat pela borda esquerda e a bússola fica desabilitada. Aceite: `scripts/test.sh` e `scripts/build-app.sh` passam; o João confere gestos e a criação de uma tab no iPhone.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1051,6 +1060,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-C2-wiring | feito (testes e builds passaram; sem teste real, que fica no WP-XC) | merge em `fase/codex` |
 | WP-XC | todo | |
 | WP-CD | todo | |
+| WP-H1 | feito sem device (testes e build passaram; gestos e tab real a conferir no iPhone) | `fase/inicio` |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |

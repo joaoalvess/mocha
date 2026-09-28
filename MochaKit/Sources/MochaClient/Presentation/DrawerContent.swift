@@ -1,11 +1,6 @@
 import Foundation
 import MochaProtocol
 
-public enum DrawerMode: String, CaseIterable, Sendable {
-    case recent
-    case tree
-}
-
 public struct DrawerWorkspaceRow: Equatable, Sendable {
     public let id: WorkspaceID
     public let label: String
@@ -57,26 +52,6 @@ public enum DrawerTreeRow: Identifiable, Sendable {
     }
 }
 
-public struct DrawerRecentRow: Identifiable, Sendable {
-    public let agent: AgentSummary
-    public let workspaceLabel: String
-
-    public var id: AgentID {
-        agent.id
-    }
-
-    public func subtitle(now: Date) -> String {
-        var parts = [workspaceLabel]
-        if let state = DrawerContent.stateText(for: agent.status) {
-            parts.append(state)
-        }
-        if let lastActivityAt = agent.lastActivityAt {
-            parts.append(RelativeTime.text(from: lastActivityAt, now: now))
-        }
-        return parts.joined(separator: " · ")
-    }
-}
-
 public enum DrawerContent {
     public static let claudeKind = "claude"
     public static let codexKind = "codex"
@@ -92,22 +67,6 @@ public enum DrawerContent {
             appendRows(for: workspace, level: 0, needle: needle, collapsed: collapsed, into: &rows)
         }
         return rows
-    }
-
-    public static func recentRows(for workspaces: [WorkspaceNode], query: String) -> [DrawerRecentRow] {
-        let needle = searchNeedle(query)
-        var rows: [DrawerRecentRow] = []
-        collectRecents(in: workspaces, needle: needle, into: &rows)
-        return rows.enumerated()
-            .sorted { lhs, rhs in
-                switch (lhs.element.agent.lastActivityAt, rhs.element.agent.lastActivityAt) {
-                case let (left?, right?) where left != right: left > right
-                case (_?, nil): true
-                case (nil, _?): false
-                default: lhs.offset < rhs.offset
-                }
-            }
-            .map(\.element)
     }
 
     public static func stateText(for status: AgentStatus) -> String? {
@@ -210,19 +169,5 @@ public enum DrawerContent {
     private static func agentMatches(_ row: DrawerAgentRow, needle: String) -> Bool {
         matches(row.agent.title, needle: needle) || matches(row.title, needle: needle)
             || matches(row.agent.kind, needle: needle)
-    }
-
-    private static func collectRecents(in workspaces: [WorkspaceNode], needle: String?, into rows: inout [DrawerRecentRow]) {
-        for workspace in workspaces {
-            let workspaceMatches = needle.map { matches(workspace.label, needle: $0) } ?? true
-            for tab in workspace.tabs {
-                let tabMatches = workspaceMatches || needle.map { matches(tab.title, needle: $0) } == true
-                for agent in tab.agents where agent.kind == claudeKind || agent.kind == codexKind {
-                    guard tabMatches || needle.map({ matches(agent.title, needle: $0) || matches(agent.kind, needle: $0) }) == true else { continue }
-                    rows.append(DrawerRecentRow(agent: agent, workspaceLabel: workspace.label))
-                }
-            }
-            collectRecents(in: workspace.children, needle: needle, into: &rows)
-        }
     }
 }

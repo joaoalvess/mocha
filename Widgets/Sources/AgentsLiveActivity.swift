@@ -31,15 +31,14 @@ struct AgentsLiveActivity: Widget {
                         .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                ProviderMark(provider: header.provider, size: 16, color: AgentsPalette.color(for: tone, provider: header.provider))
-            } compactTrailing: {
-                Text(header.project)
-                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: "cup.and.saucer")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(AgentsPalette.labelColor(for: tone))
-                    .lineLimit(1)
-                    .frame(maxWidth: 64)
+                    .accessibilityHidden(true)
+            } compactTrailing: {
+                ProviderTile(provider: header.provider, size: 24, markSize: 14)
             } minimal: {
-                ProviderMark(provider: header.provider, size: 16, color: AgentsPalette.color(for: tone, provider: header.provider))
+                ProviderTile(provider: header.provider, size: 22, markSize: 13)
             }
             .widgetURL(AgentsActivityText.deepLink(forAgent: content.agentId))
             .keylineTint(AgentsPalette.color(for: tone, provider: header.provider))

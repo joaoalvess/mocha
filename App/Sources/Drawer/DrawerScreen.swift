@@ -4,29 +4,19 @@ import SwiftUI
 
 struct DrawerScreen: View {
     @Bindable var session: AppSession
-    @AppStorage(DrawerPreferences.modeKey) private var mode: DrawerMode = .tree
     @AppStorage(DrawerPreferences.collapsedKey) private var storedCollapsed = ""
     @State private var query = ""
     @State private var hint: String?
-    @State private var creatingTabs: Set<WorkspaceID> = []
-    @State private var newTabWorkspaceId: WorkspaceID?
 
     var body: some View {
         VStack(spacing: 0) {
-            DrawerTopBar(query: $query, mode: $mode) {
-                session.showSettings()
-            }
+            DrawerTopBar(query: $query)
             .padding(.horizontal, DrawerLayout.horizontalMargin)
             .padding(.top, DrawerLayout.topBarInset)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     sectionHeader
-                    switch mode {
-                    case .tree:
-                        treeList
-                    case .recent:
-                        recentList
-                    }
+                    treeList
                 }
                 .padding(.bottom, 24)
             }
@@ -60,32 +50,18 @@ struct DrawerScreen: View {
                 return
             }
         }
-        .confirmationDialog("Nova tab", isPresented: Binding(
-            get: { newTabWorkspaceId != nil },
-            set: { if !$0 { newTabWorkspaceId = nil } }
-        )) {
-            Button("Claude Code") { createSelectedAgentTab(kind: .claude) }
-            Button("Codex CLI") { createSelectedAgentTab(kind: .codex) }
-        } message: {
-            Text("Escolha o agente para este workspace")
-        }
-        #if DEBUG
-        .task(id: session.connectionState) {
-            await runDebugLaunch()
-        }
-        #endif
     }
 
     private static let hintDuration: Duration = .seconds(2.5)
 
     private var sectionHeader: some View {
-        Text(mode == .tree ? "WORKSPACES" : "RECENTES")
+        Text("WORKSPACES")
             .drawerText(.sectionHeader)
             .foregroundStyle(Palette.textSecondary)
             .frame(minHeight: DrawerLayout.sectionHeaderHeight)
             .padding(.leading, DrawerLayout.sectionHeaderLeading)
             .padding(.top, DrawerLayout.sectionHeaderTop)
-            .padding(.bottom, mode == .tree ? DrawerLayout.treeTopGap : DrawerLayout.recentTopGap)
+            .padding(.bottom, DrawerLayout.treeTopGap)
             .accessibilityAddTraits(.isHeader)
     }
 
@@ -108,9 +84,7 @@ struct DrawerScreen: View {
         case .workspace(let workspace):
             DrawerWorkspaceRowView(
                 row: workspace,
-                isCreatingTab: creatingTabs.contains(workspace.id),
-                action: { toggle(workspace.id) },
-                onNewTab: { newTabWorkspaceId = workspace.id }
+                action: { toggle(workspace.id) }
             )
         case .shell(let shell):
             DrawerTabRowView(icon: .shell, title: shell.title, level: shell.level) {
@@ -136,30 +110,9 @@ struct DrawerScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var recentList: some View {
-        let rows = DrawerContent.recentRows(for: session.workspaces, query: query)
-        if rows.isEmpty, session.hasReceivedTree {
-            emptyText(Self.emptyRecentText)
-        }
-        TimelineView(.periodic(from: .now, by: Self.relativeTimeRefresh)) { context in
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(rows) { row in
-                    DrawerRecentRowView(row: row, now: context.date, isSelected: isVisible(row.agent.id)) {
-                        session.openChat(.agent(row.agent.id))
-                    }
-                    .padding(.leading, DrawerLayout.rowLeading)
-                    .padding(.trailing, DrawerLayout.rowTrailing)
-                }
-            }
-        }
-    }
-
-    private static let relativeTimeRefresh: TimeInterval = 30
-
     private func emptyText(_ text: String) -> some View {
         Text(DrawerContent.searchNeedle(query).map { "Nada encontrado para “\($0)”" } ?? text)
-            .drawerText(.recentSubtitle)
+            .drawerText(.branch)
             .foregroundStyle(Palette.textSecondary)
             .padding(.leading, DrawerLayout.sectionHeaderLeading)
             .padding(.trailing, DrawerLayout.horizontalMargin)
@@ -167,7 +120,6 @@ struct DrawerScreen: View {
     }
 
     private static let emptyTreeText = "Nenhum workspace aberto no Herdr"
-    private static let emptyRecentText = "Nenhum agente aberto no Herdr"
     private static let terminalHint = "Terminal chega na fase 2"
     private static let unsupportedAgentHint = "Chat indisponível para este agente"
 
@@ -186,46 +138,6 @@ struct DrawerScreen: View {
         }
     }
 
-    private func createSelectedAgentTab(kind: AgentProvider) {
-        guard let workspaceId = newTabWorkspaceId else { return }
-        newTabWorkspaceId = nil
-        createAgentTab(in: workspaceId, kind: kind)
-    }
-
-    private func createAgentTab(in workspaceId: WorkspaceID, kind: AgentProvider = .claude) {
-        guard creatingTabs.insert(workspaceId).inserted else { return }
-        Task {
-            do {
-                let reply = try await session.request(.newAgentTab(workspaceId: workspaceId, kind: kind))
-                guard case .ack(let agentId?) = reply else {
-                    throw AppSessionError.unexpectedReply(type: reply.type)
-                }
-                creatingTabs.remove(workspaceId)
-                session.openChat(.agent(agentId))
-            } catch {
-                creatingTabs.remove(workspaceId)
-                show(hint: (error as? AppSessionError ?? .notConnected).message)
-            }
-        }
-    }
-
-    #if DEBUG
-    private func runDebugLaunch() async {
-        guard session.connectionState == .connected else { return }
-        let options = DrawerDebugOptions.current()
-        guard let workspaceId = options.newTabWorkspaceId, DrawerDebugLaunch.consume(DrawerDebugOptions.newTabKey) else { return }
-        try? await Task.sleep(for: options.newTabDelay)
-        guard !Task.isCancelled else { return }
-        createAgentTab(in: workspaceId)
-        if let reopenAfter = options.reopenAfter {
-            Task {
-                try? await Task.sleep(for: reopenAfter)
-                session.openDrawer()
-            }
-        }
-    }
-    #endif
-
     private func isVisible(_ agentId: AgentID) -> Bool {
         session.visibleChat?.target == .agent(agentId)
     }
@@ -237,6 +149,5 @@ struct DrawerScreen: View {
 }
 
 enum DrawerPreferences {
-    static let modeKey = "drawer.mode"
     static let collapsedKey = "drawer.collapsedWorkspaces"
 }
