@@ -1,5 +1,6 @@
 import Foundation
 import MochaDaemonCore
+import MochaProtocol
 import Testing
 @testable import MochaClient
 
@@ -82,6 +83,22 @@ struct AgentsActivityContentTests {
         let object = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(content)) as? [String: Any])
         #expect(Set(object.keys) == ["agentId", "status", "title", "workspaceLabel", "since", "updatedAt"])
         #expect(object["updatedAt"] as? Double == 2)
+        #expect(content.provider == nil)
+    }
+
+    @Test func codexProviderRoundTripsThroughActivityContent() throws {
+        let content = AgentsActivityContent(
+            status: "working",
+            title: "Codex",
+            workspaceLabel: "mocha",
+            since: Date(timeIntervalSinceReferenceDate: 1),
+            provider: .codex,
+            updatedAt: Date(timeIntervalSinceReferenceDate: 2)
+        )
+        let encoded = try JSONEncoder().encode(content)
+        let decoded = try JSONDecoder().decode(AgentsActivityContent.self, from: encoded)
+        #expect(decoded.provider == .codex)
+        #expect(AgentsActivityText.header(of: decoded).provider == .codex)
     }
 
     @Test func pendingWithoutOptionsIsRejected() {

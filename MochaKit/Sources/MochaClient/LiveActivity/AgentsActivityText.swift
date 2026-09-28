@@ -35,12 +35,14 @@ public struct AgentsActivityContext: Sendable, Equatable {
 
 public struct AgentsActivityHeader: Sendable, Equatable {
     public var project: String
+    public var provider: AgentProvider
     public var tone: AgentsActivityTone
     public var model: String?
     public var context: AgentsActivityContext?
 
-    public init(project: String, tone: AgentsActivityTone, model: String?, context: AgentsActivityContext?) {
+    public init(project: String, provider: AgentProvider = .claude, tone: AgentsActivityTone, model: String?, context: AgentsActivityContext?) {
         self.project = project
+        self.provider = provider
         self.tone = tone
         self.model = model
         self.context = context
@@ -93,7 +95,7 @@ public enum AgentsActivityText {
         let context = content.contextLeftPercent.map {
             AgentsActivityContext(leftPercent: min(max($0, 0), 100), isBlocked: tone == .waiting)
         }
-        return AgentsActivityHeader(project: project, tone: tone, model: model, context: context)
+        return AgentsActivityHeader(project: project, provider: content.provider ?? .claude, tone: tone, model: model, context: context)
     }
 
     public static func lines(of content: AgentsActivityContent) -> AgentsActivityLines {

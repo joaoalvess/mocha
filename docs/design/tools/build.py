@@ -74,6 +74,8 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 .badge{display:inline-flex;align-items:center;height:17.3px;padding:0 7px;border-radius:5px;background:var(--badgeOk);color:var(--ok);font:600 11px/1 var(--sf);letter-spacing:.1px}
 .meta .sep{width:4px;height:4px;border-radius:50%;background:var(--sepDot);margin:0 6.5px 0 6.3px;flex:none}
 .meta .cc{font:500 12px/1 var(--sf);color:var(--claude)}
+.codex-icon{color:var(--tp)!important}
+.codex-usage .tile,.codex-detail .hero .ht{background:var(--toolCard);color:var(--tp)}
 .meta .tm{font:400 12px/1 var(--sf);color:var(--ts)}
 .ring{position:absolute;left:16px;top:50%;margin-top:-20px;width:40px;height:40px}
 .ring svg{position:absolute;left:0;top:0;width:40px;height:40px;overflow:visible}
@@ -511,6 +513,7 @@ body{font-family:var(--sf);color:#E4E5E8;-webkit-font-smoothing:antialiased;padd
 SYMBOLS = """
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="i-claude" viewBox="0 0 24 24"><path d="%(AST)s"/></symbol>
+<symbol id="i-codex" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12Z"/><path d="M12 7.5 16.5 12 12 16.5 7.5 12Z"/></symbol>
 <symbol id="i-gear" viewBox="0 0 24 24"><path d="%(GEAR)s"/><circle cx="12" cy="12" r="3.3"/></symbol>
 <symbol id="i-house" viewBox="0 0 24 24"><path d="M3.5 11 12 3.9l8.5 7.1"/><path d="M5.8 9.3V20h4.6v-5.7h3.2V20h4.6V9.3"/></symbol>
 <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3.3"/><path d="M9.3 4.5v15M5.7 8.4h1.2M5.7 11.2h1.2M5.7 14h1.2"/></symbol>
@@ -672,7 +675,7 @@ def screen(sid, cls, inner, style=''):
 
 PH = {'core': '<span class="ph core">1a-core</span>', 'fin': '<span class="ph fin">1a-final</span>',
       'b': '<span class="ph b">1b</span>', 'f2': '<span class="ph f2">fase 2</span>',
-      'sub': '<span class="ph sub">subagentes</span>'}
+      'sub': '<span class="ph sub">subagentes</span>', 'codex': '<span class="ph fin">Codex CLI</span>'}
 
 def shot(title, phases, scr, note, extra=''):
     chips = ''.join(PH[p] for p in phases)
@@ -1259,6 +1262,39 @@ chat_wf = screen('s-chat-wf', '', sb() +
 wf_variants = ('<div class="variants"><div class="cap">Workflow concluído (o card recolhe numa linha; tocar expande as fases):</div><div class="vcol">'
     + tool('flow', 'Workflow', 'auditoria-a11y · 10 agentes') + '</div></div>')
 
+# ---------------------------------------------------------------- Codex CLI
+codex_home = screen('s-codex-home', 'home', sb() + home_top() +
+    '<div class="list"><div class="sec">Trabalhando</div>'
+    + hcard('Você: revise o fluxo de login no iPhone', 'demo-app', 'agora', 71, 'work', sub='Lendo arquivos')
+        .replace('Claude Code', 'Codex CLI').replace('class="cc"', 'class="cc" style="color:var(--tp)"')
+    + '<div class="sec">Concluídos</div>'
+    + hcard('Você: confira o build do app', 'demo-app', 'há 4 min', 100, 'done', sub='Controle indisponível')
+        .replace('Claude Code', 'Codex CLI').replace('class="cc"', 'class="cc" style="color:var(--tp)"')
+    + '</div>' + upill(12, 71).replace('i-claude', 'i-codex').replace('class="ic ast"', 'class="ic ast codex-icon"'))
+
+codex_drawer = screen('s-codex-drawer', '', sb() + chat_under + '<div class="scrim"></div><div class="drawer">'
+    + drawer_top('tree') + '<div class="dsec">WORKSPACES</div><div class="tree">'
+    + trow(0, 'ws', 'demo-app', extra=brn('main'))
+    + trow(0, 'cl', 'Codex · Revisão do login', sel=True).replace('i-claude', 'i-codex').replace('ti cl', 'ti codex-icon')
+    + '<div class="dr"><span class="tx" style="margin-left:48px;color:var(--ts)">Nova tab: Claude  ·  Codex</span></div>'
+    + trow(0, 'cl', 'Claude · Tela de ajustes') + '</div></div>')
+
+codex_chat = screen('s-codex-chat', '', sb() +
+    '<div class="chat" style="bottom:95px"><div class="ub">revise o fluxo de login no iPhone</div>'
+    + '<div class="p">Revisei o fluxo e encontrei um ajuste na restauração da sessão.</div>'
+    + tools(tool('term', 'Shell', 'swift test'))
+    + '<div class="p">Os testes passaram.</div></div>'
+    + header('Revisão do login', 'demo-app • Codex • main').replace('i-claude', 'i-codex').replace('class="ic ast"', 'class="ic ast codex-icon"') + composer())
+
+codex_limited = screen('s-codex-limited', '', sb() +
+    '<div class="chat" style="bottom:150px"><div class="ub">confira o build do app</div>'
+    + '<div class="p">O build foi concluído.</div></div>'
+    + header('Build do app', 'demo-app • Codex • main').replace('i-claude', 'i-codex').replace('class="ic ast"', 'class="ic ast codex-icon"')
+    + '<div class="cmp gl gl-cmp"><div class="phd">Controle indisponível nesta tab</div></div>')
+
+codex_uso = uso.replace('s-uso', 's-codex-uso').replace('class="screen home"', 'class="screen home codex-usage"').replace('Claude Code', 'Codex').replace('do Claude', 'do Codex').replace('i-claude', 'i-codex')
+codex_detail = det1.replace('s-det', 's-codex-detail').replace('class="screen home"', 'class="screen home codex-detail"').replace('i-claude', 'i-codex').replace('Claude', 'Codex')
+
 # ---------------------------------------------------------------- page
 N = lambda *xs: list(xs)
 
@@ -1376,6 +1412,17 @@ page += group('Subagentes e workflows', [
     shot('19 · Chat com workflow', ['sub'], chat_wf, N(
         'Card do <code>Workflow</code> expandido enquanto roda: as fases com ✓ (concluída), giro (atual, com o <code>detail</code> e os agentes dela) e ○ (pendente), e a contagem de agentes por fase. No rodapé: tempo, agentes e ferramentas do workflow.',
         'Tocar num agente abre o transcript dele (tela 16b). Tocar no topo do card recolhe numa linha.'), wf_variants),
+])
+
+page += group('Codex CLI', [
+    shot('20 · Home com Codex CLI', ['codex'], codex_home, N(
+        'Codex participa das seções existentes. O cartão da tab sem App Server verificado indica controle indisponível; o chat continua legível.')),
+    shot('20b · Nova tab Claude ou Codex', ['codex'], codex_drawer, N(
+        'O + de um workspace apresenta Claude como escolha inicial e Codex como segunda opção. Ambas as tabs abrem na mesma árvore.')),
+    shot('20c · Chat Codex', ['codex'], codex_chat, N(
+        'O chat Codex usa o mesmo desenho e as mesmas ações de Claude quando o controle está disponível.')),
+    shot('20d · CLI antigo sem controle', ['codex'], codex_limited, N(
+        'Histórico legível; envio e interrupção indisponíveis até que a tab esteja ligada ao App Server gerenciado.')),
 ])
 
 page += '</body></html>'

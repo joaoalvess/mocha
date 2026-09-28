@@ -27,14 +27,14 @@ extension WorkspaceNode {
         return children.updateAgent(withId: id, update)
     }
 
-    func withoutClaude() -> WorkspaceNode {
+    func withoutSupportedAgents() -> WorkspaceNode {
         var workspace = self
         workspace.tabs = tabs.map { tab in
-            let others = tab.agents.filter { $0.kind != "claude" }
+            let others = tab.agents.filter { $0.kind != "claude" && $0.kind != "codex" }
             guard others.count != tab.agents.count else { return tab }
             return TabNode(id: tab.id, title: others.first?.title ?? DemoTree.shellTitle, agents: others)
         }
-        workspace.children = children.map { $0.withoutClaude() }
+        workspace.children = children.map { $0.withoutSupportedAgents() }
         workspace.agentStatus = workspace.aggregatedAgentStatus
         return workspace
     }

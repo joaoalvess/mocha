@@ -13,7 +13,7 @@ struct DemoNewAgentTab {
         chat.agentId
     }
 
-    init(in workspace: WorkspaceNode, takenAgentIds: Set<AgentID>, now: Date) {
+    init(in workspace: WorkspaceNode, kind: AgentProvider = .claude, takenAgentIds: Set<AgentID>, now: Date) {
         let tabPrefix = "\(workspace.id):t"
         let panePrefix = "\(workspace.id):p"
         let highestTab = workspace.tabs.compactMap { Self.number(in: $0.id, after: tabPrefix) }.max() ?? 0
@@ -21,15 +21,16 @@ struct DemoNewAgentTab {
         let number = max(highestTab, highestPane) + 1
         let agent = AgentSummary(
             id: panePrefix + String(number),
-            kind: "claude",
+            kind: kind.rawValue,
             status: .idle,
-            title: Self.agentTitle,
+            title: kind == .codex ? "Codex CLI" : Self.agentTitle,
             workspaceLabel: workspace.label,
             branch: workspace.branch,
             sessionId: UUID().uuidString.lowercased(),
-            lastActivityAt: now
+            lastActivityAt: now,
+            controlAvailable: kind == .codex ? true : nil
         )
-        tab = TabNode(id: tabPrefix + String(number), title: Self.tabTitle, agents: [agent])
+        tab = TabNode(id: tabPrefix + String(number), title: kind == .codex ? "Codex" : Self.tabTitle, agents: [agent])
         chat = DemoChat(
             agentId: agent.id,
             meta: ChatMeta(title: agent.title, workspaceLabel: agent.workspaceLabel, branch: agent.branch, status: agent.status),

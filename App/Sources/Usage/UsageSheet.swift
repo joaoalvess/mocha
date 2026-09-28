@@ -17,7 +17,8 @@ private struct UsageSheetContent: View {
     let hostName: String?
     let now: Date
 
-    static let footnote = "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
+    static let claudeFootnote = "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
+    static let codexFootnote = "Os números vêm da conta Codex no Mac. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,7 +32,7 @@ private struct UsageSheetContent: View {
                 UsageCard(usage: usage, hostName: hostName, now: now)
                     .padding(.horizontal, 20)
                     .padding(.top, 19.3)
-                Text(Self.footnote)
+                Text(usage.provider == .codex ? Self.codexFootnote : Self.claudeFootnote)
                     .font(.system(size: 12))
                     .systemLinePitch(17, size: 12)
                     .foregroundStyle(Palette.usageFootnote)
@@ -71,9 +72,9 @@ private struct UsageCard: View {
         let windows = UsagePace.summaries(of: usage, now: now)
         VStack(spacing: 0) {
             HStack(spacing: 13.3) {
-                ClaudeTile(size: 40, cornerRadius: 11, background: Palette.claudeTile, markSize: 25)
+                ProviderTile(provider: usage.provider, size: 40, cornerRadius: 11, markSize: 25)
                 VStack(alignment: .leading, spacing: 3.5) {
-                    Text(UsagePace.accountTitle(plan: usage.plan, account: usage.account))
+                    Text(UsagePace.accountTitle(plan: usage.plan, account: usage.account, provider: usage.provider))
                         .systemText(.cardTitle)
                         .systemLinePitch(21, size: 16)
                         .foregroundStyle(Palette.textPrimary)
@@ -118,8 +119,9 @@ private struct UsageCard: View {
     }
 
     private var subtitle: String {
-        guard let hostName else { return "Claude Code" }
-        return "Claude Code · \(hostName)"
+        let name = usage.provider == .codex ? "Codex" : "Claude Code"
+        guard let hostName else { return name }
+        return "\(name) · \(hostName)"
     }
 }
 

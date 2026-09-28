@@ -1,4 +1,5 @@
 import SwiftUI
+import MochaProtocol
 
 struct HomeCardFrame<Ring: View, Content: View>: View {
     var isWarning = false
@@ -72,6 +73,7 @@ struct HomeCardSubtitle: View {
 }
 
 struct HomeCardMeta: View {
+    var provider: AgentProvider = .claude
     let workspace: String
     let time: String
     var tone: HomeCardTone = .normal
@@ -80,9 +82,9 @@ struct HomeCardMeta: View {
         HStack(spacing: 0) {
             Badge(text: workspace, tone: tone == .offline ? .offline : .ok)
             MetaSeparator()
-            Text("Claude Code")
+            Text(provider == .codex ? "Codex CLI" : "Claude Code")
                 .systemText(.cardMetaClaude)
-                .foregroundStyle(tone == .offline ? Palette.offlineClaude : Palette.claude)
+                .foregroundStyle(tone == .offline ? Palette.offlineClaude : provider == .codex ? Palette.textPrimary : Palette.claude)
                 .fixedSize()
             MetaSeparator()
             Text(time)
@@ -107,6 +109,7 @@ struct MetaSeparator: View {
 }
 
 struct HomeCardContent: View {
+    var provider: AgentProvider = .claude
     let title: String
     var subtitle: String?
     var subtitleIsWarning = false
@@ -120,7 +123,7 @@ struct HomeCardContent: View {
             if let subtitle {
                 HomeCardSubtitle(text: subtitle, isWarning: subtitleIsWarning && tone != .offline)
             }
-            HomeCardMeta(workspace: workspace, time: time, tone: tone)
+            HomeCardMeta(provider: provider, workspace: workspace, time: time, tone: tone)
                 .padding(.top, subtitle == nil ? 2.5 : 5.5)
         }
     }

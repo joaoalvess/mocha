@@ -5,6 +5,19 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DemoNewAgentTabTests {
+    @Test func codexTabCanChatWhenControlIsAvailable() async throws {
+        let harness = try DemoHarness()
+        try await harness.connect()
+        let ack = try await harness.request(.newAgentTab(workspaceId: "w1", kind: .codex))
+        guard case .ack(let agentId?) = ack.message else { throw UnexpectedMessage(envelope: ack) }
+        let tree = try #require(await harness.messages.all().last { $0.message.changedWorkspaces != nil }?.message.changedWorkspaces)
+        let agent = try #require(tree.agent(withId: agentId))
+        #expect(agent.kind == "codex")
+        #expect(agent.controlAvailable == true)
+        #expect(try await harness.page(agentId).target == .agent(agentId))
+        #expect(try await harness.request(.sendPrompt(agentId: agentId, text: "oi")).message == .ack())
+    }
+
     @Test func acksWithTheNewAgentAfterSendingTheTreeThatHasIt() async throws {
         let harness = try DemoHarness()
         try await harness.connect()

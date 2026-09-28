@@ -19,7 +19,7 @@ struct ChatState: Equatable {
     var isReadOnly: Bool {
         switch target {
         case .agent: false
-        case .session, .subagent: true
+        case .session, .codexThread, .subagent: true
         }
     }
 
@@ -39,6 +39,7 @@ enum AppSheet: Identifiable, Hashable {
 enum AppSessionError: Error, Equatable {
     case notConnected
     case readOnlyChat
+    case controlUnavailable
     case server(code: ProtocolErrorCode, message: String)
     case unexpectedReply(type: String)
     case uploadFailed(ImageUploadError)
@@ -47,6 +48,7 @@ enum AppSessionError: Error, Equatable {
         switch self {
         case .notConnected: "Sem conexão com o Mac"
         case .readOnlyChat: "Sessão encerrada · só leitura"
+        case .controlUnavailable: "Controle indisponível nesta tab Codex"
         case .server(_, let message): message
         case .unexpectedReply(let type): "Resposta inesperada do Mac: \(type)."
         case .uploadFailed: "Não foi possível enviar a imagem ao Mac"
@@ -115,8 +117,8 @@ final class AppSession {
         chatStack.last
     }
 
-    var claudeAgents: [AgentSummary] {
-        workspaces.allAgents.filter { $0.kind == AgentKind.claude }
+    var supportedAgents: [AgentSummary] {
+        workspaces.allAgents.filter { $0.kind == AgentKind.claude || $0.kind == AgentKind.codex }
     }
 
     func chat(for route: ChatTarget) -> ChatState? {
@@ -298,8 +300,8 @@ final class AppSession {
         }
     }
 
-    func archive(sessionId: String) async throws {
-        try await request(.archive(sessionId: sessionId))
+    func archive(sessionId: String, provider: AgentProvider = .claude) async throws {
+        try await request(.archive(sessionId: sessionId, provider: provider))
     }
 
     func sendPrompt(_ text: String) async throws {
@@ -376,6 +378,9 @@ final class AppSession {
     private func visibleAgentId() throws -> AgentID {
         guard let target = visibleChat?.target else { throw AppSessionError.notConnected }
         guard case .agent(let agentId) = target else { throw AppSessionError.readOnlyChat }
+        if let agent = workspaces.agent(withId: agentId), agent.kind == AgentKind.codex, agent.controlAvailable != true {
+            throw AppSessionError.controlUnavailable
+        }
         return agentId
     }
 
@@ -431,7 +436,7 @@ final class AppSession {
     private func sessionId(for target: ChatTarget) -> String? {
         switch target {
         case .agent(let agentId): workspaces.agent(withId: agentId)?.sessionId
-        case .session(let sessionId): sessionId
+        case .session(let sessionId), .codexThread(let sessionId): sessionId
         case .subagent(let sessionId, _): sessionId
         }
     }
@@ -676,4 +681,5 @@ final class AppSession {
 
 enum AgentKind {
     static let claude = "claude"
+    static let codex = "codex"
 }

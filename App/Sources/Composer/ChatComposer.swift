@@ -7,6 +7,7 @@ struct ChatComposer: View {
     @Binding var isExpanded: Bool
     var isFocused: FocusState<Bool>.Binding
     let attachments: ComposerAttachments
+    var showsSlashMenu = true
     let onSend: () -> Void
     let onSlashAction: (SlashMenuAction) -> Void
     @State private var isAttachMenuOpen = false
@@ -141,7 +142,10 @@ struct ChatComposer: View {
     }
 
     private var expandedButtons: ComposerButtons {
-        dictation.phase.showsMicrophone ? [.attach, .slashMenu, .microphone] : [.attach, .slashMenu]
+        var buttons: ComposerButtons = [.attach]
+        if showsSlashMenu { buttons.insert(.slashMenu) }
+        if dictation.phase.showsMicrophone { buttons.insert(.microphone) }
+        return buttons
     }
 
     private var activeButtons: ComposerButtons {
@@ -165,6 +169,7 @@ struct ChatComposer: View {
     }
 
     private func toggleSlashMenu() {
+        guard showsSlashMenu else { return }
         isAttachMenuOpen = false
         isSlashMenuOpen.toggle()
     }
@@ -206,8 +211,9 @@ struct ChatComposer: View {
 }
 
 struct ReadOnlyComposerPill: View {
+    var text = "Sessão encerrada · só leitura"
     var body: some View {
-        Text("Sessão encerrada · só leitura")
+        Text(text)
             .font(Typography.composer)
             .foregroundStyle(Palette.textSecondary)
             .lineLimit(1)

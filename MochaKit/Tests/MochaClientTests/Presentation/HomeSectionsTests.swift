@@ -106,13 +106,32 @@ struct HomeSectionsTests {
         #expect(HomeSections.kind(of: agent("a", lastActivityAgo: nil), now: now) == .done)
     }
 
-    @Test func showsOnlyClaudeAgents() {
+    @Test func showsClaudeAndCodexAgents() {
         let sections = HomeSections.make(
             agents: [agent("claude"), agent("codex", kind: "codex"), agent("shell", kind: "")],
             archived: [],
             now: now
         )
-        #expect(sections.flatMap(\.cards).map(\.target) == [.agent("claude")])
+        #expect(sections.flatMap(\.cards).map(\.target) == [.agent("claude"), .agent("codex")])
+        #expect(sections.flatMap(\.cards).map(\.provider) == [.claude, .codex])
+    }
+
+    @Test func codexWithoutControlKeepsReadableCard() throws {
+        var codex = agent("codex", kind: "codex")
+        codex.controlAvailable = false
+        let sections = HomeSections.make(agents: [codex], archived: [], now: now)
+        let card = try #require(sections.first?.cards.first)
+        #expect(card.target == .agent("codex"))
+        #expect(card.provider == .codex)
+        #expect(!card.controlAvailable)
+        #expect(card.subtitle == "Controle indisponível")
+    }
+
+    @Test func archivedCodexUsesProviderQualifiedTarget() throws {
+        var thread = archived("same-id", endedAgo: 5)
+        thread.provider = .codex
+        let sections = HomeSections.make(agents: [], archived: [thread], now: now)
+        #expect(try #require(sections.first?.cards.first).target == .codexThread("same-id"))
     }
 
     @Test func archivedSessionsAlwaysGoToArchived() throws {
