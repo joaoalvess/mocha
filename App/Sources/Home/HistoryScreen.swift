@@ -41,7 +41,6 @@ private struct HomeContent: View {
     private static let listBottom: CGFloat = 24
     private static let capsuleTopInset: CGFloat = 11
     private static let capsuleSideInset: CGFloat = 52
-    private static let titleTopInset: CGFloat = 11
 
     var body: some View {
         let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
@@ -74,18 +73,13 @@ private struct HomeContent: View {
     private var topBar: some View {
         ZStack(alignment: .top) {
             HStack(spacing: 0) {
-                Spacer()
                 GlassRoundButton(systemImage: "house", accessibilityLabel: "Início", style: .home) {
                     session.showStart()
                 }
-            }
-            if offlineMessage == nil {
-                Text("Histórico")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Palette.textPrimary)
-                    .frame(height: 22)
-                    .padding(.top, Self.titleTopInset)
-                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
+                    session.showSettings()
+                }
             }
             if let offlineMessage {
                 OfflineCapsule(message: offlineMessage) { session.showSettings() }

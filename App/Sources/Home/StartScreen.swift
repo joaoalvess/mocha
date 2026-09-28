@@ -30,6 +30,7 @@ private struct StartContent: View {
     private static let listBottom: CGFloat = 110
     private static let fabTrailing: CGFloat = 20
     private static let fabBottom: CGFloat = 6
+    private static let headerButtonSpacing: CGFloat = 8
 
     var body: some View {
         let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
@@ -86,15 +87,23 @@ private struct StartContent: View {
     private var topBar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                GlassRoundButton(systemImage: "clock.arrow.circlepath", accessibilityLabel: "Histórico", style: .home) {
+                AgentRingsButton(
+                    counts: AgentRingCounts(statuses: session.supportedAgents.map(\.status)),
+                    isOffline: offlineMessage != nil
+                ) {
                     session.showHistory()
                 }
                 Spacer()
-                HomeActionCapsule(
-                    pendingCount: session.pending.count,
-                    showInbox: { session.showInbox() },
-                    showSettings: { session.showSettings() }
-                )
+                HStack(spacing: Self.headerButtonSpacing) {
+                    if session.pending.count > 0 {
+                        HomeInboxButton(pendingCount: session.pending.count) { session.showInbox() }
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                    GlassRoundButton(systemImage: "gearshape", accessibilityLabel: "Ajustes", style: .home) {
+                        session.showSettings()
+                    }
+                }
+                .animation(.smooth(duration: 0.25), value: session.pending.count > 0)
             }
             StartSearchField()
                 .padding(.top, Self.searchTop - GlassRoundButtonStyle.home.diameter)
@@ -137,40 +146,14 @@ private struct RecentsHeader: View {
     }
 }
 
-struct HomeActionCapsule: View {
+struct HomeInboxButton: View {
     let pendingCount: Int
-    let showInbox: () -> Void
-    let showSettings: () -> Void
-
-    private static let cellWidth: CGFloat = 40
-    private static let height: CGFloat = 44
-    private static let iconSize: CGFloat = 21 * 0.9
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            cell(systemImage: "bell", label: "Pedidos pendentes", action: showInbox)
-                .overlay(alignment: .topTrailing) { badge }
-                .accessibilityValue("\(pendingCount)")
-            cell(systemImage: "globe", label: "Preview web", action: {})
-                .opacity(0.32)
-                .disabled(true)
-            cell(systemImage: "gearshape", label: "Ajustes", action: showSettings)
-        }
-        .padding(.horizontal, 4)
-        .frame(height: Self.height)
-        .mochaGlass(.home, interactive: true, in: Capsule())
-    }
-
-    private func cell(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: Self.iconSize))
-                .foregroundStyle(Palette.textPrimary)
-                .frame(width: Self.cellWidth, height: Self.height)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        GlassRoundButton(systemImage: "bell", accessibilityLabel: "Pedidos pendentes", style: .home, action: action)
+            .overlay(alignment: .topTrailing) { badge }
+            .accessibilityValue("\(pendingCount)")
     }
 
     @ViewBuilder
@@ -182,7 +165,7 @@ struct HomeActionCapsule: View {
                 .padding(.horizontal, 4)
                 .frame(minWidth: 17, minHeight: 17)
                 .background(Capsule().fill(Palette.dirty))
-                .offset(x: -1, y: 4)
+                .offset(x: 3, y: -3)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
