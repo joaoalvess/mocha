@@ -37,11 +37,41 @@ struct AgentsActivityTrackerTests {
         #expect(content.provider == .codex)
     }
 
-    @Test func theStartPolicyNeedsTheForegroundNoActivityForTheAgentAndPermission() {
-        #expect(AgentsActivityStartPolicy.shouldStart(isForeground: true, hasActivityForAgent: false, activitiesEnabled: true))
-        #expect(!AgentsActivityStartPolicy.shouldStart(isForeground: false, hasActivityForAgent: false, activitiesEnabled: true))
-        #expect(!AgentsActivityStartPolicy.shouldStart(isForeground: true, hasActivityForAgent: true, activitiesEnabled: true))
-        #expect(!AgentsActivityStartPolicy.shouldStart(isForeground: true, hasActivityForAgent: false, activitiesEnabled: false))
+    @Test func theStartPolicyNeedsANewlyBusyAgentTheForegroundNoCardAndPermission() {
+        #expect(AgentsActivityStartPolicy.shouldStart(becameBusy: true, isForeground: true, hasActivity: false, activitiesEnabled: true))
+        #expect(!AgentsActivityStartPolicy.shouldStart(becameBusy: false, isForeground: true, hasActivity: false, activitiesEnabled: true))
+        #expect(!AgentsActivityStartPolicy.shouldStart(becameBusy: true, isForeground: false, hasActivity: false, activitiesEnabled: true))
+        #expect(!AgentsActivityStartPolicy.shouldStart(becameBusy: true, isForeground: true, hasActivity: true, activitiesEnabled: true))
+        #expect(!AgentsActivityStartPolicy.shouldStart(becameBusy: true, isForeground: true, hasActivity: false, activitiesEnabled: false))
+    }
+
+    @Test func theFocusIsTheAgentThatChangedLastWithTheSmallestIdOnATie() {
+        var tracker = AgentsActivityTracker()
+        #expect(tracker.focus == nil)
+        tracker.update([Self.agent("w2:p1", .working), Self.agent("w1:p1", .working)], at: Self.start)
+        #expect(tracker.focus == "w1:p1")
+        tracker.update([Self.agent("w2:p1", .working), Self.agent("w1:p1", .working), Self.agent("w3:p1", .working)], at: Self.start.addingTimeInterval(5))
+        #expect(tracker.focus == "w3:p1")
+        tracker.update([Self.agent("w2:p1", .blocked), Self.agent("w1:p1", .working), Self.agent("w3:p1", .working)], at: Self.start.addingTimeInterval(10))
+        #expect(tracker.focus == "w2:p1")
+        tracker.update([Self.agent("w1:p1", .working), Self.agent("w3:p1", .working)], at: Self.start.addingTimeInterval(15))
+        #expect(tracker.focus == "w3:p1")
+    }
+
+    @Test func thePendingRequestSeenFirstHoldsTheFocus() {
+        var tracker = AgentsActivityTracker()
+        tracker.update([Self.agent("w2:p1", .blocked, pendingCount: 1), Self.agent("w1:p1", .working)], at: Self.start)
+        #expect(tracker.focus == "w2:p1")
+        tracker.update([
+            Self.agent("w2:p1", .blocked, pendingCount: 1),
+            Self.agent("w1:p1", .blocked, pendingCount: 1),
+            Self.agent("w3:p1", .working),
+        ], at: Self.start.addingTimeInterval(5))
+        #expect(tracker.focus == "w2:p1")
+        tracker.update([Self.agent("w2:p1", .working), Self.agent("w1:p1", .blocked, pendingCount: 1)], at: Self.start.addingTimeInterval(10))
+        #expect(tracker.focus == "w1:p1")
+        tracker.update([Self.agent("w2:p1", .working), Self.agent("w1:p1", .working)], at: Self.start.addingTimeInterval(15))
+        #expect(tracker.focus == "w1:p1")
     }
 
     @Test func theContentOfAnAgentUsesItsTurnStartAndTruncatesTheTitle() throws {
@@ -53,6 +83,7 @@ struct AgentsActivityTrackerTests {
         tracker.update([working], at: Self.start)
         let content = try #require(tracker.content(for: "w1:p1", at: Self.start.addingTimeInterval(5)))
         #expect(content == AgentsActivityContent(
+            agentId: "w1:p1",
             status: "working",
             title: String(working.title.prefix(60)),
             workspaceLabel: "ws-w1:p1",

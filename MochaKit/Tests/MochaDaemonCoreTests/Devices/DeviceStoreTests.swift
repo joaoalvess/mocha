@@ -137,41 +137,66 @@ struct DeviceStoreTests {
             let pad = try await store.register(name: "iPad", token: "t2", at: start)
             let watch = try await store.register(name: "Outro", token: "t3", at: start)
             let starter = LiveActivityRegistration(pushToStartToken: pushToStart, env: .sandbox)
-            let parser = LiveActivityRegistration(activityId: "act-1", updateToken: update, agentId: "w1:p1", env: .sandbox)
-            let lexer = LiveActivityRegistration(activityId: "act-2", updateToken: String(repeating: "d4", count: 40), agentId: "w2:p1", env: .sandbox)
+            let card = LiveActivityRegistration(activityId: "act-1", updateToken: update, env: .sandbox)
             let other = LiveActivityRegistration(pushToStartToken: String(repeating: "c3", count: 40), env: .production)
             func record(_ id: DeviceID) async throws -> DeviceRecord {
                 try #require(try await store.devices().first { $0.id == id })
             }
 
-            #expect(try await store.setLiveActivities(pushToStart: starter, agentActivities: [parser, lexer], for: phone.id))
-            #expect(try await store.setLiveActivities(pushToStart: other, agentActivities: [], for: watch.id))
-            #expect(try await store.setLiveActivities(pushToStart: starter, agentActivities: [], for: "sumiu") == false)
+            #expect(try await store.setLiveActivities(pushToStart: starter, feedActivity: card, for: phone.id))
+            #expect(try await store.setLiveActivities(pushToStart: other, feedActivity: nil, for: watch.id))
+            #expect(try await store.setLiveActivities(pushToStart: starter, feedActivity: nil, for: "sumiu") == false)
             #expect(try await record(phone.id).liveActivity == starter)
-            #expect(try await record(phone.id).agentActivities == [parser, lexer])
-            #expect(try await record(phone.id).hasLiveActivity(for: "w1:p1"))
-            #expect(try await record(phone.id).hasLiveActivity(for: "w9:p9") == false)
+            #expect(try await record(phone.id).feedActivity == card)
+            #expect(try await record(phone.id).hasLiveActivityCard)
+            #expect(try await record(watch.id).hasLiveActivityCard == false)
 
-            let claimed = LiveActivityRegistration(activityId: "act-1", updateToken: update.uppercased(), agentId: "w1:p1", env: .sandbox)
-            #expect(try await store.setLiveActivities(pushToStart: nil, agentActivities: [claimed], for: pad.id))
+            let claimed = LiveActivityRegistration(activityId: "act-1", updateToken: update.uppercased(), env: .sandbox)
+            #expect(try await store.setLiveActivities(pushToStart: nil, feedActivity: claimed, for: pad.id))
             #expect(try await record(phone.id).liveActivity == starter)
-            #expect(try await record(phone.id).agentActivities == [lexer])
-            #expect(try await record(phone.id).hasLiveActivity(for: "w1:p1") == false)
+            #expect(try await record(phone.id).feedActivity == nil)
+            #expect(try await record(phone.id).hasLiveActivityCard == false)
             #expect(try await record(phone.id).apns == apns)
-            #expect(try await record(pad.id).agentActivities == [claimed])
+            #expect(try await record(pad.id).feedActivity == claimed)
             #expect(try await record(watch.id).liveActivity == other)
 
             let moved = LiveActivityRegistration(pushToStartToken: pushToStart.uppercased(), env: .sandbox)
-            #expect(try await store.setLiveActivities(pushToStart: moved, agentActivities: [claimed], for: pad.id))
+            #expect(try await store.setLiveActivities(pushToStart: moved, feedActivity: claimed, for: pad.id))
             #expect(try await record(phone.id).liveActivity == nil)
-            #expect(try await record(phone.id).agentActivities == [lexer])
             #expect(try await record(pad.id).liveActivity == moved)
 
-            #expect(try await store.setLiveActivities(pushToStart: nil, agentActivities: [], for: pad.id))
+            #expect(try await store.setLiveActivities(pushToStart: nil, feedActivity: nil, for: pad.id))
             #expect(try await record(pad.id).liveActivity == nil)
-            #expect(try await record(pad.id).agentActivities.isEmpty)
+            #expect(try await record(pad.id).feedActivity == nil)
             #expect(try await record(watch.id).liveActivity == other)
             #expect(try await store.devices().map(\.name) == ["iPhone", "iPad", "Outro"])
+        }
+    }
+
+    @Test func anOldRecordWithAgentActivitiesIsReadWithoutThem() async throws {
+        try await withStore { store, fileURL in
+            let update = String(repeating: "b2", count: 40)
+            let legacy = """
+                [{"id":"d1","name":"iPhone","tokenSha256":"abc","createdAt":"2026-09-20T10:00:00Z","lastSeenAt":"2026-09-20T10:00:00Z",
+                "preferences":{"turnDoneAlerts":true},
+                "liveActivity":{"pushToStartToken":"\(String(repeating: "a1", count: 40))","env":"sandbox"},
+                "agentActivities":[{"activityId":"act-1","updateToken":"\(update)","agentId":"w1:p1","env":"sandbox"},{"agentId":7}]},
+                {"id":"d2","name":"iPad","tokenSha256":"def","createdAt":"2026-09-20T10:00:00Z","lastSeenAt":"2026-09-20T10:00:00Z",
+                "feedActivity":{"activityId":"act-2","updateToken":"\(update)","agentId":"w2:p1","env":"sandbox"}},
+                {"id":"d3","name":"Mac","tokenSha256":"ghi","createdAt":"2026-09-20T10:00:00Z","lastSeenAt":"2026-09-20T10:00:00Z",
+                "feedActivity":{"updateToken":7}}]
+                """
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(legacy.utf8).write(to: fileURL)
+
+            let records = try await store.devices()
+            #expect(records.map(\.id) == ["d1", "d2", "d3"])
+            #expect(records.allSatisfy { $0.feedActivity == nil && !$0.hasLiveActivityCard })
+            #expect(records.first?.liveActivity == LiveActivityRegistration(pushToStartToken: String(repeating: "a1", count: 40), env: .sandbox))
+
+            #expect(try await store.setPreferences(DevicePreferences(turnDoneAlerts: false), for: "d1"))
+            let objects = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: fileURL)) as? [[String: Any]])
+            #expect(objects.allSatisfy { $0["agentActivities"] == nil && $0["feedActivity"] == nil })
         }
     }
 

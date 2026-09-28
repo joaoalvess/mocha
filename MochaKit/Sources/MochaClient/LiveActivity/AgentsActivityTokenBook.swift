@@ -4,12 +4,10 @@ import MochaProtocol
 public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
     public struct Token: Codable, Equatable, Sendable {
         public var value: String
-        public var agentId: String?
         public var isDelivered: Bool
 
-        public init(value: String, agentId: String? = nil, isDelivered: Bool = false) {
+        public init(value: String, isDelivered: Bool = false) {
             self.value = value
-            self.agentId = agentId
             self.isDelivered = isDelivered
         }
     }
@@ -43,9 +41,9 @@ public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
     }
 
     @discardableResult
-    public mutating func recordUpdateToken(_ value: String, activityId: String, agentId: String) -> Bool {
-        guard activities[activityId]?.value != value || activities[activityId]?.agentId != agentId else { return false }
-        activities[activityId] = Token(value: value, agentId: agentId)
+    public mutating func recordUpdateToken(_ value: String, activityId: String) -> Bool {
+        guard activities[activityId]?.value != value else { return false }
+        activities[activityId] = Token(value: value)
         return true
     }
 
@@ -69,7 +67,7 @@ public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
             .sorted { $0.key < $1.key }
             .filter { includingDelivered || !$0.value.isDelivered }
             .map {
-                LiveActivityRegistration(pushToStartToken: pushToStartToken, activityId: $0.key, updateToken: $0.value.value, agentId: $0.value.agentId, env: environment)
+                LiveActivityRegistration(pushToStartToken: pushToStartToken, activityId: $0.key, updateToken: $0.value.value, env: environment)
             }
         guard activityRegistrations.isEmpty else { return activityRegistrations }
         guard let pushToStart, includingDelivered || !pushToStart.isDelivered else { return [] }

@@ -7,6 +7,8 @@ public struct AgentsActivityTracker: Sendable, Equatable {
     private struct Entry: Sendable, Equatable {
         let status: AgentStatus
         let since: Date
+        let changedAt: Date
+        let pendingSince: Date?
         let agent: AgentSummary
     }
 
@@ -24,16 +26,31 @@ public struct AgentsActivityTracker: Sendable, Equatable {
             if previous == nil {
                 becameBusy.insert(agent.id)
             }
-            let since = previous.flatMap { $0.status == status ? $0.since : nil } ?? Self.since(of: agent, status: status, now: now)
-            next[agent.id] = Entry(status: status, since: since, agent: agent)
+            let unchanged = previous.flatMap { $0.status == status ? $0 : nil }
+            next[agent.id] = Entry(
+                status: status,
+                since: unchanged?.since ?? Self.since(of: agent, status: status, now: now),
+                changedAt: unchanged?.changedAt ?? now,
+                pendingSince: agent.pendingCount > 0 ? previous?.pendingSince ?? now : nil,
+                agent: agent
+            )
         }
         entries = next
         return becameBusy
     }
 
+    public var focus: AgentID? {
+        let pending = entries.compactMap { id, entry in entry.pendingSince.map { (id: id, at: $0) } }
+        if let oldest = pending.min(by: { ($0.at, $0.id) < ($1.at, $1.id) }) {
+            return oldest.id
+        }
+        return entries.min { ($1.value.changedAt, $0.key) < ($0.value.changedAt, $1.key) }?.key
+    }
+
     public func content(for agentId: AgentID, at now: Date) -> AgentsActivityContent? {
         guard let entry = entries[agentId] else { return nil }
         return AgentsActivityContent(
+            agentId: agentId,
             status: entry.status.rawValue,
             title: String(entry.agent.title.prefix(Self.titleLimit)),
             workspaceLabel: entry.agent.workspaceLabel,
@@ -59,7 +76,7 @@ public struct AgentsActivityTracker: Sendable, Equatable {
 }
 
 public enum AgentsActivityStartPolicy {
-    public static func shouldStart(isForeground: Bool, hasActivityForAgent: Bool, activitiesEnabled: Bool) -> Bool {
-        isForeground && !hasActivityForAgent && activitiesEnabled
+    public static func shouldStart(becameBusy: Bool, isForeground: Bool, hasActivity: Bool, activitiesEnabled: Bool) -> Bool {
+        becameBusy && isForeground && !hasActivity && activitiesEnabled
     }
 }

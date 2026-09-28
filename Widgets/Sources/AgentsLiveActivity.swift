@@ -6,12 +6,12 @@ import WidgetKit
 
 struct AgentsLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: MochaAgentAttributes.self) { context in
+        ActivityConfiguration(for: MochaFeedAttributes.self) { context in
             let content = AgentsActivityContent(context.state)
-            AgentsLockScreenView(content: content, agentId: context.attributes.agentId, isStale: context.isStale)
+            AgentsLockScreenView(content: content, isStale: context.isStale)
                 .activityBackgroundTint(AgentsPalette.background)
                 .activitySystemActionForegroundColor(AgentsPalette.textPrimary)
-                .widgetURL(AgentsActivityText.deepLink(forAgent: context.attributes.agentId))
+                .widgetURL(AgentsActivityText.deepLink(forAgent: content.agentId))
         } dynamicIsland: { context in
             let content = AgentsActivityContent(context.state)
             let header = AgentsActivityText.header(of: content)
@@ -27,7 +27,7 @@ struct AgentsLiveActivity: Widget {
                         .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    AgentsIslandBody(content: content, agentId: context.attributes.agentId, isStale: context.isStale)
+                    AgentsIslandBody(content: content, isStale: context.isStale)
                         .padding(.horizontal, 6)
                 }
             } compactLeading: {
@@ -41,7 +41,7 @@ struct AgentsLiveActivity: Widget {
             } minimal: {
                 ProviderMark(provider: header.provider, size: 16, color: AgentsPalette.color(for: tone, provider: header.provider))
             }
-            .widgetURL(AgentsActivityText.deepLink(forAgent: context.attributes.agentId))
+            .widgetURL(AgentsActivityText.deepLink(forAgent: content.agentId))
             .keylineTint(AgentsPalette.color(for: tone, provider: header.provider))
         }
     }
@@ -49,7 +49,6 @@ struct AgentsLiveActivity: Widget {
 
 struct AgentsLockScreenView: View {
     let content: AgentsActivityContent
-    let agentId: String
     let isStale: Bool
 
     private let metrics = AgentsCardMetrics.lockScreen
@@ -63,7 +62,7 @@ struct AgentsLockScreenView: View {
                 AgentsCardFootnote(text: footnote, metrics: metrics)
             }
             if let pending = content.pending {
-                PendingActivityControls(pending: pending, agentId: agentId, metrics: metrics)
+                PendingActivityControls(pending: pending, agentId: content.agentId, metrics: metrics)
                     .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
             }
         }
@@ -75,21 +74,20 @@ struct AgentsLockScreenView: View {
 
 struct AgentsIslandBody: View {
     let content: AgentsActivityContent
-    let agentId: String
     let isStale: Bool
 
     private let metrics = AgentsCardMetrics.island
 
     var body: some View {
         let footnote = AgentsActivityText.footnote(isStale: isStale)
-        let openURL = AgentsActivityText.deepLink(forAgent: agentId)
+        let openURL = AgentsActivityText.deepLink(forAgent: content.agentId)
         VStack(alignment: .leading, spacing: metrics.lineSpacing) {
             AgentsCardLines(lines: AgentsActivityText.lines(of: content), metrics: metrics)
             if let pending = content.pending {
                 if let footnote {
                     AgentsCardFootnote(text: footnote, metrics: metrics)
                 }
-                PendingActivityControls(pending: pending, agentId: agentId, metrics: metrics)
+                PendingActivityControls(pending: pending, agentId: content.agentId, metrics: metrics)
                     .padding(.top, metrics.actionsSpacing - metrics.lineSpacing)
             } else if footnote != nil || openURL != nil {
                 HStack(spacing: 8) {

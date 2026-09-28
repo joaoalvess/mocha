@@ -48,19 +48,22 @@ public struct PushServiceConfiguration: Sendable {
     public var retryDelays: [Duration]
     public var turnDoneLifetime: TimeInterval
     public var needsInputLifetime: TimeInterval
+    public var cardAlertWindow: TimeInterval
 
     public init(
         needsInputWindow: Duration = .seconds(10),
         blockedGrace: Duration = .seconds(1),
         retryDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(4), .seconds(8)],
         turnDoneLifetime: TimeInterval = 60 * 60,
-        needsInputLifetime: TimeInterval = 10 * 60
+        needsInputLifetime: TimeInterval = 10 * 60,
+        cardAlertWindow: TimeInterval = 60
     ) {
         self.needsInputWindow = needsInputWindow
         self.blockedGrace = blockedGrace
         self.retryDelays = retryDelays
         self.turnDoneLifetime = turnDoneLifetime
         self.needsInputLifetime = needsInputLifetime
+        self.cardAlertWindow = cardAlertWindow
     }
 }
 
@@ -73,6 +76,18 @@ public actor PushService {
     private struct Recipient {
         let device: DeviceID
         let apns: ApnsRegistration
+        let hasCard: Bool
+    }
+
+    private struct CardAlertKey: Hashable {
+        let device: DeviceID
+        let agentId: AgentID
+        let kind: PushAlertKind
+    }
+
+    private struct ParkedAlert {
+        let request: ApnsRequest
+        let at: Date
     }
 
     private struct BlockedCheck {
@@ -93,6 +108,9 @@ public actor PushService {
     private var blockedChecks: [AgentID: BlockedCheck] = [:]
     private var deliveries: [UUID: Task<Void, Never>] = [:]
     private var issues: [ApnsEnvironment: ApnsConfigurationIssue] = [:]
+    private var liveActivityCards: (any LiveActivityCardHolding)?
+    private var parkedAlerts: [CardAlertKey: ParkedAlert] = [:]
+    private var missedCardAlerts: [CardAlertKey: Date] = [:]
     private var isShutDown = false
 
     public init(
@@ -109,6 +127,29 @@ public actor PushService {
         self.transport = transport
         self.clock = clock
         self.configuration = configuration
+    }
+
+    public func attachLiveActivity(_ cards: any LiveActivityCardHolding) async {
+        liveActivityCards = cards
+        await cards.attachAlertFallback(self)
+    }
+
+    public func cardAlert(_ kind: PushAlertKind, of agentId: AgentID, on device: DeviceID, wasShown: Bool) {
+        guard !isShutDown else { return }
+        let now = clock.now()
+        pruneCardAlerts(at: now)
+        let key = CardAlertKey(device: device, agentId: agentId, kind: kind)
+        let parked = parkedAlerts.removeValue(forKey: key)
+        guard !wasShown else {
+            missedCardAlerts[key] = nil
+            return
+        }
+        guard let parked, let sender = loadSender() else {
+            missedCardAlerts[key] = now
+            return
+        }
+        pushLogger.info("\(kind.rawValue, privacy: .public) alert of \(agentId, privacy: .public) was not shown on the card of device \(device, privacy: .public)")
+        deliver(parked.request, to: device, kind: kind, client: sender.client)
     }
 
     public func handle(_ hook: ReceivedHook) async {
@@ -281,6 +322,7 @@ public actor PushService {
         }
         let lifetime = kind == .turnDone ? configuration.turnDoneLifetime : configuration.needsInputLifetime
         let collapseId = agentId.utf8.count <= ApnsRequest.maxCollapseIdBytes ? agentId : nil
+        pruneCardAlerts(at: now)
         for recipient in recipients {
             let request = ApnsRequest(
                 deviceToken: recipient.apns.token,
@@ -292,8 +334,19 @@ public actor PushService {
                 collapseId: collapseId,
                 payload: payload
             )
-            deliver(request, to: recipient.device, kind: kind, client: sender.client)
+            let key = CardAlertKey(device: recipient.device, agentId: agentId, kind: kind)
+            guard recipient.hasCard, missedCardAlerts.removeValue(forKey: key) == nil else {
+                deliver(request, to: recipient.device, kind: kind, client: sender.client)
+                continue
+            }
+            parkedAlerts[key] = ParkedAlert(request: request, at: now)
         }
+    }
+
+    private func pruneCardAlerts(at now: Date) {
+        let window = configuration.cardAlertWindow
+        parkedAlerts = parkedAlerts.filter { now.timeIntervalSince($0.value.at) < window }
+        missedCardAlerts = missedCardAlerts.filter { now.timeIntervalSince($0.value) < window }
     }
 
     private func recipients(for kind: PushAlertKind, agentId: AgentID) async -> [Recipient] {
@@ -304,8 +357,9 @@ public actor PushService {
             pushLogger.error("failed to read devices: \(Self.describe(error), privacy: .public)")
             return []
         }
+        let cardIsHeldByAnotherAgent = await liveActivityCards?.cardHolder().map { $0 != agentId } ?? false
         let candidates = records.filter { record in
-            record.apns != nil && (kind != .turnDone || record.preferences.turnDoneAlerts) && !record.hasLiveActivity(for: agentId)
+            record.apns != nil && (kind != .turnDone || record.preferences.turnDoneAlerts)
         }
         guard !candidates.isEmpty else { return [] }
         let foreground = await audience.foregroundDevices(for: agentId)
@@ -315,7 +369,7 @@ public actor PushService {
             guard let apns = record.apns, ApnsRequest.isValidDeviceToken(apns.token), tokens.insert(apns.token.lowercased()).inserted else {
                 continue
             }
-            recipients.append(Recipient(device: record.id, apns: apns))
+            recipients.append(Recipient(device: record.id, apns: apns, hasCard: record.hasLiveActivityCard && !cardIsHeldByAnotherAgent))
         }
         return recipients
     }

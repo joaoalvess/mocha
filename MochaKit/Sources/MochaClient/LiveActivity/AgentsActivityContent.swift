@@ -2,6 +2,7 @@ import Foundation
 import MochaProtocol
 
 public struct AgentsActivityContent: Codable, Hashable, Sendable {
+    public var agentId: String
     public var status: String
     public var title: String
     public var workspaceLabel: String
@@ -16,6 +17,7 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
     public var updatedAt: Date
 
     public init(
+        agentId: String,
         status: String,
         title: String,
         workspaceLabel: String,
@@ -29,6 +31,7 @@ public struct AgentsActivityContent: Codable, Hashable, Sendable {
         pending: Pending? = nil,
         updatedAt: Date
     ) {
+        self.agentId = agentId
         self.status = status
         self.title = title
         self.workspaceLabel = workspaceLabel

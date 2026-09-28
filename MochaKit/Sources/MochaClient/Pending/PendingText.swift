@@ -36,6 +36,9 @@ public enum PendingText {
     public static let hideFullInput = "Ocultar entrada completa"
     public static let allow = "Permitir"
     public static let deny = "Negar"
+    public static let approve = "Aprovar"
+    public static let planToolName = "ExitPlanMode"
+    public static let planTitle = "Claude quer seguir o plano"
     public static let answer = "Responder"
     public static let otherPlaceholder = "Outro…"
     public static let answerPlaceholder = "Sua resposta"
@@ -46,6 +49,8 @@ public enum PendingText {
     public static let refusedTitle = "O Mac recusou a resposta"
     public static let refusedBody = "Abra o Mocha para responder."
     public static let unpairedBody = "Este iPhone não está mais pareado."
+    public static let goneTitle = "Esse pedido já foi resolvido no Mac"
+    public static let goneBody = "Ele foi respondido no terminal ou expirou."
 
     public static func header(for kind: PendingKind) -> String {
         switch kind {
@@ -119,8 +124,10 @@ public enum PendingText {
 
     public static func failureNotice(for result: PendingRespondResult) -> PendingNotice? {
         switch result {
-        case .accepted, .gone:
+        case .accepted:
             nil
+        case .gone:
+            PendingNotice(title: goneTitle, body: goneBody)
         case .refused:
             PendingNotice(title: refusedTitle, body: refusedBody)
         case .unauthorized, .notPaired:

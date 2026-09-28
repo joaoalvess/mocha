@@ -10,11 +10,14 @@ enum PendingHookReply {
     static let allowOnQuestion = "Uma pergunta se responde com answers ou deny."
     static let answersOnPermission = "Uma permissão se responde com allow ou deny."
     static let multipleAnswerSeparator = ", "
+    static let planApprovedMode = "auto"
 
     static let noDecision = OrderedJSON.object([])
 
     static func reply(to response: PendingResponse, kind: PendingKind, toolInput: OrderedJSON) throws(PendingRespondError) -> OrderedJSON {
         switch (response, kind) {
+        case (.allow, .permission(let toolName, _, _)) where toolName == PendingRequestFactory.planToolName:
+            return planAllow(toolInput: toolInput)
         case (.allow, .permission):
             return allow()
         case (.allow, .question):
@@ -30,6 +33,20 @@ enum PendingHookReply {
 
     static func allow() -> OrderedJSON {
         decision([OrderedJSON.Member("behavior", .string("allow"))])
+    }
+
+    static func planAllow(toolInput: OrderedJSON) -> OrderedJSON {
+        decision([
+            OrderedJSON.Member("behavior", .string("allow")),
+            OrderedJSON.Member("updatedInput", toolInput),
+            OrderedJSON.Member("updatedPermissions", .array([
+                .object([
+                    OrderedJSON.Member("type", .string("setMode")),
+                    OrderedJSON.Member("mode", .string(planApprovedMode)),
+                    OrderedJSON.Member("destination", .string("session")),
+                ]),
+            ])),
+        ])
     }
 
     static func deny(_ reason: String?) -> OrderedJSON {

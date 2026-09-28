@@ -67,18 +67,18 @@ public actor DeviceStore {
         return true
     }
 
-    public func setLiveActivities(pushToStart: LiveActivityRegistration?, agentActivities: [LiveActivityRegistration], for id: DeviceID) throws -> Bool {
+    public func setLiveActivities(pushToStart: LiveActivityRegistration?, feedActivity: LiveActivityRegistration?, for id: DeviceID) throws -> Bool {
         var records = try read()
         guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
-        let claimed = [pushToStart].compactMap { $0 } + agentActivities
+        let claimed = [pushToStart, feedActivity].compactMap { $0 }
         for other in records.indices where other != index {
             for registration in claimed {
                 records[other].liveActivity = Self.releasing(registration, from: records[other].liveActivity)
-                records[other].agentActivities = records[other].agentActivities.compactMap { Self.releasing(registration, from: $0) }
+                records[other].feedActivity = Self.releasing(registration, from: records[other].feedActivity)
             }
         }
         records[index].liveActivity = pushToStart
-        records[index].agentActivities = agentActivities
+        records[index].feedActivity = feedActivity
         try write(records)
         return true
     }
