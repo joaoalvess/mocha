@@ -14,6 +14,8 @@ struct HerdrContractTests {
         .tabList(workspaceId: nil),
         .tabList(workspaceId: "w1A"),
         .paneGet(paneId: "w1A:p2"),
+        .paneRead(paneId: "w1A:p2", source: .visible, lines: 1),
+        .paneRead(paneId: "w1A:p2", source: .visible, lines: nil),
         .agentPrompt(target: "w1A:p1", text: "Responda apenas com a palavra: pronto"),
         .agentSendKeys(target: "w1A:p1", keys: ["Escape"]),
         .tabCreate(workspaceId: "w1A", cwd: "/Users/dev/projects/demo-app"),
@@ -41,6 +43,8 @@ struct HerdrContractTests {
             _ = try await client.tabList(workspaceId: workspaceId)
         case .paneGet(let paneId):
             _ = try await client.paneGet(paneId: paneId)
+        case .paneRead(let paneId, let source, let lines):
+            _ = try await client.paneRead(paneId: paneId, source: source, lines: lines)
         case .agentPrompt(let target, let text):
             _ = try await client.agentPrompt(target: target, text: text)
         case .agentSendKeys(let target, let keys):

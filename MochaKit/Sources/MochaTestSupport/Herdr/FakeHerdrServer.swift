@@ -47,7 +47,13 @@ public enum FakeHerdrReply: Sendable {
 
 public actor FakeHerdrServer {
     public static let perPaneSubscriptionTypes: Set<String> = ["pane.agent_status_changed", "pane.scroll_changed", "pane.output_matched"]
-    public static let validKeys: Set<String> = ["Escape", "esc", "enter", "Enter", "down", "up", "tab", "space"]
+    public static let validKeys: Set<String> = [
+        "Escape", "esc", "enter", "Enter", "down", "up", "left", "right", "tab", "space", "s", "shift+tab",
+    ]
+
+    public static func isValidKey(_ key: String) -> Bool {
+        validKeys.contains(key) || key.lowercased() == "shift+tab"
+    }
 
     private struct SubscriptionItem: Sendable {
         let type: String
@@ -80,6 +86,8 @@ public actor FakeHerdrServer {
     private var recordedRequests: [FakeHerdrRequest] = []
     private var acceptedConnections = 0
     private var writesAfterAckCount = 0
+    private var screens: [String: FakeClaudeScreen] = [:]
+    private var screenLatency: Duration = .zero
 
     public init(socketPath: String = FakeHerdrServer.temporarySocketPath()) {
         self.socketPath = socketPath
@@ -167,6 +175,22 @@ public actor FakeHerdrServer {
     public func setAgentSession(paneId: String, sessionId: String) {
         let session: [String: Any] = ["source": "herdr:claude", "agent": "claude", "kind": "id", "value": sessionId]
         mutateEntries(withPaneId: paneId) { $0["agent_session"] = session }
+    }
+
+    public func setScreen(paneId: String, _ screen: FakeClaudeScreen) {
+        screens[paneId] = screen
+    }
+
+    public func setScreen(paneId: String, text: String) {
+        screens[paneId] = .fixed(text)
+    }
+
+    public func screen(paneId: String) -> FakeClaudeScreen {
+        screens[paneId] ?? FakeClaudeScreen()
+    }
+
+    public func setScreenLatency(_ latency: Duration) {
+        screenLatency = latency
     }
 
     public func setAgentStatus(paneId: String, status: String) {
@@ -504,13 +528,26 @@ public actor FakeHerdrServer {
             guard agent["agent_status"] as? String != "blocked" else {
                 return .error(code: "agent_blocked", message: "agent \(agent["pane_id"] as? String ?? "") is blocked and requires interactive input")
             }
+            if let paneId = agent["pane_id"] as? String, let text = request.stringParam("text") {
+                updateScreen(paneId) { $0.prompt(text) }
+            }
             return result(["type": "agent_prompted", "agent": agent])
         case "agent.send_keys":
-            guard agent(request.stringParam("target")) != nil else { return agentNotFound(request) }
-            if let invalid = request.stringArrayParam("keys")?.first(where: { !Self.validKeys.contains($0) }) {
+            guard let agent = agent(request.stringParam("target")) else { return agentNotFound(request) }
+            let keys = request.stringArrayParam("keys") ?? []
+            if let invalid = keys.first(where: { !Self.isValidKey($0) }) {
                 return .error(code: "invalid_key", message: "unsupported key \(invalid)")
             }
+            if let paneId = agent["pane_id"] as? String {
+                updateScreen(paneId) { screen in
+                    for key in keys {
+                        screen.press(key)
+                    }
+                }
+            }
             return result(["type": "ok"])
+        case "pane.read":
+            return readPane(request)
         case "workspace.list":
             return result(["type": "workspace_list", "workspaces": entries("workspaces")])
         case "tab.list":
@@ -533,6 +570,39 @@ public actor FakeHerdrServer {
         default:
             return .error(code: "fake_unconfigured", message: "fake Herdr has no reply for \(request.method)")
         }
+    }
+
+    private func updateScreen(_ paneId: String, _ change: @escaping @Sendable (inout FakeClaudeScreen) -> Void) {
+        guard screenLatency > .zero else {
+            change(&screens[paneId, default: FakeClaudeScreen()])
+            return
+        }
+        let latency = screenLatency
+        Task { [weak self] in
+            try? await Task.sleep(for: latency)
+            await self?.applyScreenChange(paneId, change)
+        }
+    }
+
+    private func applyScreenChange(_ paneId: String, _ change: @Sendable (inout FakeClaudeScreen) -> Void) {
+        change(&screens[paneId, default: FakeClaudeScreen()])
+    }
+
+    private func readPane(_ request: FakeHerdrRequest) -> FakeHerdrReply {
+        let paneId = request.stringParam("pane_id") ?? ""
+        guard let pane = entries("panes").first(where: { $0["pane_id"] as? String == paneId }) else {
+            return .error(code: "pane_not_found", message: "pane \(paneId) not found")
+        }
+        let all = screen(paneId: paneId).text.components(separatedBy: "\n")
+        let lines = request.intParam("lines").map { Array(all.suffix($0)) } ?? all
+        return result([
+            "type": "pane_read",
+            "read": [
+                "pane_id": paneId, "workspace_id": pane["workspace_id"] ?? "", "tab_id": pane["tab_id"] ?? "",
+                "source": request.stringParam("source") ?? "visible", "format": "text",
+                "text": lines.joined(separator: "\n"), "revision": 0, "truncated": lines.count < all.count,
+            ] as [String: Any],
+        ])
     }
 
     private func createTab(_ request: FakeHerdrRequest) -> FakeHerdrReply {

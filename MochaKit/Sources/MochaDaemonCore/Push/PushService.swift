@@ -168,7 +168,7 @@ public actor PushService {
             )
         case .notification(let notification) where notification.kind == .permissionPrompt:
             await secondaryNeedsInput(hook.agentId, agent: await audience.agentSummary(hook.agentId))
-        case .sessionStart, .userPromptSubmit, .notification:
+        case .sessionStart, .userPromptSubmit, .notification, .preModelSwitch, .postModelSwitch:
             break
         }
     }

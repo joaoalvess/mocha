@@ -27,6 +27,10 @@ enum HerdrResponse {
         let pane: HerdrPane
     }
 
+    struct Read: Decodable, Sendable {
+        let read: HerdrPaneRead
+    }
+
     private struct Head: Decodable {
         struct ResultHead: Decodable {
             let type: String

@@ -126,14 +126,14 @@ struct ClaudeHooksInstallerTests {
 
             #expect(try Self.settings(home) == SettingsSamples.proposed())
             #expect(report.changed)
-            #expect(report.events == ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "PermissionRequest"])
+            #expect(report.events == ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "PermissionRequest", "PreModelSwitch", "PostModelSwitch"])
             #expect(report.backup == installer.backupFile)
             #expect(report.generatedHookSecret == false)
             #expect(report.moshiEvents.isEmpty)
             #expect(String(decoding: try Data(contentsOf: installer.backupFile), as: UTF8.self) == SettingsSamples.herdrOnly)
             #expect(installer.backupFile.lastPathComponent == "settings.json.mocha-bak")
             #expect(ClaudeSettingsInspector(url: home.paths.claudeSettingsFile).inspect() == .hooks(ClaudeHooksSummary(
-                mochaEvents: ["Notification", "PermissionRequest", "SessionStart", "Stop", "UserPromptSubmit"]
+                mochaEvents: ["Notification", "PermissionRequest", "PostModelSwitch", "PreModelSwitch", "SessionStart", "Stop", "UserPromptSubmit"]
             )))
         }
     }
@@ -179,7 +179,9 @@ struct ClaudeHooksInstallerTests {
 
             #expect(installed.moshiEvents == ["PreToolUse", "Stop"])
             #expect(settings.members?.map(\.key) == ["$schema", "model", "env", "hooks", "statusLine"])
-            #expect(settings["hooks"]?.members?.map(\.key) == ["PreToolUse", "SessionStart", "Stop", "PermissionRequest", "UserPromptSubmit", "Notification"])
+            #expect(settings["hooks"]?.members?.map(\.key) == [
+                "PreToolUse", "SessionStart", "Stop", "PermissionRequest", "UserPromptSubmit", "Notification", "PreModelSwitch", "PostModelSwitch",
+            ])
             #expect(settings["hooks"]?["PreToolUse"] == (try Self.json(SettingsSamples.thirdParty))["hooks"]?["PreToolUse"])
             let stop = try #require(settings["hooks"]?["Stop"]?.arrayValue)
             #expect(stop.count == 2)
@@ -195,7 +197,7 @@ struct ClaudeHooksInstallerTests {
 
             #expect(removed.changed)
             #expect(removed.backup == nil)
-            #expect(removed.events == ["SessionStart", "Stop", "PermissionRequest", "UserPromptSubmit", "Notification"])
+            #expect(removed.events == ["SessionStart", "Stop", "PermissionRequest", "UserPromptSubmit", "Notification", "PreModelSwitch", "PostModelSwitch"])
             #expect(try Self.settings(home) == SettingsSamples.thirdParty)
         }
     }
@@ -220,7 +222,9 @@ struct ClaudeHooksInstallerTests {
 
         let installed = try ClaudeHooksMerge.install(into: settings, port: 47420, secret: "novo").settings
 
-        #expect(installed["hooks"]?.members?.map(\.key) == ["Stop", "SessionStart", "UserPromptSubmit", "Notification", "PermissionRequest"])
+        #expect(installed["hooks"]?.members?.map(\.key) == [
+            "Stop", "SessionStart", "UserPromptSubmit", "Notification", "PermissionRequest", "PreModelSwitch", "PostModelSwitch",
+        ])
         #expect(installed["hooks"]?["Stop"] == .array([
             moshi,
             ClaudeHookEntries.group(for: .stop, port: 47420, secret: "novo"),
@@ -327,7 +331,7 @@ struct ClaudeHooksInstallerTests {
             let text = String(decoding: try Data(contentsOf: target), as: UTF8.self)
             #expect(text.hasSuffix("}"))
             #expect(try Self.json(text)["model"] == .string("opus"))
-            #expect(try Self.json(text)["hooks"]?.members?.count == 5)
+            #expect(try Self.json(text)["hooks"]?.members?.count == 7)
         }
     }
 

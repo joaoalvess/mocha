@@ -23,6 +23,12 @@ public struct FakeHerdrSessionRefresh: Sendable, Equatable {
     }
 }
 
+public enum FakeHerdrControlCall: Sendable, Equatable {
+    case model(AgentID, ModelAlias)
+    case effort(AgentID, EffortLevel)
+    case mode(AgentID, PermissionModeTarget)
+}
+
 public final class FakeHerdrBridge: HerdrBridging {
     private struct State {
         var agents: [AgentID: HerdrAgent]
@@ -39,6 +45,10 @@ public final class FakeHerdrBridge: HerdrBridging {
         var dirtyRefreshCalls: [AgentID] = []
         var newAgentTabCalls: [WorkspaceID] = []
         var newAgentTabError: HerdrBridgeError?
+        var controlCalls: [FakeHerdrControlCall] = []
+        var controlError: HerdrBridgeError?
+        var modeResult: String?
+        var currentModes: [AgentID: String] = [:]
         var holdsNewAgentTabs = false
         var heldNewAgentTabs: [CheckedContinuation<Void, Never>] = []
     }
@@ -105,6 +115,50 @@ public final class FakeHerdrBridge: HerdrBridging {
             return state.interruptError
         }
         try failIfNeeded(error)
+    }
+
+    public func setModel(_ id: AgentID, model: ModelAlias) async throws {
+        try failIfNeeded(state.withLock { state in
+            state.controlCalls.append(.model(id, model))
+            return state.controlError
+        })
+    }
+
+    public func setEffort(_ id: AgentID, level: EffortLevel) async throws {
+        try failIfNeeded(state.withLock { state in
+            state.controlCalls.append(.effort(id, level))
+            return state.controlError
+        })
+    }
+
+    public func setMode(_ id: AgentID, mode: PermissionModeTarget) async throws -> String {
+        let (error, result) = state.withLock { state in
+            state.controlCalls.append(.mode(id, mode))
+            return (state.controlError, state.modeResult ?? mode.rawValue)
+        }
+        try failIfNeeded(error)
+        state.withLock { $0.currentModes[id] = result }
+        return result
+    }
+
+    public func currentMode(_ id: AgentID) async -> String? {
+        state.withLock { $0.currentModes[id] }
+    }
+
+    public func setControlError(_ error: HerdrBridgeError?) {
+        state.withLock { $0.controlError = error }
+    }
+
+    public func setModeResult(_ mode: String?) {
+        state.withLock { $0.modeResult = mode }
+    }
+
+    public func setCurrentMode(_ mode: String?, of id: AgentID) {
+        state.withLock { $0.currentModes[id] = mode }
+    }
+
+    public var controlCalls: [FakeHerdrControlCall] {
+        state.withLock { $0.controlCalls }
     }
 
     public func setOpenChats(_ ids: Set<AgentID>) async {

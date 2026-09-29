@@ -255,3 +255,37 @@ public struct HerdrAgentStarted: Sendable, Hashable, Decodable {
         self.argv = argv
     }
 }
+
+public enum HerdrReadSource: String, Sendable, Hashable, Decodable {
+    case visible
+    case recent
+    case recentUnwrapped = "recent_unwrapped"
+    case detection
+}
+
+public struct HerdrPaneRead: Sendable, Hashable, Decodable {
+    public var paneId: String
+    public var workspaceId: String
+    public var tabId: String
+    public var text: String
+    public var revision: UInt64
+    public var truncated: Bool
+
+    public init(paneId: String, workspaceId: String, tabId: String, text: String, revision: UInt64 = 0, truncated: Bool = false) {
+        self.paneId = paneId
+        self.workspaceId = workspaceId
+        self.tabId = tabId
+        self.text = text
+        self.revision = revision
+        self.truncated = truncated
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case paneId = "pane_id"
+        case workspaceId = "workspace_id"
+        case tabId = "tab_id"
+        case text
+        case revision
+        case truncated
+    }
+}

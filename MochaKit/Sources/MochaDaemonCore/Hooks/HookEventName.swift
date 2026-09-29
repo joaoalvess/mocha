@@ -4,6 +4,8 @@ public enum HookEventName: String, Sendable, CaseIterable {
     case stop = "Stop"
     case notification = "Notification"
     case permissionRequest = "PermissionRequest"
+    case preModelSwitch = "PreModelSwitch"
+    case postModelSwitch = "PostModelSwitch"
 
     public static let pathPrefix = "/hooks/"
 
@@ -13,5 +15,9 @@ public enum HookEventName: String, Sendable, CaseIterable {
 
     var usesHttpHook: Bool {
         self == .permissionRequest
+    }
+
+    var isSynchronousCommand: Bool {
+        self == .preModelSwitch
     }
 }

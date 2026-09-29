@@ -59,6 +59,7 @@ public enum HerdrRequest: Sendable, Hashable {
     case workspaceList
     case tabList(workspaceId: String?)
     case paneGet(paneId: String)
+    case paneRead(paneId: String, source: HerdrReadSource, lines: Int?)
     case agentPrompt(target: String, text: String)
     case agentSendKeys(target: String, keys: [String])
     case tabCreate(workspaceId: String, cwd: String?)
@@ -75,6 +76,7 @@ public enum HerdrRequest: Sendable, Hashable {
         case .workspaceList: "workspace.list"
         case .tabList: "tab.list"
         case .paneGet: "pane.get"
+        case .paneRead: "pane.read"
         case .agentPrompt: "agent.prompt"
         case .agentSendKeys: "agent.send_keys"
         case .tabCreate: "tab.create"
@@ -113,6 +115,8 @@ public enum HerdrRequest: Sendable, Hashable {
             case args
             case until
             case timeoutMs = "timeout_ms"
+            case source
+            case lines
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -126,6 +130,10 @@ public enum HerdrRequest: Sendable, Hashable {
                 try container.encodeIfPresent(workspaceId, forKey: .workspaceId)
             case .paneGet(let paneId):
                 try container.encode(paneId, forKey: .paneId)
+            case .paneRead(let paneId, let source, let lines):
+                try container.encode(paneId, forKey: .paneId)
+                try container.encode(source.rawValue, forKey: .source)
+                try container.encodeIfPresent(lines, forKey: .lines)
             case .agentPrompt(let target, let text):
                 try container.encode(target, forKey: .target)
                 try container.encode(text, forKey: .text)

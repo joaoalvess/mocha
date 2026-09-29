@@ -21,6 +21,8 @@ public enum HookEvent: Sendable, Equatable {
     case stop(StopHook)
     case notification(NotificationHook)
     case permissionRequest(PermissionRequestHook)
+    case preModelSwitch(ModelSwitchHook)
+    case postModelSwitch(ModelSwitchHook)
 
     public var name: HookEventName {
         switch self {
@@ -29,6 +31,8 @@ public enum HookEvent: Sendable, Equatable {
         case .stop: .stop
         case .notification: .notification
         case .permissionRequest: .permissionRequest
+        case .preModelSwitch: .preModelSwitch
+        case .postModelSwitch: .postModelSwitch
         }
     }
 
@@ -39,6 +43,7 @@ public enum HookEvent: Sendable, Equatable {
         case .stop(let hook): hook.context
         case .notification(let hook): hook.context
         case .permissionRequest(let hook): hook.context
+        case .preModelSwitch(let hook), .postModelSwitch(let hook): hook.context
         }
     }
 }
@@ -48,6 +53,7 @@ public struct HookContext: Sendable, Equatable {
     public var transcriptPath: String?
     public var cwd: String?
     public var permissionMode: String?
+    public var effort: String?
     public var promptId: String?
     public var subagentId: String?
     public var subagentType: String?
@@ -57,6 +63,7 @@ public struct HookContext: Sendable, Equatable {
         transcriptPath: String? = nil,
         cwd: String? = nil,
         permissionMode: String? = nil,
+        effort: String? = nil,
         promptId: String? = nil,
         subagentId: String? = nil,
         subagentType: String? = nil
@@ -65,6 +72,7 @@ public struct HookContext: Sendable, Equatable {
         self.transcriptPath = transcriptPath
         self.cwd = cwd
         self.permissionMode = permissionMode
+        self.effort = effort
         self.promptId = promptId
         self.subagentId = subagentId
         self.subagentType = subagentType
@@ -165,6 +173,28 @@ public struct PermissionRequestHook: Sendable, Equatable {
     }
 }
 
+public struct ModelSwitchHook: Sendable, Equatable {
+    public static let automaticSource = "auto"
+
+    public var context: HookContext
+    public var fromModel: String?
+    public var toModel: String
+    public var requestedModel: String?
+    public var source: String?
+
+    public init(context: HookContext, fromModel: String? = nil, toModel: String, requestedModel: String? = nil, source: String? = nil) {
+        self.context = context
+        self.fromModel = fromModel
+        self.toModel = toModel
+        self.requestedModel = requestedModel
+        self.source = source
+    }
+
+    public var isAutomatic: Bool {
+        source == Self.automaticSource
+    }
+}
+
 public enum HookPayloadError: Error, Sendable, Equatable {
     case invalidJSON
     case notAnObject
@@ -209,6 +239,10 @@ extension HookEvent {
                 toolName: try payload.required("tool_name"),
                 toolInput: toolInput
             ))
+        case .preModelSwitch:
+            return .preModelSwitch(try payload.modelSwitch(context))
+        case .postModelSwitch:
+            return .postModelSwitch(try payload.modelSwitch(context))
         }
     }
 }
@@ -222,9 +256,20 @@ private struct HookPayload {
             transcriptPath: optional("transcript_path"),
             cwd: optional("cwd"),
             permissionMode: optional("permission_mode"),
+            effort: json["effort"]?["level"]?.stringValue,
             promptId: optional("prompt_id"),
             subagentId: optional("agent_id"),
             subagentType: optional("agent_type")
+        )
+    }
+
+    func modelSwitch(_ context: HookContext) throws -> ModelSwitchHook {
+        ModelSwitchHook(
+            context: context,
+            fromModel: optional("from_model"),
+            toModel: try required("to_model"),
+            requestedModel: optional("requested_model"),
+            source: optional("source")
         )
     }
 

@@ -17,6 +17,14 @@ import Testing
         #expect(try line(.tabList(workspaceId: "w1A")) == #"{"id":"r1","method":"tab.list","params":{"workspace_id":"w1A"}}"# + "\n")
         #expect(try line(.paneGet(paneId: "w1A:p2")) == #"{"id":"r1","method":"pane.get","params":{"pane_id":"w1A:p2"}}"# + "\n")
         #expect(
+            try line(.paneRead(paneId: "w1A:p2", source: .visible, lines: 1))
+                == #"{"id":"r1","method":"pane.read","params":{"lines":1,"pane_id":"w1A:p2","source":"visible"}}"# + "\n"
+        )
+        #expect(
+            try line(.paneRead(paneId: "w1A:p2", source: .recentUnwrapped, lines: nil))
+                == #"{"id":"r1","method":"pane.read","params":{"pane_id":"w1A:p2","source":"recent_unwrapped"}}"# + "\n"
+        )
+        #expect(
             try line(.agentPrompt(target: "w1A:p1", text: "olá\n/clear"))
                 == #"{"id":"r1","method":"agent.prompt","params":{"target":"w1A:p1","text":"olá\n/clear"}}"# + "\n"
         )

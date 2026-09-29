@@ -11,6 +11,7 @@ public struct HookServer: Sendable {
     let secrets: HookSecretVerifier
     let events: HookEventHub
     let permissions: (any PermissionRequestHolding)?
+    let modelSwitches: ModelSwitchGate?
     let resolveAgent: AgentResolver
     let now: @Sendable () -> Date
 
@@ -18,12 +19,14 @@ public struct HookServer: Sendable {
         secrets: HookSecretVerifier,
         events: HookEventHub,
         permissions: (any PermissionRequestHolding)? = nil,
+        modelSwitches: ModelSwitchGate? = nil,
         resolveAgent: @escaping AgentResolver = { $0 },
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.secrets = secrets
         self.events = events
         self.permissions = permissions
+        self.modelSwitches = modelSwitches
         self.resolveAgent = resolveAgent
         self.now = now
     }
@@ -58,6 +61,12 @@ public struct HookServer: Sendable {
         let agentId = await resolveAgent(pane)
         hooksLogger.debug("\(name.rawValue, privacy: .public) from \(agentId, privacy: .public), session \(event.context.sessionId, privacy: .public)")
         let hook = ReceivedHook(agentId: agentId, receivedAt: now(), event: event)
+        if case .preModelSwitch = event {
+            events.publish(hook)
+            guard await modelSwitches?.approves(agentId, at: hook.receivedAt) == true else { return Self.noDecision }
+            hooksLogger.info("PreModelSwitch of \(agentId, privacy: .public) allowed for a setModel from the app")
+            return Self.decision(Self.allowModelSwitch)
+        }
         guard let permissions else {
             events.publish(hook)
             return Self.noDecision
@@ -77,6 +86,13 @@ public struct HookServer: Sendable {
         headers: ["Content-Type": "application/json"],
         body: Data("{}".utf8)
     )
+
+    static let allowModelSwitch = OrderedJSON.object([
+        OrderedJSON.Member("hookSpecificOutput", .object([
+            OrderedJSON.Member("hookEventName", .string(HookEventName.preModelSwitch.rawValue)),
+            OrderedJSON.Member("permissionDecision", .string("allow")),
+        ])),
+    ])
 
     static func decision(_ body: OrderedJSON) -> HttpResponse {
         HttpResponse(
