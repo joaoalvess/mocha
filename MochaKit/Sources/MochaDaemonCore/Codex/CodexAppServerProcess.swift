@@ -56,12 +56,18 @@ actor CodexAppServerProcess {
 
     let socketPath: String
     private let runner: any ProcessRunning
+    private let resolveExecutable: @Sendable () -> String?
     private var process: Process?
     private var supervisor: Task<Void, Never>?
 
-    init(socketPath: String, runner: any ProcessRunning = SystemProcessRunner()) {
+    init(
+        socketPath: String,
+        runner: any ProcessRunning = SystemProcessRunner(),
+        resolveExecutable: @escaping @Sendable () -> String? = { CodexExecutable.resolve() }
+    ) {
         self.socketPath = socketPath
         self.runner = runner
+        self.resolveExecutable = resolveExecutable
     }
 
     func start() {
@@ -80,7 +86,7 @@ actor CodexAppServerProcess {
 
     private func supervise() async {
         while !Task.isCancelled {
-            if let executable = CodexExecutable.resolve() {
+            if let executable = resolveExecutable() {
                 await runOnce(executable)
             } else {
                 codexLogger.error("codex executable not found; Codex tabs stay unavailable")
@@ -103,6 +109,7 @@ actor CodexAppServerProcess {
 
     private func runOnce(_ executable: String) async {
         await terminateStaleServers()
+        guard !Task.isCancelled else { return }
         unlink(socketPath)
         let process = Process()
         process.executableURL = URL(filePath: executable)
