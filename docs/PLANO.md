@@ -1172,7 +1172,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 949040c |
 | WP-K1 | todo | |
 | WP-K2 | cancelado (sem mock, decisão do João) | |
-| WP-K3 | todo | |
+| WP-K3 | feito sem device (test.sh com 1 falha de tempo conhecida em TranscriptStoreFollowTests; conferência visual no WP-K4) | 73eb388, e43991d, df7aa3b, 214d648, merge 540bb71 |
 | WP-K4 | todo | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
