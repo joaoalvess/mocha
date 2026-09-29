@@ -1170,7 +1170,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W4 | done | `80e683d` (SSH e Navegador; conexão real no WP-W5 com o B5) |
 | WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
 | S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 949040c |
-| WP-K1 | todo | |
+| WP-K1 | feito (test.sh da fase combinada verde; `install-hooks` real e teste com Claude real no WP-K4) | 41710e2, 1a61e3b, 0c852e2, 0374325, merge 1077586 |
 | WP-K2 | cancelado (sem mock, decisão do João) | |
 | WP-K3 | feito sem device (test.sh com 1 falha de tempo conhecida em TranscriptStoreFollowTests; conferência visual no WP-K4) | 73eb388, e43991d, df7aa3b, 214d648, merge 540bb71 |
 | WP-K4 | todo | |
