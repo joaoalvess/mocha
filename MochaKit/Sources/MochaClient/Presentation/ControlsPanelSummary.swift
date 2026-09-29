@@ -51,7 +51,7 @@ public struct ControlsPanelSummary: Sendable, Hashable {
         if running > 0 {
             return "\(running) rodando"
         }
-        return items.count == 1 ? "1 concluído" : "\(items.count) concluídos"
+        return "\(items.count)"
     }
 
     public static func usageTitle(_ window: UsageWindowSummary) -> String {

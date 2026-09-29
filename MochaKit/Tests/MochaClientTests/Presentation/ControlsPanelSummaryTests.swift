@@ -49,8 +49,8 @@ struct ControlsPanelSummaryTests {
 
     @Test func subagentsCountRunningFirst() {
         #expect(ControlsPanelSummary.subagentsText([subagent("a", .running), subagent("b", .running), subagent("c", .completed)]) == "2 rodando")
-        #expect(ControlsPanelSummary.subagentsText([subagent("a", .completed), subagent("b", .failed)]) == "2 concluídos")
-        #expect(ControlsPanelSummary.subagentsText([subagent("a", .completed)]) == "1 concluído")
+        #expect(ControlsPanelSummary.subagentsText([subagent("a", .completed), subagent("b", .failed)]) == "2")
+        #expect(ControlsPanelSummary.subagentsText([subagent("a", .completed)]) == "1")
         #expect(ControlsPanelSummary.subagentsText([]) == nil)
     }
 

@@ -139,8 +139,10 @@ struct ChatControlsPanel: View {
                 if let subagentsText = summary.subagentsText {
                     ControlsNavRow(icon: .subagents, title: "Subagentes", value: subagentsText) { open(.subagents) }
                 }
-                ControlsSeparator()
                 ForEach(SlashMenuAction.allCases) { action in
+                    if action.isDestructive {
+                        ControlsSeparator()
+                    }
                     SlashMenuRow(action: action) { onAction(action) }
                 }
             }
