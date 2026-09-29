@@ -241,8 +241,9 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 | `agent.get` | `{target}` (pane id ou nome do agente) | `agent_info` | Reconsulta de um agente (sessão, título, status) | 1a-core |
 | `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
 | `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
-| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Na fase controles também `shift+tab` (sem diferença de caixa; `S-Tab`, `btab` e `backtab` são inválidos), `up`, `down`, `left`, `right`, `s` e `enter` (S8). Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
+| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Na fase controles também `shift+tab` (sem diferença de caixa; `S-Tab`, `btab` e `backtab` são inválidos), `up`, `down`, `left`, `right`, `s` e `enter` (S8). `["C-c", "C-c"]` encerra o Claude e o Codex e deixa o shell no pane (`closeAgent` no último pane do workspace). Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
 | `pane.read` | `{pane_id, source: "visible", lines}` | `pane_read` (`read.text`, `read.revision`, `read.truncated`) | Ler o rodapé do Claude (modo de permissão) e os seletores `/model` e `/effort` (§4.1.1) | controles |
+| `pane.close` | `{pane_id}` | `ok` | Fechar agente (`closeAgent`) quando o workspace tem outros panes. Fechar o último pane fecha o workspace inteiro | uso-codex |
 | `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1a-final |
 | `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1a-final |
 | `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1a-final |
@@ -671,6 +672,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `agent(_:)` devolve o agente como o Herdr o vê: pane, workspace, tipo, status, sessão, `cwd`, `foreground_cwd` e título do terminal.
 - `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
 - `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
+- `closeAgent` usa `pane.close` quando o workspace do pane tem outros panes; se é o último, manda `agent.send_keys` com `["C-c", "C-c"]`, que encerra o agente e deixa o shell, porque fechar o último pane fecha o workspace. Lança `HerdrBridgeError` (`agentNotFound` sem o pane no estado).
 - **Controles** (fase controles, `docs/spikes/S8.md`):
   - **Tela ocupada**: antes de `prompt`, `setModel`, `setEffort` e `setMode`, o `pane.read` da última linha não pode mostrar o seletor `/model`, o `/effort` nem o diálogo "Switch model?". O Herdr fica em `done`/`working` com eles abertos, e um `agent.prompt` ali perde o texto. Com a tela ocupada, lança `screenBusy` sem tecla nenhuma.
   - **`setMode`** lê o rodapé. Se não for o alvo, manda `shift+tab` e espera o rodapé mudar (poll a cada 15 ms, até 500 ms por tecla, no máximo 5 teclas), e devolve o modo lido. Nunca usa espera fixa curta: a leitura antes de 20 ms devolve o modo antigo.
@@ -1352,6 +1354,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `listSubagents` | `{agentId}` | `subagentList` | subagentes |
 | `sendPrompt` | `{agentId, text}` | `ack{}` | 1a-core |
 | `interrupt` | `{agentId}` | `ack{}` | 1a-core |
+| `closeAgent` | `{agentId}` | `ack{}`. Vale para Claude e Codex; o card sai da árvore pelo `pane_closed`/`pane_updated` do Herdr. Erros: `herdrUnavailable`, `agentNotFound` | uso-codex |
 | `setForeground` | `{agentId?: String, isActive: Bool}` | `ack{}` | 1a-core |
 | `unpair` | `{}` | `ack{}` e o daemon fecha a conexão e apaga o aparelho | 1a-core |
 | `ping` | `{}` | `pong{}` | 1a-core |
@@ -1609,7 +1612,10 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 **Início** (`21-inicio`, `21e-inicio-vazia`)
 - Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringAuto`) enche um quinto por agente Claude com `permissionMode` `auto`, `acceptEdits` ou `bypassPermissions` (cheio com 5 ou mais) e o interno (`ringPlan`) um quarto por agente Claude em `plan` (cheio com 4 ou mais), os dois das 12 h no sentido horário e sem animação; `default` e os agentes Codex não entram nos anéis. A bolinha de 9,2 pt no centro dos anéis, com o mesmo glifo do selo do anel de contexto (raio quando trabalhando, exclamação quando bloqueado), pulsa (opacidade de 30% a 100% num ciclo de 1,4 s; fixa com Reduzir movimento): `dirty` quando algum agente está `blocked`, senão `statusOk` quando algum está `working`, e some quando nenhum. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
 - RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
-- Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os mesmos cards do Histórico. Sem a pílula de uso.
+- Embaixo, ABERTOS: todos os agentes Claude e Codex vivos na árvore (`StartSections.open`), com os mesmos cards do Histórico, primeiro os bloqueados, depois os trabalhando, depois por atividade. Sessões encerradas não entram. Sem a pílula de uso.
+  - arrastar o card para a esquerda (hint "Fechar", `destructive`) abre a confirmação "Fechar este agente?" ("Fechar" / "Cancelar"); confirmando, manda `closeAgent{agentId}`, e uma falha abre o alerta "Não foi possível fechar o agente";
+  - arrastar para a direita (hint "Detalhes") abre o Detalhe;
+  - o arrasto no card ganha do pager: arrastar para a direita fora dos cards ainda volta ao Histórico.
 - Botão + verde (60 pt) no canto inferior direito: abre a folha Nova sessão.
 - Vazia: "Nenhum agente aberto no Herdr" e "Toque em + para abrir uma tab com Claude ou Codex num workspace."
 
