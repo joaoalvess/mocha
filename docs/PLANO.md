@@ -1023,7 +1023,7 @@ Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: con
 Branch `fase/controles`, criada de `main`. Ondas: S8 → WP-K1 ∥ WP-K2 → WP-K3 → WP-K4. Decisões do João (2026-09-28):
 
 - **Header do chat**: o toque no título abre o seletor de modelo e effort; o long press abre o detalhe do agente; o anel de contexto aparece no header.
-- **Menu `↻`**: vira painel de controles com contexto, uso (5 h e semanal), modo (Edição / Auto / Plano), `/compact` e `/clear`. `/context` e `/cost` saem.
+- **Menu `↻`**: vira painel de controles com contexto, uso (5 h e semanal), modo (Edição / Auto / Plano), subagentes e workflows da sessão, `/compact` e `/clear`. `/context` e `/cost` saem.
 - **Botão de enviar**: com o campo vazio, sem anexo e com o agente trabalhando, vira parar (`interrupt`). "Interromper" sai do menu.
 
 A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
@@ -1061,7 +1061,7 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 - **Telas**:
   - header do chat com anel e subtítulo "Opus · xhigh";
   - seletor de modelo e effort acima do composer, no estilo de `docs/referencias/moshi/` (segmentos Low…Max e a lista Fable, Opus, Sonnet, Haiku);
-  - painel `↻` com contexto, barras de uso, segmentos de modo, `/compact` e `/clear`;
+  - painel `↻` com contexto, barras de uso, segmentos de modo, seção de subagentes (a mesma linha da `AgentSubagentsSection`, com o estado de cada um), `/compact` e `/clear`;
   - composer com o botão parar.
 - **Aceite**: o João aprova o mock antes do WP-K3.
 
@@ -1069,14 +1069,14 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 
 - **Dono**: `App/Sources/Composer/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `App/Sources/DesignSystem/ComposerBar.swift`, `App/Sources/Chat/ChatScreen.swift`, `MochaKit/Sources/MochaDemo/` e testes.
 - **Header**: toque → seletor; long press → `showDetail`; `ContextRing` no header.
-- **Painel**: o `SlashMenu` vira o painel de controles, que lê `session.usages` e `contextLeftPercent`.
+- **Painel**: o `SlashMenu` vira o painel de controles, que lê `session.usages` e `contextLeftPercent` e lista os subagentes e workflows da sessão (reúso de `App/Sources/AgentDetail/AgentSubagentsSection.swift`). Tocar num subagente abre o chat dele, como o card faz.
 - **Composer**: o botão de enviar ganha o estado parar.
 - **Seletor**: mostra o valor escolhido até o daemon confirmar.
 - **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes; capturas comparadas às do mock, com as diferenças listadas.
 
 ### WP-K4: checklist no iPhone
 
-- Trocar o modelo e o effort, girar os três modos, `/compact`, `/clear` e parar pelo botão de enviar. Tudo aparece no terminal e no app em até 2 s.
+- Trocar o modelo e o effort, girar os três modos, abrir um subagente pelo painel, `/compact`, `/clear` e parar pelo botão de enviar. Tudo aparece no terminal e no app em até 2 s.
 
 ## Fase 2: terminal SSH
 
