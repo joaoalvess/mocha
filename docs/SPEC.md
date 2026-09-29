@@ -1688,8 +1688,8 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Composer** (`05-chat-inicio-turno`, `08-chat-digitando`), flutuante sobre o fim da lista
 - Cápsula de Liquid Glass clara (`composerClear`), no estilo do composer do ChatGPT. Sem mock (decisão do João).
-- **Recolhido**: `+` à esquerda, "Chat via Mocha…", o medidor e o botão principal à direita. Um rascunho não enviado aparece na linha recolhida, em branco. O `+` abre o menu sem expandir.
-- **Expandido** (ao tocar): campo multilinha (até 6 linhas, depois rola) e a linha de botões:
+- **Recolhido**: `+` à esquerda, "Chat via Mocha…" e o botão principal à direita. Um rascunho não enviado aparece na linha recolhida, em branco. O `+` abre o menu sem expandir.
+- **Expandido** (ao tocar): campo multilinha na largura toda (até 6 linhas, depois rola) e, abaixo dele, a linha de botões:
   - `+`: Fotos, Câmera e Áudio (§6.5);
   - `↻`: painel de controles, ao lado do `+`;
   - medidor: à esquerda do botão principal, só o glifo, com o arco na proporção do effort (low 20 % até max 100 %). O toque abre o seletor de modelo;
