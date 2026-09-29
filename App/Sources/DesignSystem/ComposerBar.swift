@@ -1,3 +1,4 @@
+import MochaClient
 import SwiftUI
 
 struct ComposerButtons: OptionSet {
@@ -11,8 +12,10 @@ struct ComposerButtons: OptionSet {
 struct CollapsedComposer: View {
     let draft: String
     var placeholder = ComposerText.placeholder
+    var sendMode: ComposerSendMode = .send
     var onExpand: () -> Void = {}
     var onSend: () -> Void = {}
+    var onStop: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 0) {
@@ -28,7 +31,7 @@ struct CollapsedComposer: View {
             .buttonStyle(.plain)
             .accessibilityLabel(hasDraft ? "Rascunho: \(draft)" : placeholder)
             .accessibilityHint("Abre o composer")
-            SendButton(isEnabled: hasDraft, action: onSend)
+            SendButton(isEnabled: hasDraft, mode: sendMode, action: onSend, onStop: onStop)
         }
         .padding(.leading, 16)
         .padding(.trailing, 6)
@@ -47,12 +50,14 @@ struct CollapsedComposer: View {
 
 struct ExpandedComposer<Field: View>: View {
     let canSend: Bool
+    var sendMode: ComposerSendMode = .send
     var buttons: ComposerButtons = []
     var activeButtons: ComposerButtons = []
     var onAttach: () -> Void = {}
     var onSlashMenu: () -> Void = {}
     var onMicrophone: () -> Void = {}
     var onSend: () -> Void = {}
+    var onStop: () -> Void = {}
     @ViewBuilder let field: () -> Field
 
     var body: some View {
@@ -64,7 +69,7 @@ struct ExpandedComposer<Field: View>: View {
                     ComposerIconButton(systemImage: "plus", accessibilityLabel: "Anexar imagem", action: onAttach)
                 }
                 if buttons.contains(.slashMenu) {
-                    ComposerIconButton(lineIcon: .redo, accessibilityLabel: "Comandos", isActive: activeButtons.contains(.slashMenu), action: onSlashMenu)
+                    ComposerIconButton(lineIcon: .redo, accessibilityLabel: "Controles", isActive: activeButtons.contains(.slashMenu), action: onSlashMenu)
                 }
                 Spacer(minLength: 0)
                 if buttons.contains(.microphone) {
@@ -75,7 +80,7 @@ struct ExpandedComposer<Field: View>: View {
                         action: onMicrophone
                     )
                 }
-                SendButton(isEnabled: canSend, action: onSend)
+                SendButton(isEnabled: canSend, mode: sendMode, action: onSend, onStop: onStop)
                     .padding(.leading, 4)
             }
             .padding(.leading, 8)
@@ -144,22 +149,38 @@ struct ComposerIconButton: View {
 
 struct SendButton: View {
     let isEnabled: Bool
+    var mode: ComposerSendMode = .send
     let action: () -> Void
+    var onStop: () -> Void = {}
 
     var body: some View {
-        Button(action: action) {
+        Button(action: mode == .stop ? onStop : action) {
             Circle()
-                .fill(isEnabled ? Palette.textPrimary : Palette.sendDisabled)
+                .fill(isLit ? Palette.textPrimary : Palette.sendDisabled)
                 .frame(width: Metrics.sendButtonSize, height: Metrics.sendButtonSize)
-                .overlay {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isEnabled ? Palette.bg : Palette.textSecondary)
-                }
+                .overlay { glyph }
                 .contentShape(Circle())
         }
         .buttonStyle(.pressable)
-        .disabled(!isEnabled)
-        .accessibilityLabel("Enviar")
+        .disabled(!isLit)
+        .accessibilityLabel(mode == .stop ? "Parar" : "Enviar")
+    }
+
+    private var isLit: Bool {
+        mode == .stop || isEnabled
+    }
+
+    @ViewBuilder
+    private var glyph: some View {
+        switch mode {
+        case .send:
+            Image(systemName: "arrow.up")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isEnabled ? Palette.bg : Palette.textSecondary)
+        case .stop:
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                .fill(Palette.bg)
+                .frame(width: 12, height: 12)
+        }
     }
 }

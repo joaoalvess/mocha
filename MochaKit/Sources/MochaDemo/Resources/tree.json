@@ -34,6 +34,8 @@
         "status": "succeeded"
        },
        "contextLeftPercent": 62,
+       "permissionMode": "acceptEdits",
+       "effort": "xhigh",
        "sessionStartedAt": "2026-09-25T10:41:42.552Z",
        "turnStartedAt": "2026-09-25T11:53:40.000Z",
        "turnEndedAt": "2026-09-25T11:53:58.000Z"

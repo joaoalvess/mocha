@@ -26,6 +26,11 @@ struct ChatConversation: View {
     @State private var isComposing = false
     @State private var isConfirmingClear = false
     @State private var listGeneration = 0
+    @State private var isModelPickerOpen = false
+    @State private var modelOverride = ControlOverride<ModelAlias>()
+    @State private var effortOverride = ControlOverride<EffortLevel>()
+    @State private var modeOverride = ControlOverride<PermissionModeTarget>()
+    @State private var toast: ControlToastMessage?
     @FocusState private var isFieldFocused: Bool
 
     var body: some View {
@@ -53,6 +58,13 @@ struct ChatConversation: View {
             .onChange(of: isFieldFocused) { _, isFocused in
                 if !isFocused { isComposing = false }
             }
+            .onChange(of: isComposing) { _, composing in
+                if composing { closeModelPicker() }
+            }
+            .onChange(of: confirmedModel) { modelOverride.confirmedChanged() }
+            .onChange(of: confirmedEffort) { effortOverride.confirmedChanged() }
+            .onChange(of: confirmedMode) { modeOverride.confirmedChanged() }
+            .task(id: toast) { await expireToast() }
             .onChange(of: session.pendingReveal, initial: true) { _, agentId in
                 revealPendingRequest(agentId)
             }
@@ -134,7 +146,10 @@ struct ChatConversation: View {
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .scrollDismissesKeyboard(.immediately)
-        .simultaneousGesture(TapGesture().onEnded { dismissComposer() })
+        .simultaneousGesture(TapGesture().onEnded {
+            dismissComposer()
+            closeModelPicker()
+        })
         .onScrollPhaseChange { _, phase in
             isUserScrolling = phase == .tracking || phase == .interacting || phase == .decelerating
         }
@@ -164,8 +179,11 @@ struct ChatConversation: View {
             indicator: indicator,
             title: title,
             subtitle: subtitle,
+            contextLeftPercent: agent?.contextLeftPercent,
+            ringStyle: ringStyle,
             onStatusTap: { session.openDrawer() },
-            onTitleTap: { session.showDetail(liveTarget) },
+            onTitleTap: titleTapped,
+            onTitleLongPress: { session.showDetail(liveTarget) },
             onPreviewTap: { session.showWorkspaceWebServers(for: liveTarget) }
         )
     }
@@ -177,15 +195,44 @@ struct ChatConversation: View {
         } else if isReadOnly {
             ReadOnlyComposerPill(text: controlAvailable ? "Sessão encerrada · só leitura" : "Controle indisponível nesta tab Codex")
         } else {
-            ChatComposer(
-                draft: $draft,
-                isExpanded: $isComposing,
-                isFocused: $isFieldFocused,
-                attachments: attachments,
-                showsSlashMenu: provider == .claude,
-                onSend: send,
-                onSlashAction: runSlashAction
-            )
+            VStack(spacing: ChatScreenLayout.panelGap) {
+                if let toast {
+                    ControlToast(message: toast.text)
+                        .transition(.opacity)
+                }
+                if isModelPickerOpen {
+                    ModelPickerPanel(model: displayedModel, effort: displayedEffort, onModel: chooseModel, onEffort: chooseEffort)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                ChatComposer(
+                    draft: $draft,
+                    isExpanded: $isComposing,
+                    isFocused: $isFieldFocused,
+                    attachments: attachments,
+                    showsSlashMenu: provider == .claude,
+                    isWorking: status == .working,
+                    onSend: send,
+                    onStop: stop
+                ) { maxHeight, close in
+                    ChatControlsPanel(
+                        session: session,
+                        state: controlsState,
+                        maxHeight: maxHeight,
+                        onMode: chooseMode,
+                        onOpenSubagent: { subagent in
+                            close()
+                            dismissComposer()
+                            session.openChat(subagent)
+                        },
+                        onAction: { action in
+                            close()
+                            runSlashAction(action)
+                        }
+                    )
+                }
+            }
+            .animation(.smooth(duration: 0.2), value: isModelPickerOpen)
+            .animation(.smooth(duration: 0.2), value: toast)
         }
     }
 
@@ -322,15 +369,119 @@ struct ChatConversation: View {
 
     private var subtitle: String {
         if let meta = chat?.meta {
-            return ChatSubtitle.text(workspace: meta.workspaceLabel, model: meta.model, branch: meta.branch)
+            return ChatSubtitle.text(workspace: meta.workspaceLabel, model: meta.model, effort: meta.effort ?? agent?.effort, branch: meta.branch)
         }
         if let agent {
-            return ChatSubtitle.text(workspace: agent.workspaceLabel, model: agent.model, branch: agent.branch)
+            return ChatSubtitle.text(workspace: agent.workspaceLabel, model: agent.model, effort: agent.effort, branch: agent.branch)
         }
         if let archived {
             return ChatSubtitle.text(workspace: archived.workspaceLabel, model: archived.model, branch: archived.branch)
         }
         return session.connectionState.statusText
+    }
+
+    private var ringStyle: ContextRingStyle {
+        switch indicator {
+        case .disconnected: .offline
+        case .archived: .archived
+        case .agent(.blocked): .blocked
+        case .agent(.working): .working
+        default: .ready
+        }
+    }
+
+    private var canControlModel: Bool {
+        guard case .agent = liveTarget else { return false }
+        return !isReadOnly && provider == .claude
+    }
+
+    private var confirmedModel: ModelAlias? {
+        SessionControlChoices.alias(of: chat?.meta?.model ?? agent?.model)
+    }
+
+    private var confirmedEffort: EffortLevel? {
+        SessionControlChoices.effort(chat?.meta?.effort ?? agent?.effort)
+    }
+
+    private var confirmedMode: PermissionModeTarget? {
+        SessionControlChoices.mode(chat?.meta?.permissionMode ?? agent?.permissionMode)
+    }
+
+    private var displayedModel: ModelAlias? {
+        modelOverride.displayed(confirmed: confirmedModel)
+    }
+
+    private var displayedEffort: EffortLevel? {
+        effortOverride.displayed(confirmed: confirmedEffort)
+    }
+
+    private var controlsState: ChatControlsState {
+        ChatControlsState(
+            agentId: agent?.id,
+            sessionId: chat?.sessionId ?? agent?.sessionId,
+            contextLeftPercent: agent?.contextLeftPercent,
+            ringStyle: ringStyle,
+            usage: session.usage(for: provider),
+            model: displayedModel,
+            mode: modeOverride.displayed(confirmed: confirmedMode),
+            runningSubagents: agent?.runningSubagents ?? 0,
+            chatItems: chat?.items ?? []
+        )
+    }
+
+    private func titleTapped() {
+        guard canControlModel else {
+            session.showDetail(liveTarget)
+            return
+        }
+        if !isModelPickerOpen {
+            dismissComposer()
+        }
+        isModelPickerOpen.toggle()
+    }
+
+    private func closeModelPicker() {
+        guard isModelPickerOpen else { return }
+        isModelPickerOpen = false
+    }
+
+    private func chooseModel(_ model: ModelAlias) {
+        isModelPickerOpen = false
+        guard case .agent(let agentId) = liveTarget, model != displayedModel else { return }
+        modelOverride.choose(model)
+        sendControl(.setModel(agentId: agentId, model: model)) { modelOverride.release(model) }
+    }
+
+    private func chooseEffort(_ level: EffortLevel) {
+        guard case .agent(let agentId) = liveTarget, level != displayedEffort else { return }
+        effortOverride.choose(level)
+        sendControl(.setEffort(agentId: agentId, level: level)) { effortOverride.release(level) }
+    }
+
+    private func chooseMode(_ mode: PermissionModeTarget) {
+        guard case .agent(let agentId) = liveTarget, mode != modeOverride.displayed(confirmed: confirmedMode) else { return }
+        modeOverride.choose(mode)
+        sendControl(.setMode(agentId: agentId, mode: mode)) { modeOverride.release(mode) }
+    }
+
+    private func sendControl(_ message: ClientMessage, release: @escaping @MainActor () -> Void) {
+        Task {
+            do {
+                try await session.request(message)
+                try? await Task.sleep(for: ChatScreenLayout.controlConfirmationWindow)
+                release()
+            } catch {
+                release()
+                toast = ControlToastMessage(text: (error as? AppSessionError)?.message ?? ChatScreenLayout.controlFailureText)
+            }
+        }
+    }
+
+    private func expireToast() async {
+        guard toast != nil else { return }
+        try? await Task.sleep(for: ChatScreenLayout.toastDuration)
+        guard !Task.isCancelled else { return }
+        toast = nil
     }
 
     private func itemsChanged(_ items: [ChatItem]) {
@@ -501,6 +652,9 @@ struct ChatConversation: View {
         if let text = options.sendText, ChatDebugLaunch.consume(ChatDebugOptions.sendKey) {
             submit(text, attachments: attachments.takeAll())
         }
+        if LaunchArguments.argumentDomain()[ChatScreenLayout.modelPickerDebugKey] != nil, ChatDebugLaunch.consume(ChatScreenLayout.modelPickerDebugKey) {
+            isModelPickerOpen = true
+        }
         if options.confirmsClear, ChatDebugLaunch.consume(ChatDebugOptions.confirmClearKey) {
             isConfirmingClear = true
         }
@@ -558,8 +712,18 @@ struct ChatConversation: View {
     #endif
 }
 
+struct ControlToastMessage: Equatable {
+    let id = UUID()
+    let text: String
+}
+
 enum ChatScreenLayout {
     static let jumpButtonGap: CGFloat = 8
+    static let panelGap: CGFloat = 8
+    static let toastDuration: Duration = .seconds(3)
+    static let controlConfirmationWindow: Duration = .seconds(3)
+    static let controlFailureText = "Não foi possível mudar no Mac"
+    static let modelPickerDebugKey = "chat-model-picker"
     static let bottomAnchorId = "chat-bottom"
     static let bottomAnchorHeight: CGFloat = 1
 }
