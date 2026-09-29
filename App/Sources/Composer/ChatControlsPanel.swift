@@ -14,6 +14,34 @@ struct ChatControlsState {
     var chatItems: [ChatItem] = []
 }
 
+enum ControlsPage: String {
+    case root
+    case mode
+    case usage
+    case subagents
+
+    var title: String {
+        switch self {
+        case .root: "Controles"
+        case .mode: "Modo"
+        case .usage: "Uso"
+        case .subagents: "Subagentes"
+        }
+    }
+}
+
+enum ControlsPanelStyle {
+    static let secondary = Color(hex: 0xB4BAC1)
+    static let border = Color(hex: 0xFFFFFF, opacity: 0.14)
+    static let navRowHeight: CGFloat = 42
+    static let contextRowHeight: CGFloat = 38
+    static let headerHeight: CGFloat = 46
+    static let listRowHeight: CGFloat = 54
+    static let verticalPadding: CGFloat = 6
+    static let navigation = Animation.easeOut(duration: 0.3)
+    static let pageKey = "chat-controls-page"
+}
+
 struct ChatControlsPanel: View {
     let session: AppSession
     let state: ChatControlsState
@@ -22,109 +50,144 @@ struct ChatControlsPanel: View {
     let onOpenSubagent: (ChatTarget) -> Void
     let onAction: (SlashMenuAction) -> Void
     @State private var subagents: [SubagentSummary] = []
-    @State private var contentHeight: CGFloat = 0
+    @State private var page: ControlsPage = .root
+    @State private var detailPage: ControlsPage?
+    @State private var heights: [ControlsPage: CGFloat] = [:]
 
-    private static let horizontalPadding: CGFloat = 18
     private static let minimumHeight: CGFloat = 120
+    private static let width = AttachmentLayout.menuWidth
 
     var body: some View {
-        ScrollView {
-            content
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        ZStack(alignment: .topLeading) {
+            pageContainer(.root) { rootContent }
+                .offset(x: page == .root ? 0 : -Self.width)
+                .allowsHitTesting(page == .root)
+                .accessibilityHidden(page != .root)
+            if let detailPage {
+                pageContainer(detailPage) { detailContent(detailPage) }
+                    .offset(x: page == .root ? Self.width : 0)
+                    .allowsHitTesting(page != .root)
+                    .accessibilityHidden(page == .root)
+            }
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(width: AttachmentLayout.menuWidth, height: visibleHeight, alignment: .top)
+        .frame(width: Self.width, height: visibleHeight(for: page), alignment: .topLeading)
         .clipShape(menuShape)
-        .background(menuShape.fill(SlashMenuStyle.background))
-        .overlay(menuShape.strokeBorder(SlashMenuStyle.border, lineWidth: 0.6))
-        .shadow(color: .black.opacity(0.6), radius: 30, y: 22)
+        .mochaGlass(.composer, in: menuShape)
+        .overlay(menuShape.strokeBorder(ControlsPanelStyle.border, lineWidth: 0.6))
+        .shadow(color: .black.opacity(0.45), radius: 30, y: 22)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Controles")
         .task(id: subagentListKey) { await loadSubagents() }
-    }
-
-    private var visibleHeight: CGFloat {
-        let limit = max(maxHeight, Self.minimumHeight)
-        return contentHeight > 0 ? min(contentHeight, limit) : limit
-    }
-
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
-                status(now: context.date)
-            }
-            ControlsSeparator()
-            ControlsSegments(
-                items: SessionControlChoices.modes.map { choice in
-                    ControlsSegmentItem(
-                        id: choice.mode.rawValue,
-                        title: choice.title,
-                        isEnabled: SessionControlChoices.isAvailable(choice.mode, on: state.model)
-                    )
-                },
-                selectedId: state.mode?.rawValue,
-                accessibilityLabel: "Modo",
-                onSelect: { id in
-                    guard let mode = PermissionModeTarget(rawValue: id) else { return }
-                    onMode(mode)
-                }
-            )
-            .padding(.horizontal, 10)
-            if !SessionControlChoices.isAvailable(.auto, on: state.model) {
-                Text("Auto: \(SessionControlChoices.autoUnavailableNote.lowercased())")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.textSecondary)
-                    .padding(.horizontal, Self.horizontalPadding)
-                    .padding(.top, 4)
-            }
-            if let sessionId = state.sessionId, !sessionAgents.isEmpty {
-                ControlsSeparator()
-                AgentSubagentsSection(items: sessionAgents, sessionId: sessionId, onOpen: onOpenSubagent)
-                    .padding(.horizontal, 8)
-                    .padding(.top, -14)
-            }
-            ControlsSeparator()
-            ForEach(SlashMenuAction.allCases) { action in
-                SlashMenuRow(action: action) { onAction(action) }
-            }
-        }
-        .padding(.vertical, SlashMenuStyle.rowVerticalPadding + 3)
-        .frame(width: AttachmentLayout.menuWidth, alignment: .leading)
+        .onAppear(perform: openPageForDebugLaunch)
     }
 
     private var menuShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: AttachmentLayout.menuRadius, style: .continuous)
     }
 
-    private var sessionAgents: [SubagentSummary] {
-        SessionAgentsList.merged(subagents: subagents, chatItems: state.chatItems)
+    private var limit: CGFloat {
+        max(maxHeight, Self.minimumHeight)
     }
 
-    private func status(now: Date) -> some View {
-        let windows = state.usage.map { UsagePace.summaries(of: $0, now: now) } ?? []
-        return VStack(alignment: .leading, spacing: 6) {
-            if let percent = state.contextLeftPercent {
-                HStack(spacing: 10) {
-                    ContextRing(percent: percent, style: state.ringStyle)
-                        .scaleEffect(0.6)
-                        .frame(width: 24, height: 24)
-                    Text("\(percent)% livre")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Palette.textPrimary)
-                    Spacer(minLength: 0)
-                    Text("Contexto")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Palette.textSecondary)
+    private func visibleHeight(for page: ControlsPage) -> CGFloat {
+        guard let height = heights[page], height > 0 else { return limit }
+        return min(height, limit)
+    }
+
+    private func pageContainer(_ page: ControlsPage, @ViewBuilder content: () -> some View) -> some View {
+        ScrollView {
+            content()
+                .padding(.vertical, ControlsPanelStyle.verticalPadding)
+                .frame(width: Self.width, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[page] = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(width: Self.width, height: visibleHeight(for: page), alignment: .top)
+    }
+
+    private var sessionAgents: [SubagentSummary] {
+        guard state.sessionId != nil else { return [] }
+        return SessionAgentsList.merged(subagents: subagents, chatItems: state.chatItems)
+    }
+
+    private func summary(now: Date) -> ControlsPanelSummary {
+        ControlsPanelSummary(
+            contextLeftPercent: state.contextLeftPercent,
+            mode: state.mode,
+            usage: usageWindows(now: now),
+            subagents: sessionAgents
+        )
+    }
+
+    private func usageWindows(now: Date) -> [UsageWindowSummary] {
+        state.usage.map { UsagePace.summaries(of: $0, now: now) } ?? []
+    }
+
+    private var rootContent: some View {
+        TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
+            let summary = summary(now: context.date)
+            VStack(alignment: .leading, spacing: 0) {
+                if let percent = state.contextLeftPercent, let text = summary.contextText {
+                    ControlsContextRow(percent: percent, text: text, style: state.ringStyle)
                 }
-                .frame(height: 30)
-                .accessibilityElement(children: .combine)
-            }
-            ForEach(windows) { window in
-                ControlsUsageRow(window: window)
+                ControlsNavRow(icon: .mode, title: "Modo", value: summary.modeText) { open(.mode) }
+                if let usage = summary.usageText {
+                    ControlsNavRow(icon: .usage, title: "Uso", value: usage) { open(.usage) }
+                }
+                if let subagentsText = summary.subagentsText {
+                    ControlsNavRow(icon: .subagents, title: "Subagentes", value: subagentsText) { open(.subagents) }
+                }
+                ControlsSeparator()
+                ForEach(SlashMenuAction.allCases) { action in
+                    SlashMenuRow(action: action, secondaryColor: ControlsPanelStyle.secondary) { onAction(action) }
+                }
             }
         }
-        .padding(.horizontal, Self.horizontalPadding)
-        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func detailContent(_ page: ControlsPage) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ControlsBackHeader(title: page.title) { back() }
+            switch page {
+            case .root:
+                EmptyView()
+            case .mode:
+                modeList
+            case .usage:
+                TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
+                    ControlsUsageList(windows: usageWindows(now: context.date))
+                }
+            case .subagents:
+                if let sessionId = state.sessionId {
+                    ControlsSubagentList(items: sessionAgents, sessionId: sessionId, onOpen: onOpenSubagent)
+                }
+            }
+        }
+    }
+
+    private var modeList: some View {
+        VStack(spacing: 0) {
+            ForEach(SessionControlChoices.modes) { choice in
+                ControlsModeRow(
+                    choice: choice,
+                    isSelected: choice.mode == state.mode,
+                    isEnabled: SessionControlChoices.isAvailable(choice.mode, on: state.model)
+                ) {
+                    onMode(choice.mode)
+                    back()
+                }
+            }
+        }
+    }
+
+    private func open(_ destination: ControlsPage) {
+        detailPage = destination
+        withAnimation(ControlsPanelStyle.navigation) { page = destination }
+    }
+
+    private func back() {
+        withAnimation(ControlsPanelStyle.navigation) { page = .root }
     }
 
     private var subagentListKey: ControlsSubagentKey? {
@@ -144,6 +207,19 @@ struct ChatControlsPanel: View {
         else { return }
         subagents = items
     }
+
+    private func openPageForDebugLaunch() {
+        #if DEBUG
+        guard
+            let raw = LaunchArguments.argumentDomain()[ControlsPanelStyle.pageKey] as? String,
+            let debugPage = ControlsPage(rawValue: raw),
+            debugPage != .root,
+            ChatDebugLaunch.consume(ControlsPanelStyle.pageKey)
+        else { return }
+        detailPage = debugPage
+        page = debugPage
+        #endif
+    }
 }
 
 private struct ControlsSubagentKey: Hashable {
@@ -152,25 +228,243 @@ private struct ControlsSubagentKey: Hashable {
     let isConnected: Bool
 }
 
-private struct ControlsUsageRow: View {
-    let window: UsageWindowSummary
+private extension ContextRingStyle {
+    var barColor: Color {
+        switch self {
+        case .ready, .working: Palette.statusOk
+        case .blocked: Palette.dirty
+        case .archived: Palette.statusOk.opacity(0.28)
+        case .offline: Palette.offlineRing
+        }
+    }
+}
+
+private struct ControlsContextRow: View {
+    let percent: Int
+    let text: String
+    let style: ContextRingStyle
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text(window.label)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Palette.textSecondary)
-                .frame(width: 22, alignment: .leading)
-            UsageBar(fraction: window.usedFraction)
-            Text(window.percentText)
-                .font(.system(size: 12, design: .monospaced))
+        HStack(spacing: 12) {
+            Text("Contexto")
+                .font(.system(size: 15))
+                .foregroundStyle(ControlsPanelStyle.secondary)
+                .fixedSize()
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Palette.barTrack)
+                    Capsule()
+                        .fill(style.barColor)
+                        .frame(width: max(4, proxy.size.width * CGFloat(min(max(percent, 0), 100)) / 100))
+                }
+            }
+            .frame(height: 4)
+            Text(text)
+                .font(.system(size: 14, weight: .medium))
+                .monospacedDigit()
                 .foregroundStyle(Palette.textPrimary)
-                .frame(width: 40, alignment: .trailing)
+                .fixedSize()
         }
-        .frame(height: 20)
+        .padding(.horizontal, SlashMenuStyle.rowPadding)
+        .frame(height: ControlsPanelStyle.contextRowHeight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Uso de \(window.label)")
-        .accessibilityValue(window.percentText)
+        .accessibilityLabel("Contexto")
+        .accessibilityValue(text)
+    }
+}
+
+private struct ControlsNavRow: View {
+    let icon: SlashMenuIcon
+    let title: String
+    let value: String
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: SlashMenuStyle.rowSpacing) {
+                SlashMenuIconView(icon: icon, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
+                HStack(spacing: 8) {
+                    Text(value)
+                        .font(.system(size: 14))
+                        .monospacedDigit()
+                        .foregroundStyle(ControlsPanelStyle.secondary)
+                        .lineLimit(1)
+                        .fixedSize()
+                    LineIconView(icon: .chevronRight, size: 12, strokeWidth: 2.3, color: ControlsPanelStyle.secondary)
+                }
+            }
+            .padding(.horizontal, SlashMenuStyle.rowPadding)
+            .frame(height: ControlsPanelStyle.navRowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+    }
+}
+
+private struct ControlsBackHeader: View {
+    let title: String
+    let onBack: () -> Void
+
+    var body: some View {
+        Button(action: onBack) {
+            HStack(spacing: 8) {
+                SlashMenuIconView(icon: .chevronLeft, size: 16, strokeWidth: 2.4, color: Palette.textPrimary)
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: ControlsPanelStyle.headerHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Voltar")
+        .accessibilityValue(title)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+private struct ControlsModeRow: View {
+    let choice: ModeChoice
+    let isSelected: Bool
+    let isEnabled: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: SlashMenuStyle.rowSpacing) {
+                icon
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(choice.title)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Palette.textPrimary)
+                    Text(detail)
+                        .font(.system(size: 13))
+                        .foregroundStyle(ControlsPanelStyle.secondary)
+                }
+                .lineLimit(1)
+                Spacer(minLength: 8)
+                if isSelected {
+                    LineIconView(icon: .check, size: 16, strokeWidth: 2.2, color: Palette.statusOk)
+                }
+            }
+            .padding(.horizontal, SlashMenuStyle.rowPadding)
+            .frame(height: ControlsPanelStyle.listRowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityLabel("\(choice.title), \(detail)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var detail: String {
+        isEnabled ? choice.detail : SessionControlChoices.autoUnavailableNote.lowercased()
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        switch choice.mode {
+        case .acceptEdits, .default:
+            LineIconView(icon: .pencil, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+        case .auto:
+            LineIconView(icon: .sparkles, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+        case .plan:
+            SlashMenuIconView(icon: .plan, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+        }
+    }
+}
+
+private struct ControlsUsageList: View {
+    let windows: [UsageWindowSummary]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(windows) { window in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(ControlsPanelSummary.usageTitle(window))
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Palette.textPrimary)
+                        Spacer(minLength: 8)
+                        Text(window.percentText)
+                            .font(.system(size: 14, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Palette.textPrimary)
+                    }
+                    UsageBar(fraction: window.usedFraction, paceFraction: window.elapsedFraction)
+                    if let reset = ControlsPanelSummary.resetText(window) {
+                        Text(reset)
+                            .font(.system(size: 13))
+                            .foregroundStyle(ControlsPanelStyle.secondary)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(ControlsPanelSummary.usageTitle(window))
+                .accessibilityValue([window.percentText + " usado", ControlsPanelSummary.resetText(window)].compactMap { $0 }.joined(separator: ", "))
+            }
+        }
+        .padding(.horizontal, SlashMenuStyle.rowPadding)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
+}
+
+private struct ControlsSubagentList: View {
+    let items: [SubagentSummary]
+    let sessionId: String
+    let onOpen: (ChatTarget) -> Void
+
+    var body: some View {
+        if SubagentRows.hasRunning(items) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                list(now: context.date)
+            }
+        } else {
+            list(now: Date())
+        }
+    }
+
+    private func list(now: Date) -> some View {
+        VStack(spacing: 0) {
+            ForEach(items) { item in
+                Button {
+                    onOpen(.subagent(sessionId: sessionId, agentId: item.agentId))
+                } label: {
+                    HStack(spacing: 12) {
+                        SubagentStateIcon(status: item.status, size: 16)
+                            .frame(width: SlashMenuStyle.iconSize)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(item.description)
+                                .font(.system(size: 15))
+                                .foregroundStyle(Palette.textPrimary)
+                            Text(ControlsPanelSummary.subagentDetail(item, now: now))
+                                .font(.system(size: 13))
+                                .monospacedDigit()
+                                .foregroundStyle(ControlsPanelStyle.secondary)
+                        }
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        LineIconView(icon: .chevronRight, size: 12, strokeWidth: 2.3, color: ControlsPanelStyle.secondary)
+                    }
+                    .padding(.horizontal, SlashMenuStyle.rowPadding)
+                    .frame(height: ControlsPanelStyle.listRowHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityHint("Abre o transcript do subagente")
+            }
+        }
     }
 }
 
@@ -179,7 +473,7 @@ private struct ControlsSeparator: View {
         SlashMenuStyle.separator
             .frame(height: 1)
             .padding(.horizontal, SlashMenuStyle.rowPadding)
-            .padding(.vertical, SlashMenuStyle.separatorMargin + 2)
+            .padding(.vertical, 3)
             .accessibilityHidden(true)
     }
 }

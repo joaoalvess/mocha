@@ -135,7 +135,7 @@ struct ChatComposer<ControlsPanel: View>: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(height: 0, alignment: .bottomLeading)
             .offset(y: -AttachmentLayout.menuGap)
-            .transition(.scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
+            .transition(.scale(scale: 0.3, anchor: ControlsPanelLayout.buttonAnchor).combined(with: .opacity))
         }
     }
 
@@ -238,5 +238,6 @@ enum ComposerDraft {
 }
 
 enum ControlsPanelLayout {
-    static let topReserve = Metrics.headerTopInset + Metrics.headerHeight + 72
+    static let buttonAnchor = UnitPoint(x: 68 / AttachmentLayout.menuWidth, y: 1)
+    static let topReserve = Metrics.headerTopInset + Metrics.headerHeight + 55
 }
