@@ -11,6 +11,7 @@ public actor HerdrBridge: HerdrBridging {
     public static let newAgentNamePrefix = "mocha-"
     public static let codexAgentKind = "codex"
     static let codexStartTimeout: Duration = .seconds(4)
+    static let codexLaunchOverrides = ["-c", "check_for_update_on_startup=false"]
     public static let readyStatuses: [HerdrAgentStatus] = [.idle, .blocked]
 
     private struct PaneSubscription {
@@ -217,7 +218,7 @@ public actor HerdrBridge: HerdrBridging {
                     name: name,
                     kind: Self.codexAgentKind,
                     paneId: paneId,
-                    args: ["--remote", remote],
+                    args: ["--remote", remote] + Self.codexLaunchOverrides,
                     timeout: Self.codexStartTimeout
                 )
             }

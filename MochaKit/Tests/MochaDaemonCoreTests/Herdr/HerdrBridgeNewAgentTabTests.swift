@@ -95,6 +95,16 @@ struct HerdrBridgeNewAgentTabTests {
         try await harness.finish()
     }
 
+    @Test func codexTabStartsTheRemoteTuiWithoutTheUpdatePrompt() async throws {
+        let harness = try await HerdrBridgeHarness.make(configuration: NewAgentTabSupport.configuration(readyTimeout: .seconds(20)))
+        let created = try await harness.bridge.newCodexTab(in: "w1A", remote: "unix:///tmp/codex.sock")
+        let start = try #require(await harness.server.requests(method: "agent.start").first)
+        #expect(start.stringParam("kind") == "codex")
+        #expect(start.stringParam("pane_id") == created.paneId)
+        #expect(start.stringArrayParam("args") == ["--remote", "unix:///tmp/codex.sock", "-c", "check_for_update_on_startup=false"])
+        try await harness.finish()
+    }
+
     @Test func trustDialogBlockedAnswersTheSameWayWithoutTouchingTheDialog() async throws {
         let harness = try await HerdrBridgeHarness.make(configuration: NewAgentTabSupport.configuration(readyTimeout: .seconds(20)))
         await harness.server.override("agent.wait", with: .noReply)
