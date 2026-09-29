@@ -5,8 +5,8 @@ import SwiftUI
 enum ChatSubtitle {
     static let separator = " • "
 
-    static func text(workspace: String, model: String?, effort: String? = nil, branch: String?) -> String {
-        [workspace, model.map { ModelName.withEffort($0, effort: effort) }, branch]
+    static func text(workspace: String, model: String?, branch: String?) -> String {
+        [workspace, model.map(ModelName.abbreviated), branch]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: separator)
@@ -18,15 +18,10 @@ struct ChatHeaderBar: View {
     let indicator: StatusIndicator
     let title: String
     let subtitle: String
-    var contextLeftPercent: Int?
-    var ringStyle: ContextRingStyle = .ready
     var onStatusTap: () -> Void = {}
     var onTitleTap: () -> Void = {}
     var onTitleLongPress: () -> Void = {}
     var onPreviewTap: (() -> Void)?
-
-    private static let ringScale: CGFloat = 0.55
-    private static let ringSize: CGFloat = 22
 
     var body: some View {
         HStack(spacing: 0) {
@@ -77,12 +72,6 @@ struct ChatHeaderBar: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(height: 22)
-                if let contextLeftPercent {
-                    ContextRing(percent: contextLeftPercent, style: ringStyle)
-                        .scaleEffect(Self.ringScale)
-                        .frame(width: Self.ringSize, height: Self.ringSize)
-                        .padding(.top, 2)
-                }
             }
             Text(subtitle)
                 .font(Typography.headerSubtitle)

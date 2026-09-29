@@ -179,8 +179,6 @@ struct ChatConversation: View {
             indicator: indicator,
             title: title,
             subtitle: subtitle,
-            contextLeftPercent: agent?.contextLeftPercent,
-            ringStyle: ringStyle,
             onStatusTap: { session.openDrawer() },
             onTitleTap: titleTapped,
             onTitleLongPress: { session.showDetail(liveTarget) },
@@ -369,10 +367,10 @@ struct ChatConversation: View {
 
     private var subtitle: String {
         if let meta = chat?.meta {
-            return ChatSubtitle.text(workspace: meta.workspaceLabel, model: meta.model, effort: meta.effort ?? agent?.effort, branch: meta.branch)
+            return ChatSubtitle.text(workspace: meta.workspaceLabel, model: meta.model, branch: meta.branch)
         }
         if let agent {
-            return ChatSubtitle.text(workspace: agent.workspaceLabel, model: agent.model, effort: agent.effort, branch: agent.branch)
+            return ChatSubtitle.text(workspace: agent.workspaceLabel, model: agent.model, branch: agent.branch)
         }
         if let archived {
             return ChatSubtitle.text(workspace: archived.workspaceLabel, model: archived.model, branch: archived.branch)

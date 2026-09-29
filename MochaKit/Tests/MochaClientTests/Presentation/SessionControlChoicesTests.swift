@@ -96,9 +96,4 @@ struct SessionControlChoicesTests {
         #expect(merged[1].startedAt == nil)
         #expect(merged[2].startedAt == started)
     }
-
-    @Test func modelWithEffort() {
-        #expect(ModelName.withEffort("claude-opus-5-5", effort: "xhigh") == "opus-5-5 · xhigh")
-        #expect(ModelName.withEffort("claude-haiku-4-5-20251001", effort: nil) == "haiku-4-5")
-    }
 }
