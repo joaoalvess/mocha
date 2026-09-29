@@ -1662,7 +1662,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 **Chat** (`05-chat-inicio-turno`, `05b-chat-fim-turno`, `06-card-expandido`, `07-chat-trabalhando`)
 - **Header flutuante de vidro** (`glassChat`), com:
   - disco de status (§6.2); tocar abre a gaveta;
-  - asterisco do Claude e título (truncado no meio). Na fase controles, o toque no título abre o seletor de modelo e o long press abre o Detalhe. Antes, o toque abria o Detalhe;
+  - asterisco do Claude e título (truncado no meio). O toque no título abre o Detalhe. O seletor de modelo abre pelo medidor do composer;
   - subtítulo "workspace • modelo • branch". O header não mostra contexto nem effort (decisão do João): o contexto fica no painel `↻` e o effort no seletor em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
   - bússola, presa ao workspace do agente: pede `listWebServers` e filtra pelo `workspaceId` do workspace que contém o agente. Com 1 servidor, abre direto o Navegador; com 0 ou vários, abre o painel Servidores web só com esse workspace (vazio: "Nenhum servidor web neste workspace"). Sem workspace conhecido (thread Codex, sessão arquivada sem agente vivo), abre o painel global.
@@ -1687,27 +1687,28 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - **Sessão arquivada** (`ChatTarget.session`): mesma lista, sem linha de status; o composer dá lugar a uma pílula `glassComposer` "Sessão encerrada · só leitura".
 
 **Composer** (`05-chat-inicio-turno`, `08-chat-digitando`), flutuante sobre o fim da lista
-- **Recolhido**: uma linha só, "Chat via Mocha…", com o botão enviar à direita. Um rascunho não enviado aparece na linha recolhida, em branco, com enviar aceso.
+- Cápsula de Liquid Glass clara (`composerClear`), no estilo do composer do ChatGPT. Sem mock (decisão do João).
+- **Recolhido**: `+` à esquerda, "Chat via Mocha…", o medidor e o botão principal à direita. Um rascunho não enviado aparece na linha recolhida, em branco. O `+` abre o menu sem expandir.
 - **Expandido** (ao tocar): campo multilinha (até 6 linhas, depois rola) e a linha de botões:
-  - `+`: imagem (§6.5);
-  - microfone: 1b (oculto antes);
-  - `↻`: painel de controles, 1a-final (oculto antes);
-  - enviar: círculo, desabilitado sem texto. Na fase controles, com o campo vazio, sem anexo e com `status == working`, vira **parar** (quadrado) e manda `interrupt`.
+  - `+`: Fotos, Câmera e Áudio (§6.5);
+  - `↻`: painel de controles, ao lado do `+`;
+  - medidor: à esquerda do botão principal, só o glifo, com o arco na proporção do effort (low 20 % até max 100 %). O toque abre o seletor de modelo;
+  - botão principal, num círculo: **enviar** com texto ou anexo; **parar** (quadrado, manda `interrupt`) com o campo vazio, sem anexo e `status == working`; **microfone** (ditado, §6.5) com o campo vazio e o agente parado, verde enquanto dita. Não há microfone separado.
 - O teclado fecha, e o composer volta a uma linha, ao rolar a lista, tocar fora, abrir a gaveta ou enviar.
 - Enviar continua enviando durante `working` quando há texto (o Claude enfileira). Parar fica na linha de status e, com o campo vazio, no próprio botão.
-- **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Abre acima do `↻`, na largura do menu antigo, no vidro `glassComposer` (Liquid Glass), e entra e sai com escala e opacidade ancoradas no `↻`. É um menu de linhas, sem rolagem na raiz. Sem mock (decisão do João).
+- **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Fica numa camada flutuante própria (`FloatingMenuLayer`), ancorada no composer, com 280 pt de largura, no vidro `.menu`, e entra e sai com escala e opacidade. Quando não cabe acima do composer, desce sobre ele. O teclado fica sempre por cima, porque o iOS não deixa janela do app cobri-lo. Linhas de 58 pt, com ícone num círculo de vidro de 40 pt. Na raiz, é um menu sem rolagem; um toque fora fecha. Sem mock (decisão do João).
   - **Raiz**:
     - "Contexto": barra fina com o quanto já foi usado e "30% (120k)" (porcentagem usada e `contextUsedTokens` abreviado; sem tokens, só a porcentagem), só leitura, nas cores do anel da Home;
     - "Modo": valor atual, ou "Manual" em `default` e `bypassPermissions`;
     - "Uso": a janela mais apertada entre 5 h e semana. A linha some sem dado de uso;
-    - "Subagentes": "N rodando", ou "N concluídos" quando nenhum roda. A linha some sem subagentes nem workflows;
+    - "Subagentes": "N rodando", ou só o total quando nenhum roda. A linha some sem subagentes nem workflows;
     - separador, `/compact` e `/clear` em vermelho, com confirmação, mandados como `slash`. Depois do `/clear`, o chat reabre na sessão nova.
-  - **Detalhes**: dentro do próprio painel, com "‹ Título" para voltar e deslize lateral (ease-out, sem bounce).
-    - **Modo**: Edição (`acceptEdits`), Auto (`auto`) e Plano (`plan`), com ícone, descrição e ✓. O toque manda `setMode` e volta para a raiz. O valor aparece na hora e volta ao valor do `chatMeta` se vier erro, com toast. No Haiku, Auto fica apagado com "indisponível no Haiku".
+  - **Detalhes**: dentro do próprio painel, com "‹ Título" fixo para voltar (só a lista rola) e deslize lateral (ease-out, sem bounce).
+    - **Modo**: Edição (`acceptEdits`), Auto (`auto`) e Plano (`plan`), com ícone, descrição e ✓ nas cores dos modos do Claude Code: Edição `#AF87FF`, Plano `#48968C`, Auto `#FFC107` e Manual `#999999`, também no valor da raiz. O toque manda `setMode` e volta para a raiz. O valor aparece na hora e volta ao valor do `chatMeta` se vier erro, com toast. No Haiku, Auto fica apagado com "indisponível no Haiku".
     - **Uso**: barras "5 horas" e "Semana", com porcentagem e renovação.
     - **Subagentes**: lista plana dos subagentes e workflows da sessão. O toque abre o chat do subagente.
   - `/context`, `/cost` e "Interromper (Esc)" saem.
-- **Seletor de modelo** (fase controles): o toque no título do header do chat abre um painel acima do composer, no estilo de `docs/referencias/moshi/seletor-modelo.jpg`.
+- **Seletor de modelo** (fase controles): o toque no medidor do composer abre um painel acima do composer, no estilo de `docs/referencias/moshi/seletor-modelo.jpg`.
   - **Topo**: segmentos Low, Medium, High, Extra high e Max (`setEffort`). Somem no Haiku.
   - **Lista**: Fable, Opus, Sonnet e Haiku, com uma descrição curta cada (`setModel`). O item atual fica destacado.
   - **Troca**: vale só para a sessão, e o valor escolhido aparece na hora até o daemon confirmar.
@@ -1785,7 +1786,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 ### §6.5 Imagem (1a-core)
 
-- O `+` do composer expandido abre um menu próprio (vidro `glassComposer`, medidas do menu da tela `09-menu-slash`) com três origens: "Fotos" (`PhotosPicker`, várias de uma vez, na ordem de seleção), "Câmera" (`UIImagePickerController`; some quando não há câmera) e "Colar imagem" (`UIPasteboard.general.images`, habilitado só com `hasImages`; a leitura mostra o aviso "Permitir colar" do iOS, a não ser que o João libere em Ajustes › Mocha › Colar de Outros Apps).
+- O `+` do composer abre um menu no mesmo estilo do painel `↻` (§6.3) com "Fotos" (`PhotosPicker`, várias de uma vez, na ordem de seleção), "Câmera" (`UIImagePickerController`; some quando não há câmera) e "Áudio" (inicia o ditado). "Colar imagem" saiu na fase controles.
 - Até 5 imagens por prompt. Cada uma é reduzida para no máximo 2.048 px no lado maior e vira JPEG com qualidade 0,85, mantendo a orientação.
 - As imagens anexadas aparecem como miniaturas quadradas numa faixa acima do campo, cada uma com um "x" para remover. Com imagem anexada, enviar fica habilitado mesmo sem texto.
 - Ao enviar: cada imagem vai por `POST /v1/upload` (§5.5), em sequência, com `Authorization: Bearer <deviceToken>` e a base `https://<host do pareamento>`. Depois de todos os uploads, o app manda um `sendPrompt` com o texto do campo seguido de uma linha `[imagem: <path>]` por imagem, na ordem das miniaturas. O Claude Code lê a imagem pelo caminho.
