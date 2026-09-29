@@ -1646,8 +1646,9 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Uso do plano** (`03-uso-plano`)
 - Folha média sobre a Home (arrastar fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
-- Cartão: ladrilho do asterisco, "<plano> (<conta>)" (sem plano, "Claude"; sem conta, sem parênteses) e "Claude Code · <hostName>".
+- Um cartão por provedor com `usage`, Claude primeiro e Codex depois, 12 pt entre eles; a altura do painel cresce 182 pt por cartão a mais. Cartão: ladrilho do provedor, "<plano> (<conta>)" (sem plano, "Claude" ou "Codex"; sem conta, sem parênteses) e "Claude Code · <hostName>" ou "Codex · <hostName>".
 - Uma linha por janela (`fiveHour` → "5h", `weekly` → "7d"): barra com o `usedPercent`, o traço `paceMark` na posição do tempo decorrido, o % e o tempo até zerar ("3h 35m", "2d 10h").
+- Na linha de 5h com `resetsAt` no futuro, um sino (`bell`, `textSecondary`; ligado, `bell.fill` em `statusOk`) agenda o aviso local do reset (§7.6).
 - Tempo decorrido da janela = `1 − (resetsAt − agora) / duração` (5 h ou 7 dias). Ritmo = `usedPercent − decorrido × 100`: acima de +5, "ritmo mais rápido"; abaixo de −5, "ritmo mais lento"; entre os dois, "no ritmo". A linha de baixo junta as duas: "5h: ritmo mais lento · 7d: no ritmo".
 - Nota fixa no rodapé: "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
 
@@ -1957,6 +1958,11 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
 - **Alertas no lugar das notificações**: enquanto o aparelho tem o card com token de update conhecido, o daemon não manda os alertas da §7.1 de **nenhum** agente. O alerta (texto e regras da §7.4) vai no update que traz o foco para o agente do evento. Um evento de outro agente que não ganha o foco, porque um pedido segura o card, sai como alerta da §7.1. Antes do token chegar, vale a §7.1.
 - **Fim**: 30 min sem nenhum agente `working`/`blocked` → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start.
 - **Tokens**: `registerLiveActivity` sem `agentId`: um token de push-to-start para o tipo e o token de update da atividade com `activityId`. O daemon guarda uma atividade por aparelho em `devices.json`; um registro antigo com `agentId` é ignorado.
+
+### §7.6 Aviso de reset da janela de 5h
+
+- Notificação **local** do app, sem daemon nem protocolo: o sino da folha Uso (§6.3) agenda um `UNNotificationRequest` com `UNTimeIntervalNotificationTrigger` até o `resetsAt` da janela `fiveHour` daquele provedor. Id `usage-reset-<provider>`; título "Janela de 5h zerada", corpo "O limite de 5h do Claude Code renovou." ou "…do Codex renovou.", som padrão. Ligar pede a permissão de notificação se ela ainda não foi pedida.
+- Vale **só o próximo reset**: o horário armado por provedor fica no `UserDefaults` (`usage.resetReminders`), e o sino conta como ligado enquanto esse horário está no futuro. Tocar de novo desliga e remove o pedido pendente. Um `usage` novo com outro `resetsAt` de 5h enquanto armado reagenda para o novo horário.
 
 ---
 
