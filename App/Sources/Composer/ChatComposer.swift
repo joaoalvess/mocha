@@ -68,7 +68,17 @@ struct ChatComposer<ControlsPanel: View>: View {
 
     @ViewBuilder
     private var composer: some View {
-        if isExpanded {
+        if isDictationComposerShown {
+            DictationComposer(
+                line: dictation.line,
+                waveform: dictation.waveform,
+                canStop: dictation.phase == .listening,
+                canSend: canSend,
+                onDiscard: dictation.discard,
+                onStop: dictation.stop,
+                onSend: send
+            )
+        } else if isExpanded {
             ExpandedComposer(
                 canSend: canSend,
                 sendMode: sendMode,
@@ -146,11 +156,11 @@ struct ChatComposer<ControlsPanel: View>: View {
 
     private var canSend: Bool {
         !attachments.isProcessing
-            && (!ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty)
+            && (!ComposerDraft.trimmed(draft).isEmpty || dictation.hasPendingText || !attachments.isEmpty)
     }
 
     private var sendMode: ComposerSendMode {
-        let hasContent = !ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty
+        let hasContent = !ComposerDraft.trimmed(draft).isEmpty || dictation.hasPendingText || !attachments.isEmpty
         return ComposerSendMode.mode(
             hasContent: hasContent,
             isWorking: isWorking,
@@ -164,6 +174,10 @@ struct ChatComposer<ControlsPanel: View>: View {
         case .preparing, .downloading, .listening: true
         case .checking, .unavailable, .ready, .finishing, .failed: false
         }
+    }
+
+    private var isDictationComposerShown: Bool {
+        isDictating || dictation.phase == .finishing
     }
 
     private var expandedButtons: ComposerButtons {

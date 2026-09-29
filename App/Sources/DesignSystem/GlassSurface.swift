@@ -32,8 +32,8 @@ enum GlassTint {
 
     var usesClearGlass: Bool {
         switch self {
-        case .chat, .composer, .menu: false
-        case .home, .pill, .hero, .black, .composerClear: true
+        case .chat, .composer, .composerClear, .menu: false
+        case .home, .pill, .hero, .black: true
         }
     }
 }
