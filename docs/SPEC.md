@@ -1693,7 +1693,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - `+`: Fotos, Câmera e Áudio (§6.5);
   - `↻`: painel de controles, ao lado do `+`;
   - medidor: à esquerda do botão principal, só o glifo, com o arco na proporção do effort (low 20 % até max 100 %). O toque abre o seletor de modelo;
-  - botão principal, num círculo: **enviar** com texto ou anexo; **parar** (quadrado, manda `interrupt`) com o campo vazio, sem anexo e `status == working`; **microfone** (ditado, §6.5) com o campo vazio e o agente parado, verde enquanto dita. Não há microfone separado.
+  - botão principal, num círculo verde (`statusOk`) com o glifo preto, cinza quando desabilitado: **enviar** com texto ou anexo; **parar** (quadrado, manda `interrupt`) com o campo vazio, sem anexo e `status == working`; **microfone** (ditado, §6.5) com o campo vazio e o agente parado. Não há microfone separado.
 - O teclado fecha, e o composer volta a uma linha, ao rolar a lista, tocar fora, abrir a gaveta ou enviar.
 - Enviar continua enviando durante `working` quando há texto (o Claude enfileira). Parar fica na linha de status e, com o campo vazio, no próprio botão.
 - **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Fica numa camada flutuante própria (`FloatingMenuLayer`), ancorada no composer, com 280 pt de largura, no vidro `.menu`, e entra e sai com escala e opacidade. Quando não cabe acima do composer, desce sobre ele. O teclado fica sempre por cima, porque o iOS não deixa janela do app cobri-lo. Linhas de 58 pt, com ícone num círculo de vidro de 40 pt. Na raiz, é um menu sem rolagem; um toque fora fecha. Sem mock (decisão do João).

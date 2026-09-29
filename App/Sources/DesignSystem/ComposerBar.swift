@@ -237,10 +237,7 @@ struct SendButton: View {
     }
 
     private var fill: Color {
-        switch mode {
-        case .dictating: Palette.statusOk
-        case .send, .stop, .microphone: isLit ? Palette.textPrimary : Palette.sendDisabled
-        }
+        isLit ? Palette.statusOk : Palette.sendDisabled
     }
 
     private var label: String {
@@ -258,15 +255,15 @@ struct SendButton: View {
         case .send:
             Image(systemName: "arrow.up")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(isEnabled ? Palette.bg : Palette.textSecondary)
+                .foregroundStyle(isEnabled ? Palette.glyphOnAccent : Palette.textSecondary)
         case .stop:
             RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                .fill(Palette.bg)
+                .fill(Palette.glyphOnAccent)
                 .frame(width: 12, height: 12)
         case .microphone:
             Image(systemName: "mic.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Palette.bg)
+                .foregroundStyle(Palette.glyphOnAccent)
         case .dictating:
             Image(systemName: "waveform")
                 .font(.system(size: 16, weight: .semibold))
