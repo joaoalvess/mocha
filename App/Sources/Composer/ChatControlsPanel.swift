@@ -34,10 +34,10 @@ enum ControlsPage: String {
 enum ControlsPanelStyle {
     static let secondary = Color(hex: 0xB4BAC1)
     static let border = Color(hex: 0xFFFFFF, opacity: 0.14)
-    static let navRowHeight: CGFloat = 42
-    static let contextRowHeight: CGFloat = 38
+    static let navRowHeight = MenuRowStyle.rowHeight
+    static let contextRowHeight: CGFloat = 44
     static let headerHeight: CGFloat = 46
-    static let listRowHeight: CGFloat = 54
+    static let listRowHeight = MenuRowStyle.detailRowHeight
     static let verticalPadding: CGFloat = 6
     static let navigation = Animation.easeOut(duration: 0.3)
     static let pageKey = "chat-controls-page"
@@ -73,7 +73,7 @@ struct ChatControlsPanel: View {
         }
         .frame(width: Self.width, height: visibleHeight(for: page), alignment: .topLeading)
         .clipShape(menuShape)
-        .mochaGlass(.composer, in: menuShape)
+        .mochaGlass(.menu, in: menuShape)
         .overlay(menuShape.strokeBorder(ControlsPanelStyle.border, lineWidth: 0.6))
         .shadow(color: .black.opacity(0.45), radius: 30, y: 22)
         .accessibilityElement(children: .contain)
@@ -92,17 +92,28 @@ struct ChatControlsPanel: View {
 
     private func visibleHeight(for page: ControlsPage) -> CGFloat {
         guard let height = heights[page], height > 0 else { return limit }
-        return min(height, limit)
+        return min(height + headerHeight(for: page), limit)
+    }
+
+    private func headerHeight(for page: ControlsPage) -> CGFloat {
+        page == .root ? 0 : ControlsPanelStyle.headerHeight + ControlsPanelStyle.verticalPadding
     }
 
     private func pageContainer(_ page: ControlsPage, @ViewBuilder content: () -> some View) -> some View {
-        ScrollView {
-            content()
-                .padding(.vertical, ControlsPanelStyle.verticalPadding)
-                .frame(width: Self.width, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[page] = $0 }
+        VStack(spacing: 0) {
+            if page != .root {
+                ControlsBackHeader(title: page.title) { back() }
+                    .padding(.top, ControlsPanelStyle.verticalPadding)
+            }
+            ScrollView {
+                content()
+                    .padding(.top, page == .root ? ControlsPanelStyle.verticalPadding : 0)
+                    .padding(.bottom, ControlsPanelStyle.verticalPadding)
+                    .frame(width: Self.width, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[page] = $0 }
+            }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
         .frame(width: Self.width, height: visibleHeight(for: page), alignment: .top)
     }
 
@@ -133,7 +144,7 @@ struct ChatControlsPanel: View {
                     ControlsContextRow(percent: ControlsPanelSummary.contextUsedPercent(leftPercent: percent), text: text, style: state.ringStyle)
                     ControlsSeparator()
                 }
-                ControlsNavRow(icon: .mode, title: "Modo", value: summary.modeText) { open(.mode) }
+                ControlsNavRow(icon: .mode, title: "Modo", value: summary.modeText, valueColor: state.mode.tint) { open(.mode) }
                 if let usage = summary.usageText {
                     ControlsNavRow(icon: .usage, title: "Uso", value: usage) { open(.usage) }
                 }
@@ -151,7 +162,6 @@ struct ChatControlsPanel: View {
     @ViewBuilder
     private func detailContent(_ page: ControlsPage) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            ControlsBackHeader(title: page.title) { back() }
             switch page {
             case .root:
                 EmptyView()
@@ -231,6 +241,17 @@ private struct ControlsSubagentKey: Hashable {
     let isConnected: Bool
 }
 
+extension Optional where Wrapped == PermissionModeTarget {
+    var tint: Color {
+        switch self {
+        case .acceptEdits: Palette.modeEdit
+        case .plan: Palette.modePlan
+        case .auto: Palette.modeAuto
+        case .default, nil: Palette.modeManual
+        }
+    }
+}
+
 private extension ContextRingStyle {
     var barColor: Color {
         switch self {
@@ -280,29 +301,33 @@ private struct ControlsNavRow: View {
     let icon: SlashMenuIcon
     let title: String
     let value: String
+    var valueColor = ControlsPanelStyle.secondary
     let onSelect: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: SlashMenuStyle.rowSpacing) {
-                SlashMenuIconView(icon: icon, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+            HStack(spacing: MenuRowStyle.rowSpacing) {
+                MenuIconBadge {
+                    SlashMenuIconView(icon: icon, size: MenuRowStyle.iconSize, strokeWidth: MenuRowStyle.iconStrokeWidth, color: Palette.textPrimary)
+                }
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: MenuRowStyle.titleSize))
                     .foregroundStyle(Palette.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
                 HStack(spacing: 8) {
                     Text(value)
-                        .font(.system(size: 14))
+                        .font(.system(size: 15))
                         .monospacedDigit()
-                        .foregroundStyle(ControlsPanelStyle.secondary)
+                        .foregroundStyle(valueColor)
                         .lineLimit(1)
                         .fixedSize()
                     LineIconView(icon: .chevronRight, size: 12, strokeWidth: 2.3, color: ControlsPanelStyle.secondary)
                 }
             }
-            .padding(.horizontal, SlashMenuStyle.rowPadding)
+            .padding(.leading, MenuRowStyle.rowPadding)
+            .padding(.trailing, SlashMenuStyle.rowPadding)
             .frame(height: ControlsPanelStyle.navRowHeight)
             .contentShape(Rectangle())
         }
@@ -344,11 +369,11 @@ private struct ControlsModeRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: SlashMenuStyle.rowSpacing) {
-                icon
+            HStack(spacing: MenuRowStyle.rowSpacing) {
+                MenuIconBadge { icon }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(choice.title)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: MenuRowStyle.titleSize))
                         .foregroundStyle(Palette.textPrimary)
                     Text(detail)
                         .font(.system(size: 13))
@@ -357,10 +382,11 @@ private struct ControlsModeRow: View {
                 .lineLimit(1)
                 Spacer(minLength: 8)
                 if isSelected {
-                    LineIconView(icon: .check, size: 16, strokeWidth: 2.2, color: Palette.statusOk)
+                    LineIconView(icon: .check, size: 16, strokeWidth: 2.2, color: tint)
                 }
             }
-            .padding(.horizontal, SlashMenuStyle.rowPadding)
+            .padding(.leading, MenuRowStyle.rowPadding)
+            .padding(.trailing, SlashMenuStyle.rowPadding)
             .frame(height: ControlsPanelStyle.listRowHeight)
             .contentShape(Rectangle())
         }
@@ -375,15 +401,19 @@ private struct ControlsModeRow: View {
         isEnabled ? choice.detail : SessionControlChoices.autoUnavailableNote.lowercased()
     }
 
+    private var tint: Color {
+        Optional(choice.mode).tint
+    }
+
     @ViewBuilder
     private var icon: some View {
         switch choice.mode {
         case .acceptEdits, .default:
-            LineIconView(icon: .pencil, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+            LineIconView(icon: .pencil, size: MenuRowStyle.iconSize, strokeWidth: MenuRowStyle.iconStrokeWidth, color: tint)
         case .auto:
-            LineIconView(icon: .sparkles, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+            LineIconView(icon: .sparkles, size: MenuRowStyle.iconSize, strokeWidth: MenuRowStyle.iconStrokeWidth, color: tint)
         case .plan:
-            SlashMenuIconView(icon: .plan, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+            SlashMenuIconView(icon: .plan, size: MenuRowStyle.iconSize, strokeWidth: MenuRowStyle.iconStrokeWidth, color: tint)
         }
     }
 }
@@ -443,12 +473,13 @@ private struct ControlsSubagentList: View {
                 Button {
                     onOpen(.subagent(sessionId: sessionId, agentId: item.agentId))
                 } label: {
-                    HStack(spacing: 12) {
-                        SubagentStateIcon(status: item.status, size: 16)
-                            .frame(width: SlashMenuStyle.iconSize)
+                    HStack(spacing: MenuRowStyle.rowSpacing) {
+                        MenuIconBadge {
+                            SubagentStateIcon(status: item.status, size: 16)
+                        }
                         VStack(alignment: .leading, spacing: 1) {
                             Text(item.description)
-                                .font(.system(size: 15))
+                                .font(.system(size: 16))
                                 .foregroundStyle(Palette.textPrimary)
                             Text(ControlsPanelSummary.subagentDetail(item, now: now))
                                 .font(.system(size: 13))
@@ -460,7 +491,8 @@ private struct ControlsSubagentList: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         LineIconView(icon: .chevronRight, size: 12, strokeWidth: 2.3, color: ControlsPanelStyle.secondary)
                     }
-                    .padding(.horizontal, SlashMenuStyle.rowPadding)
+                    .padding(.leading, MenuRowStyle.rowPadding)
+                    .padding(.trailing, SlashMenuStyle.rowPadding)
                     .frame(height: ControlsPanelStyle.listRowHeight)
                     .contentShape(Rectangle())
                 }
