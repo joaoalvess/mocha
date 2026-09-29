@@ -1687,7 +1687,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - **Sessão arquivada** (`ChatTarget.session`): mesma lista, sem linha de status; o composer dá lugar a uma pílula `glassComposer` "Sessão encerrada · só leitura".
 
 **Composer** (`05-chat-inicio-turno`, `08-chat-digitando`), flutuante sobre o fim da lista
-- Cápsula de Liquid Glass clara (`composerClear`), no estilo do composer do ChatGPT. Sem mock (decisão do João).
+- Cápsula de Liquid Glass clara (`composerClear`), no estilo do composer do ChatGPT, com o vidro regular do iOS, que desfoca a conversa por trás (o vidro `clear` deixava o texto atrás legível demais). Sem mock (decisão do João).
 - **Recolhido**: `+` à esquerda, "Chat via Mocha…" e o botão principal à direita. Um rascunho não enviado aparece na linha recolhida, em branco. O `+` abre o menu sem expandir.
 - **Expandido** (ao tocar): campo multilinha na largura toda (até 6 linhas, depois rola) e, abaixo dele, a linha de botões:
   - `+`: Fotos, Câmera e Áudio (§6.5);
