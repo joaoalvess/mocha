@@ -267,6 +267,27 @@ struct HerdrBridgeTests {
         try await harness.finish()
     }
 
+    @Test func closeAgentClosesThePaneWhenTheWorkspaceKeepsOtherPanes() async throws {
+        let harness = try await HerdrBridgeHarness.make()
+        try await harness.bridge.closeAgent("w1A:p2")
+        let close = try #require(await harness.server.requests(method: "pane.close").last)
+        #expect(close.paramKeys == ["pane_id"])
+        #expect(close.stringParam("pane_id") == "w1A:p2")
+        #expect(await harness.server.requests(method: "agent.send_keys").isEmpty)
+        try await harness.finish()
+    }
+
+    @Test func closeAgentQuitsTheAgentWhenItIsTheLastPaneOfTheWorkspace() async throws {
+        let harness = try await HerdrBridgeHarness.make(snapshot: "session.snapshot.response.json")
+        try await harness.bridge.closeAgent("w17:p1")
+        let keys = try #require(await harness.server.requests(method: "agent.send_keys").last)
+        #expect(keys.stringParam("target") == "w17:p1")
+        #expect(keys.stringArrayParam("keys") == ["C-c", "C-c"])
+        #expect(await harness.server.requests(method: "pane.close").isEmpty)
+        await expectHerdrBridgeError(.agentNotFound) { try await harness.bridge.closeAgent("w99:p99") }
+        try await harness.finish()
+    }
+
     @Test func commandErrorsMapToBridgeErrors() async throws {
         let harness = try await HerdrBridgeHarness.make()
         await harness.server.setAgentStatus(paneId: "w1A:p1", status: "blocked")

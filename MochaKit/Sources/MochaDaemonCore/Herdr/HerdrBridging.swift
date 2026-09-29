@@ -9,6 +9,7 @@ public protocol HerdrBridging: Sendable {
     func resolve(_ id: AgentID) async -> AgentID
     func prompt(_ id: AgentID, text: String) async throws
     func interrupt(_ id: AgentID) async throws
+    func closeAgent(_ id: AgentID) async throws
     func setModel(_ id: AgentID, model: ModelAlias) async throws
     func setEffort(_ id: AgentID, level: EffortLevel) async throws
     func setMode(_ id: AgentID, mode: PermissionModeTarget) async throws -> String

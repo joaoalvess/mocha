@@ -7,6 +7,7 @@ let herdrLogger = Logger(subsystem: "com.joaoalves.mocha", category: "herdr")
 
 public actor HerdrBridge: HerdrBridging {
     public static let interruptKeys = ["Escape"]
+    public static let quitKeys = ["C-c", "C-c"]
     public static let newAgentKind = "claude"
     public static let newAgentNamePrefix = "mocha-"
     public static let codexAgentKind = "codex"
@@ -136,6 +137,18 @@ public actor HerdrBridge: HerdrBridging {
     public func interrupt(_ id: AgentID) async throws {
         try await command { client in
             try await client.agentSendKeys(target: id, keys: Self.interruptKeys)
+        }
+    }
+
+    public func closeAgent(_ id: AgentID) async throws {
+        guard let pane = state.pane(id) else { throw HerdrBridgeError.agentNotFound }
+        let sharesWorkspace = state.panes.contains { $0.workspaceId == pane.workspaceId && $0.paneId != pane.paneId }
+        try await command { client in
+            if sharesWorkspace {
+                try await client.paneClose(paneId: id)
+            } else {
+                try await client.agentSendKeys(target: id, keys: Self.quitKeys)
+            }
         }
     }
 

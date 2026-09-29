@@ -118,6 +118,26 @@ struct SessionHubRulesTests {
         }
     }
 
+    @Test func closeAgentReachesTheHerdrForClaudeAndCodexWithTheResolvedId() async throws {
+        try await withHub { harness in
+            let (socket, _) = try await harness.pairedClient()
+            harness.herdr.movePane(from: "w1:p1", to: "w3:p1")
+            #expect(try await socket.reply(to: .closeAgent(agentId: "w1:p1")) == .ack())
+            #expect(try await socket.reply(to: .closeAgent(agentId: "w1:p2")) == .ack())
+            #expect(harness.herdr.closeAgentCalls == ["w3:p1", "w1:p2"])
+        }
+    }
+
+    @Test func closeAgentAnswersAgentNotFoundAndHerdrErrors() async throws {
+        try await withHub { harness in
+            let (socket, _) = try await harness.pairedClient()
+            #expect(try await socket.reply(to: .closeAgent(agentId: "w9:p9")).errorCode == .agentNotFound)
+            harness.herdr.setCloseAgentError(.unavailable)
+            #expect(try await socket.reply(to: .closeAgent(agentId: "w1:p1")).errorCode == .herdrUnavailable)
+            #expect(harness.herdr.closeAgentCalls == ["w1:p1"])
+        }
+    }
+
     @Test func commandsRejectAgentsThatAreNotClaude() async throws {
         try await withHub(tree: Sample.unsupportedTree) { harness in
             let (socket, _) = try await harness.pairedClient()
