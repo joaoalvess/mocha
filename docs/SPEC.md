@@ -1782,7 +1782,8 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - `SpeechAnalyzer` + `SpeechTranscriber` com locale `pt-BR`, on-device.
 - Antes de habilitar o microfone, conferir `SpeechTranscriber.supportedLocale(equivalentTo:)` e baixar o modelo via `AssetInventory` se preciso: com `AssetInventory.status(forModules:)` abaixo de `.installed`, `assetInstallationRequest(supporting:)` + `downloadAndInstall()`, com o progresso no composer (S6: no Mac, `.supported` aparece mesmo com o modelo já presente, e a requisição devolve `nil` quando não há nada a baixar).
 - Preset `.progressiveTranscription` (resultados voláteis e rápidos). Áudio do `AVAudioEngine` convertido para `SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith:)` (16 kHz mono Int16 no Mac) e entregue por `start(inputSequence:)`; `finalizeAndFinishThroughEndOfInput()` ao parar.
-- Toque no microfone inicia e toque de novo para. O texto parcial aparece no campo em `textSecondary` e o final substitui o parcial. Nada é enviado sozinho.
+- Enquanto dita, o composer vira uma cápsula de ditado (mesma altura e vidro, no estilo do ditado do ChatGPT): ✕ num círculo de vidro à esquerda (descarta o ditado), barras com o nível do microfone em `textSecondary` no meio (a mais nova à direita; silêncio e espaço vazio viram pontos), ■ num círculo de vidro (para) e o botão de enviar. Preparo e download do modelo aparecem no lugar das barras; falhas, na linha abaixo do campo do composer normal.
+- O texto reconhecido entra no campo só ao parar (o composer normal volta com ele) ou vai no prompt ao enviar durante o ditado. Nada é enviado sozinho.
 
 ### §6.5 Imagem (1a-core)
 
