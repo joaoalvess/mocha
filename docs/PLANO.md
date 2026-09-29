@@ -1020,7 +1020,7 @@ Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: con
 
 ## Fase controles: modelo, effort, modo e painel do chat
 
-Branch `fase/controles`, criada de `main`. Ondas: S8 → WP-K1 ∥ WP-K2 → WP-K3 → WP-K4. Decisões do João (2026-09-28):
+Branch `fase/controles`, criada de `main`. Ondas: S8 → WP-K1 → WP-K3 → WP-K4. Sem mock nem capturas (decisão do João): a referência visual é o print do seletor do Moshi e os componentes que o app já tem. Decisões do João (2026-09-28):
 
 - **Header do chat**: o toque no título abre o seletor de modelo e effort; o long press abre o detalhe do agente; o anel de contexto aparece no header.
 - **Menu `↻`**: vira painel de controles com contexto, uso (5 h e semanal), modo (Edição / Auto / Plano), subagentes e workflows da sessão, `/compact` e `/clear`. `/context` e `/cost` saem.
@@ -1058,16 +1058,6 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
   - `Stop`, `PreToolUse` e `PostModelSwitch` atualizam `model`, `effort` e `permissionMode`.
 - **Aceite**: `scripts/test.sh` verde, com `FakeHerdrServer` (rodapés e seletores de fixture) e as amostras de hook do S8 como fixtures. Detalhes em `docs/spikes/S8.md` ("Impacto").
 
-### WP-K2: mock dos controles
-
-- **Dono**: `docs/design/mock.html`, `docs/design/tools/` e as capturas novas em `docs/design/mock/`.
-- **Telas**:
-  - header do chat com anel e subtítulo "Opus · xhigh";
-  - seletor de modelo e effort acima do composer, no estilo de `docs/referencias/moshi/` (segmentos Low…Max e a lista Fable, Opus, Sonnet, Haiku);
-  - painel `↻` com contexto, barras de uso, segmentos de modo, seção de subagentes (a mesma linha da `AgentSubagentsSection`, com o estado de cada um), `/compact` e `/clear`;
-  - composer com o botão parar.
-- **Aceite**: o João aprova o mock antes do WP-K3.
-
 ### WP-K3: controles no app
 
 - **Dono**: `App/Sources/Composer/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `App/Sources/DesignSystem/ComposerBar.swift`, `App/Sources/Chat/ChatScreen.swift`, `MochaKit/Sources/MochaDemo/` e testes.
@@ -1077,7 +1067,7 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 - **Seletor**:
   - mostra o valor escolhido até o daemon confirmar pelo rodapé ou pelo hook;
   - no Haiku, `auto` fica cinza com a legenda "Indisponível no Haiku" e o effort some.
-- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes; capturas comparadas às do mock, com as diferenças listadas.
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes. A conferência visual é no iPhone, no WP-K4.
 
 ### WP-K4: checklist no iPhone
 
@@ -1181,7 +1171,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
 | S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 949040c |
 | WP-K1 | todo | |
-| WP-K2 | todo | |
+| WP-K2 | cancelado (sem mock, decisão do João) | |
 | WP-K3 | todo | |
 | WP-K4 | todo | |
 | WP-T1 | todo | |
