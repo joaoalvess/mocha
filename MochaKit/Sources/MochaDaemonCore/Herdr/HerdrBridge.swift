@@ -12,6 +12,10 @@ public actor HerdrBridge: HerdrBridging {
     public static let codexAgentKind = "codex"
     static let codexStartTimeout: Duration = .seconds(4)
     static let codexLaunchOverrides = ["-c", "check_for_update_on_startup=false"]
+
+    static func codexArguments(remote: String, directory: String?) -> [String] {
+        ["--remote", remote] + codexLaunchOverrides + (directory.map { ["--cd", $0] } ?? [])
+    }
     public static let readyStatuses: [HerdrAgentStatus] = [.idle, .blocked]
 
     private struct PaneSubscription {
@@ -218,7 +222,7 @@ public actor HerdrBridge: HerdrBridging {
                     name: name,
                     kind: Self.codexAgentKind,
                     paneId: paneId,
-                    args: ["--remote", remote] + Self.codexLaunchOverrides,
+                    args: Self.codexArguments(remote: remote, directory: directory),
                     timeout: Self.codexStartTimeout
                 )
             }

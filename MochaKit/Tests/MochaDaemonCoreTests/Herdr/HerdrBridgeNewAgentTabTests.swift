@@ -101,7 +101,12 @@ struct HerdrBridgeNewAgentTabTests {
         let start = try #require(await harness.server.requests(method: "agent.start").first)
         #expect(start.stringParam("kind") == "codex")
         #expect(start.stringParam("pane_id") == created.paneId)
-        #expect(start.stringArrayParam("args") == ["--remote", "unix:///tmp/codex.sock", "-c", "check_for_update_on_startup=false"])
+        #expect(start.stringArrayParam("args") == [
+            "--remote", "unix:///tmp/codex.sock",
+            "-c", "check_for_update_on_startup=false",
+            "--cd", "/Users/dev/projects/demo-app",
+        ])
+        #expect(created.cwd == "/Users/dev/projects/demo-app")
         try await harness.finish()
     }
 
