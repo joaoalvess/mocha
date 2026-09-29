@@ -19,6 +19,7 @@ public struct EffortChoice: Sendable, Hashable, Identifiable {
 public struct ModeChoice: Sendable, Hashable, Identifiable {
     public var mode: PermissionModeTarget
     public var title: String
+    public var detail: String
 
     public var id: PermissionModeTarget { mode }
 }
@@ -40,9 +41,9 @@ public enum SessionControlChoices {
     ]
 
     public static let modes: [ModeChoice] = [
-        ModeChoice(mode: .acceptEdits, title: "Edição"),
-        ModeChoice(mode: .auto, title: "Auto"),
-        ModeChoice(mode: .plan, title: "Plano"),
+        ModeChoice(mode: .acceptEdits, title: "Edição", detail: "aceita edições"),
+        ModeChoice(mode: .auto, title: "Auto", detail: "decide sozinho"),
+        ModeChoice(mode: .plan, title: "Plano", detail: "planeja antes"),
     ]
 
     public static let autoUnavailableNote = "Indisponível no Haiku"
