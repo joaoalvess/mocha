@@ -52,12 +52,14 @@ enum TreeComposer {
             summary.preview = meta.preview
             summary.activity = meta.activity
             summary.contextLeftPercent = contextLeftPercent(meta)
+            summary.contextUsedTokens = meta.contextTokens
             summary.sessionStartedAt = meta.sessionStartedAt
             summary.turnStartedAt = meta.turnStartedAt
             summary.turnEndedAt = meta.turnEndedAt
         }
         if let contextUsedPercent {
             summary.contextLeftPercent = contextLeftPercent(used: contextUsedPercent)
+            summary.contextUsedTokens = Int((contextUsedPercent * Double(ContextWindow.size(forModel: summary.model ?? "")) / 100).rounded())
         }
         if let archivedAt {
             summary.archivedAt = archivedAt

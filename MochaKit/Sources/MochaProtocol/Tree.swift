@@ -81,6 +81,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
     public var controlAvailable: Bool?
     public var permissionMode: String?
     public var effort: String?
+    public var contextUsedTokens: Int?
 
     public init(
         id: AgentID,
@@ -103,7 +104,8 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         runningSubagents: Int? = nil,
         controlAvailable: Bool? = nil,
         permissionMode: String? = nil,
-        effort: String? = nil
+        effort: String? = nil,
+        contextUsedTokens: Int? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -126,12 +128,13 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         self.controlAvailable = controlAvailable
         self.permissionMode = permissionMode
         self.effort = effort
+        self.contextUsedTokens = contextUsedTokens
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, status, title, workspaceLabel, model, branch, sessionId, lastActivityAt, pendingCount
         case preview, activity, contextLeftPercent, sessionStartedAt, turnStartedAt, turnEndedAt, archivedAt
-        case runningSubagents, controlAvailable, permissionMode, effort
+        case runningSubagents, controlAvailable, permissionMode, effort, contextUsedTokens
     }
 
     public init(from decoder: any Decoder) throws {
@@ -157,6 +160,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         controlAvailable = try container.decodeIfPresent(Bool.self, forKey: .controlAvailable)
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         effort = try container.decodeIfPresent(String.self, forKey: .effort)
+        contextUsedTokens = try container.decodeIfPresent(Int.self, forKey: .contextUsedTokens)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -182,6 +186,7 @@ public struct AgentSummary: Codable, Sendable, Hashable, Identifiable {
         try container.encodeIfPresent(controlAvailable, forKey: .controlAvailable)
         try container.encodeIfPresent(permissionMode, forKey: .permissionMode)
         try container.encodeIfPresent(effort, forKey: .effort)
+        try container.encodeIfPresent(contextUsedTokens, forKey: .contextUsedTokens)
     }
 }
 

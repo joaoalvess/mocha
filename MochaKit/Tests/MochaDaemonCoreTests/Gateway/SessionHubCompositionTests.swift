@@ -44,7 +44,8 @@ struct SessionHubCompositionTests {
                 sessionStartedAt: Self.fullMeta.sessionStartedAt,
                 turnStartedAt: Self.fullMeta.turnStartedAt,
                 turnEndedAt: Self.fullMeta.turnEndedAt,
-                permissionMode: "auto"
+                permissionMode: "auto",
+                contextUsedTokens: 100_000
             ))
             #expect(TreeComposer.agent("w1:p2", in: tree) == Sample.agent("w1:p2", kind: "codex", title: "codex"))
 

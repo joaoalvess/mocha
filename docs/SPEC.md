@@ -1087,6 +1087,7 @@ public struct AgentSummary: Codable, Sendable, Identifiable {
     public var runningSubagents: Int?      // subagentes running da sessão atual (§3.5); nil ou 0 esconde o selo
     public var permissionMode: String?     // `default`, `auto`, `acceptEdits`, `plan`, `bypassPermissions`, `dontAsk`: o mais recente entre o hook (§3.3.1), o `setMode` e a linha `permission-mode` do transcript
     public var effort: String?             // controles: `low`, `medium`, `high`, `xhigh`, `max`, do último `Stop` ou `setEffort`; nil em modelo sem effort
+    public var contextUsedTokens: Int?     // controles: `contextTokens` do transcript, ou o % da statusline × janela do modelo
 }
 
 public enum MessageAuthor: String, Codable, Sendable { case user, assistant }
@@ -1696,7 +1697,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Enviar continua enviando durante `working` quando há texto (o Claude enfileira). Parar fica na linha de status e, com o campo vazio, no próprio botão.
 - **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Abre acima do `↻`, na largura do menu antigo, no vidro `glassComposer` (Liquid Glass), e entra e sai com escala e opacidade ancoradas no `↻`. É um menu de linhas, sem rolagem na raiz. Sem mock (decisão do João).
   - **Raiz**:
-    - "Contexto": barra fina com o `contextLeftPercent` e "N% livre", só leitura, nas cores do anel da Home;
+    - "Contexto": barra fina com o quanto já foi usado e "30% (120k)" (porcentagem usada e `contextUsedTokens` abreviado; sem tokens, só a porcentagem), só leitura, nas cores do anel da Home;
     - "Modo": valor atual, ou "Manual" em `default` e `bypassPermissions`;
     - "Uso": a janela mais apertada entre 5 h e semana. A linha some sem dado de uso;
     - "Subagentes": "N rodando", ou "N concluídos" quando nenhum roda. A linha some sem subagentes nem workflows;
