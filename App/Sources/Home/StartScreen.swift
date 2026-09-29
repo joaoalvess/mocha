@@ -23,6 +23,7 @@ private struct StartContent: View {
     private static let listTop: CGFloat = 118
     private static let activeTopGap: CGFloat = 22
     private static let listBottom: CGFloat = 110
+    private static let scrollFadeHeight: CGFloat = 12
     private static let fabTrailing: CGFloat = 20
     private static let fabBottom: CGFloat = 6
 
@@ -62,6 +63,7 @@ private struct StartContent: View {
                     .animation(.smooth(duration: 0.3), value: openCards)
                 }
                 .scrollIndicators(.hidden)
+                .mask { scrollMask }
             } else if session.hasReceivedTree {
                 StartEmptyState()
             }
@@ -75,9 +77,9 @@ private struct StartContent: View {
                 .padding(.trailing, Self.fabTrailing)
                 .padding(.bottom, Self.fabBottom)
         }
-        .confirmationDialog("Fechar este agente?", isPresented: closingBinding, titleVisibility: .visible, presenting: closingCard) { card in
-            Button("Fechar", role: .destructive) { close(card) }
+        .alert("Fechar este agente?", isPresented: closingBinding, presenting: closingCard) { card in
             Button("Cancelar", role: .cancel) {}
+            Button("Fechar", role: .destructive) { close(card) }
         } message: { _ in
             Text("O agente é encerrado no Mac e a conversa fica no Histórico.")
         }
@@ -94,6 +96,16 @@ private struct StartContent: View {
 
     private var listTop: CGFloat {
         Self.listTop + offlineExtent
+    }
+
+    private var scrollMask: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: Metrics.homeButtonTopInset + Self.searchTop + Self.searchHeight + offlineExtent)
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: Self.scrollFadeHeight)
+            Color.black
+        }
     }
 
     private func open(_ target: ChatTarget) {
