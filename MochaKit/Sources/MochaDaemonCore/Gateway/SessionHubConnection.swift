@@ -267,7 +267,7 @@ extension SessionHub {
             await respond(to: requestId, with: response, id: id, clientId: clientId)
         case .registerLiveActivity(let registration):
             await registerLiveActivity(registration, id: id, clientId: clientId)
-        case .respond, .unknown:
+        case .respond, .unknown, .setModel, .setEffort, .setMode:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }

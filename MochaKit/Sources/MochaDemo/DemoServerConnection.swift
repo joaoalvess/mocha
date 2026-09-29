@@ -242,7 +242,7 @@ public actor DemoServerConnection: ServerConnection {
             sendPrompt(agentId: agentId, text: text, id: id)
         case .interrupt(let agentId):
             interrupt(agentId: agentId, id: id)
-        case .setForeground, .registerLiveActivity:
+        case .setForeground, .registerLiveActivity, .setModel, .setEffort, .setMode:
             reply(id, .ack())
         case .unpair:
             reply(id, .ack())

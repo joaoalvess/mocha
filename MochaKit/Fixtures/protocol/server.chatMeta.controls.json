@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "chatMeta",
+  "payload": {
+    "agentId": "w21:p1",
+    "meta": {
+      "title": "Login com a Apple",
+      "workspaceLabel": "login-social",
+      "model": "claude-opus-5-5",
+      "branch": "feat/login-social",
+      "status": "working",
+      "permissionMode": "auto",
+      "effort": "xhigh"
+    }
+  }
+}

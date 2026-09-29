@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "c-42",
+  "type": "error",
+  "payload": {
+    "code": "modeUnavailable",
+    "message": "Modo indisponível neste modelo"
+  }
+}
