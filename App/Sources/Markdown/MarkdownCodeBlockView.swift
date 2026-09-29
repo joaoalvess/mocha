@@ -3,19 +3,52 @@ import SwiftUI
 struct MarkdownCodeBlockView: View {
     let text: AttributedString
     let line: MarkdownLineMetrics
+    @State private var isCopied = false
+
+    private static let copyButtonSize: CGFloat = 32
 
     var body: some View {
         MarkdownHorizontalScroll(fadeColor: Palette.toolCard, showsThumb: true) {
             Text(text)
+                .textSelection(.enabled)
                 .fixedSize()
-                .padding(.horizontal, 12)
+                .padding(.leading, 12)
+                .padding(.trailing, 12 + Self.copyButtonSize)
                 .padding(.top, 10)
                 .padding(.bottom, 15)
         }
         .markdownText(line)
         .foregroundStyle(Palette.textPrimary)
         .background(Palette.toolCard)
+        .overlay(alignment: .topTrailing) { copyButton }
         .clipShape(.rect(cornerRadius: 12))
+    }
+
+    private var copyButton: some View {
+        Button(action: copy) {
+            LineIconView(
+                icon: isCopied ? .check : .copy,
+                size: 16,
+                strokeWidth: 1.8,
+                color: isCopied ? Palette.statusOk : Palette.textSecondary
+            )
+            .frame(width: Self.copyButtonSize, height: Self.copyButtonSize)
+            .background(Palette.toolCard)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 2)
+        .padding(.trailing, 2)
+        .accessibilityLabel(isCopied ? "Copiado" : "Copiar código")
+    }
+
+    private func copy() {
+        UIPasteboard.general.string = String(text.characters)
+        isCopied = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            isCopied = false
+        }
     }
 }
 
