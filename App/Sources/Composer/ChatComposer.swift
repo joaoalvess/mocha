@@ -101,14 +101,12 @@ struct ChatComposer<ControlsPanel: View>: View {
             CollapsedComposer(
                 draft: collapsedDraft,
                 sendMode: sendMode,
-                buttons: collapsedButtons,
-                effort: effort,
+                buttons: [.attach],
                 onAttach: toggleAttachMenu,
                 onExpand: { isExpanded = true },
                 onSend: send,
                 onStop: onStop,
-                onMicrophone: expandAndDictate,
-                onModelPicker: openModelPicker
+                onMicrophone: expandAndDictate
             )
         }
     }
@@ -168,14 +166,9 @@ struct ChatComposer<ControlsPanel: View>: View {
         }
     }
 
-    private var collapsedButtons: ComposerButtons {
+    private var expandedButtons: ComposerButtons {
         var buttons: ComposerButtons = [.attach]
         if onModelPicker != nil { buttons.insert(.modelPicker) }
-        return buttons
-    }
-
-    private var expandedButtons: ComposerButtons {
-        var buttons = collapsedButtons
         if showsSlashMenu { buttons.insert(.slashMenu) }
         return buttons
     }

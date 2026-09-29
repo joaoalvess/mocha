@@ -16,13 +16,11 @@ struct CollapsedComposer: View {
     var placeholder = ComposerText.placeholder
     var sendMode: ComposerSendMode = .send
     var buttons: ComposerButtons = [.attach]
-    var effort: EffortLevel?
     var onAttach: () -> Void = {}
     var onExpand: () -> Void = {}
     var onSend: () -> Void = {}
     var onStop: () -> Void = {}
     var onMicrophone: () -> Void = {}
-    var onModelPicker: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 0) {
@@ -42,9 +40,6 @@ struct CollapsedComposer: View {
             .buttonStyle(.plain)
             .accessibilityLabel(hasDraft ? "Rascunho: \(draft)" : placeholder)
             .accessibilityHint("Abre o composer")
-            if buttons.contains(.modelPicker) {
-                ModelPickerButton(effort: effort, action: onModelPicker)
-            }
             SendButton(isEnabled: hasDraft, mode: sendMode, action: onSend, onStop: onStop, onMicrophone: onMicrophone)
         }
         .padding(.leading, 6)
@@ -76,32 +71,31 @@ struct ExpandedComposer<Field: View>: View {
     var onModelPicker: () -> Void = {}
     @ViewBuilder let field: () -> Field
 
-    private var controlInset: CGFloat { (Metrics.composerHeight - Metrics.sendButtonSize) / 2 }
-
     var body: some View {
-        HStack(alignment: .bottom, spacing: 0) {
-            if buttons.contains(.attach) {
-                ComposerIconButton(systemImage: "plus", accessibilityLabel: "Anexar imagem", action: onAttach)
-                    .padding(.bottom, controlInset)
-            }
-            if buttons.contains(.slashMenu) {
-                ComposerIconButton(lineIcon: .redo, accessibilityLabel: "Controles", isActive: activeButtons.contains(.slashMenu), action: onSlashMenu)
-                    .padding(.bottom, controlInset)
-            }
+        VStack(alignment: .leading, spacing: 6) {
             field()
-                .padding(.leading, buttons.isEmpty ? 10 : 4)
-                .padding(.trailing, 8)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, minHeight: Metrics.composerHeight, alignment: .leading)
-            if buttons.contains(.modelPicker) {
-                ModelPickerButton(effort: effort, action: onModelPicker)
-                    .padding(.bottom, controlInset)
+                .padding(.horizontal, 16)
+            HStack(spacing: 0) {
+                if buttons.contains(.attach) {
+                    ComposerIconButton(systemImage: "plus", accessibilityLabel: "Anexar imagem", action: onAttach)
+                }
+                if buttons.contains(.slashMenu) {
+                    ComposerIconButton(lineIcon: .redo, accessibilityLabel: "Controles", isActive: activeButtons.contains(.slashMenu), action: onSlashMenu)
+                }
+                Spacer(minLength: 0)
+                if buttons.contains(.modelPicker) {
+                    ModelPickerButton(effort: effort, action: onModelPicker)
+                }
+                SendButton(isEnabled: canSend, mode: sendMode, action: onSend, onStop: onStop, onMicrophone: onMicrophone)
+                    .padding(.leading, 4)
             }
-            SendButton(isEnabled: canSend, mode: sendMode, action: onSend, onStop: onStop, onMicrophone: onMicrophone)
-                .padding(.bottom, controlInset)
+            .padding(.leading, 8)
+            .padding(.trailing, 6)
+            .frame(height: 44)
         }
-        .padding(.horizontal, 6)
-        .mochaGlass(.composerClear, in: RoundedRectangle(cornerRadius: Metrics.composerHeight / 2, style: .continuous))
+        .padding(.top, 13)
+        .padding(.bottom, 6)
+        .mochaGlass(.composerClear, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 }
 
