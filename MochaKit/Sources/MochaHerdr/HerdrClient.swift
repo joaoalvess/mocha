@@ -62,6 +62,10 @@ public struct HerdrClient: Sendable {
         try await perform(.paneGet(paneId: paneId), expecting: "pane_info", as: HerdrResponse.Pane.self).pane
     }
 
+    public func paneRead(paneId: String, source: HerdrReadSource = .visible, lines: Int? = nil) async throws -> HerdrPaneRead {
+        try await perform(.paneRead(paneId: paneId, source: source, lines: lines), expecting: "pane_read", as: HerdrResponse.Read.self).read
+    }
+
     @discardableResult
     public func agentPrompt(target: String, text: String) async throws -> HerdrPane {
         try await perform(
