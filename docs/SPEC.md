@@ -1620,7 +1620,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Vazia: "Nenhum agente aberto no Herdr" e "Toque em + para abrir uma tab com Claude ou Codex num workspace."
 
 **Nova sessão** (`21b-nova-sessao-agente`, `21c-nova-sessao-workspace`, `21d-nova-sessao-abrindo`)
-- Folha `drawerBg` na altura do conteúdo, sem título, X ou indicador de passo. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": os workspaces (inclusive worktrees) com nome, branch e `*` em `dirty`.
+- Folha `drawerBg` na altura do conteúdo, sem título, X ou indicador de passo. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": um cartão por workspace raiz, com os worktrees (`children`) logo abaixo, recuados e com ícone de branch. Cada linha tem nome, branch e `*` em `dirty`; num worktree cujo `label` é igual ao da raiz, o título é a branch. À direita, com agentes nas tabs, o `StatusDot` do `agentStatus` e "1 agente"/"N agentes".
 - Tocar num workspace manda `newAgentTab{workspaceId, kind}` e mostra só um indicador de progresso na linha. No `ack{agentId}`, a folha fecha e o chat abre por push; um erro aparece no rodapé. Fechar (arrastar ou tocar fora) e reabrir volta ao passo 1.
 
 **Histórico** (`22-historico`)
