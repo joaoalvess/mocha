@@ -55,6 +55,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
   - `scripts/lib/xcode-lock.sh`: trava que os dois scripts de build do app pegam antes do `xcodebuild`;
   - `scripts/build-daemon.sh`: build release do `mochad`;
   - `scripts/run-daemon.sh`: `mochad run` em primeiro plano.
+  - `scripts/check-claude-update.sh`: valida o Claude Code instalado contra o Mocha (§Atualização do Claude Code); com `--hook`, só avisa se a versão é nova.
 
 ## Código
 
@@ -80,6 +81,15 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
   - deep links se testam pelo argumento de launch `-open-url <url>` e por teste unitário; nunca rode `xcrun simctl openurl` com o esquema `mocha://` (o aviso "Open in Mocha?" trava o simulador);
   - cores exatamente as da SPEC §6.2;
   - antes de rodar verificação pesada de UI, o orquestrador oferece ao João testar no iPhone.
+
+## Atualização do Claude Code
+
+O daemon lê telas, hooks e transcripts do Claude Code, e nada disso é contrato estável: cada versão pode mudar um seletor ou um formato.
+
+- A última versão validada é `ClaudeCodeVersion.lastValidated` (`MochaKit/Sources/MochaDaemonCore/App/ClaudeCodeVersion.swift`). O hook `SessionStart` do projeto (`.claude/settings.json`) avisa quando o `claude --version` instalado é mais novo.
+- Com o aviso, antes de qualquer outro trabalho, rode `scripts/check-claude-update.sh`. Ele abre um Claude no workspace de laboratório `mocha-lab-claude-update` e roda os testes `.integration` das telas (`ClaudeScreenIntegrationTests`: rodapé, `/effort`, `/model`), do censo de transcripts reais e dos hooks. Se tudo passar, ele sobe a versão validada; commite em `chore(claude): validate Claude Code <versão>`.
+- Se falhar, pare e reporte ao João com a tela real que o teste imprime. A correção vem com um teste de regressão feito com essa tela, e a SPEC é atualizada onde descreve o formato.
+- Parser novo que leia algo do Claude Code (tela, hook, transcript) entra com um teste nessa lista.
 
 ## Limites no ambiente do João
 

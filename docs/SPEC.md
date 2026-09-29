@@ -416,7 +416,7 @@ Política para tipos novos:
 
 1. `type`, `subtype` ou tipo de bloco desconhecido: a linha (ou o bloco) é ignorada e contada por nome (`type:<x>`, `subtype:<x>`, `block:<x>`), com um aviso no log por nome e por arquivo, não por linha. Anexos que não são `queued_command` são ignorados sem contagem (o corpus tem dezenas de tipos de `attachment`).
 2. Campos desconhecidos são sempre ignorados. Campos esperados ausentes usam o padrão: `is_error` ausente é sucesso, `thinking` ausente é vazio.
-3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada: 2.1.283, conferida pelo WP-M2 com as fixtures e 149 transcripts reais (2.1.263 a 2.1.283), sem linhas descartadas nem tipos desconhecidos.
+3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada, `ClaudeCodeVersion.lastValidated`. A primeira foi a 2.1.283, conferida pelo WP-M2 com as fixtures e 149 transcripts reais (2.1.263 a 2.1.283), sem linhas descartadas nem tipos desconhecidos. As seguintes sobem pelo `scripts/check-claude-update.sh` (AGENTS.md, Atualização do Claude Code).
 4. Um tipo novo que precise aparecer no chat entra nesta tabela junto com uma fixture e o snapshot esperado.
 
 #### §3.2.3 Leitura e desempenho
@@ -678,7 +678,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
     - O ciclo depende do modelo: o Haiku não tem `auto`. Alvo não visto depois de 5 teclas → `modeUnavailable`.
   - **`setModel` e `setEffort`** valem só para a sessão: o `~/.claude/settings.json` do João não pode mudar (decisão do João). A forma digitada (`/model <alias>`, `/effort <nível>`) é proibida porque grava o padrão global.
     - `setModel`: `agent.prompt "/model"`, `pane.read` até ver o seletor, conta as linhas entre `❯` e o alvo, `send_keys` com `up`/`down` e depois `s`. Confere `Set model to … for this session only`.
-    - `setEffort`: `agent.prompt "/effort"`, acha o `▲`, `left`/`right` e `s`. Confere `(this session only)`.
+    - `setEffort`: `agent.prompt "/effort"`, acha o `▲`, `left`/`right` e `s`. Confere `(this session only)`. Desde a 2.1.284 o seletor é um slider: o `▲` fica numa linha própria, acima dos rótulos `low medium high xhigh max`, e o cursor é o rótulo mais próximo da coluna do `▲`.
     - Seletor que não aparece em 2 s, alvo ausente na lista ou confirmação que não aparece em 2 s → `herdr(code: "selector", …)` e `Escape` para fechar o que estiver aberto.
   - **Com o agente `working`**, as três trocas aplicam na hora (S8), sem esperar o `done`. Com `blocked` → `agentBlocked`.
 - `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
