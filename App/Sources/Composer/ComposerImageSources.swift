@@ -25,17 +25,6 @@ enum ComposerImageSources {
     static var isCameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
-
-    @MainActor
-    static var pasteboardHasImages: Bool {
-        UIPasteboard.general.hasImages
-    }
-
-    @MainActor
-    static func pastedImages(limit: Int) -> [UIImage] {
-        guard limit > 0 else { return [] }
-        return Array((UIPasteboard.general.images ?? []).prefix(limit))
-    }
 }
 
 extension CGImagePropertyOrientation {

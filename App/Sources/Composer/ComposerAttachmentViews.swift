@@ -7,7 +7,7 @@ enum AttachmentLayout {
     static let stripBottomSpacing: CGFloat = 10
     static let removeGlyphSize: CGFloat = 20
     static let removeHitSize: CGFloat = 30
-    static let menuWidth: CGFloat = 268
+    static let menuWidth: CGFloat = 280
     static let menuRadius: CGFloat = 26
     static let menuGap: CGFloat = 8
     static let menuRowHeight: CGFloat = 52
@@ -77,10 +77,10 @@ struct AttachmentThumbnail: View {
 struct AttachMenu: View {
     let showsCamera: Bool
     let isFull: Bool
-    let canPaste: Bool
+    let canDictate: Bool
     let onPhotos: () -> Void
     let onCamera: () -> Void
-    let onPaste: () -> Void
+    let onAudio: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -88,12 +88,13 @@ struct AttachMenu: View {
             if showsCamera {
                 AttachMenuRow(systemImage: "camera", title: "Câmera", isEnabled: !isFull, action: onCamera)
             }
-            AttachMenuRow(systemImage: "doc.on.clipboard", title: "Colar imagem", isEnabled: !isFull && canPaste, action: onPaste)
+            AttachMenuRow(systemImage: "mic", title: "Áudio", isEnabled: canDictate, action: onAudio)
         }
         .padding(.vertical, 7)
         .frame(width: AttachmentLayout.menuWidth, alignment: .leading)
-        .mochaGlass(.composer, in: RoundedRectangle(cornerRadius: AttachmentLayout.menuRadius, style: .continuous))
-        .shadow(color: .black.opacity(0.6), radius: 30, y: 22)
+        .mochaGlass(.menu, in: RoundedRectangle(cornerRadius: AttachmentLayout.menuRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AttachmentLayout.menuRadius, style: .continuous).strokeBorder(ControlsPanelStyle.border, lineWidth: 0.6))
+        .shadow(color: .black.opacity(0.45), radius: 30, y: 22)
     }
 }
 
@@ -105,18 +106,19 @@ struct AttachMenuRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .regular))
-                    .frame(width: 21, height: 21)
+            HStack(spacing: MenuRowStyle.rowSpacing) {
+                MenuIconBadge {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 17, weight: .regular))
+                }
                 Text(title)
-                    .font(Typography.mono(15, .bold))
+                    .font(.system(size: MenuRowStyle.titleSize))
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(isEnabled ? Palette.textPrimary : Palette.textSecondary)
-            .padding(.horizontal, 18)
-            .frame(minHeight: AttachmentLayout.menuRowHeight)
+            .padding(.horizontal, MenuRowStyle.rowPadding)
+            .frame(height: MenuRowStyle.rowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)

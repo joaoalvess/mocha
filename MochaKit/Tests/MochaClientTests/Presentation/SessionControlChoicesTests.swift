@@ -69,6 +69,20 @@ struct SessionControlChoicesTests {
         #expect(ComposerSendMode.mode(hasContent: false, isWorking: false) == .send)
     }
 
+    @Test func effortGaugeFillsByLevel() {
+        #expect(EffortGauge.fraction(for: .low) == 0.2)
+        #expect(EffortGauge.fraction(for: .high) == 0.6)
+        #expect(EffortGauge.fraction(for: .max) == 1)
+        #expect(EffortGauge.fraction(for: nil) == EffortGauge.unknownFraction)
+    }
+
+    @Test func primaryButtonBecomesMicrophoneOnlyWhenEmptyAndIdle() {
+        #expect(ComposerSendMode.mode(hasContent: false, isWorking: false, canDictate: true) == .microphone)
+        #expect(ComposerSendMode.mode(hasContent: true, isWorking: false, canDictate: true) == .send)
+        #expect(ComposerSendMode.mode(hasContent: false, isWorking: true, canDictate: true) == .stop)
+        #expect(ComposerSendMode.mode(hasContent: true, isWorking: true, isDictating: true, canDictate: true) == .dictating)
+    }
+
     @Test func mergesWorkflowAgentsAfterSubagents() {
         let started = Date(timeIntervalSince1970: 1_000)
         let subagent = SubagentSummary(agentId: "a1", agentType: "general-purpose", description: "Revisar", status: .running)

@@ -54,23 +54,46 @@ enum SlashMenuStyle {
     static let separatorMargin: CGFloat = 5
 }
 
+enum MenuRowStyle {
+    static let badgeSize: CGFloat = 40
+    static let iconSize: CGFloat = 19
+    static let iconStrokeWidth: CGFloat = 1.8
+    static let rowHeight: CGFloat = 58
+    static let detailRowHeight: CGFloat = 62
+    static let rowSpacing: CGFloat = 14
+    static let rowPadding: CGFloat = 12
+    static let titleSize: CGFloat = 17
+}
+
+struct MenuIconBadge<Icon: View>: View {
+    @ViewBuilder let icon: () -> Icon
+
+    var body: some View {
+        icon()
+            .frame(width: MenuRowStyle.badgeSize, height: MenuRowStyle.badgeSize)
+            .background(Circle().fill(Palette.menuIconBadge))
+            .overlay(Circle().strokeBorder(Palette.menuIconBadgeBorder, lineWidth: 0.6))
+    }
+}
+
 struct SlashMenuRow: View {
     let action: SlashMenuAction
     let onSelect: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: SlashMenuStyle.rowSpacing) {
-                SlashMenuIconView(icon: action.icon, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: titleColor)
+            HStack(spacing: MenuRowStyle.rowSpacing) {
+                MenuIconBadge {
+                    SlashMenuIconView(icon: action.icon, size: MenuRowStyle.iconSize, strokeWidth: MenuRowStyle.iconStrokeWidth, color: titleColor)
+                }
                 Text(action.title)
-                    .font(Typography.mono(15, .bold))
+                    .font(Typography.mono(16, .bold))
                     .foregroundStyle(titleColor)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, SlashMenuStyle.rowPadding)
-            .padding(.vertical, SlashMenuStyle.rowVerticalPadding)
-            .frame(minHeight: AttachmentLayout.menuRowHeight)
+            .padding(.horizontal, MenuRowStyle.rowPadding)
+            .frame(height: MenuRowStyle.rowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)

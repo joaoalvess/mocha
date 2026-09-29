@@ -42,6 +42,10 @@ enum Palette {
     static let ringAuto = Color(hex: 0xA482E6)
     static let ringPlanTrack = Color(hex: 0x1D3A38)
     static let ringPlan = Color(hex: 0x48A89E)
+    static let modeEdit = Color(hex: 0xAF87FF)
+    static let modePlan = Color(hex: 0x48968C)
+    static let modeAuto = Color(hex: 0xFFC107)
+    static let modeManual = Color(hex: 0x999999)
 
     static let glassChat = Color(hex: 0x424242, opacity: 0.8)
     static let glassComposer = Color(hex: 0x3E3E3E, opacity: 0.84)
@@ -49,6 +53,10 @@ enum Palette {
     static let glassPill = Color(hex: 0x60646A, opacity: 0.5)
     static let glassHero = Color(hex: 0x544A48, opacity: 0.5)
     static let glassBlack = Color(hex: 0x3C3C3E, opacity: 0.55)
+    static let glassComposerClear = Color(hex: 0x2A2A2D, opacity: 0.3)
+    static let glassMenu = Color(hex: 0x2E2E31, opacity: 0.5)
+    static let menuIconBadge = Color(hex: 0xFFFFFF, opacity: 0.1)
+    static let menuIconBadgeBorder = Color(hex: 0xFFFFFF, opacity: 0.08)
 
     static let glyphOnAccent = Color(hex: 0x000000)
     static let glyphOnDirty = Color(hex: 0x1A1206)

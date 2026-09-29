@@ -180,8 +180,7 @@ struct ChatConversation: View {
             title: title,
             subtitle: subtitle,
             onStatusTap: { session.openDrawer() },
-            onTitleTap: titleTapped,
-            onTitleLongPress: { session.showDetail(liveTarget) },
+            onTitleTap: { session.showDetail(liveTarget) },
             onPreviewTap: { session.showWorkspaceWebServers(for: liveTarget) }
         )
     }
@@ -209,6 +208,8 @@ struct ChatConversation: View {
                     attachments: attachments,
                     showsSlashMenu: provider == .claude,
                     isWorking: status == .working,
+                    effort: displayedEffort,
+                    onModelPicker: modelPickerAction,
                     onSend: send,
                     onStop: stop
                 ) { maxHeight, close in
@@ -428,11 +429,13 @@ struct ChatConversation: View {
         )
     }
 
-    private func titleTapped() {
-        guard canControlModel else {
-            session.showDetail(liveTarget)
-            return
-        }
+    private var modelPickerAction: (() -> Void)? {
+        guard canControlModel else { return nil }
+        return { toggleModelPicker() }
+    }
+
+    private func toggleModelPicker() {
+        guard canControlModel else { return }
         if !isModelPickerOpen {
             dismissComposer()
         }

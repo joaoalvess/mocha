@@ -20,7 +20,6 @@ struct ChatHeaderBar: View {
     let subtitle: String
     var onStatusTap: () -> Void = {}
     var onTitleTap: () -> Void = {}
-    var onTitleLongPress: () -> Void = {}
     var onPreviewTap: (() -> Void)?
 
     var body: some View {
@@ -34,17 +33,14 @@ struct ChatHeaderBar: View {
             .padding(.leading, 2)
             .accessibilityLabel("Abrir gaveta")
             .accessibilityValue(indicator.accessibilityLabel)
-            titleBlock
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onTitleTap)
-                .onLongPressGesture(perform: onTitleLongPress)
-                .padding(.leading, -2.5)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Abre o seletor de modelo")
-                .accessibilityAction(.default, onTitleTap)
-                .accessibilityAction(named: "Ver detalhes", onTitleLongPress)
+            Button(action: onTitleTap) {
+                titleBlock
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, -2.5)
+            .accessibilityHint("Abre o detalhe do agente")
             HStack(spacing: 8) {
                 HeaderRoundButton(accessibilityLabel: "Git", isEnabled: false, action: {}) {
                     LineIconView(icon: .branch, size: 16, strokeWidth: 2.1, color: Palette.glyphOnAccent)

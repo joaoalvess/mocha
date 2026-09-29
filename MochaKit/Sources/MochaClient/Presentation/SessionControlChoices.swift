@@ -99,9 +99,14 @@ public struct ControlOverride<Value: Hashable & Sendable>: Sendable, Hashable {
 public enum ComposerSendMode: Sendable, Hashable {
     case send
     case stop
+    case microphone
+    case dictating
 
-    public static func mode(hasContent: Bool, isWorking: Bool) -> ComposerSendMode {
-        !hasContent && isWorking ? .stop : .send
+    public static func mode(hasContent: Bool, isWorking: Bool, isDictating: Bool = false, canDictate: Bool = false) -> ComposerSendMode {
+        if isDictating { return .dictating }
+        if hasContent { return .send }
+        if isWorking { return .stop }
+        return canDictate ? .microphone : .send
     }
 }
 
@@ -128,5 +133,14 @@ public enum SessionAgentsList {
             }
         }
         return subagents + workflowAgents
+    }
+}
+
+public enum EffortGauge {
+    public static let unknownFraction = 0.5
+
+    public static func fraction(for level: EffortLevel?) -> Double {
+        guard let level, let index = EffortLevel.allCases.firstIndex(of: level) else { return unknownFraction }
+        return Double(index + 1) / Double(EffortLevel.allCases.count)
     }
 }
