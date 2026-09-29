@@ -12,3 +12,11 @@ public enum ModelName {
 
     private static let claudePrefix = "claude-"
 }
+
+extension ModelName {
+    public static func withEffort(_ model: String, effort: String?) -> String {
+        let name = abbreviated(model)
+        guard let effort, !effort.isEmpty, !name.isEmpty else { return name }
+        return "\(name) · \(effort)"
+    }
+}
