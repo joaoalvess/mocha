@@ -1694,13 +1694,18 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - enviar: círculo, desabilitado sem texto. Na fase controles, com o campo vazio, sem anexo e com `status == working`, vira **parar** (quadrado) e manda `interrupt`.
 - O teclado fecha, e o composer volta a uma linha, ao rolar a lista, tocar fora, abrir a gaveta ou enviar.
 - Enviar continua enviando durante `working` quando há texto (o Claude enfileira). Parar fica na linha de status e, com o campo vazio, no próprio botão.
-- **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Abre acima do `↻`, por cima do teclado, no vidro e nas medidas do menu atual. Sem mock (decisão do João). De cima para baixo:
-  - **Contexto**: anel pequeno com o `contextLeftPercent` e o texto "N% livre";
-  - **Uso**: as barras de 5 h e da semana do `usages[provider]`, com os mesmos componentes do `UsageSheet`. Sem dado, a linha some;
-  - **Modo**: segmentos "Edição" (`acceptEdits`), "Auto" (`auto`) e "Plano" (`plan`), que mandam `setMode`. Em `default` ou `bypassPermissions`, nenhum fica aceso. "Auto" fica apagado no Haiku. O segmento tocado acende na hora e volta ao valor do `chatMeta` se vier erro, mostrado num toast;
-  - **Subagentes**: os subagentes e workflows da sessão, na linha da `AgentSubagentsSection` do Detalhe. O toque abre o chat do subagente, como o card. Sem nenhum, a seção some;
-  - **Ações**: `/compact` e `/clear` (com confirmação), mandados como `slash`. Depois do `/clear`, o chat reabre na sessão nova.
-  `/context`, `/cost` e "Interromper (Esc)" saem.
+- **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Abre acima do `↻`, na largura do menu antigo, no vidro `glassComposer` (Liquid Glass), e entra e sai com escala e opacidade ancoradas no `↻`. É um menu de linhas, sem rolagem na raiz. Sem mock (decisão do João).
+  - **Raiz**:
+    - "Contexto": barra fina com o `contextLeftPercent` e "N% livre", só leitura, nas cores do anel da Home;
+    - "Modo": valor atual, ou "Manual" em `default` e `bypassPermissions`;
+    - "Uso": a janela mais apertada entre 5 h e semana. A linha some sem dado de uso;
+    - "Subagentes": "N rodando", ou "N concluídos" quando nenhum roda. A linha some sem subagentes nem workflows;
+    - separador, `/compact` e `/clear` em vermelho, com confirmação, mandados como `slash`. Depois do `/clear`, o chat reabre na sessão nova.
+  - **Detalhes**: dentro do próprio painel, com "‹ Título" para voltar e deslize lateral (ease-out, sem bounce).
+    - **Modo**: Edição (`acceptEdits`), Auto (`auto`) e Plano (`plan`), com ícone, descrição e ✓. O toque manda `setMode` e volta para a raiz. O valor aparece na hora e volta ao valor do `chatMeta` se vier erro, com toast. No Haiku, Auto fica apagado com "indisponível no Haiku".
+    - **Uso**: barras "5 horas" e "Semana", com porcentagem e renovação.
+    - **Subagentes**: lista plana dos subagentes e workflows da sessão. O toque abre o chat do subagente.
+  - `/context`, `/cost` e "Interromper (Esc)" saem.
 - **Seletor de modelo** (fase controles): o toque no título do header do chat abre um painel acima do composer, no estilo de `docs/referencias/moshi/seletor-modelo.jpg`.
   - **Topo**: segmentos Low, Medium, High, Extra high e Max (`setEffort`). Somem no Haiku.
   - **Lista**: Fable, Opus, Sonnet e Haiku, com uma descrição curta cada (`setModel`). O item atual fica destacado.
