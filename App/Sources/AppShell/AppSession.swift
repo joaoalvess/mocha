@@ -277,6 +277,10 @@ final class AppSession {
         usages[provider]
     }
 
+    var usagesByProvider: [UsageSnapshot] {
+        AgentProvider.allCases.compactMap { usages[$0] }
+    }
+
     func showUsage() {
         isDrawerOpen = false
         sheet = .usage
@@ -609,6 +613,7 @@ final class AppSession {
             archivedSessions = sessions
         case .usage(let snapshot):
             usages[snapshot.provider] = snapshot
+            UsageResetReminder.shared.usageChanged(snapshot)
         case .herdrStatus(let connected):
             herdrConnected = connected
             host?.herdrConnected = connected
