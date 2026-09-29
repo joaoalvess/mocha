@@ -60,6 +60,7 @@ public enum HerdrRequest: Sendable, Hashable {
     case tabList(workspaceId: String?)
     case paneGet(paneId: String)
     case paneRead(paneId: String, source: HerdrReadSource, lines: Int?)
+    case paneClose(paneId: String)
     case agentPrompt(target: String, text: String)
     case agentSendKeys(target: String, keys: [String])
     case tabCreate(workspaceId: String, cwd: String?)
@@ -77,6 +78,7 @@ public enum HerdrRequest: Sendable, Hashable {
         case .tabList: "tab.list"
         case .paneGet: "pane.get"
         case .paneRead: "pane.read"
+        case .paneClose: "pane.close"
         case .agentPrompt: "agent.prompt"
         case .agentSendKeys: "agent.send_keys"
         case .tabCreate: "tab.create"
@@ -128,7 +130,7 @@ public enum HerdrRequest: Sendable, Hashable {
                 try container.encode(target, forKey: .target)
             case .tabList(let workspaceId):
                 try container.encodeIfPresent(workspaceId, forKey: .workspaceId)
-            case .paneGet(let paneId):
+            case .paneGet(let paneId), .paneClose(let paneId):
                 try container.encode(paneId, forKey: .paneId)
             case .paneRead(let paneId, let source, let lines):
                 try container.encode(paneId, forKey: .paneId)
