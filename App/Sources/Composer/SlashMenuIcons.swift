@@ -3,6 +3,11 @@ import SwiftUI
 enum SlashMenuIcon {
     case compress
     case trash
+    case mode
+    case usage
+    case subagents
+    case plan
+    case chevronLeft
 }
 
 struct SlashMenuIconShape: Shape {
@@ -28,6 +33,27 @@ struct SlashMenuIconShape: Shape {
             path.addLines([CGPoint(x: 6.3, y: 6.4), CGPoint(x: 7.3, y: 19.8), CGPoint(x: 16.7, y: 19.8), CGPoint(x: 17.7, y: 6.4)])
             path.addLines([CGPoint(x: 10, y: 10.4), CGPoint(x: 10, y: 16)])
             path.addLines([CGPoint(x: 14, y: 10.4), CGPoint(x: 14, y: 16)])
+        case .mode:
+            path.addEllipse(in: CGRect(x: 3.1, y: 3.1, width: 17.8, height: 17.8))
+            path.addLines([CGPoint(x: 10.2, y: 8.6), CGPoint(x: 15.4, y: 12), CGPoint(x: 10.2, y: 15.4)])
+            path.closeSubpath()
+        case .usage:
+            path.addEllipse(in: CGRect(x: 3.1, y: 3.1, width: 17.8, height: 17.8))
+            path.addLines([CGPoint(x: 12, y: 3.4), CGPoint(x: 12, y: 12), CGPoint(x: 20.6, y: 12)])
+        case .subagents:
+            path.addRoundedRect(in: CGRect(x: 3.6, y: 3.6, width: 7, height: 7), cornerSize: CGSize(width: 1.8, height: 1.8), style: .circular)
+            path.addRoundedRect(in: CGRect(x: 13.4, y: 3.6, width: 7, height: 7), cornerSize: CGSize(width: 1.8, height: 1.8), style: .circular)
+            path.addRoundedRect(in: CGRect(x: 3.6, y: 13.4, width: 7, height: 7), cornerSize: CGSize(width: 1.8, height: 1.8), style: .circular)
+            path.addRoundedRect(in: CGRect(x: 13.4, y: 13.4, width: 7, height: 7), cornerSize: CGSize(width: 1.8, height: 1.8), style: .circular)
+        case .plan:
+            path.addLines([CGPoint(x: 9.4, y: 6.5), CGPoint(x: 20.2, y: 6.5)])
+            path.addLines([CGPoint(x: 9.4, y: 12), CGPoint(x: 20.2, y: 12)])
+            path.addLines([CGPoint(x: 9.4, y: 17.5), CGPoint(x: 20.2, y: 17.5)])
+            path.addEllipse(in: CGRect(x: 4, y: 5.7, width: 1.6, height: 1.6))
+            path.addEllipse(in: CGRect(x: 4, y: 11.2, width: 1.6, height: 1.6))
+            path.addEllipse(in: CGRect(x: 4, y: 16.7, width: 1.6, height: 1.6))
+        case .chevronLeft:
+            path.addLines([CGPoint(x: 15.5, y: 4.5), CGPoint(x: 8, y: 12), CGPoint(x: 15.5, y: 19.5)])
         }
         return path
     }

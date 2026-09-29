@@ -36,6 +36,10 @@ enum SlashMenuAction: CaseIterable, Identifiable {
         self == .clear
     }
 
+    var isDestructive: Bool {
+        self == .clear
+    }
+
     func message(for agentId: AgentID) -> ClientMessage {
         .slash(agentId: agentId, command: command)
     }
@@ -59,20 +63,21 @@ enum SlashMenuStyle {
 
 struct SlashMenuRow: View {
     let action: SlashMenuAction
+    var secondaryColor = Palette.textSecondary
     let onSelect: () -> Void
     @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
 
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: SlashMenuStyle.rowSpacing) {
-                SlashMenuIconView(icon: action.icon, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: Palette.textPrimary)
+                SlashMenuIconView(icon: action.icon, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: titleColor)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(action.title)
                         .font(Typography.mono(15, .bold))
-                        .foregroundStyle(Palette.textPrimary)
+                        .foregroundStyle(titleColor)
                     Text(action.detail)
                         .font(.system(size: detailSize))
-                        .foregroundStyle(Palette.textSecondary)
+                        .foregroundStyle(detailColor)
                 }
                 .lineLimit(1)
                 Spacer(minLength: 0)
@@ -84,5 +89,13 @@ struct SlashMenuRow: View {
         }
         .buttonStyle(.pressable)
         .accessibilityLabel("\(action.title), \(action.detail)")
+    }
+
+    private var titleColor: Color {
+        action.isDestructive ? Palette.destructive : Palette.textPrimary
+    }
+
+    private var detailColor: Color {
+        action.isDestructive ? Palette.destructive.opacity(0.8) : secondaryColor
     }
 }
