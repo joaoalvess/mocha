@@ -2,12 +2,22 @@ import MochaClient
 import MochaProtocol
 import SwiftUI
 
+struct HomeCardSwipeAction {
+    let title: String
+    let systemImage: String
+    let armedColor: Color
+    var accessibilityName: String?
+    var dismissesCard = false
+    let perform: @MainActor () async -> Bool
+}
+
 struct HomeCardRow: View {
     let card: HomeCard
     let isOffline: Bool
     let open: () -> Void
     let showDetail: () -> Void
-    let archive: @MainActor (String, AgentProvider) async -> Bool
+    var leftAction: HomeCardSwipeAction?
+    var rightAction: HomeCardSwipeAction?
 
     @State private var offset: CGFloat = 0
     @State private var width: CGFloat = 0
@@ -24,16 +34,24 @@ struct HomeCardRow: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .offset(x: offset)
         .background(alignment: .trailing) {
-            if offset < 0 {
-                ArchiveSwipeHint(isArmed: HomeCardSwipe.revealsArchiveAction(offset: offset, width: width))
+            if offset < 0, let leftAction {
+                SwipeActionHint(action: leftAction, isArmed: HomeCardSwipe.revealsAction(offset: offset, width: width))
+                    .padding(.trailing, 20)
+            }
+        }
+        .background(alignment: .leading) {
+            if offset > 0, let rightAction {
+                SwipeActionHint(action: rightAction, isArmed: HomeCardSwipe.revealsAction(offset: offset, width: width))
+                    .padding(.leading, 20)
             }
         }
         .onTapGesture(perform: open)
         .onLongPressGesture(perform: showDetail)
         .gesture(
             HorizontalSwipeGesture(
-                isEnabled: card.canArchive && !isOffline,
-                onChanged: { offset = HomeCardSwipe.offset(forTranslation: $0) },
+                isEnabled: !swipeDirections.isEmpty && !isOffline,
+                directions: swipeDirections,
+                onChanged: { offset = HomeCardSwipe.offset(forTranslation: $0, directions: swipeDirections) },
                 onEnded: finishSwipe
             )
         )
@@ -42,12 +60,19 @@ struct HomeCardRow: View {
         .accessibilityAction(.default, open)
         .accessibilityAction(named: "Ver detalhes", showDetail)
         .accessibilityActions {
-            if let sessionId = card.archiveSessionId, !isOffline {
-                Button("Arquivar") {
-                    Task { _ = await archive(sessionId, card.provider) }
+            if !isOffline {
+                ForEach([leftAction, rightAction].compactMap { $0?.accessibilityName }, id: \.self) { name in
+                    Button(name) { performAccessibilityAction(named: name) }
                 }
             }
         }
+    }
+
+    private var swipeDirections: Set<HomeCardSwipeDirection> {
+        var directions: Set<HomeCardSwipeDirection> = []
+        if leftAction != nil { directions.insert(.left) }
+        if rightAction != nil { directions.insert(.right) }
+        return directions
     }
 
     private var ringStyle: ContextRingStyle {
@@ -60,18 +85,36 @@ struct HomeCardRow: View {
         }
     }
 
+    private func action(for direction: HomeCardSwipeDirection) -> HomeCardSwipeAction? {
+        switch direction {
+        case .left: leftAction
+        case .right: rightAction
+        }
+    }
+
+    private func performAccessibilityAction(named name: String) {
+        guard let action = [leftAction, rightAction].compactMap({ $0 }).first(where: { $0.accessibilityName == name }) else { return }
+        Task { _ = await action.perform() }
+    }
+
     private func finishSwipe(translation: CGFloat, velocity: CGFloat) {
         guard
-            let sessionId = card.archiveSessionId,
-            HomeCardSwipe.archives(translation: translation, velocity: velocity, width: width)
+            let direction = HomeCardSwipe.triggeredDirection(translation: translation, velocity: velocity, width: width),
+            let action = action(for: direction)
         else {
             withAnimation(Self.settleAnimation) { offset = 0 }
             return
         }
-        withAnimation(Self.settleAnimation) { offset = -(width + Self.dismissOvershoot) }
+        guard action.dismissesCard else {
+            withAnimation(Self.settleAnimation) { offset = 0 }
+            Task { _ = await action.perform() }
+            return
+        }
+        let distance = width + Self.dismissOvershoot
+        withAnimation(Self.settleAnimation) { offset = direction == .left ? -distance : distance }
         Task {
-            let archived = await archive(sessionId, card.provider)
-            withAnimation(archived ? nil : Self.settleAnimation) { offset = 0 }
+            let dismissed = await action.perform()
+            withAnimation(dismissed ? nil : Self.settleAnimation) { offset = 0 }
         }
     }
 }
@@ -125,18 +168,18 @@ private struct SubagentCountBadge: View {
     }
 }
 
-private struct ArchiveSwipeHint: View {
+private struct SwipeActionHint: View {
+    let action: HomeCardSwipeAction
     let isArmed: Bool
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "archivebox")
+            Image(systemName: action.systemImage)
                 .font(.system(size: 15, weight: .semibold))
-            Text("Arquivar")
+            Text(action.title)
                 .systemText(.cardSubtitle)
         }
-        .foregroundStyle(isArmed ? Palette.statusOk : Palette.textSecondary)
-        .padding(.trailing, 20)
+        .foregroundStyle(isArmed ? action.armedColor : Palette.textSecondary)
         .animation(.smooth(duration: 0.15), value: isArmed)
         .accessibilityHidden(true)
     }

@@ -4,11 +4,12 @@ import UIKit
 
 struct HorizontalSwipeGesture: UIGestureRecognizerRepresentable {
     let isEnabled: Bool
+    var directions: Set<HomeCardSwipeDirection> = [.left]
     let onChanged: (CGFloat) -> Void
     let onEnded: (_ translation: CGFloat, _ velocity: CGFloat) -> Void
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
-        Coordinator()
+        Coordinator(directions: directions)
     }
 
     func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
@@ -20,6 +21,7 @@ struct HorizontalSwipeGesture: UIGestureRecognizerRepresentable {
 
     func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
         recognizer.isEnabled = isEnabled
+        context.coordinator.directions = directions
     }
 
     func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
@@ -39,10 +41,16 @@ struct HorizontalSwipeGesture: UIGestureRecognizerRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var directions: Set<HomeCardSwipeDirection>
+
+        init(directions: Set<HomeCardSwipeDirection>) {
+            self.directions = directions
+        }
+
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
             let velocity = pan.velocity(in: pan.view)
-            return HomeCardSwipe.begins(velocityX: velocity.x, velocityY: velocity.y)
+            return HomeCardSwipe.begins(velocityX: velocity.x, velocityY: velocity.y, directions: directions)
         }
     }
 }

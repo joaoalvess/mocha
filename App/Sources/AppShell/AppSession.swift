@@ -399,6 +399,10 @@ final class AppSession {
         try await request(.archive(sessionId: sessionId, provider: provider))
     }
 
+    func closeAgent(_ agentId: AgentID) async throws {
+        try await request(.closeAgent(agentId: agentId))
+    }
+
     func sendPrompt(_ text: String) async throws {
         try await request(.sendPrompt(agentId: try visibleAgentId(), text: text))
     }

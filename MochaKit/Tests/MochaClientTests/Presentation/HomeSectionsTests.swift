@@ -325,33 +325,45 @@ struct HomeOfflineProblemTests {
 }
 
 struct HomeCardSwipeTests {
-    @Test func beginsOnlyForLeftwardHorizontalPans() {
+    @Test func beginsOnlyForLeftwardHorizontalPansByDefault() {
         #expect(HomeCardSwipe.begins(velocityX: -300, velocityY: 40))
         #expect(!HomeCardSwipe.begins(velocityX: 300, velocityY: 40))
         #expect(!HomeCardSwipe.begins(velocityX: -40, velocityY: 300))
         #expect(!HomeCardSwipe.begins(velocityX: 0, velocityY: 0))
     }
 
-    @Test func offsetFollowsTheFingerOnlyToTheLeft() {
+    @Test func beginsInBothDirectionsWhenBothAreAllowed() {
+        #expect(HomeCardSwipe.begins(velocityX: -300, velocityY: 40, directions: [.left, .right]))
+        #expect(HomeCardSwipe.begins(velocityX: 300, velocityY: 40, directions: [.left, .right]))
+        #expect(!HomeCardSwipe.begins(velocityX: 40, velocityY: 300, directions: [.left, .right]))
+        #expect(!HomeCardSwipe.begins(velocityX: -300, velocityY: 40, directions: [.right]))
+    }
+
+    @Test func offsetFollowsTheFingerOnlyInTheAllowedDirections() {
         #expect(HomeCardSwipe.offset(forTranslation: -80) == -80)
         #expect(HomeCardSwipe.offset(forTranslation: 30) == 0)
+        #expect(HomeCardSwipe.offset(forTranslation: 30, directions: [.left, .right]) == 30)
+        #expect(HomeCardSwipe.offset(forTranslation: -80, directions: [.right]) == 0)
     }
 
-    @Test func archivesPastFortyPercentOfTheWidth() {
-        #expect(!HomeCardSwipe.archives(translation: -142, velocity: 0, width: 358))
-        #expect(HomeCardSwipe.archives(translation: -144, velocity: 0, width: 358))
+    @Test func triggersPastFortyPercentOfTheWidth() {
+        #expect(HomeCardSwipe.triggeredDirection(translation: -142, velocity: 0, width: 358) == nil)
+        #expect(HomeCardSwipe.triggeredDirection(translation: -144, velocity: 0, width: 358) == .left)
+        #expect(HomeCardSwipe.triggeredDirection(translation: 144, velocity: 0, width: 358) == .right)
     }
 
-    @Test func fastFlickArchivesAndFlickBackCancels() {
-        #expect(HomeCardSwipe.archives(translation: -60, velocity: -600, width: 358))
-        #expect(!HomeCardSwipe.archives(translation: -200, velocity: 800, width: 358))
-        #expect(!HomeCardSwipe.archives(translation: 10, velocity: -2_000, width: 358))
-        #expect(!HomeCardSwipe.archives(translation: -300, velocity: 0, width: 0))
+    @Test func fastFlickTriggersAndFlickBackCancels() {
+        #expect(HomeCardSwipe.triggeredDirection(translation: -60, velocity: -600, width: 358) == .left)
+        #expect(HomeCardSwipe.triggeredDirection(translation: 60, velocity: 600, width: 358) == .right)
+        #expect(HomeCardSwipe.triggeredDirection(translation: -200, velocity: 800, width: 358) == nil)
+        #expect(HomeCardSwipe.triggeredDirection(translation: 10, velocity: -2_000, width: 358) == nil)
+        #expect(HomeCardSwipe.triggeredDirection(translation: -300, velocity: 0, width: 0) == nil)
     }
 
-    @Test func archiveActionLightsUpAtTheThreshold() {
-        #expect(!HomeCardSwipe.revealsArchiveAction(offset: -100, width: 358))
-        #expect(HomeCardSwipe.revealsArchiveAction(offset: -150, width: 358))
+    @Test func actionLightsUpAtTheThresholdOnBothSides() {
+        #expect(!HomeCardSwipe.revealsAction(offset: -100, width: 358))
+        #expect(HomeCardSwipe.revealsAction(offset: -150, width: 358))
+        #expect(HomeCardSwipe.revealsAction(offset: 150, width: 358))
     }
 }
 
