@@ -1662,8 +1662,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - **Header flutuante de vidro** (`glassChat`), com:
   - disco de status (§6.2); tocar abre a gaveta;
   - asterisco do Claude e título (truncado no meio). Na fase controles, o toque no título abre o seletor de modelo e o long press abre o Detalhe. Antes, o toque abria o Detalhe;
-  - anel de contexto (fase controles): o `ContextRing` da Home, menor, depois do título, com o `contextLeftPercent`. Sem valor, some;
-  - subtítulo "workspace • modelo • branch"; com `effort`, o modelo vira "modelo · effort" (ex.: `opus-5-5 · xhigh`) em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
+  - subtítulo "workspace • modelo • branch". O header não mostra contexto nem effort (decisão do João): o contexto fica no painel `↻` e o effort no seletor em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
   - bússola, presa ao workspace do agente: pede `listWebServers` e filtra pelo `workspaceId` do workspace que contém o agente. Com 1 servidor, abre direto o Navegador; com 0 ou vários, abre o painel Servidores web só com esse workspace (vazio: "Nenhum servidor web neste workspace"). Sem workspace conhecido (thread Codex, sessão arquivada sem agente vivo), abre o painel global.
   - O conteúdo rola por baixo do header e do composer.
@@ -1705,7 +1704,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - **Seletor de modelo** (fase controles): o toque no título do header do chat abre um painel acima do composer, no estilo de `docs/referencias/moshi/seletor-modelo.jpg`.
   - **Topo**: segmentos Low, Medium, High, Extra high e Max (`setEffort`). Somem no Haiku.
   - **Lista**: Fable, Opus, Sonnet e Haiku, com uma descrição curta cada (`setModel`). O item atual fica destacado.
-  - **Troca**: vale só para a sessão, e o valor escolhido aparece na hora até o daemon confirmar. O subtítulo do header mostra o modelo e o effort.
+  - **Troca**: vale só para a sessão, e o valor escolhido aparece na hora até o daemon confirmar.
 
 **Pedido no chat** (1b, `10-pedido-aprovacao`, `10b-pergunta`)
 - O card do `PendingRequest` do agente entra no fim da lista, e o disco do header fica âmbar.

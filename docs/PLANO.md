@@ -1022,7 +1022,7 @@ Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: con
 
 Branch `fase/controles`, criada de `main`. Ondas: S8 → WP-K1 → WP-K3 → WP-K4. Sem mock nem capturas (decisão do João): a referência visual é o print do seletor do Moshi e os componentes que o app já tem. Decisões do João (2026-09-28):
 
-- **Header do chat**: o toque no título abre o seletor de modelo e effort; o long press abre o detalhe do agente; o anel de contexto aparece no header.
+- **Header do chat**: o toque no título abre o seletor de modelo e effort; o long press abre o detalhe do agente. O header não mostra contexto nem effort.
 - **Menu `↻`**: vira painel de controles com contexto, uso (5 h e semanal), modo (Edição / Auto / Plano), subagentes e workflows da sessão, `/compact` e `/clear`. `/context` e `/cost` saem.
 - **Botão de enviar**: com o campo vazio, sem anexo e com o agente trabalhando, vira parar (`interrupt`). "Interromper" sai do menu.
 
@@ -1061,7 +1061,7 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 ### WP-K3: controles no app
 
 - **Dono**: `App/Sources/Composer/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `App/Sources/DesignSystem/ComposerBar.swift`, `App/Sources/Chat/ChatScreen.swift`, `MochaKit/Sources/MochaDemo/` e testes.
-- **Header**: toque → seletor; long press → `showDetail`; `ContextRing` no header.
+- **Header**: toque → seletor; long press → `showDetail`; sem anel nem effort no header (708e51e).
 - **Painel**: o `SlashMenu` vira o painel de controles, que lê `session.usages` e `contextLeftPercent` e lista os subagentes e workflows da sessão (reúso de `App/Sources/AgentDetail/AgentSubagentsSection.swift`). Tocar num subagente abre o chat dele, como o card faz.
 - **Composer**: o botão de enviar ganha o estado parar.
 - **Seletor**:
