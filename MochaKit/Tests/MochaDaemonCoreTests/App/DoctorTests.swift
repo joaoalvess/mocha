@@ -67,8 +67,8 @@ struct DoctorTests {
         try await HerdrProbeTests.withServer { server in
             try await withTemporaryHome { home in
                 let status = Self.running(sessions: [
-                    Self.session("0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64", version: "2.1.283"),
-                    Self.session("5c1e9a7b-4d2f-4b8a-9e3c-6f0a2d8b1c47", version: "2.1.290", unknown: ["hologram": 2]),
+                    Self.session("0b7e4c2a-6f1d-4a8e-9c3b-5d2f1e8a7c64", version: ClaudeCodeVersion.lastValidated),
+                    Self.session("5c1e9a7b-4d2f-4b8a-9e3c-6f0a2d8b1c47", version: "99.0.0", unknown: ["hologram": 2]),
                 ])
                 let items = await Self.doctor(home, local: FakeLocalControl(status: .success(status)), herdrSocket: server.socketPath).run()
 
@@ -77,12 +77,12 @@ struct DoctorTests {
                 #expect(items[2] == DoctorItem("agent.list", .ok, "2 agentes, 2 do Claude Code"))
                 let transcript = items[9]
                 #expect(transcript.status == .warning)
-                #expect(transcript.summary == "2 sessões acompanhadas (validado até o Claude 2.1.283)")
+                #expect(transcript.summary == "2 sessões acompanhadas (validado até o Claude \(ClaudeCodeVersion.lastValidated))")
                 #expect(transcript.details.count == 2)
-                #expect(transcript.details[0].hasPrefix("✅ 0b7e4c2a · w1:p1 · Claude 2.1.283"))
-                #expect(transcript.details[1].hasPrefix("⚠️ 5c1e9a7b · w1:p1 · Claude 2.1.290"))
+                #expect(transcript.details[0].hasPrefix("✅ 0b7e4c2a · w1:p1 · Claude \(ClaudeCodeVersion.lastValidated)"))
+                #expect(transcript.details[1].hasPrefix("⚠️ 5c1e9a7b · w1:p1 · Claude 99.0.0"))
                 #expect(transcript.details[1].contains("desconhecidos: hologram (2)"))
-                #expect(transcript.details[1].contains("versão mais nova que a 2.1.283 validada"))
+                #expect(transcript.details[1].contains("versão mais nova que a \(ClaudeCodeVersion.lastValidated) validada"))
             }
         }
     }
@@ -91,7 +91,7 @@ struct DoctorTests {
         let clean = DoctorChecks.transcript(.success(Self.running(sessions: [Self.session("aaaaaaaa-1", version: "2.1.200")])))
         #expect(clean.status == .ok)
         let empty = DoctorChecks.transcript(.success(Self.running()))
-        #expect(empty == DoctorItem("Transcript", .ok, "nenhuma sessão acompanhada agora (validado até o Claude 2.1.283)"))
+        #expect(empty == DoctorItem("Transcript", .ok, "nenhuma sessão acompanhada agora (validado até o Claude \(ClaudeCodeVersion.lastValidated))"))
         let dropped = DoctorChecks.transcript(.success(Self.running(sessions: [Self.session("bbbbbbbb-2", version: nil, dropped: 3)])))
         #expect(dropped.status == .warning)
         #expect(dropped.details[0].contains("linhas descartadas"))
@@ -195,13 +195,13 @@ struct DoctorTests {
     }
 
     @Test func claudeCodeVersionComparison() {
-        #expect(ClaudeCodeVersion.lastValidated == "2.1.283")
-        #expect(ClaudeCodeVersion.isNewer("2.1.284"))
-        #expect(ClaudeCodeVersion.isNewer("2.2.0"))
-        #expect(ClaudeCodeVersion.isNewer("3"))
-        #expect(!ClaudeCodeVersion.isNewer("2.1.283"))
-        #expect(!ClaudeCodeVersion.isNewer("2.1.99"))
-        #expect(!ClaudeCodeVersion.isNewer("2.1.283-beta.1"))
+        #expect(ClaudeCodeVersion.isNewer("2.1.284", than: "2.1.283"))
+        #expect(ClaudeCodeVersion.isNewer("2.2.0", than: "2.1.283"))
+        #expect(ClaudeCodeVersion.isNewer("3", than: "2.1.283"))
+        #expect(!ClaudeCodeVersion.isNewer("2.1.283", than: "2.1.283"))
+        #expect(!ClaudeCodeVersion.isNewer("2.1.99", than: "2.1.283"))
+        #expect(!ClaudeCodeVersion.isNewer("2.1.283-beta.1", than: "2.1.283"))
+        #expect(!ClaudeCodeVersion.isNewer(ClaudeCodeVersion.lastValidated))
     }
 
     @Test func elapsedText() {

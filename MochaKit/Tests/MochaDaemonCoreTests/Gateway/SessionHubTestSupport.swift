@@ -372,6 +372,7 @@ func withHub(
     usage: FakeUsageProvider = FakeUsageProvider(),
     archive: FakeSessionArchive = FakeSessionArchive(),
     subagents: FakeSubagentProvider = FakeSubagentProvider(),
+    modelSwitches: ModelSwitchGate? = nil,
     configure: (FakeTranscriptProvider) async -> Void = { _ in },
     _ body: (HubHarness) async throws -> Void
 ) async throws {
@@ -390,6 +391,7 @@ func withHub(
         usage: usage,
         archive: archive,
         subagents: subagents,
+        modelSwitches: modelSwitches,
         clock: clock,
         configuration: SessionHubConfiguration(hostName: "Mac de Teste", daemonVersion: "9.9.9")
     )

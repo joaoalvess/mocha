@@ -41,6 +41,40 @@ struct HerdrClientTests {
         }
     }
 
+    @Test func paneReadReturnsTheBottomLinesOfTheFakeClaudeScreen() async throws {
+        try await withFakeHerdr { server, client in
+            let footer = try await client.paneRead(paneId: "w1A:p2", source: .visible, lines: 1)
+            #expect(footer.text == "  ⏸ manual mode on · ? for shortcuts · ← for agents")
+            #expect(footer.paneId == "w1A:p2")
+            #expect(footer.workspaceId == "w1A")
+            #expect(footer.truncated)
+
+            await server.setScreen(paneId: "w1A:p2", FakeClaudeScreen(overlay: .effortPicker(cursor: 2)))
+            let screen = try await client.paneRead(paneId: "w1A:p2")
+            #expect(screen.text.contains("low       medium    high      xhigh     max       Tab to toggle"))
+            #expect(!screen.truncated)
+            _ = await expectServerError(.paneNotFound) { _ = try await client.paneRead(paneId: "w99:p99", lines: 1) }
+            #expect(await server.requests(method: "pane.read").first?.intParam("lines") == 1)
+        }
+    }
+
+    @Test func controlKeysOfTheS8AreAcceptedAndDriveTheFakeScreen() async throws {
+        try await withFakeHerdr { server, client in
+            try await client.agentSendKeys(target: "w1A:p2", keys: ["shift+tab"])
+            try await client.agentSendKeys(target: "w1A:p2", keys: ["Shift+Tab", "SHIFT+TAB"])
+            #expect(await server.screen(paneId: "w1A:p2").mode == "auto")
+            try await client.agentPrompt(target: "w1A:p2", text: "/model")
+            try await client.agentSendKeys(target: "w1A:p2", keys: ["up", "down", "down", "s"])
+            #expect(await server.screen(paneId: "w1A:p2").model == "Haiku")
+            try await client.agentPrompt(target: "w1A:p2", text: "/effort")
+            try await client.agentSendKeys(target: "w1A:p2", keys: ["left", "right", "right", "s"])
+            #expect(await server.screen(paneId: "w1A:p2").effort == "xhigh")
+            for key in ["S-Tab", "btab", "backtab", "shift-tab"] {
+                _ = await expectServerError(.invalidKey) { try await client.agentSendKeys(target: "w1A:p2", keys: [key]) }
+            }
+        }
+    }
+
     @Test func serverErrorsKeepTheirCodes() async throws {
         try await withFakeHerdr { server, client in
             let notFound = await expectServerError(.agentNotFound) { _ = try await client.agentGet(target: "w99:p99") }

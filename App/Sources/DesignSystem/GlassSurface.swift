@@ -7,6 +7,8 @@ enum GlassTint {
     case pill
     case hero
     case black
+    case composerClear
+    case menu
 
     var color: Color {
         switch self {
@@ -16,13 +18,22 @@ enum GlassTint {
         case .pill: Palette.glassPill
         case .hero: Palette.glassHero
         case .black: Palette.glassBlack
+        case .composerClear: Palette.glassComposerClear
+        case .menu: Palette.glassMenu
         }
     }
 
     var paintsSurface: Bool {
         switch self {
         case .chat, .composer: true
-        case .home, .pill, .hero, .black: false
+        case .home, .pill, .hero, .black, .composerClear, .menu: false
+        }
+    }
+
+    var usesClearGlass: Bool {
+        switch self {
+        case .chat, .composer, .menu: false
+        case .home, .pill, .hero, .black, .composerClear: true
         }
     }
 }
@@ -30,6 +41,6 @@ enum GlassTint {
 extension View {
     func mochaGlass(_ tint: GlassTint, interactive: Bool = false, in shape: some Shape) -> some View {
         background(shape.fill(tint.paintsSurface ? tint.color : .clear))
-            .glassEffect((tint.paintsSurface ? Glass.regular : Glass.clear).tint(tint.color).interactive(interactive), in: shape)
+            .glassEffect((tint.usesClearGlass ? Glass.clear : Glass.regular).tint(tint.color).interactive(interactive), in: shape)
     }
 }

@@ -241,7 +241,8 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 | `agent.get` | `{target}` (pane id ou nome do agente) | `agent_info` | Reconsulta de um agente (sessão, título, status) | 1a-core |
 | `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
 | `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
-| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
+| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Na fase controles também `shift+tab` (sem diferença de caixa; `S-Tab`, `btab` e `backtab` são inválidos), `up`, `down`, `left`, `right`, `s` e `enter` (S8). Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
+| `pane.read` | `{pane_id, source: "visible", lines}` | `pane_read` (`read.text`, `read.revision`, `read.truncated`) | Ler o rodapé do Claude (modo de permissão) e os seletores `/model` e `/effort` (§4.1.1) | controles |
 | `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1a-final |
 | `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1a-final |
 | `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1a-final |
@@ -415,7 +416,7 @@ Política para tipos novos:
 
 1. `type`, `subtype` ou tipo de bloco desconhecido: a linha (ou o bloco) é ignorada e contada por nome (`type:<x>`, `subtype:<x>`, `block:<x>`), com um aviso no log por nome e por arquivo, não por linha. Anexos que não são `queued_command` são ignorados sem contagem (o corpus tem dezenas de tipos de `attachment`).
 2. Campos desconhecidos são sempre ignorados. Campos esperados ausentes usam o padrão: `is_error` ausente é sucesso, `thinking` ausente é vazio.
-3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada: 2.1.283, conferida pelo WP-M2 com as fixtures e 149 transcripts reais (2.1.263 a 2.1.283), sem linhas descartadas nem tipos desconhecidos.
+3. O `doctor` mostra, por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os desconhecidos por nome. Ele avisa quando a versão é maior que a última validada, `ClaudeCodeVersion.lastValidated`. A primeira foi a 2.1.283, conferida pelo WP-M2 com as fixtures e 149 transcripts reais (2.1.263 a 2.1.283), sem linhas descartadas nem tipos desconhecidos. As seguintes sobem pelo `scripts/check-claude-update.sh` (AGENTS.md, Atualização do Claude Code).
 4. Um tipo novo que precise aparecer no chat entra nesta tabela junto com uma fixture e o snapshot esperado.
 
 #### §3.2.3 Leitura e desempenho
@@ -461,6 +462,10 @@ Política para tipos novos:
 | `Stop` | comando | Turno concluído → push; `last_assistant_message`. Não dispara em turno interrompido (Esc, "No" no diálogo) | 5 s | 1a-final |
 | `Notification` | comando | Sinal secundário: `permission_prompt` (~6 s depois de um diálogo ou seletor sem tecla; cada tecla adia), `idle_prompt` (~60 s depois do fim do turno sem tecla), `elicitation_dialog` (formulário MCP) | 5 s | 1a-final |
 | `PermissionRequest` | `http` | Aprovação e pergunta (§8). Na 1a-final, responde `{}` na hora, só para notificar | 590 s | 1a-final (notifica), 1b (decide) |
+| `PreModelSwitch` | comando síncrono | Pula o diálogo "Switch model?" nas trocas pedidas pelo app: responde `{"hookSpecificOutput":{"hookEventName":"PreModelSwitch","permissionDecision":"allow"}}` só quando há `setModel` do app pendente para o pane (janela de 5 s); senão `{}` e o diálogo do terminal continua. Entrada: `from_model`, `to_model`, `requested_model`, `source` (`command`, `picker`), `prompt_cache_warm`; sem `permission_mode` (S8) | 5 s | controles |
+| `PostModelSwitch` | comando | `to_model` (id canônico) atualiza `model` na hora. `source: "auto"` (ex.: Haiku em `plan` roda Sonnet) não muda o `model` mostrado | 5 s | controles |
+
+- **Fase controles**: o `Stop` e o `UserPromptSubmit` já instalados trazem `permission_mode`, e o `Stop` traz `effort.level` (ausente em modelo sem effort, como o Haiku). O daemon guarda os dois por pane e os usa em `permissionMode` e `effort` (§5.2), sem esperar o transcript. O `PreModelSwitch` é o único comando síncrono: sem `async`, com `curl -s -m 3 … || echo '{}'`, e a saída do `curl` é a resposta do hook.
 
 #### §3.3.2 Coexistência com o moshi-hook
 
@@ -615,6 +620,9 @@ public protocol HerdrBridging: Sendable {
     func resolve(_ id: AgentID) async -> AgentID
     func prompt(_ id: AgentID, text: String) async throws
     func interrupt(_ id: AgentID) async throws
+    func setModel(_ id: AgentID, model: ModelAlias) async throws
+    func setEffort(_ id: AgentID, level: EffortLevel) async throws
+    func setMode(_ id: AgentID, mode: PermissionModeTarget) async throws -> String
     func setOpenChats(_ ids: Set<AgentID>) async
     func refreshAgent(_ id: AgentID, expectingSession sessionId: String) async
     func refreshDirtyState(ofAgent id: AgentID) async
@@ -652,6 +660,8 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
     case agentNotFound
     case agentBlocked
     case workspaceNotFound
+    case modeUnavailable
+    case screenBusy
     case herdr(code: String, message: String)
 }
 ```
@@ -661,6 +671,16 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `agent(_:)` devolve o agente como o Herdr o vê: pane, workspace, tipo, status, sessão, `cwd`, `foreground_cwd` e título do terminal.
 - `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
 - `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
+- **Controles** (fase controles, `docs/spikes/S8.md`):
+  - **Tela ocupada**: antes de `prompt`, `setModel`, `setEffort` e `setMode`, o `pane.read` da última linha não pode mostrar o seletor `/model`, o `/effort` nem o diálogo "Switch model?". O Herdr fica em `done`/`working` com eles abertos, e um `agent.prompt` ali perde o texto. Com a tela ocupada, lança `screenBusy` sem tecla nenhuma.
+  - **`setMode`** lê o rodapé. Se não for o alvo, manda `shift+tab` e espera o rodapé mudar (poll a cada 15 ms, até 500 ms por tecla, no máximo 5 teclas), e devolve o modo lido. Nunca usa espera fixa curta: a leitura antes de 20 ms devolve o modo antigo.
+    - Mapa, por prefixo depois do `trim`: `⏸ manual mode on` → `default`, `⏵⏵ accept edits on` → `acceptEdits`, `⏸ plan mode on` → `plan`, `⏵⏵ auto mode on` → `auto`.
+    - O ciclo depende do modelo: o Haiku não tem `auto`. Alvo não visto depois de 5 teclas → `modeUnavailable`.
+  - **`setModel` e `setEffort`** valem só para a sessão: o `~/.claude/settings.json` do João não pode mudar (decisão do João). A forma digitada (`/model <alias>`, `/effort <nível>`) é proibida porque grava o padrão global.
+    - `setModel`: `agent.prompt "/model"`, `pane.read` até ver o seletor, conta as linhas entre `❯` e o alvo, `send_keys` com `up`/`down` e depois `s`. Confere `Set model to … for this session only`.
+    - `setEffort`: `agent.prompt "/effort"`, acha o `▲`, `left`/`right` e `s`. Confere `(this session only)`. Desde a 2.1.284 o seletor é um slider: o `▲` fica numa linha própria, acima dos rótulos `low medium high xhigh max`, e o cursor é o rótulo mais próximo da coluna do `▲`.
+    - Seletor que não aparece em 2 s, alvo ausente na lista ou confirmação que não aparece em 2 s → `herdr(code: "selector", …)` e `Escape` para fechar o que estiver aberto.
+  - **Com o agente `working`**, as três trocas aplicam na hora (S8), sem esperar o `done`. Com `blocked` → `agentBlocked`.
 - `setOpenChats` recebe os agentes com chat aberto em algum cliente e alimenta a reconciliação (c) da §3.1.3.
 - `refreshAgent(_:expectingSession:)` é chamado no `SessionStart` do hook (§3.1.3 d): repete o `agent.get` do pane em 0; 0,5; 1,5 e 3,5 s até o Herdr informar a sessão do hook, sem aplicar a sessão do hook direto, para o estado não alternar entre as duas. Não bloqueia quem chama.
 - `refreshDirtyState(ofAgent:)` é chamado no `Stop`: invalida o cache de `isDirty` do workspace do agente (§3.1.4) e reagenda a árvore.
@@ -1065,7 +1085,9 @@ public struct AgentSummary: Codable, Sendable, Identifiable {
     public var turnEndedAt: Date?
     public var archivedAt: Date?           // arquivado pelo usuário e sem turno novo depois (§4.9)
     public var runningSubagents: Int?      // subagentes running da sessão atual (§3.5); nil ou 0 esconde o selo
-    public var permissionMode: String?     // última linha `permission-mode` do transcript (`default`, `auto`, `acceptEdits`, `plan`, `bypassPermissions`); só muda no transcript quando o próximo prompt sai
+    public var permissionMode: String?     // `default`, `auto`, `acceptEdits`, `plan`, `bypassPermissions`, `dontAsk`: o mais recente entre o hook (§3.3.1), o `setMode` e a linha `permission-mode` do transcript
+    public var effort: String?             // controles: `low`, `medium`, `high`, `xhigh`, `max`, do último `Stop` ou `setEffort`; nil em modelo sem effort
+    public var contextUsedTokens: Int?     // controles: `contextTokens` do transcript, ou o % da statusline × janela do modelo
 }
 
 public enum MessageAuthor: String, Codable, Sendable { case user, assistant }
@@ -1202,6 +1224,7 @@ public struct ChatMeta: Codable, Sendable {
     public var branch: String?
     public var status: AgentStatus
     public var permissionMode: String?
+    public var effort: String?             // controles, mesma regra do AgentSummary
     public var subagent: SubagentChatInfo? // só no chat de subagente
 }
 
@@ -1339,6 +1362,9 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
 | `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
 | `listWebServers` | `{}` | `webServers` (§9.3) | preview-web |
+| `setModel` | `{agentId, model: "opus" \| "sonnet" \| "haiku" \| "fable"}` | `ack{}` | controles |
+| `setEffort` | `{agentId, level: "low" \| "medium" \| "high" \| "xhigh" \| "max"}` | `ack{}` | controles |
+| `setMode` | `{agentId, mode: "default" \| "acceptEdits" \| "plan" \| "auto"}` | `ack{}` | controles |
 
 **Servidor → cliente**
 
@@ -1360,7 +1386,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `pending` | `{requests: [PendingRequest]}` (lista completa) | 1b. Evento: mudança na lista (também enviado logo depois de `tree`) |
 | `ack` | `{}`, ou `{agentId}` para `newAgentTab` | Resposta simples |
 | `pong` | `{}` | Resposta a `ping` |
-| `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `sessionNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `internal` |
+| `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `sessionNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `modeUnavailable`, `screenBusy`, `internal` |
 
 #### §5.3.1 Regras do servidor
 
@@ -1397,6 +1423,12 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - sem push contínuo: o app pede a lista ao abrir o Detalhe e de novo a cada `treeChanged` que muda o `runningSubagents` do agente.
 - **`archive`**: `sessionId` que não é a sessão atual de nenhum agente da árvore → `sessionNotFound`. Aceito, o daemon responde `ack`, grava o arquivamento (§4.9) e manda `treeChanged` com o `archivedAt`.
 - **`sendPrompt`, `interrupt` e `slash`**: agente com `kind != "claude"` → `invalidPayload`, com a mesma mensagem do `openChat`.
+- **`setModel`, `setEffort` e `setMode`** (controles):
+  - valem as mesmas regras de alvo do `sendPrompt`: só `agentId` e só `kind == "claude"`;
+  - valor fora da lista → `invalidPayload`;
+  - o `ack` sai depois da troca conferida na tela (§4.1.1). Em seguida vêm `treeChanged` e `chatMeta` com o valor lido, não o pedido;
+  - `HerdrBridgeError.modeUnavailable` → `modeUnavailable` ("Modo indisponível neste modelo"); `screenBusy` → `screenBusy` ("Feche o seletor aberto no terminal");
+  - `setEffort` num modelo sem effort → `invalidPayload`.
 - **`newAgentTab`**:
   - `workspaceId` fora da árvore → `invalidPayload` ("Workspace não encontrado");
   - o daemon chama `tab.create {workspace_id, cwd: <diretório do workspace (§3.1.4)>, focus: false}` e depois `agent.start {name: "mocha-<n>", kind: "claude", pane_id: <root_pane.pane_id>, args: []}`, com `<n>` o menor inteiro a partir de 1 cujo nome não está em uso entre os agentes do Herdr;
@@ -1620,7 +1652,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Nota fixa no rodapé: "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
 
 **Detalhe do agente** (`04-detalhe-agente`, `04b-detalhe-precisa-de-voce`)
-- Folha grande, aberta tocando no título do header do chat ou segurando um card da Home. X (`glassHero`) ou arrastar para baixo fecha.
+- Folha grande, aberta segurando o título do header do chat (na fase controles; antes, tocando) ou segurando um card da Home. X (`glassHero`) ou arrastar para baixo fecha.
 - Bloco principal (`heroBg`): ladrilho do asterisco, a `preview` (como no card, até 4 linhas), "<workspace em mono verde> · <hostName> · <tempo relativo>" e o selo de estado: TRABALHANDO (verde, a borda gira), PRONTO (verde), PRECISA DE VOCÊ (âmbar; o workspace fica âmbar também). Numa `ArchivedSession`, o selo ENCERRADA em `textSecondary`.
 - "Abrir terminal" (fase 2): oculto até lá.
 - Cartão Conta: "<plano> (<conta>)" e as barras de 5h e 7d, sem o traço de ritmo. Some sem `usage`.
@@ -1630,8 +1662,8 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 **Chat** (`05-chat-inicio-turno`, `05b-chat-fim-turno`, `06-card-expandido`, `07-chat-trabalhando`)
 - **Header flutuante de vidro** (`glassChat`), com:
   - disco de status (§6.2); tocar abre a gaveta;
-  - asterisco do Claude e título (truncado no meio); tocar no título abre o Detalhe;
-  - subtítulo "workspace • modelo • branch" em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
+  - asterisco do Claude e título (truncado no meio). O toque no título abre o Detalhe. O seletor de modelo abre pelo medidor do composer;
+  - subtítulo "workspace • modelo • branch". O header não mostra contexto nem effort (decisão do João): o contexto fica no painel `↻` e o effort no seletor em `textSecondary` (modelo abreviado: sem o prefixo `claude-` e sem o sufixo de data `-AAAAMMDD`, ex.: `claude-opus-5-5` → `opus-5-5`, `claude-haiku-4-5-20251001` → `haiku-4-5`);
   - botão redondo de git, reservado e desabilitado;
   - bússola, presa ao workspace do agente: pede `listWebServers` e filtra pelo `workspaceId` do workspace que contém o agente. Com 1 servidor, abre direto o Navegador; com 0 ou vários, abre o painel Servidores web só com esse workspace (vazio: "Nenhum servidor web neste workspace"). Sem workspace conhecido (thread Codex, sessão arquivada sem agente vivo), abre o painel global.
   - O conteúdo rola por baixo do header e do composer.
@@ -1655,15 +1687,31 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - **Sessão arquivada** (`ChatTarget.session`): mesma lista, sem linha de status; o composer dá lugar a uma pílula `glassComposer` "Sessão encerrada · só leitura".
 
 **Composer** (`05-chat-inicio-turno`, `08-chat-digitando`), flutuante sobre o fim da lista
-- **Recolhido**: uma linha só, "Chat via Mocha…", com o botão enviar à direita. Um rascunho não enviado aparece na linha recolhida, em branco, com enviar aceso.
-- **Expandido** (ao tocar): campo multilinha (até 6 linhas, depois rola) e a linha de botões:
-  - `+`: imagem (§6.5);
-  - microfone: 1b (oculto antes);
-  - `↻`: menu de slash e ações, 1a-final (oculto antes);
-  - enviar: círculo, desabilitado sem texto.
+- Cápsula de Liquid Glass clara (`composerClear`), no estilo do composer do ChatGPT. Sem mock (decisão do João).
+- **Recolhido**: `+` à esquerda, "Chat via Mocha…" e o botão principal à direita. Um rascunho não enviado aparece na linha recolhida, em branco. O `+` abre o menu sem expandir.
+- **Expandido** (ao tocar): campo multilinha na largura toda (até 6 linhas, depois rola) e, abaixo dele, a linha de botões:
+  - `+`: Fotos, Câmera e Áudio (§6.5);
+  - `↻`: painel de controles, ao lado do `+`;
+  - medidor: à esquerda do botão principal, só o glifo, com o arco na proporção do effort (low 20 % até max 100 %). O toque abre o seletor de modelo;
+  - botão principal, num círculo: **enviar** com texto ou anexo; **parar** (quadrado, manda `interrupt`) com o campo vazio, sem anexo e `status == working`; **microfone** (ditado, §6.5) com o campo vazio e o agente parado, verde enquanto dita. Não há microfone separado.
 - O teclado fecha, e o composer volta a uma linha, ao rolar a lista, tocar fora, abrir a gaveta ou enviar.
-- Enviar continua enviando durante `working` (o Claude enfileira). Parar fica só na linha de status.
-- **Menu `↻`** (1a-final, `09-menu-slash`, `09b-confirma-clear`): abre acima do `↻`, por cima do teclado. `/compact`, `/clear` (com confirmação), `/context`, `/cost` e "Interromper (Esc)". Comandos que abrem seletor no terminal (`/model`, `/resume`) ficam fora. Lista fixa no código. Depois do `/clear`, o chat reabre na sessão nova.
+- Enviar continua enviando durante `working` quando há texto (o Claude enfileira). Parar fica na linha de status e, com o campo vazio, no próprio botão.
+- **Painel `↻`** (fase controles; antes, menu de slash da 1a-final). Fica numa camada flutuante própria (`FloatingMenuLayer`), ancorada no composer, com 280 pt de largura, no vidro `.menu`, e entra e sai com escala e opacidade. Quando não cabe acima do composer, desce sobre ele. O teclado fica sempre por cima, porque o iOS não deixa janela do app cobri-lo. Linhas de 58 pt, com ícone num círculo de vidro de 40 pt. Na raiz, é um menu sem rolagem; um toque fora fecha. Sem mock (decisão do João).
+  - **Raiz**:
+    - "Contexto": barra fina com o quanto já foi usado e "30% (120k)" (porcentagem usada e `contextUsedTokens` abreviado; sem tokens, só a porcentagem), só leitura, nas cores do anel da Home;
+    - "Modo": valor atual, ou "Manual" em `default` e `bypassPermissions`;
+    - "Uso": a janela mais apertada entre 5 h e semana. A linha some sem dado de uso;
+    - "Subagentes": "N rodando", ou só o total quando nenhum roda. A linha some sem subagentes nem workflows;
+    - separador, `/compact` e `/clear` em vermelho, com confirmação, mandados como `slash`. Depois do `/clear`, o chat reabre na sessão nova.
+  - **Detalhes**: dentro do próprio painel, com "‹ Título" fixo para voltar (só a lista rola) e deslize lateral (ease-out, sem bounce).
+    - **Modo**: Edição (`acceptEdits`), Auto (`auto`) e Plano (`plan`), com ícone, descrição e ✓ nas cores dos modos do Claude Code: Edição `#AF87FF`, Plano `#48968C`, Auto `#FFC107` e Manual `#999999`, também no valor da raiz. O toque manda `setMode` e volta para a raiz. O valor aparece na hora e volta ao valor do `chatMeta` se vier erro, com toast. No Haiku, Auto fica apagado com "indisponível no Haiku".
+    - **Uso**: barras "5 horas" e "Semana", com porcentagem e renovação.
+    - **Subagentes**: lista plana dos subagentes e workflows da sessão. O toque abre o chat do subagente.
+  - `/context`, `/cost` e "Interromper (Esc)" saem.
+- **Seletor de modelo** (fase controles): o toque no medidor do composer abre um painel acima do composer, no estilo de `docs/referencias/moshi/seletor-modelo.jpg`.
+  - **Topo**: segmentos Low, Medium, High, Extra high e Max (`setEffort`). Somem no Haiku.
+  - **Lista**: Fable, Opus, Sonnet e Haiku, com uma descrição curta cada (`setModel`). O item atual fica destacado.
+  - **Troca**: vale só para a sessão, e o valor escolhido aparece na hora até o daemon confirmar.
 
 **Pedido no chat** (1b, `10-pedido-aprovacao`, `10b-pergunta`)
 - O card do `PendingRequest` do agente entra no fim da lista, e o disco do header fica âmbar.
@@ -1738,7 +1786,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 ### §6.5 Imagem (1a-core)
 
-- O `+` do composer expandido abre um menu próprio (vidro `glassComposer`, medidas do menu da tela `09-menu-slash`) com três origens: "Fotos" (`PhotosPicker`, várias de uma vez, na ordem de seleção), "Câmera" (`UIImagePickerController`; some quando não há câmera) e "Colar imagem" (`UIPasteboard.general.images`, habilitado só com `hasImages`; a leitura mostra o aviso "Permitir colar" do iOS, a não ser que o João libere em Ajustes › Mocha › Colar de Outros Apps).
+- O `+` do composer abre um menu no mesmo estilo do painel `↻` (§6.3) com "Fotos" (`PhotosPicker`, várias de uma vez, na ordem de seleção), "Câmera" (`UIImagePickerController`; some quando não há câmera) e "Áudio" (inicia o ditado). "Colar imagem" saiu na fase controles.
 - Até 5 imagens por prompt. Cada uma é reduzida para no máximo 2.048 px no lado maior e vira JPEG com qualidade 0,85, mantendo a orientação.
 - As imagens anexadas aparecem como miniaturas quadradas numa faixa acima do campo, cada uma com um "x" para remover. Com imagem anexada, enviar fica habilitado mesmo sem texto.
 - Ao enviar: cada imagem vai por `POST /v1/upload` (§5.5), em sequência, com `Authorization: Bearer <deviceToken>` e a base `https://<host do pareamento>`. Depois de todos os uploads, o app manda um `sendPrompt` com o texto do campo seguido de uma linha `[imagem: <path>]` por imagem, na ordem das miniaturas. O Claude Code lê a imagem pelo caminho.

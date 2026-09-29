@@ -75,6 +75,29 @@
           }
         ]
       }
+    ],
+    "PreModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "/usr/bin/curl -s -m 3 -X POST -H 'Content-Type: application/json' -H \"X-Mocha-Pane: $HERDR_PANE_ID\" -H 'X-Mocha-Hook-Secret: test-secret' --data-binary @- http://127.0.0.1:47420/hooks/PreModelSwitch || echo '{}'"
+          }
+        ]
+      }
+    ],
+    "PostModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' -H \"X-Mocha-Pane: $HERDR_PANE_ID\" -H 'X-Mocha-Hook-Secret: test-secret' --data-binary @- http://127.0.0.1:47420/hooks/PostModelSwitch || true"
+          }
+        ]
+      }
     ]
   }
 }

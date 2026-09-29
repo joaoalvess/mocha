@@ -172,6 +172,7 @@ public struct ChatMeta: Codable, Sendable, Hashable {
     public var branch: String?
     public var status: AgentStatus
     public var permissionMode: String?
+    public var effort: String?
     public var subagent: SubagentChatInfo?
 
     public init(
@@ -181,6 +182,7 @@ public struct ChatMeta: Codable, Sendable, Hashable {
         branch: String? = nil,
         status: AgentStatus,
         permissionMode: String? = nil,
+        effort: String? = nil,
         subagent: SubagentChatInfo? = nil
     ) {
         self.title = title
@@ -189,11 +191,12 @@ public struct ChatMeta: Codable, Sendable, Hashable {
         self.branch = branch
         self.status = status
         self.permissionMode = permissionMode
+        self.effort = effort
         self.subagent = subagent
     }
 
     private enum CodingKeys: String, CodingKey {
-        case title, workspaceLabel, model, branch, status, permissionMode, subagent
+        case title, workspaceLabel, model, branch, status, permissionMode, effort, subagent
     }
 
     public init(from decoder: any Decoder) throws {
@@ -204,6 +207,7 @@ public struct ChatMeta: Codable, Sendable, Hashable {
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
         status = try container.decode(AgentStatus.self, forKey: .status)
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        effort = try container.decodeIfPresent(String.self, forKey: .effort)
         subagent = (try? container.decodeIfPresent(SubagentChatInfo.self, forKey: .subagent)) ?? nil
     }
 
@@ -215,6 +219,7 @@ public struct ChatMeta: Codable, Sendable, Hashable {
         try container.encodeIfPresent(branch, forKey: .branch)
         try container.encode(status, forKey: .status)
         try container.encodeIfPresent(permissionMode, forKey: .permissionMode)
+        try container.encodeIfPresent(effort, forKey: .effort)
         try container.encodeIfPresent(subagent, forKey: .subagent)
     }
 }

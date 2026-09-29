@@ -242,6 +242,12 @@ public actor DemoServerConnection: ServerConnection {
             sendPrompt(agentId: agentId, text: text, id: id)
         case .interrupt(let agentId):
             interrupt(agentId: agentId, id: id)
+        case .setModel(let agentId, let model):
+            setModel(agentId: agentId, model: model, id: id)
+        case .setEffort(let agentId, let level):
+            setEffort(agentId: agentId, level: level, id: id)
+        case .setMode(let agentId, let mode):
+            setMode(agentId: agentId, mode: mode, id: id)
         case .setForeground, .registerLiveActivity:
             reply(id, .ack())
         case .unpair:
@@ -479,6 +485,59 @@ public actor DemoServerConnection: ServerConnection {
         turns.removeValue(forKey: chat.agentId)?.cancel()
         guard chat.meta.status == .working else { return }
         setStatus(.idle, for: chat.agentId)
+    }
+
+    private func controlledChat(_ agentId: AgentID, replyingTo id: String) -> DemoChat? {
+        guard let chat = agentChat(agentId, replyingTo: id) else { return nil }
+        guard workspaces.agent(withId: chat.agentId)?.kind == "claude" else {
+            fail(id, .invalidPayload, Self.claudeOnlyMessage)
+            return nil
+        }
+        return chat
+    }
+
+    private func setModel(agentId: AgentID, model: ModelAlias, id: String) {
+        guard let chat = controlledChat(agentId, replyingTo: id) else { return }
+        let modelId = DemoControls.modelId(for: model)
+        let effort = model == .haiku ? nil : chat.meta.effort ?? DemoControls.defaultEffort
+        let mode = model == .haiku && chat.meta.permissionMode == PermissionModeTarget.auto.rawValue ? PermissionModeTarget.default.rawValue : chat.meta.permissionMode
+        reply(id, .ack())
+        updateControls(of: chat.agentId) { model, effortValue, permissionMode in
+            model = modelId
+            effortValue = effort
+            permissionMode = mode
+        }
+    }
+
+    private func setEffort(agentId: AgentID, level: EffortLevel, id: String) {
+        guard let chat = controlledChat(agentId, replyingTo: id) else { return }
+        guard DemoControls.hasEffort(model: chat.meta.model) else {
+            return fail(id, .invalidPayload, DemoControls.noEffortMessage)
+        }
+        reply(id, .ack())
+        updateControls(of: chat.agentId) { _, effort, _ in effort = level.rawValue }
+    }
+
+    private func setMode(agentId: AgentID, mode: PermissionModeTarget, id: String) {
+        guard let chat = controlledChat(agentId, replyingTo: id) else { return }
+        guard mode != .auto || DemoControls.hasEffort(model: chat.meta.model) else {
+            return fail(id, .modeUnavailable, DemoControls.modeUnavailableMessage)
+        }
+        reply(id, .ack())
+        updateControls(of: chat.agentId) { _, _, permissionMode in permissionMode = mode.rawValue }
+    }
+
+    private func updateControls(of agentId: AgentID, _ change: (inout String?, inout String?, inout String?) -> Void) {
+        guard var meta = chats[agentId]?.meta else { return }
+        change(&meta.model, &meta.effort, &meta.permissionMode)
+        chats[agentId]?.meta = meta
+        workspaces.updateAgent(withId: agentId) { agent in
+            agent.model = meta.model
+            agent.effort = meta.effort
+            agent.permissionMode = meta.permissionMode
+        }
+        emitChatEvent(for: agentId) { .chatMeta(target: $0, meta: meta) }
+        emitTree()
     }
 
     private func newAgentTab(in workspaceId: WorkspaceID, kind: AgentProvider, id: String) {

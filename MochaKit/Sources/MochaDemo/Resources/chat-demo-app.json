@@ -6,7 +6,8 @@
   "model": "claude-opus-5-5",
   "branch": "main",
   "status": "idle",
-  "permissionMode": "default"
+  "permissionMode": "acceptEdits",
+  "effort": "xhigh"
  },
  "items": [
   {

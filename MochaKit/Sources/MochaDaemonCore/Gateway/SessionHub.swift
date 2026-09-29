@@ -126,6 +126,7 @@ public actor SessionHub {
     let subagents: (any SubagentProviding)?
     let pending: (any PendingProviding)?
     let webServers: (any WebServerScanning)?
+    let modelSwitches: ModelSwitchGate?
     let clock: any GatewayClock
     let configuration: SessionHubConfiguration
     let encoder = JSONEncoder()
@@ -154,6 +155,8 @@ public actor SessionHub {
     var subagentTasks: [Task<Void, Never>] = []
     var pendingRequests: [PendingRequest] = []
     var pendingDecisions: [AgentID: PendingDecision] = [:]
+    var agentControls: [AgentID: AgentControls] = [:]
+    var controlsInFlight: Set<AgentID> = []
     let observedSessionUpdates: AsyncStream<Set<String>>
     let observedSessionContinuation: AsyncStream<Set<String>>.Continuation
     let liveActivityInputs: AsyncStream<LiveActivityInput>
@@ -190,6 +193,7 @@ public actor SessionHub {
         subagents: (any SubagentProviding)? = nil,
         pending: (any PendingProviding)? = nil,
         webServers: (any WebServerScanning)? = nil,
+        modelSwitches: ModelSwitchGate? = nil,
         clock: any GatewayClock = SystemGatewayClock(),
         configuration: SessionHubConfiguration = SessionHubConfiguration()
     ) {
@@ -202,6 +206,7 @@ public actor SessionHub {
         self.subagents = subagents
         self.pending = pending
         self.webServers = webServers
+        self.modelSwitches = modelSwitches
         self.clock = clock
         self.configuration = configuration
         let (updates, continuation) = AsyncStream.makeStream(of: Set<AgentID>.self)
@@ -340,7 +345,8 @@ public actor SessionHub {
             contexts: pluginContexts,
             archivedAts: archivedAts,
             runningSubagents: runningSubagentCounts,
-            pendingCounts: pendingCounts()
+            pendingCounts: pendingCounts(),
+            controls: agentControls
         )
         return TreeComposer.codexOverlay(tree, panes: codexPanes, connected: codexConnected)
     }
@@ -359,7 +365,8 @@ public actor SessionHub {
             meta: metas[sessionId],
             contextUsedPercent: pluginContexts[sessionId],
             archivedAt: archivedAts[sessionId],
-            runningSubagents: runningSubagentCounts[sessionId]
+            runningSubagents: runningSubagentCounts[sessionId],
+            controls: agentControls[agent.id]
         )
     }
 
@@ -464,6 +471,9 @@ public actor SessionHub {
     private func moveAgent(from oldId: AgentID, to newId: AgentID) {
         guard oldId != newId else { return }
         baseTree = TreeComposer.updatingAgent(oldId, in: baseTree) { $0.id = newId }
+        if let controls = agentControls.removeValue(forKey: oldId) {
+            agentControls[newId] = controls
+        }
         if let follow = liveFollows.removeValue(forKey: oldId) {
             liveFollows[newId]?.cancel()
             liveFollows[newId] = follow
@@ -486,10 +496,11 @@ public actor SessionHub {
         await flushTree()
     }
 
-    private func flushTree() async {
+    func flushTree() async {
         await retainCodexPanes()
         await refreshUnfollowedMetas()
         pruneMetas()
+        pruneAgentControls()
         publishObservedSessions()
         await refreshSessionState()
         let tree = composedTree()

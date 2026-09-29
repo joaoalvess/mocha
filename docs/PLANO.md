@@ -1018,6 +1018,61 @@ Branch `fase/preview-web`, criada de `fase/header` a pedido do João. Ondas: con
 
 - Com o B5: a folha lista os servidores reais; "Portal do cliente" abre; uma edição no código atualiza a página por HMR; fechar e reabrir; mandar o app para o background e voltar recarrega.
 
+## Fase controles: modelo, effort, modo e painel do chat
+
+Branch `fase/controles`, criada de `main`. Ondas: S8 → WP-K1 → WP-K3 → WP-K4. Sem mock nem capturas (decisão do João): a referência visual é o print do seletor do Moshi e os componentes que o app já tem. Decisões do João (2026-09-28):
+
+- **Header do chat**: o toque no título abre o seletor de modelo e effort; o long press abre o detalhe do agente. O header não mostra contexto nem effort.
+- **Menu `↻`**: vira painel de controles com contexto, uso (5 h e semanal), modo (Edição / Auto / Plano), subagentes e workflows da sessão, `/compact` e `/clear`. `/context` e `/cost` saem.
+- **Botão de enviar**: com o campo vazio, sem anexo e com o agente trabalhando, vira parar (`interrupt`). "Interromper" sai do menu.
+
+A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
+
+### S8: modelo, effort e modo pelo Herdr
+
+- **Dono**: `docs/spikes/S8.md` e o laboratório `mocha-lab-S8` (`~/Developer/mocha-lab/S8/`). O Claude de teste roda com `claude --setting-sources project,local --settings <arquivo>`.
+- **Perguntas**:
+  - **Shift+Tab**:
+    - qual nome de tecla o `agent.send_keys` aceita (`shift+tab`, `btab`, `S-Tab`)?
+    - a API do Herdr lê o rodapé do pane (`⏵⏵ accept edits on`, `⏸ plan mode on`, `⏵⏵ auto mode on`)?
+    - um laço "Shift+Tab, ler, repetir até o modo alvo, no máximo 5 vezes" fecha em menos de 1,5 s?
+  - **`/model <alias>` via `agent.prompt` com cache quente**: a confirmação aparece? Um hook `PreModelSwitch` com `permissionDecision: "allow"` a elimina?
+  - **Agente trabalhando**: `/model` e `/effort <nível>` entram na fila ou voltam `agent_blocked`?
+  - **Hooks**: o hook `Stop` real traz `effort.level` e `permission_mode`? O `PostModelSwitch` traz o modelo novo?
+  - **Padrão global**: existe forma com argumento de trocar o modelo só na sessão? Sem ela, a troca muda o padrão das próximas sessões.
+- **Aceite**: `S8.md` com as respostas, os comandos exatos e o "Impacto" em §4, §5 e §6.3 e nos WP-K1 e WP-K3.
+
+### WP-K1: modelo, effort e modo no protocolo e no daemon
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/` (Gateway, Hooks, Herdr), `MochaKit/Sources/MochaHerdr/` e testes. O protocolo e as fixtures ficam com o orquestrador, antes da onda.
+- **Protocolo**:
+  - `effort` no resumo do agente e no `ChatMeta`;
+  - `permissionMode` e `model` atualizados pelos hooks, sem esperar o transcript;
+  - mensagens `setModel`, `setEffort` e `setMode`, validadas contra listas fixas.
+- **Daemon**:
+  - `setModel` e `setEffort` valem só para a sessão (decisão do João, 2026-09-28): abrem o seletor (`/model` ou `/effort`), leem com `pane.read`, andam com `up`/`down` ou `left`/`right` e confirmam com `s`. A forma digitada fica proibida, porque grava no `~/.claude/settings.json`;
+  - `setMode` é o laço `shift+tab` + `pane.read` do rodapé, com detecção de mudança (S8, Decisões 1);
+  - antes de cada `agent.prompt`, seletor ou diálogo na tela contam como bloqueio;
+  - `pane.read` entra no `HerdrRequest`/`HerdrClient` e no `FakeHerdrServer`;
+  - `PreModelSwitch` condicional (allow só com `setModel` pendente no pane) e `PostModelSwitch` entram no `install-hooks`;
+  - `Stop`, `PreToolUse` e `PostModelSwitch` atualizam `model`, `effort` e `permissionMode`.
+- **Aceite**: `scripts/test.sh` verde, com `FakeHerdrServer` (rodapés e seletores de fixture) e as amostras de hook do S8 como fixtures. Detalhes em `docs/spikes/S8.md` ("Impacto").
+
+### WP-K3: controles no app
+
+- **Dono**: `App/Sources/Composer/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `App/Sources/DesignSystem/ComposerBar.swift`, `App/Sources/Chat/ChatScreen.swift`, `MochaKit/Sources/MochaDemo/` e testes.
+- **Header**: toque → seletor; long press → `showDetail`; sem anel nem effort no header (708e51e).
+- **Painel**: o `SlashMenu` vira o painel de controles, que lê `session.usages` e `contextLeftPercent` e lista os subagentes e workflows da sessão (reúso de `App/Sources/AgentDetail/AgentSubagentsSection.swift`). Tocar num subagente abre o chat dele, como o card faz.
+- **Composer**: o botão de enviar ganha o estado parar.
+- **Seletor**:
+  - mostra o valor escolhido até o daemon confirmar pelo rodapé ou pelo hook;
+  - no Haiku, `auto` fica cinza com a legenda "Indisponível no Haiku" e o effort some.
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes. A conferência visual é no iPhone, no WP-K4.
+
+### WP-K4: checklist no iPhone
+
+- Trocar o modelo e o effort, girar os três modos, abrir um subagente pelo painel, `/compact`, `/clear` e parar pelo botão de enviar. Tudo aparece no terminal e no app em até 2 s.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1114,6 +1169,11 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W3b | done | `32b5b7f` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
 | WP-W4 | done | `80e683d` (SSH e Navegador; conexão real no WP-W5 com o B5) |
 | WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
+| S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 949040c |
+| WP-K1 | feito (test.sh da fase combinada verde; `install-hooks` real e teste com Claude real no WP-K4) | 41710e2, 1a61e3b, 0c852e2, 0374325, merge 1077586 |
+| WP-K2 | cancelado (sem mock, decisão do João) | |
+| WP-K3 | feito sem device (test.sh com 1 falha de tempo conhecida em TranscriptStoreFollowTests; conferência visual no WP-K4) | 73eb388, e43991d, df7aa3b, 214d648, merge 540bb71 |
+| WP-K4 | todo | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
 | WP-T3 | todo | |

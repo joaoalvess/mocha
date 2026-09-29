@@ -79,7 +79,7 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
         let clientTypes = [
             "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "setForeground", "unpair", "ping",
             "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity", "listSubagents",
-            "listWebServers",
+            "listWebServers", "setModel", "setEffort", "setMode",
         ]
         let serverTypes = [
             "helloOk", "tree", "archived", "usage", "herdrStatus", "treeChanged", "agentStatus", "chatPage",

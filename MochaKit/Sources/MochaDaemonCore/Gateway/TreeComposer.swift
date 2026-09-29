@@ -12,7 +12,8 @@ enum TreeComposer {
         contexts: [String: Double] = [:],
         archivedAts: [String: Date] = [:],
         runningSubagents: [String: Int] = [:],
-        pendingCounts: [AgentID: Int] = [:]
+        pendingCounts: [AgentID: Int] = [:],
+        controls: [AgentID: AgentControls] = [:]
     ) -> [WorkspaceNode] {
         mapAgents(tree) { agent in
             var agent = agent
@@ -23,7 +24,8 @@ enum TreeComposer {
                 meta: metas[sessionId],
                 contextUsedPercent: contexts[sessionId],
                 archivedAt: archivedAts[sessionId],
-                runningSubagents: runningSubagents[sessionId]
+                runningSubagents: runningSubagents[sessionId],
+                controls: controls[agent.id]
             )
         }
     }
@@ -33,7 +35,8 @@ enum TreeComposer {
         meta: TranscriptMeta?,
         contextUsedPercent: Double? = nil,
         archivedAt: Date? = nil,
-        runningSubagents: Int? = nil
+        runningSubagents: Int? = nil,
+        controls: AgentControls? = nil
     ) -> AgentSummary {
         var summary = agent
         if let runningSubagents, runningSubagents > 0 {
@@ -49,15 +52,22 @@ enum TreeComposer {
             summary.preview = meta.preview
             summary.activity = meta.activity
             summary.contextLeftPercent = contextLeftPercent(meta)
+            summary.contextUsedTokens = meta.contextTokens
             summary.sessionStartedAt = meta.sessionStartedAt
             summary.turnStartedAt = meta.turnStartedAt
             summary.turnEndedAt = meta.turnEndedAt
         }
         if let contextUsedPercent {
             summary.contextLeftPercent = contextLeftPercent(used: contextUsedPercent)
+            summary.contextUsedTokens = Int((contextUsedPercent * Double(ContextWindow.size(forModel: summary.model ?? "")) / 100).rounded())
         }
         if let archivedAt {
             summary.archivedAt = archivedAt
+        }
+        if let controls, controls.sessionId == summary.sessionId {
+            summary.permissionMode = controls.permissionMode(transcript: meta?.permissionMode)
+            summary.model = controls.model(transcript: meta?.model)
+            summary.effort = controls.effort(fallback: summary.effort)
         }
         return summary
     }
@@ -72,14 +82,16 @@ enum TreeComposer {
         Int(min(100, max(0, (100 - used).rounded())))
     }
 
-    static func agentChatMeta(summary: AgentSummary?, meta: TranscriptMeta?) -> ChatMeta {
-        ChatMeta(
+    static func agentChatMeta(summary: AgentSummary?, meta: TranscriptMeta?, controls: AgentControls? = nil) -> ChatMeta {
+        let controls = controls.flatMap { $0.sessionId == summary?.sessionId ? $0 : nil }
+        return ChatMeta(
             title: title(meta) ?? summary?.title ?? HerdrTreeBuilder.defaultAgentTitle,
             workspaceLabel: summary?.workspaceLabel ?? "",
-            model: meta?.model,
+            model: controls?.model(transcript: meta?.model) ?? meta?.model,
             branch: meta?.branch,
             status: summary?.status ?? .unknown,
-            permissionMode: meta?.permissionMode
+            permissionMode: controls?.permissionMode(transcript: meta?.permissionMode) ?? meta?.permissionMode,
+            effort: controls?.effort(fallback: nil)
         )
     }
 

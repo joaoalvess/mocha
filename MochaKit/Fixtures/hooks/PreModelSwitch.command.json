@@ -1,0 +1,17 @@
+{
+  "session_id": "44444444-4444-4444-8444-444444444444",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-projects-demo-app/44444444-4444-4444-8444-444444444444.jsonl",
+  "cwd": "/Users/dev/projects/demo-app",
+  "scratchpad_dir": "/private/tmp/claude-501/-Users-dev-projects-demo-app/44444444-4444-4444-8444-444444444444/scratchpad",
+  "prompt_id": "5f0c0000-0000-4000-8000-000000000013",
+  "hook_event_name": "PreModelSwitch",
+  "from_model": "claude-haiku-4-5-20251001",
+  "to_model": "claude-sonnet-5-5",
+  "requested_model": "sonnet",
+  "source": "command",
+  "context_tokens": 36875,
+  "prompt_cache_warm": true,
+  "cache_ttl": "1h",
+  "estimated_cache_write_usd": 0.1475,
+  "pricing": "catalog"
+}

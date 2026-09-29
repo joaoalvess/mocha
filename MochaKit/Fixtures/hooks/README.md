@@ -36,6 +36,12 @@ Capturadas em 2026-09-25 no Claude Code 2.1.283 (`--model haiku`), dentro do lab
 | `response.PreToolUse.AskUserQuestion.{single,multi}.json` | Mesma resposta no formato do `PreToolUse` (mecanismo A, testado e não adotado) |
 | `response.empty.json` | `{}`: sem decisão; o diálogo do terminal segue normal |
 | `sequence.*.jsonl` | Linha do tempo de um cenário: hooks recebidos (`source: hook`), respostas do servidor (`daemon`), conexão fechada pelo Claude (`claude`), status do Herdr (`herdr`), `tool_use`/`tool_result` no transcript (`transcript`) e teclas enviadas (`terminal`). `dt` em segundos desde o início. Horários de tecla são aproximados (±0,3 s), exceto o do `terminal-allow` |
-| `settings.install-hooks.proposed.json` | Bloco de hooks proposto para o `install-hooks` (validado no laboratório com a porta 47490), ao lado do hook do Herdr |
+| `settings.install-hooks.proposed.json` | Bloco de hooks proposto para o `install-hooks` (validado no laboratório com a porta 47490), ao lado do hook do Herdr. Na fase controles ganhou o `PreModelSwitch` síncrono (sem `async`, sem `-o /dev/null`, `\|\| echo '{}'`) e o `PostModelSwitch` |
+| `Stop.effort.json`, `PreToolUse.bash.effort.json` | Spike S8 (Claude Code 2.1.284, Sonnet 5.5): `permission_mode` e `effort.level`. O `Stop.json` do S3 (Haiku) não tem `effort` |
+| `PreModelSwitch.command.json` | S8: `/model sonnet` digitado com cache quente; sem `permission_mode` (a documentação diz que tem) |
+| `PostModelSwitch.{picker,auto}.json` | S8: troca pelo seletor e troca automática (Haiku em `plan` roda Sonnet), esta sem `prompt_id` e com `requested_model: null` |
+| `response.PreModelSwitch.allow.json` | Resposta que pula o diálogo "Switch model?" (só com `setModel` do app pendente no pane) |
 
 `elicitation_dialog` não foi capturado: só dispara com um servidor MCP pedindo formulário.
+
+As amostras do S8 seguem a mesma redação, com o `session_id` `44444444-…` e `prompt_id` `5f0c0000-…-00000000001N`.

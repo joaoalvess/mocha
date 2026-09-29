@@ -4,59 +4,37 @@ import SwiftUI
 enum SlashMenuAction: CaseIterable, Identifiable {
     case compact
     case clear
-    case context
-    case cost
-    case interrupt
-
-    static let commands: [SlashMenuAction] = [.compact, .clear, .context, .cost]
 
     var id: Self { self }
 
-    var command: String? {
+    var command: String {
         switch self {
         case .compact: "/compact"
         case .clear: "/clear"
-        case .context: "/context"
-        case .cost: "/cost"
-        case .interrupt: nil
         }
     }
 
     var title: String {
-        command ?? "Interromper (Esc)"
-    }
-
-    var detail: String? {
-        switch self {
-        case .compact: "Resumir a conversa"
-        case .clear: "Começar do zero"
-        case .context: "Uso da janela de contexto"
-        case .cost: "Custo e tokens da sessão"
-        case .interrupt: nil
-        }
+        command
     }
 
     var icon: SlashMenuIcon {
         switch self {
         case .compact: .compress
         case .clear: .trash
-        case .context: .pie
-        case .cost: .dollar
-        case .interrupt: .stopCircle
         }
-    }
-
-    var isDestructive: Bool {
-        self == .interrupt
     }
 
     var needsConfirmation: Bool {
         self == .clear
     }
 
+    var isDestructive: Bool {
+        self == .clear
+    }
+
     func message(for agentId: AgentID) -> ClientMessage {
-        guard let command else { return .interrupt(agentId: agentId) }
-        return .slash(agentId: agentId, command: command)
+        .slash(agentId: agentId, command: command)
     }
 
     static func matching(command: String) -> SlashMenuAction? {
@@ -76,67 +54,53 @@ enum SlashMenuStyle {
     static let separatorMargin: CGFloat = 5
 }
 
-struct SlashMenu: View {
-    let onSelect: (SlashMenuAction) -> Void
+enum MenuRowStyle {
+    static let badgeSize: CGFloat = 40
+    static let iconSize: CGFloat = 19
+    static let iconStrokeWidth: CGFloat = 1.8
+    static let rowHeight: CGFloat = 58
+    static let detailRowHeight: CGFloat = 62
+    static let rowSpacing: CGFloat = 14
+    static let rowPadding: CGFloat = 12
+    static let titleSize: CGFloat = 17
+}
+
+struct MenuIconBadge<Icon: View>: View {
+    @ViewBuilder let icon: () -> Icon
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(SlashMenuAction.commands) { action in
-                SlashMenuRow(action: action) { onSelect(action) }
-            }
-            SlashMenuStyle.separator
-                .frame(height: 1)
-                .padding(.horizontal, SlashMenuStyle.rowPadding)
-                .padding(.vertical, SlashMenuStyle.separatorMargin)
-                .accessibilityHidden(true)
-            SlashMenuRow(action: .interrupt) { onSelect(.interrupt) }
-        }
-        .padding(.vertical, SlashMenuStyle.rowVerticalPadding)
-        .frame(width: AttachmentLayout.menuWidth, alignment: .leading)
-        .background(menuShape.fill(SlashMenuStyle.background))
-        .overlay(menuShape.strokeBorder(SlashMenuStyle.border, lineWidth: 0.6))
-        .shadow(color: .black.opacity(0.6), radius: 30, y: 22)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Comandos")
-    }
-
-    private var menuShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: AttachmentLayout.menuRadius, style: .continuous)
+        icon()
+            .frame(width: MenuRowStyle.badgeSize, height: MenuRowStyle.badgeSize)
+            .background(Circle().fill(Palette.menuIconBadge))
+            .overlay(Circle().strokeBorder(Palette.menuIconBadgeBorder, lineWidth: 0.6))
     }
 }
 
 struct SlashMenuRow: View {
     let action: SlashMenuAction
     let onSelect: () -> Void
-    @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: SlashMenuStyle.rowSpacing) {
-                SlashMenuIconView(icon: action.icon, size: SlashMenuStyle.iconSize, strokeWidth: SlashMenuStyle.iconStrokeWidth, color: tint)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(action.title)
-                        .font(Typography.mono(15, .bold))
-                        .foregroundStyle(tint)
-                    if let detail = action.detail {
-                        Text(detail)
-                            .font(.system(size: detailSize))
-                            .foregroundStyle(Palette.textSecondary)
-                    }
+            HStack(spacing: MenuRowStyle.rowSpacing) {
+                MenuIconBadge {
+                    SlashMenuIconView(icon: action.icon, size: MenuRowStyle.iconSize, strokeWidth: MenuRowStyle.iconStrokeWidth, color: titleColor)
                 }
-                .lineLimit(1)
+                Text(action.title)
+                    .font(Typography.mono(16, .bold))
+                    .foregroundStyle(titleColor)
+                    .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, SlashMenuStyle.rowPadding)
-            .padding(.vertical, SlashMenuStyle.rowVerticalPadding)
-            .frame(minHeight: AttachmentLayout.menuRowHeight)
+            .padding(.horizontal, MenuRowStyle.rowPadding)
+            .frame(height: MenuRowStyle.rowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel([action.title, action.detail].compactMap(\.self).joined(separator: ", "))
+        .accessibilityLabel(action.title)
     }
 
-    private var tint: Color {
+    private var titleColor: Color {
         action.isDestructive ? Palette.destructive : Palette.textPrimary
     }
 }

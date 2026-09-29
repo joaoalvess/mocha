@@ -1,26 +1,33 @@
 import MochaClient
+import MochaProtocol
 import PhotosUI
 import SwiftUI
 
-struct ChatComposer: View {
+struct ChatComposer<ControlsPanel: View>: View {
     @Binding var draft: String
     @Binding var isExpanded: Bool
     var isFocused: FocusState<Bool>.Binding
     let attachments: ComposerAttachments
     var showsSlashMenu = true
+    var isWorking = false
+    var effort: EffortLevel?
+    var onModelPicker: (() -> Void)?
     let onSend: () -> Void
-    let onSlashAction: (SlashMenuAction) -> Void
+    var onStop: () -> Void = {}
+    @ViewBuilder let controlsPanel: (_ maxHeight: CGFloat, _ close: @escaping () -> Void) -> ControlsPanel
     @State private var isAttachMenuOpen = false
     @State private var isSlashMenuOpen = false
     @State private var isPhotoPickerPresented = false
     @State private var isCameraPresented = false
     @State private var pickedPhotos: [PhotosPickerItem] = []
-    @State private var pasteboardHasImages = false
     @State private var dictation = DictationController()
+    @State private var composerFrame: CGRect = .zero
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         composer
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { composerFrame = $0 }
+            .background { menuLayer }
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
                 selection: $pickedPhotos,
@@ -64,12 +71,16 @@ struct ChatComposer: View {
         if isExpanded {
             ExpandedComposer(
                 canSend: canSend,
+                sendMode: sendMode,
                 buttons: expandedButtons,
                 activeButtons: activeButtons,
+                effort: effort,
                 onAttach: toggleAttachMenu,
                 onSlashMenu: toggleSlashMenu,
-                onMicrophone: toggleDictation,
-                onSend: send
+                onMicrophone: primaryDictationAction,
+                onSend: send,
+                onStop: onStop,
+                onModelPicker: openModelPicker
             ) {
                 VStack(alignment: .leading, spacing: AttachmentLayout.stripBottomSpacing) {
                     if !attachments.isEmpty {
@@ -82,58 +93,55 @@ struct ChatComposer: View {
                     }
                 }
             }
-            .overlay(alignment: .topLeading) { attachMenu }
-            .overlay(alignment: .topLeading) { slashMenu }
-            .animation(.smooth(duration: 0.2), value: isAttachMenuOpen)
-            .animation(.smooth(duration: 0.2), value: isSlashMenuOpen)
             .onAppear {
                 isFocused.wrappedValue = true
                 openMenusForDebugLaunch()
             }
         } else {
-            CollapsedComposer(draft: collapsedDraft, onExpand: { isExpanded = true }, onSend: send)
-        }
-    }
-
-    @ViewBuilder
-    private var attachMenu: some View {
-        if isAttachMenuOpen {
-            AttachMenu(
-                showsCamera: ComposerImageSources.isCameraAvailable,
-                isFull: attachments.isFull,
-                canPaste: pasteboardHasImages,
-                onPhotos: {
-                    isAttachMenuOpen = false
-                    isPhotoPickerPresented = true
-                },
-                onCamera: {
-                    isAttachMenuOpen = false
-                    isCameraPresented = true
-                },
-                onPaste: {
-                    isAttachMenuOpen = false
-                    attach(ComposerImageSources.pastedImages(limit: attachments.remainingSlots).map(ComposerImageSources.loader(for:)))
-                }
+            CollapsedComposer(
+                draft: collapsedDraft,
+                sendMode: sendMode,
+                buttons: [.attach],
+                onAttach: toggleAttachMenu,
+                onExpand: { isExpanded = true },
+                onSend: send,
+                onStop: onStop,
+                onMicrophone: expandAndDictate
             )
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(height: 0, alignment: .bottomLeading)
-            .offset(y: -AttachmentLayout.menuGap)
-            .transition(.scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
         }
     }
 
-    @ViewBuilder
-    private var slashMenu: some View {
-        if isSlashMenuOpen {
-            SlashMenu { action in
-                isSlashMenuOpen = false
-                onSlashAction(action)
+    private var attachMenu: some View {
+        AttachMenu(
+            showsCamera: ComposerImageSources.isCameraAvailable,
+            isFull: attachments.isFull,
+            canDictate: dictation.phase.showsMicrophone,
+            onPhotos: {
+                isAttachMenuOpen = false
+                isPhotoPickerPresented = true
+            },
+            onCamera: {
+                isAttachMenuOpen = false
+                isCameraPresented = true
+            },
+            onAudio: {
+                isAttachMenuOpen = false
+                expandAndDictate()
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(height: 0, alignment: .bottomLeading)
-            .offset(y: -AttachmentLayout.menuGap)
-            .transition(.scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
-        }
+        )
+    }
+
+    private var menuLayer: some View {
+        FloatingMenuLayer(
+            content: ComposerFloatingMenus(
+                isAttachMenuOpen: isAttachMenuOpen,
+                isControlsPanelOpen: isSlashMenuOpen,
+                anchor: composerFrame,
+                onDismiss: closeMenus,
+                attachMenu: { attachMenu },
+                controlsPanel: { maxHeight in controlsPanel(maxHeight) { isSlashMenuOpen = false } }
+            )
+        )
     }
 
     private var canSend: Bool {
@@ -141,18 +149,32 @@ struct ChatComposer: View {
             && (!ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty)
     }
 
+    private var sendMode: ComposerSendMode {
+        let hasContent = !ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty
+        return ComposerSendMode.mode(
+            hasContent: hasContent,
+            isWorking: isWorking,
+            isDictating: isDictating,
+            canDictate: dictation.phase.showsMicrophone
+        )
+    }
+
+    private var isDictating: Bool {
+        switch dictation.phase {
+        case .preparing, .downloading, .listening: true
+        case .checking, .unavailable, .ready, .finishing, .failed: false
+        }
+    }
+
     private var expandedButtons: ComposerButtons {
         var buttons: ComposerButtons = [.attach]
+        if onModelPicker != nil { buttons.insert(.modelPicker) }
         if showsSlashMenu { buttons.insert(.slashMenu) }
-        if dictation.phase.showsMicrophone { buttons.insert(.microphone) }
         return buttons
     }
 
     private var activeButtons: ComposerButtons {
-        var active: ComposerButtons = []
-        if isSlashMenuOpen { active.insert(.slashMenu) }
-        if dictation.phase.isListening { active.insert(.microphone) }
-        return active
+        isSlashMenuOpen ? [.slashMenu] : []
     }
 
     private var collapsedDraft: String {
@@ -161,9 +183,6 @@ struct ChatComposer: View {
     }
 
     private func toggleAttachMenu() {
-        if !isAttachMenuOpen {
-            pasteboardHasImages = ComposerImageSources.pasteboardHasImages
-        }
         isSlashMenuOpen = false
         isAttachMenuOpen.toggle()
     }
@@ -177,6 +196,24 @@ struct ChatComposer: View {
     private func closeMenus() {
         isAttachMenuOpen = false
         isSlashMenuOpen = false
+    }
+
+    private func expandAndDictate() {
+        isExpanded = true
+        toggleDictation()
+    }
+
+    private func openModelPicker() {
+        closeMenus()
+        onModelPicker?()
+    }
+
+    private func primaryDictationAction() {
+        if isDictating {
+            dictation.stop()
+        } else {
+            toggleDictation()
+        }
     }
 
     private func toggleDictation() {
@@ -226,5 +263,77 @@ struct ReadOnlyComposerPill: View {
 enum ComposerDraft {
     static func trimmed(_ draft: String) -> String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+enum ControlsPanelLayout {
+    static let attachAnchor = UnitPoint(x: 26 / AttachmentLayout.menuWidth, y: 1)
+    static let buttonAnchor = UnitPoint(x: 66 / AttachmentLayout.menuWidth, y: 1)
+    static let topReserve = Metrics.headerTopInset + Metrics.headerHeight + 55
+    static let bottomMargin: CGFloat = 8
+}
+
+struct ComposerFloatingMenus<Attach: View, Panel: View>: View {
+    let isAttachMenuOpen: Bool
+    let isControlsPanelOpen: Bool
+    let anchor: CGRect
+    let onDismiss: () -> Void
+    @ViewBuilder let attachMenu: () -> Attach
+    @ViewBuilder let controlsPanel: (_ maxHeight: CGFloat) -> Panel
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if isAttachMenuOpen || isControlsPanelOpen {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onDismiss)
+                    .ignoresSafeArea()
+                    .floatingMenuHitRegion()
+                    .accessibilityHidden(true)
+            }
+            FloatingComposerMenu(isPresented: isAttachMenuOpen, anchor: anchor, scaleAnchor: ControlsPanelLayout.attachAnchor) { _ in
+                attachMenu()
+            }
+            FloatingComposerMenu(isPresented: isControlsPanelOpen, anchor: anchor, scaleAnchor: ControlsPanelLayout.buttonAnchor) { maxHeight in
+                controlsPanel(maxHeight)
+            }
+        }
+    }
+}
+
+struct FloatingComposerMenu<Menu: View>: View {
+    let isPresented: Bool
+    let anchor: CGRect
+    let scaleAnchor: UnitPoint
+    @ViewBuilder let menu: (_ maxHeight: CGFloat) -> Menu
+    @State private var menuHeight: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { proxy in
+            let maxBottom = min(anchor.maxY, proxy.size.height - proxy.safeAreaInsets.bottom - ControlsPanelLayout.bottomMargin)
+            let minTop = ControlsPanelLayout.topReserve
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                    .allowsHitTesting(false)
+                if isPresented {
+                    menu(FloatingMenuPlacement.maxHeight(minTop: minTop, maxBottom: maxBottom))
+                        .fixedSize()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { menuHeight = $0 }
+                        .opacity(menuHeight > 0 ? 1 : 0)
+                        .offset(
+                            x: anchor.minX,
+                            y: FloatingMenuPlacement.top(
+                                height: menuHeight,
+                                preferredBottom: anchor.minY - AttachmentLayout.menuGap,
+                                minTop: minTop,
+                                maxBottom: maxBottom
+                            )
+                        )
+                        .transition(.scale(scale: 0.3, anchor: scaleAnchor).combined(with: .opacity))
+                }
+            }
+        }
+        .ignoresSafeArea()
+        .animation(.smooth(duration: 0.2), value: isPresented)
     }
 }

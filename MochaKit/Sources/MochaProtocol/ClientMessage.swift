@@ -37,6 +37,9 @@ public enum ClientMessage: Sendable, Hashable {
     case newAgentTab(workspaceId: WorkspaceID, kind: AgentProvider = .claude)
     case registerLiveActivity(LiveActivityRegistration)
     case listWebServers
+    case setModel(agentId: AgentID, model: ModelAlias)
+    case setEffort(agentId: AgentID, level: EffortLevel)
+    case setMode(agentId: AgentID, mode: PermissionModeTarget)
     case unknown(type: String)
 
     public var type: String {
@@ -57,6 +60,9 @@ public enum ClientMessage: Sendable, Hashable {
         case .newAgentTab: "newAgentTab"
         case .registerLiveActivity: "registerLiveActivity"
         case .listWebServers: "listWebServers"
+        case .setModel: "setModel"
+        case .setEffort: "setEffort"
+        case .setMode: "setMode"
         case .unknown(let type): type
         }
     }
@@ -64,7 +70,7 @@ public enum ClientMessage: Sendable, Hashable {
 
 extension ClientMessage {
     private enum PayloadKey: String, CodingKey {
-        case agentId, sessionId, subagentId, provider, before, limit, text, isActive, command, requestId, response, workspaceId, kind
+        case agentId, sessionId, subagentId, provider, before, limit, text, isActive, command, requestId, response, workspaceId, kind, model, level, mode
     }
 
     init(type: String, envelope: KeyedDecodingContainer<EnvelopeCodingKey>) throws {
@@ -135,6 +141,24 @@ extension ClientMessage {
             self = .registerLiveActivity(try envelope.decode(LiveActivityRegistration.self, forKey: .payload))
         case "listWebServers":
             self = .listWebServers
+        case "setModel":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .setModel(
+                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                model: try payload.decode(ModelAlias.self, forKey: .model)
+            )
+        case "setEffort":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .setEffort(
+                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                level: try payload.decode(EffortLevel.self, forKey: .level)
+            )
+        case "setMode":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .setMode(
+                agentId: try payload.decode(AgentID.self, forKey: .agentId),
+                mode: try payload.decode(PermissionModeTarget.self, forKey: .mode)
+            )
         default:
             self = .unknown(type: type)
         }
@@ -192,6 +216,18 @@ extension ClientMessage {
             }
         case .registerLiveActivity(let registration):
             try envelope.encode(registration, forKey: .payload)
+        case .setModel(let agentId, let model):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(agentId, forKey: .agentId)
+            try payload.encode(model, forKey: .model)
+        case .setEffort(let agentId, let level):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(agentId, forKey: .agentId)
+            try payload.encode(level, forKey: .level)
+        case .setMode(let agentId, let mode):
+            var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
+            try payload.encode(agentId, forKey: .agentId)
+            try payload.encode(mode, forKey: .mode)
         }
     }
 }

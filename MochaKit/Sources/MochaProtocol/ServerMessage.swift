@@ -39,6 +39,8 @@ public struct ProtocolErrorCode: RawRepresentable, Codable, Sendable, Hashable {
     public static let requestNotFound = ProtocolErrorCode(rawValue: "requestNotFound")
     public static let herdrUnavailable = ProtocolErrorCode(rawValue: "herdrUnavailable")
     public static let codexUnavailable = ProtocolErrorCode(rawValue: "codexUnavailable")
+    public static let modeUnavailable = ProtocolErrorCode(rawValue: "modeUnavailable")
+    public static let screenBusy = ProtocolErrorCode(rawValue: "screenBusy")
     public static let `internal` = ProtocolErrorCode(rawValue: "internal")
 }
 

@@ -9,7 +9,9 @@ struct OrderedJSONTests {
         let json = try OrderedJSON.parse(data)
 
         #expect(json.prettyPrinted() + "\n" == String(decoding: data, as: UTF8.self))
-        #expect(json["hooks"]?.members?.map(\.key) == ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "PermissionRequest"])
+        #expect(json["hooks"]?.members?.map(\.key) == [
+            "SessionStart", "UserPromptSubmit", "Stop", "Notification", "PermissionRequest", "PreModelSwitch", "PostModelSwitch",
+        ])
     }
 
     @Test func keepsMemberOrderNumbersAndDuplicateKeys() throws {

@@ -267,7 +267,7 @@ extension SessionHub {
         let meta = sessionId.flatMap { metas[$0] }
         switch target {
         case .agent(let agentId):
-            return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta)
+            return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta, controls: agentControls[agentId])
         case .session:
             return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
         case .codexThread:

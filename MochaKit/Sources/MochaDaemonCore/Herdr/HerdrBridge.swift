@@ -24,9 +24,9 @@ public actor HerdrBridge: HerdrBridging {
         let task: Task<Void, Never>
     }
 
-    private let client: HerdrClient
+    let client: HerdrClient
     private let git: any GitInspecting
-    private let configuration: HerdrBridgeConfiguration
+    let configuration: HerdrBridgeConfiguration
     private let hub = HerdrBridgeEventHub()
 
     private var runTask: Task<Void, Never>?
@@ -122,6 +122,7 @@ public actor HerdrBridge: HerdrBridging {
     }
 
     public func prompt(_ id: AgentID, text: String) async throws {
+        try await ensureScreenFree(id, strict: false)
         try await command { client in
             _ = try await client.agentPrompt(target: id, text: text)
         }
@@ -263,7 +264,7 @@ public actor HerdrBridge: HerdrBridging {
         }
     }
 
-    private func command<Value: Sendable>(_ operation: @Sendable (HerdrClient) async throws -> Value) async throws -> Value {
+    func command<Value: Sendable>(_ operation: @Sendable (HerdrClient) async throws -> Value) async throws -> Value {
         guard available else { throw HerdrBridgeError.unavailable }
         do {
             return try await operation(client)

@@ -27,6 +27,9 @@ struct HubError: Error, Sendable, Equatable {
     static let herdrFailed = HubError(code: .internal, message: "Falha ao falar com o Herdr.")
     static let transcriptFailed = HubError(code: .internal, message: "Não foi possível ler a conversa no Mac.")
     static let requestNotFound = HubError(code: .requestNotFound, message: "Este pedido já foi respondido ou expirou.")
+    static let modeUnavailable = HubError(code: .modeUnavailable, message: "Modo indisponível neste modelo")
+    static let screenBusy = HubError(code: .screenBusy, message: "Feche o seletor aberto no terminal")
+    static let effortUnavailable = HubError(code: .invalidPayload, message: "Este modelo não tem effort")
 
     static func invalidResponse(_ message: String) -> HubError {
         HubError(code: .invalidPayload, message: message)
@@ -46,6 +49,12 @@ struct HubError: Error, Sendable, Equatable {
             return .agentBlocked
         case .workspaceNotFound:
             return .workspaceNotFound
+        case .modeUnavailable:
+            return .modeUnavailable
+        case .screenBusy:
+            return .screenBusy
+        case .herdr(ClaudeScreen.selectorErrorCode, let message):
+            return HubError(code: .internal, message: message)
         case .herdr(let code, _):
             switch code {
             case "agent_blocked":
