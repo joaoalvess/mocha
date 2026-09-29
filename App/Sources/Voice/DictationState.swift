@@ -119,47 +119,50 @@ enum DictationText {
         trimmed(transcript)
     }
 
-    static func visibleTail(of text: String, limit: Int) -> String {
-        guard limit > 0, text.count > limit else { return text }
-        let start = text.index(text.endIndex, offsetBy: -limit)
-        let tail = text[start...]
-        let startsAtWord = text[text.index(before: start)].isWhitespace
-        let wholeWords = (startsAtWord ? tail : tail.drop { !$0.isWhitespace }).drop { $0.isWhitespace }
-        return "…" + (wholeWords.isEmpty ? tail : wholeWords)
-    }
-
     private static func trimmed(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
+enum DictationLevel {
+    static let floorDecibels: Float = -50
+
+    static func normalized(rms: Float) -> Float {
+        guard rms.isFinite, rms > 0 else { return 0 }
+        let decibels = 20 * log10(rms)
+        return min(max((decibels - floorDecibels) / -floorDecibels, 0), 1)
+    }
+}
+
+struct DictationWaveform: Equatable, Sendable {
+    static let capacity = 64
+
+    private(set) var levels: [Float] = []
+
+    func appending(_ level: Float) -> DictationWaveform {
+        var next = self
+        next.levels.append(level)
+        if next.levels.count > Self.capacity {
+            next.levels.removeFirst(next.levels.count - Self.capacity)
+        }
+        return next
+    }
+}
+
 struct DictationLine: Equatable, Sendable {
     static let preparingText = "Preparando ditado…"
-    static let listeningText = "Ouvindo…"
-    static let transcriptCharacterLimit = 110
 
     let text: String
-    let isTranscript: Bool
 
-    init?(phase: DictationPhase, partial: String) {
+    init?(phase: DictationPhase) {
         switch phase {
         case .preparing:
             text = Self.preparingText
-            isTranscript = false
-        case .listening where partial.isEmpty:
-            text = Self.listeningText
-            isTranscript = false
-        case .listening, .finishing:
-            guard !partial.isEmpty else { return nil }
-            text = DictationText.visibleTail(of: partial, limit: Self.transcriptCharacterLimit)
-            isTranscript = true
         case .downloading(let fraction):
             text = "Baixando modelo de voz… \(Int((fraction * 100).rounded()))%"
-            isTranscript = false
         case .failed(let failure):
             text = failure.message
-            isTranscript = false
-        case .checking, .unavailable, .ready:
+        case .checking, .unavailable, .ready, .listening, .finishing:
             return nil
         }
     }

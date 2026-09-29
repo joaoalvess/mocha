@@ -11,15 +11,22 @@ final class DictationController {
 
     private(set) var phase: DictationPhase = .checking
     private(set) var partial = ""
+    private(set) var transcript = ""
+    private(set) var waveform = DictationWaveform()
 
     @ObservationIgnored private var locale: Locale?
     @ObservationIgnored private var pipeline: DictationPipeline?
     @ObservationIgnored private var results: Task<Void, Never>?
+    @ObservationIgnored private var levels: Task<Void, Never>?
     @ObservationIgnored private var onFinal: FinalHandler?
     @ObservationIgnored private var session = 0
 
     var line: DictationLine? {
-        DictationLine(phase: phase, partial: partial)
+        DictationLine(phase: phase)
+    }
+
+    var hasPendingText: Bool {
+        !transcript.isEmpty || !partial.isEmpty
     }
 
     func resolveAvailability() async {
@@ -45,14 +52,20 @@ final class DictationController {
     }
 
     func commitPartialAndCancel() {
-        if !partial.isEmpty {
-            onFinal?(partial)
-        }
+        transcript = DictationText.appending(partial, to: transcript)
+        partial = ""
+        cancel()
+    }
+
+    func discard() {
+        transcript = ""
+        partial = ""
         cancel()
     }
 
     func cancel() {
         guard phase.isSessionActive else { return }
+        deliverTranscript()
         let running = pipeline
         endSession()
         apply(.cancelled)
@@ -67,6 +80,8 @@ final class DictationController {
         let token = session
         self.onFinal = onFinal
         partial = ""
+        transcript = ""
+        waveform = DictationWaveform()
         apply(.startRequested)
         Task { await prepareAndListen(locale: locale, token: token) }
     }
@@ -104,6 +119,7 @@ final class DictationController {
         }
         pipeline = started
         listen(to: transcriber, token: token)
+        track(started.levels, token: token)
         apply(.listeningStarted)
     }
 
@@ -140,10 +156,29 @@ final class DictationController {
         let text = String(result.text.characters)
         if result.isFinal {
             partial = ""
-            onFinal?(text)
+            transcript = DictationText.appending(text, to: transcript)
         } else {
             partial = DictationText.partial(text)
         }
+    }
+
+    private func track(_ stream: AsyncStream<Float>, token: Int) {
+        levels = Task { [weak self] in
+            for await level in stream {
+                self?.receiveLevel(level, token: token)
+            }
+        }
+    }
+
+    private func receiveLevel(_ level: Float, token: Int) {
+        guard isCurrent(token) else { return }
+        waveform = waveform.appending(level)
+    }
+
+    private func deliverTranscript() {
+        guard !transcript.isEmpty else { return }
+        onFinal?(transcript)
+        transcript = ""
     }
 
     private func finishListening() {
@@ -156,6 +191,7 @@ final class DictationController {
     private func resultsEnded(token: Int, failure: DictationFailure?) {
         guard isCurrent(token) else { return }
         let running = pipeline
+        deliverTranscript()
         endSession()
         apply(failure.map(DictationEvent.failed) ?? .finished)
         if let running {
@@ -184,8 +220,12 @@ final class DictationController {
         pipeline = nil
         results?.cancel()
         results = nil
+        levels?.cancel()
+        levels = nil
         onFinal = nil
         partial = ""
+        transcript = ""
+        waveform = DictationWaveform()
     }
 
     private func isCurrent(_ token: Int) -> Bool {

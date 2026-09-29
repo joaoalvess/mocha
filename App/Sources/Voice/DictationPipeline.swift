@@ -4,16 +4,20 @@ import Synchronization
 
 final class DictationPipeline: Sendable {
     private static let tapBufferSize: AVAudioFrameCount = 4096
+    private static let levelChunkSize = 1024
 
     private let engine: AVAudioEngine
     private let analyzer: SpeechAnalyzer
     private let input: AsyncStream<AnalyzerInput>.Continuation
+    private let levelInput: AsyncStream<Float>.Continuation
     private let isCaptureStopped = Atomic(false)
+    let levels: AsyncStream<Float>
 
     private init(engine: AVAudioEngine, analyzer: SpeechAnalyzer, input: AsyncStream<AnalyzerInput>.Continuation) {
         self.engine = engine
         self.analyzer = analyzer
         self.input = input
+        (levels, levelInput) = AsyncStream.makeStream(of: Float.self, bufferingPolicy: .bufferingNewest(8))
     }
 
     static func start(transcriber: SpeechTranscriber) async throws(DictationFailure) -> DictationPipeline {
@@ -74,7 +78,11 @@ final class DictationPipeline: Sendable {
             let converter = AVAudioConverter(from: inputFormat, to: analyzerFormat)
         else { throw DictationFailure.audioUnavailable }
         let input = self.input
+        let levelInput = self.levelInput
         inputNode.installTap(onBus: 0, bufferSize: Self.tapBufferSize, format: inputFormat) { buffer, _ in
+            for level in Self.levels(of: buffer) {
+                levelInput.yield(level)
+            }
             guard let converted = Self.convert(buffer, using: converter, to: analyzerFormat) else { return }
             input.yield(AnalyzerInput(buffer: converted))
         }
@@ -87,7 +95,21 @@ final class DictationPipeline: Sendable {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         input.finish()
+        levelInput.finish()
         DictationAudioSession.deactivate()
+    }
+
+    private static func levels(of buffer: AVAudioPCMBuffer) -> [Float] {
+        guard let samples = buffer.floatChannelData?[0] else { return [] }
+        let frames = Int(buffer.frameLength)
+        return stride(from: 0, to: frames, by: levelChunkSize).map { start in
+            let end = min(start + levelChunkSize, frames)
+            var sum: Float = 0
+            for index in start..<end {
+                sum += samples[index] * samples[index]
+            }
+            return DictationLevel.normalized(rms: (sum / Float(end - start)).squareRoot())
+        }
     }
 
     private static func convert(
