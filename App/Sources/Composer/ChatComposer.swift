@@ -2,14 +2,16 @@ import MochaClient
 import PhotosUI
 import SwiftUI
 
-struct ChatComposer: View {
+struct ChatComposer<ControlsPanel: View>: View {
     @Binding var draft: String
     @Binding var isExpanded: Bool
     var isFocused: FocusState<Bool>.Binding
     let attachments: ComposerAttachments
     var showsSlashMenu = true
+    var isWorking = false
     let onSend: () -> Void
-    let onSlashAction: (SlashMenuAction) -> Void
+    var onStop: () -> Void = {}
+    @ViewBuilder let controlsPanel: (_ maxHeight: CGFloat, _ close: @escaping () -> Void) -> ControlsPanel
     @State private var isAttachMenuOpen = false
     @State private var isSlashMenuOpen = false
     @State private var isPhotoPickerPresented = false
@@ -17,6 +19,7 @@ struct ChatComposer: View {
     @State private var pickedPhotos: [PhotosPickerItem] = []
     @State private var pasteboardHasImages = false
     @State private var dictation = DictationController()
+    @State private var composerTop: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -64,12 +67,14 @@ struct ChatComposer: View {
         if isExpanded {
             ExpandedComposer(
                 canSend: canSend,
+                sendMode: sendMode,
                 buttons: expandedButtons,
                 activeButtons: activeButtons,
                 onAttach: toggleAttachMenu,
                 onSlashMenu: toggleSlashMenu,
                 onMicrophone: toggleDictation,
-                onSend: send
+                onSend: send,
+                onStop: onStop
             ) {
                 VStack(alignment: .leading, spacing: AttachmentLayout.stripBottomSpacing) {
                     if !attachments.isEmpty {
@@ -82,6 +87,7 @@ struct ChatComposer: View {
                     }
                 }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { composerTop = $0 }
             .overlay(alignment: .topLeading) { attachMenu }
             .overlay(alignment: .topLeading) { slashMenu }
             .animation(.smooth(duration: 0.2), value: isAttachMenuOpen)
@@ -91,7 +97,7 @@ struct ChatComposer: View {
                 openMenusForDebugLaunch()
             }
         } else {
-            CollapsedComposer(draft: collapsedDraft, onExpand: { isExpanded = true }, onSend: send)
+            CollapsedComposer(draft: collapsedDraft, sendMode: sendMode, onExpand: { isExpanded = true }, onSend: send, onStop: onStop)
         }
     }
 
@@ -125,10 +131,7 @@ struct ChatComposer: View {
     @ViewBuilder
     private var slashMenu: some View {
         if isSlashMenuOpen {
-            SlashMenu { action in
-                isSlashMenuOpen = false
-                onSlashAction(action)
-            }
+            controlsPanel(composerTop - AttachmentLayout.menuGap - ControlsPanelLayout.topReserve) { isSlashMenuOpen = false }
             .fixedSize(horizontal: false, vertical: true)
             .frame(height: 0, alignment: .bottomLeading)
             .offset(y: -AttachmentLayout.menuGap)
@@ -139,6 +142,11 @@ struct ChatComposer: View {
     private var canSend: Bool {
         !attachments.isProcessing
             && (!ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty)
+    }
+
+    private var sendMode: ComposerSendMode {
+        let hasContent = !ComposerDraft.trimmed(draft).isEmpty || !dictation.partial.isEmpty || !attachments.isEmpty
+        return ComposerSendMode.mode(hasContent: hasContent, isWorking: isWorking)
     }
 
     private var expandedButtons: ComposerButtons {
@@ -227,4 +235,8 @@ enum ComposerDraft {
     static func trimmed(_ draft: String) -> String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+enum ControlsPanelLayout {
+    static let topReserve = Metrics.headerTopInset + Metrics.headerHeight + 72
 }
