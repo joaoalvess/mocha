@@ -77,7 +77,7 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
 
     @Test func everyMessageAndDomainCaseHasAFixture() {
         let clientTypes = [
-            "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "setForeground", "unpair", "ping",
+            "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "closeAgent", "setForeground", "unpair", "ping",
             "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity", "listSubagents",
             "listWebServers", "setModel", "setEffort", "setMode",
         ]
