@@ -6,6 +6,7 @@ struct ChatControlsState {
     var agentId: AgentID?
     var sessionId: String?
     var contextLeftPercent: Int?
+    var contextUsedTokens: Int?
     var ringStyle: ContextRingStyle = .ready
     var usage: UsageSnapshot?
     var model: ModelAlias?
@@ -113,6 +114,7 @@ struct ChatControlsPanel: View {
     private func summary(now: Date) -> ControlsPanelSummary {
         ControlsPanelSummary(
             contextLeftPercent: state.contextLeftPercent,
+            contextUsedTokens: state.contextUsedTokens,
             mode: state.mode,
             usage: usageWindows(now: now),
             subagents: sessionAgents
@@ -128,7 +130,7 @@ struct ChatControlsPanel: View {
             let summary = summary(now: context.date)
             VStack(alignment: .leading, spacing: 0) {
                 if let percent = state.contextLeftPercent, let text = summary.contextText {
-                    ControlsContextRow(percent: percent, text: text, style: state.ringStyle)
+                    ControlsContextRow(percent: ControlsPanelSummary.contextUsedPercent(leftPercent: percent), text: text, style: state.ringStyle)
                 }
                 ControlsNavRow(icon: .mode, title: "Modo", value: summary.modeText) { open(.mode) }
                 if let usage = summary.usageText {
@@ -139,7 +141,7 @@ struct ChatControlsPanel: View {
                 }
                 ControlsSeparator()
                 ForEach(SlashMenuAction.allCases) { action in
-                    SlashMenuRow(action: action, secondaryColor: ControlsPanelStyle.secondary) { onAction(action) }
+                    SlashMenuRow(action: action) { onAction(action) }
                 }
             }
         }

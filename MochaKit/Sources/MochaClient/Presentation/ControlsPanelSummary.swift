@@ -7,8 +7,8 @@ public struct ControlsPanelSummary: Sendable, Hashable {
     public var usageText: String?
     public var subagentsText: String?
 
-    public init(contextLeftPercent: Int?, mode: PermissionModeTarget?, usage: [UsageWindowSummary], subagents: [SubagentSummary]) {
-        contextText = contextLeftPercent.map(Self.contextText(percent:))
+    public init(contextLeftPercent: Int?, contextUsedTokens: Int? = nil, mode: PermissionModeTarget?, usage: [UsageWindowSummary], subagents: [SubagentSummary]) {
+        contextText = contextLeftPercent.map { Self.contextText(leftPercent: $0, usedTokens: contextUsedTokens) }
         modeText = Self.modeText(mode)
         usageText = Self.tightestWindow(usage)?.percentText
         subagentsText = Self.subagentsText(subagents)
@@ -16,8 +16,25 @@ public struct ControlsPanelSummary: Sendable, Hashable {
 
     public static let manualModeText = "Manual"
 
-    public static func contextText(percent: Int) -> String {
-        "\(min(max(percent, 0), 100))% livre"
+    public static func contextUsedPercent(leftPercent: Int) -> Int {
+        100 - min(max(leftPercent, 0), 100)
+    }
+
+    public static func contextText(leftPercent: Int, usedTokens: Int?) -> String {
+        let percent = "\(contextUsedPercent(leftPercent: leftPercent))%"
+        guard let usedTokens, usedTokens > 0 else { return percent }
+        return "\(percent) (\(tokenText(usedTokens)))"
+    }
+
+    public static func tokenText(_ tokens: Int) -> String {
+        if tokens >= 1_000_000 {
+            let millions = (Double(tokens) / 100_000).rounded() / 10
+            return millions == millions.rounded() ? "\(Int(millions))M" : "\(millions)M"
+        }
+        if tokens >= 1_000 {
+            return "\(Int((Double(tokens) / 1_000).rounded()))k"
+        }
+        return "\(tokens)"
     }
 
     public static func modeText(_ mode: PermissionModeTarget?) -> String {

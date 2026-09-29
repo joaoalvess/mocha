@@ -35,7 +35,7 @@ struct ControlsPanelSummaryTests {
         )
         let summary = ControlsPanelSummary(contextLeftPercent: 72, mode: .auto, usage: UsagePace.summaries(of: snapshot, now: now), subagents: [])
         #expect(summary.usageText == "26%")
-        #expect(summary.contextText == "72% livre")
+        #expect(summary.contextText == "28%")
         #expect(summary.modeText == "Auto")
     }
 
@@ -73,8 +73,16 @@ struct ControlsPanelSummaryTests {
         #expect(ControlsPanelSummary.subagentDetail(subagent("c", .failed, durationMs: 12_000), now: now) == "Explore · falhou · 12s")
     }
 
-    @Test func contextTextIsClamped() {
-        #expect(ControlsPanelSummary.contextText(percent: 140) == "100% livre")
-        #expect(ControlsPanelSummary.contextText(percent: -3) == "0% livre")
+    @Test func contextTextShowsUsedPercentAndTokens() {
+        #expect(ControlsPanelSummary.contextText(leftPercent: 70, usedTokens: 120_000) == "30% (120k)")
+        #expect(ControlsPanelSummary.contextText(leftPercent: 70, usedTokens: nil) == "30%")
+        #expect(ControlsPanelSummary.contextText(leftPercent: 140, usedTokens: nil) == "0%")
+        #expect(ControlsPanelSummary.contextText(leftPercent: -3, usedTokens: 1_000_000) == "100% (1M)")
+    }
+
+    @Test func tokenTextIsCompact() {
+        #expect(ControlsPanelSummary.tokenText(850) == "850")
+        #expect(ControlsPanelSummary.tokenText(119_600) == "120k")
+        #expect(ControlsPanelSummary.tokenText(1_240_000) == "1.2M")
     }
 }

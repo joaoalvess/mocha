@@ -418,6 +418,7 @@ struct ChatConversation: View {
             agentId: agent?.id,
             sessionId: chat?.sessionId ?? agent?.sessionId,
             contextLeftPercent: agent?.contextLeftPercent,
+            contextUsedTokens: agent?.contextUsedTokens,
             ringStyle: ringStyle,
             usage: session.usage(for: provider),
             model: displayedModel,
