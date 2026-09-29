@@ -51,7 +51,7 @@ struct HerdrClientTests {
 
             await server.setScreen(paneId: "w1A:p2", FakeClaudeScreen(overlay: .effortPicker(cursor: 2)))
             let screen = try await client.paneRead(paneId: "w1A:p2")
-            #expect(screen.text.contains("Effort   low  medium  high▲ xhigh  max   Ultracode off"))
+            #expect(screen.text.contains("low       medium    high      xhigh     max       Tab to toggle"))
             #expect(!screen.truncated)
             _ = await expectServerError(.paneNotFound) { _ = try await client.paneRead(paneId: "w99:p99", lines: 1) }
             #expect(await server.requests(method: "pane.read").first?.intParam("lines") == 1)

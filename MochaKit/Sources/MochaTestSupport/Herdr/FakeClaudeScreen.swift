@@ -121,15 +121,18 @@ public struct FakeClaudeScreen: Sendable, Equatable {
                 "  Enter to set as default · s to use this session only · Esc to cancel",
             ]
         case .effortPicker(let cursor):
-            let levels = Self.effortLevels.enumerated().reduce(into: "") { row, item in
-                if !row.isEmpty {
-                    row += row.hasSuffix("▲") ? " " : "  "
-                }
-                row += item.offset == cursor ? "\(item.element)▲" : item.element
-            }
+            let indent = String(repeating: " ", count: 35)
+            let labels = Self.effortLevels.map { $0.padding(toLength: 10, withPad: " ", startingAt: 0) }.joined()
+            let center = 35 + cursor * 10 + Self.effortLevels[cursor].count / 2
+            let slider = String(repeating: "─", count: center - 35) + "▲" + String(repeating: "─", count: 76 - center)
             lines += [
                 Self.rule,
-                "  Effort   \(levels)   Ultracode off",
+                "  Effort",
+                "",
+                "\(indent)Faster                             Smarter",
+                "\(indent)\(slider)      Ultracode  off",
+                "\(indent)\(labels)Tab to toggle",
+                "",
                 "",
                 "  ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel",
             ]

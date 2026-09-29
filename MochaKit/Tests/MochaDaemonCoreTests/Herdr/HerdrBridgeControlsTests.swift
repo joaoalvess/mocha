@@ -50,6 +50,27 @@ struct ClaudeScreenTests {
         #expect(ClaudeScreen.moves(from: 2, to: 2, back: "left", forward: "right") == [])
     }
 
+    @Test func effortPickerReadsTheSliderOfClaudeCode2_1_284() throws {
+        let text = """
+            ❯ /effort
+
+            ─────────────────────────────────────────────────────────────
+              Effort
+
+                                               Faster                             Smarter
+                                               ──────────▲───────────────────────────────      Ultracode  off
+                                               low     medium     high     xhigh      max      Tab to toggle
+
+
+              ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+            """
+        let picker = try #require(ClaudeScreen.effortPicker(text))
+
+        #expect(picker.levels == EffortLevel.allCases.map(\.rawValue))
+        #expect(picker.cursor == 1)
+        #expect(ClaudeScreen.effortConfirmations("  ⎿  Set effort level to high (this session only): Comprehensive implementation") == ["high"])
+    }
+
     @Test func confirmationsAreReadFromTheSessionOnlyLines() {
         let text = """
             ❯ /model

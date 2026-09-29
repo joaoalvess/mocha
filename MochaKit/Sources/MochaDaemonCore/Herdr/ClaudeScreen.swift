@@ -82,24 +82,33 @@ enum ClaudeScreen {
     static func effortPicker(_ text: String) -> EffortPicker? {
         guard text.contains(effortPickerMarker) else { return nil }
         let known = Set(EffortLevel.allCases.map(\.rawValue))
-        for line in lines(text) {
-            let words = line.split(separator: " ")
-            guard words.first == "Effort" else { continue }
-            var levels: [String] = []
-            var cursor: Int?
-            for word in words.dropFirst() {
-                let isCursor = word.hasSuffix("▲")
-                let level = String(isCursor ? word.dropLast() : word)
-                guard known.contains(level) else { continue }
-                if isCursor {
-                    cursor = levels.count
-                }
-                levels.append(level)
-            }
-            guard let cursor else { return nil }
-            return EffortPicker(levels: levels, cursor: cursor)
+        let all = lines(text)
+        for (index, line) in all.enumerated().dropFirst() {
+            let words = columnWords(line)
+            guard let first = words.first, known.contains(first.word) else { continue }
+            let labels = words.filter { known.contains($0.word) }
+            guard let marker = Array(all[index - 1]).firstIndex(of: "▲"),
+                  let cursor = labels.indices.min(by: { abs(labels[$0].center - Double(marker)) < abs(labels[$1].center - Double(marker)) })
+            else { return nil }
+            return EffortPicker(levels: labels.map(\.word), cursor: cursor)
         }
         return nil
+    }
+
+    private static func columnWords(_ line: String) -> [(word: String, center: Double)] {
+        var words: [(word: String, center: Double)] = []
+        var current = ""
+        for (column, character) in Array(line + " ").enumerated() {
+            if character == " " {
+                if !current.isEmpty {
+                    words.append((current, Double(column - current.count) + Double(current.count - 1) / 2))
+                    current = ""
+                }
+            } else {
+                current.append(character)
+            }
+        }
+        return words
     }
 
     static func modelConfirmations(_ text: String) -> [String] {
