@@ -131,6 +131,7 @@ struct ChatControlsPanel: View {
             VStack(alignment: .leading, spacing: 0) {
                 if let percent = state.contextLeftPercent, let text = summary.contextText {
                     ControlsContextRow(percent: ControlsPanelSummary.contextUsedPercent(leftPercent: percent), text: text, style: state.ringStyle)
+                    ControlsSeparator()
                 }
                 ControlsNavRow(icon: .mode, title: "Modo", value: summary.modeText) { open(.mode) }
                 if let usage = summary.usageText {
@@ -139,10 +140,8 @@ struct ChatControlsPanel: View {
                 if let subagentsText = summary.subagentsText {
                     ControlsNavRow(icon: .subagents, title: "Subagentes", value: subagentsText) { open(.subagents) }
                 }
+                ControlsSeparator()
                 ForEach(SlashMenuAction.allCases) { action in
-                    if action.isDestructive {
-                        ControlsSeparator()
-                    }
                     SlashMenuRow(action: action) { onAction(action) }
                 }
             }
