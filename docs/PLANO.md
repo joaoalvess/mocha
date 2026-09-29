@@ -1050,10 +1050,13 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
   - `permissionMode` e `model` atualizados pelos hooks, sem esperar o transcript;
   - mensagens `setModel`, `setEffort` e `setMode`, validadas contra listas fixas.
 - **Daemon**:
-  - `setModel` e `setEffort` viram `/model <alias>` e `/effort <nível>` pelo `agent.prompt`;
-  - `setMode` segue o S8;
-  - o hook `PreModelSwitch` entra no `install-hooks`, se o S8 confirmar.
-- **Aceite**: `scripts/test.sh` verde, com `FakeHerdrServer` e fixtures de hook.
+  - `setModel` e `setEffort` valem só para a sessão (decisão do João, 2026-09-28): abrem o seletor (`/model` ou `/effort`), leem com `pane.read`, andam com `up`/`down` ou `left`/`right` e confirmam com `s`. A forma digitada fica proibida, porque grava no `~/.claude/settings.json`;
+  - `setMode` é o laço `shift+tab` + `pane.read` do rodapé, com detecção de mudança (S8, Decisões 1);
+  - antes de cada `agent.prompt`, seletor ou diálogo na tela contam como bloqueio;
+  - `pane.read` entra no `HerdrRequest`/`HerdrClient` e no `FakeHerdrServer`;
+  - `PreModelSwitch` condicional (allow só com `setModel` pendente no pane) e `PostModelSwitch` entram no `install-hooks`;
+  - `Stop`, `PreToolUse` e `PostModelSwitch` atualizam `model`, `effort` e `permissionMode`.
+- **Aceite**: `scripts/test.sh` verde, com `FakeHerdrServer` (rodapés e seletores de fixture) e as amostras de hook do S8 como fixtures. Detalhes em `docs/spikes/S8.md` ("Impacto").
 
 ### WP-K2: mock dos controles
 
@@ -1071,7 +1074,9 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 - **Header**: toque → seletor; long press → `showDetail`; `ContextRing` no header.
 - **Painel**: o `SlashMenu` vira o painel de controles, que lê `session.usages` e `contextLeftPercent` e lista os subagentes e workflows da sessão (reúso de `App/Sources/AgentDetail/AgentSubagentsSection.swift`). Tocar num subagente abre o chat dele, como o card faz.
 - **Composer**: o botão de enviar ganha o estado parar.
-- **Seletor**: mostra o valor escolhido até o daemon confirmar.
+- **Seletor**:
+  - mostra o valor escolhido até o daemon confirmar pelo rodapé ou pelo hook;
+  - no Haiku, `auto` fica cinza com a legenda "Indisponível no Haiku" e o effort some.
 - **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes; capturas comparadas às do mock, com as diferenças listadas.
 
 ### WP-K4: checklist no iPhone
@@ -1174,7 +1179,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-W3b | done | `32b5b7f` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
 | WP-W4 | done | `80e683d` (SSH e Navegador; conexão real no WP-W5 com o B5) |
 | WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
-| S8 | todo | |
+| S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 949040c |
 | WP-K1 | todo | |
 | WP-K2 | todo | |
 | WP-K3 | todo | |
