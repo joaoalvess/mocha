@@ -87,6 +87,7 @@ public actor DaemonRuntime {
         let subagents = SubagentStore(projectsRoot: options.projectsRoot)
         let pending = PendingStore(herdr: herdr, transcripts: transcripts)
         let hookPort = options.hookPort ?? preparation.config.hookPort
+        let modelSwitches = ModelSwitchGate()
         let hub = SessionHub(
             herdr: herdr,
             transcripts: transcripts,
@@ -97,6 +98,7 @@ public actor DaemonRuntime {
             subagents: subagents,
             pending: pending,
             webServers: WebServerScanner(configuration: .init(excludedPorts: [Int(port), Int(hookPort)])),
+            modelSwitches: modelSwitches,
             configuration: SessionHubConfiguration(sshIdentity: SSHHostIdentity.current())
         )
         let push = PushService(
@@ -124,6 +126,7 @@ public actor DaemonRuntime {
             ),
             events: hookEvents,
             permissions: pending,
+            modelSwitches: modelSwitches,
             resolveAgent: { await herdr.resolve($0) }
         )
         let hookServer = HttpServer(binding: .loopback(port: hookPort), router: hooks.makeRouter())

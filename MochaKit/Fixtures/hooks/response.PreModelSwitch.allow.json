@@ -1,0 +1,6 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreModelSwitch",
+    "permissionDecision": "allow"
+  }
+}

@@ -8,10 +8,12 @@ enum ClaudeHookEntries {
     }
 
     static func command(for event: HookEventName, port: UInt16, secret: String) -> String {
-        "/usr/bin/curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' "
+        let output = event.isSynchronousCommand ? "" : "-o /dev/null "
+        let fallback = event.isSynchronousCommand ? "echo '{}'" : "true"
+        return "/usr/bin/curl -s -m 3 \(output)-X POST -H 'Content-Type: application/json' "
             + "-H \"\(HookServer.paneHeader): $\(paneEnvironmentVariable)\" "
             + "-H '\(HookServer.secretHeader): \(secret)' "
-            + "--data-binary @- \(url(for: event, port: port)) || true"
+            + "--data-binary @- \(url(for: event, port: port)) || \(fallback)"
     }
 
     static func group(for event: HookEventName, port: UInt16, secret: String) -> OrderedJSON {
@@ -19,6 +21,13 @@ enum ClaudeHookEntries {
     }
 
     static func hook(for event: HookEventName, port: UInt16, secret: String) -> OrderedJSON {
+        if event.isSynchronousCommand {
+            return .object([
+                OrderedJSON.Member("type", .string("command")),
+                OrderedJSON.Member("timeout", .number(String(commandTimeout))),
+                OrderedJSON.Member("command", .string(command(for: event, port: port, secret: secret))),
+            ])
+        }
         guard event.usesHttpHook else {
             return .object([
                 OrderedJSON.Member("type", .string("command")),

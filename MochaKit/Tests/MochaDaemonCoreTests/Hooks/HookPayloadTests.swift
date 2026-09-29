@@ -30,7 +30,7 @@ struct HookPayloadTests {
         let requests = try HookFixtures.requests()
 
         #expect(Set(requests.map(\.name)) == Set(HookEventName.allCases))
-        #expect(requests.count == 13)
+        #expect(requests.count == 17)
         for request in requests {
             let event = try HookEvent.decode(request.name, from: Fixtures.data("hooks/\(request.file)"))
             #expect(event.name == request.name, "\(request.file)")

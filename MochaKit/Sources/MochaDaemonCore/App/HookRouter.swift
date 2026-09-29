@@ -52,7 +52,7 @@ public actor HookRouter {
             await herdr.refreshAgent(hook.agentId, expectingSession: start.context.sessionId)
         case .stop:
             await herdr.refreshDirtyState(ofAgent: hook.agentId)
-        case .userPromptSubmit, .notification, .permissionRequest:
+        case .userPromptSubmit, .notification, .permissionRequest, .preModelSwitch, .postModelSwitch:
             break
         }
         await push.handle(hook)

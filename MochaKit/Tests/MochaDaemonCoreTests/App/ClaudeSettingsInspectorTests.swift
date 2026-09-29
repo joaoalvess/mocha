@@ -23,10 +23,14 @@ struct ClaudeSettingsInspectorTests {
         let inspection = ClaudeSettingsInspector(url: Fixtures.url("hooks/settings.install-hooks.proposed.json")).inspect()
 
         #expect(inspection == .hooks(ClaudeHooksSummary(
-            mochaEvents: ["Notification", "PermissionRequest", "SessionStart", "Stop", "UserPromptSubmit"],
+            mochaEvents: ["Notification", "PermissionRequest", "PostModelSwitch", "PreModelSwitch", "SessionStart", "Stop", "UserPromptSubmit"],
             moshiEvents: []
         )))
-        #expect(DoctorChecks.hooks(inspection) == DoctorItem("Hooks", .ok, "instalados em SessionStart, UserPromptSubmit, Stop, Notification, PermissionRequest"))
+        #expect(DoctorChecks.hooks(inspection) == DoctorItem(
+            "Hooks",
+            .ok,
+            "instalados em SessionStart, UserPromptSubmit, Stop, Notification, PermissionRequest, PreModelSwitch, PostModelSwitch"
+        ))
         #expect(DoctorChecks.moshiHook(inspection) == DoctorItem("moshi-hook", .ok, "ausente"))
     }
 
@@ -47,7 +51,7 @@ struct ClaudeSettingsInspectorTests {
             #expect(DoctorChecks.hooks(inspection) == DoctorItem(
                 "Hooks",
                 .warning,
-                "incompletos: faltam SessionStart, UserPromptSubmit, Stop, PermissionRequest (mochad install-hooks)"
+                "incompletos: faltam SessionStart, UserPromptSubmit, Stop, PermissionRequest, PreModelSwitch, PostModelSwitch (mochad install-hooks)"
             ))
             #expect(DoctorChecks.hooks(.hooks(ClaudeHooksSummary())) == DoctorItem("Hooks", .warning, "não instalados (mochad install-hooks)"))
             #expect(try Data(contentsOf: url) == before)
