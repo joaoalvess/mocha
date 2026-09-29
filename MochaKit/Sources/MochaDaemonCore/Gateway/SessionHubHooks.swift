@@ -20,6 +20,7 @@ extension SessionHub: PushAudience {
     }
 
     public func hookReceived(_ hook: ReceivedHook) {
+        applyControls(from: hook)
         let context = hook.event.context
         guard let path = context.transcriptPath, !path.isEmpty, transcriptPaths[context.sessionId] != path else { return }
         if transcriptPaths.updateValue(path, forKey: context.sessionId) == nil {
