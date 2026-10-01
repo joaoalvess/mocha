@@ -12,18 +12,19 @@ struct DemoScopeBTests {
         await harness.connection.start()
 
         var envelopes: [ServerEnvelope] = []
-        for _ in 0..<4 {
+        for _ in 0..<5 {
             envelopes.append(try await harness.messages.next())
         }
 
-        #expect(envelopes.map(\.message.type) == ["helloOk", "tree", "archived", "usage"])
-        #expect(envelopes.map(\.id) == ["hello-1", "hello-1", nil, nil])
+        #expect(envelopes.map(\.message.type) == ["helloOk", "tree", "archived", "usage", "usage"])
+        #expect(envelopes.map(\.id) == ["hello-1", "hello-1", nil, nil, nil])
         guard case .helloOk(let helloOk) = envelopes[0].message else { throw UnexpectedMessage(envelope: envelopes[0]) }
         #expect(helloOk.host.hostName == "MacBook")
         #expect(helloOk.host.herdrConnected)
         #expect(envelopes[2].message == .archived(sessions: harness.dataset.archived))
-        #expect(harness.dataset.archived.count == 2)
+        #expect(harness.dataset.archived.count == 3)
         #expect(envelopes[3].message == .usage(harness.dataset.usage))
+        #expect(envelopes[4].message == .usage(try #require(harness.dataset.codexUsage)))
         #expect(await harness.messages.unread().isEmpty)
     }
 
@@ -169,7 +170,7 @@ struct DemoScopeBTests {
 
         #expect(event.id == nil)
         let sessions = try #require(event.message.archivedSessions)
-        #expect(sessions.count == 3)
+        #expect(sessions.count == 4)
         let session = try #require(sessions.first)
         #expect(session.id == DemoScript.worktreeSessionId)
         #expect(session.reason == .cleared)

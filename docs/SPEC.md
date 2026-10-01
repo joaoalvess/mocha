@@ -58,6 +58,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Card vivo de cada subagente (`Agent`) no chat, que abre o transcript do subagente só de leitura | subagentes |
 | Selo de subagentes rodando no card da Home e lista de subagentes no Detalhe do agente | subagentes |
 | Card de workflow com as fases e os agentes de cada fase | subagentes |
+| Codex CLI parelho com o Claude: ações pela notificação e pela Live Activity, controles (modelo, effort, modo, `/compact`, `/clear`), aprovar plano, chat ao vivo, contexto, subagentes e histórico (§13.4) | codex-paridade |
 | Terminal SSH (`herdr agent attach`) | 2 |
 | Transporte Mosh no terminal | 3 |
 
@@ -227,7 +228,7 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 - **Protocolo**: JSON delimitado por `\n` sobre socket Unix. A requisição é `{"id":"<string>","method":"<nome>","params":{…}}`; `id` precisa ser string e `params` é obrigatório (`{}` quando vazio). A resposta é `{"id":…,"result":{"type":"<tipo>",…}}` ou `{"id":…,"error":{"code":"<código>","message":"…"}}`. Todo `result` tem o discriminador `type`.
 - **Uma requisição por conexão**: o servidor responde uma linha e fecha. O `HerdrClient` abre uma conexão por requisição (conectar, escrever a linha com `\n`, ler uma linha, fechar). Requisições concorrentes usam conexões concorrentes; não há multiplexação. Uma linha sem `\n` fica sem resposta, então toda requisição tem timeout: 5 s por padrão, 10 s para `agent.prompt`, e `timeout_ms` + 2 s para chamadas com espera.
 - **Erros**: erro de parse ou validação (`invalid_request`: método desconhecido, campo faltando, tipo errado, JSON malformado) volta com `"id":""`; os demais ecoam o `id`. Códigos tratados: `invalid_request`, `pane_not_found`, `agent_not_found`, `agent_blocked`, `agent_not_ready`, `agent_prompt_stalled`, `invalid_key`, `timeout`. Código desconhecido vira erro genérico.
-- **Parâmetros**: o Herdr **ignora campos desconhecidos em silêncio**, e método com alvo opcional usa o pane **focado** quando o alvo falta. Os tipos de parâmetro do `MochaHerdr` usam os nomes exatos do schema (ex.: `pane.split` usa `target_pane_id`) e sempre informam o alvo. O daemon nunca chama métodos de foco (`*.focus`), `pane.split`, `layout.*` nem escrita de workspace.
+- **Parâmetros**: o Herdr **ignora campos desconhecidos em silêncio**, e método com alvo opcional usa o pane **focado** quando o alvo falta. Os tipos de parâmetro do `MochaHerdr` usam os nomes exatos do schema (ex.: `pane.split` usa `target_pane_id`) e sempre informam o alvo. O daemon nunca chama métodos de foco (`*.focus`), `layout.*` nem escrita de workspace. O `pane.split` é usado só pelo `/clear` do Codex (§13.4), sempre com alvo explícito e `focus: false`.
 - **Versão**: ao conectar e a cada reconexão, `ping` → `{"type":"pong","version":"0.9.1","protocol":22,"capabilities":{…}}`. Com protocolo diferente de 22, o daemon registra erro, `doctor` e `status` avisam, e ele segue em melhor esforço.
 - **Decodificação**: campos opcionais vêm **omitidos**, não `null` (`agent`, `agent_session`, `worktree`, `name`, `terminal_title*`, `foreground_cwd`, `tokens`). Campos e tipos desconhecidos são ignorados. `tokens` são metadados de plugins do usuário e não são usados.
 - **Inscrições** (`events.subscribe`): a conexão envia **uma** linha `{"id":…,"method":"events.subscribe","params":{"subscriptions":[…]}}`, recebe o ack `{"id":…,"result":{"type":"subscription_started"}}` e daí em diante só recebe eventos, sem replay do que veio antes. Qualquer escrita depois do ack faz o servidor fechar a conexão: o conjunto de uma conexão é imutável, e cancelar é fechar. O servidor não fecha a conexão quando o pane, a tab ou o workspace inscrito some; quem fecha é o cliente.
@@ -924,8 +925,8 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 | `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
 | `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico da Live Activity (§7.5), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
-| `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
-| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
+| `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados, o App Server do Codex (no ar e versão) e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
+| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon. **Codex** (codex-paridade): executável e versão contra a última validada, `initialize` e `account/read` no socket do App Server, e os panes Codex contados no item `agent.list` (§13.4). ❌ sem o socket ou sem resposta ao `initialize`; ⚠️ sem login ou com versão acima da validada; mostra o plano da conta, nunca o email |
 
 ### §4.3 Caminhos e configuração
 
@@ -1233,6 +1234,7 @@ public enum ChatItemKind: Codable, Sendable {
     case userPrompt(text: String, imageCount: Int)
     case slashCommand(name: String, args: String, output: String?)   // name: "/x" ou "!" (comando de shell do terminal)
     case assistantText(markdown: String)
+    case plan(markdown: String)            // item plan do Codex em Plan mode (§13.4)
     case thinking(text: String?)
     case toolCall(ToolCall)
     case subagent(SubagentCall)            // chamada de Agent (§3.2.2)
@@ -1328,6 +1330,7 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `AgentSummary.preview` e `AgentSummary.activity` inválidos (autor ou status desconhecido) decodificam como `nil`, sem derrubar a árvore. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
 - `SubagentStatus`, `WorkflowStatus` e `WorkflowPhaseStatus` com valor desconhecido são erro de decodificação do item que os carrega (o item sai da lista tolerante). `ChatMeta.subagent` inválido decodifica como `nil`.
 - `ChatItem.imagePaths` (fase imagens) vai no mesmo nível de `id` e `at`, só quando não está vazio, e decodifica como `[]` quando falta. Ele guarda as imagens do `userPrompt` (desde a fase imagens-nativas, os arquivos do cache de imagens do transcript e, no histórico e no plano B, os uploads; o `imageCount` continua sendo o total, inclusive as imagens sem arquivo), os caminhos citados num `assistantText` e o `file_path` de um `toolCall` de `Read` de imagem. Os caminhos que o app recebe existem no Mac no momento do envio (§3.2). O campo é aditivo: um app antigo o ignora.
+- O caso `plan` (codex-paridade) é aditivo e leva `markdown`, como o `assistantText`. Um app antigo o recebe como `unsupported`.
 - Os campos e casos da fase subagentes são aditivos e o `v` continua 1: um app antigo recebe `subagent`, `workflow` e `task` como `unsupported`, e ignora `runningSubagents`, `ChatMeta.subagent` e a mensagem `subagentList`. O contrário não é suportado: o app da fase exige o `mochad` da mesma fase, e os dois sobem juntos.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
@@ -1376,7 +1379,7 @@ Envelope completo:
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
-Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json`, `server.webServers.json` e `server.helloOk.ssh.json` (com `sshUser` e `sshHostKeys`).
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json`, `server.webServers.json` e `server.helloOk.ssh.json` (com `sshUser` e `sshHostKeys`). Na fase codex-paridade entram `client.listModels.json`, `server.models.json`, `client.setModel.codex.json` e `client.setEffort.codex.json`.
 
 **Cliente → servidor**
 
@@ -1386,6 +1389,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `openChat` | `{<ChatTarget>, before?: String, limit?: Int}` (`agentId`, `sessionId`, ou `sessionId` com `subagentId`; `limit` padrão 60, máximo 200) | `chatPage` | 1a-core (`subagentId`: subagentes) |
 | `closeChat` | `{<ChatTarget>}` | `ack{}` | 1a-core (`subagentId`: subagentes) |
 | `listSubagents` | `{agentId}` | `subagentList` | subagentes |
+| `listModels` | `{agentId}` (agente Codex) | `models` (§13.4) | codex-paridade |
 | `sendPrompt` | `{agentId, text}` | `ack{}` | 1a-core |
 | `interrupt` | `{agentId}` | `ack{}` | 1a-core |
 | `closeAgent` | `{agentId}` | `ack{}`. Vale para Claude e Codex; o card sai da árvore pelo `pane_closed`/`pane_updated` do Herdr. Erros: `herdrUnavailable`, `agentNotFound` | uso-codex |
@@ -1393,15 +1397,15 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `unpair` | `{}` | `ack{}` e o daemon fecha a conexão e apaga o aparelho | 1a-core |
 | `ping` | `{}` | `pong{}` | 1a-core |
 | `archive` | `{sessionId}` (sessão atual de um agente) | `ack{}` e `treeChanged` | 1a-core |
-| `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}` | 1a-final |
+| `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}`; o `/clear` do Codex responde `ack{agentId}` com o pane novo (§13.4) | 1a-final |
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
 | `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment, endedActivityId?: String}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5). `endedActivityId` avisa que aquela atividade acabou no aparelho (dispensada ou encerrada, §7.5) | 1b; `endedActivityId` na fase alertas |
 | `listWebServers` | `{}` | `webServers` (§9.3) | preview-web |
-| `setModel` | `{agentId, model: "opus" \| "sonnet" \| "haiku" \| "fable"}` | `ack{}` | controles |
-| `setEffort` | `{agentId, level: "low" \| "medium" \| "high" \| "xhigh" \| "max"}` | `ack{}` | controles |
-| `setMode` | `{agentId, mode: "default" \| "acceptEdits" \| "plan" \| "auto"}` | `ack{}` | controles |
+| `setModel` | `{agentId, model: String}`: no Claude, `"opus" \| "sonnet" \| "haiku" \| "fable"`; no Codex, um `id` do `models` | `ack{}` | controles (Codex: codex-paridade) |
+| `setEffort` | `{agentId, level: String}`: no Claude, `"low" \| "medium" \| "high" \| "xhigh" \| "max"`; no Codex, um `level` do modelo atual no `models` | `ack{}` | controles (Codex: codex-paridade) |
+| `setMode` | `{agentId, mode: "default" \| "acceptEdits" \| "plan" \| "auto"}`; no Codex, só `default` e `plan` | `ack{}` | controles (Codex: codex-paridade) |
 
 **Servidor → cliente**
 
@@ -1416,12 +1420,13 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `agentStatus` | `{agentId, status: AgentStatus, title?: String}` | Evento: mudança de status |
 | `chatPage` | `{<ChatTarget>, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
 | `subagentList` | `{agentId, items: [SubagentSummary]}` (lista tolerante, na ordem da §5.3.1) | Resposta a `listSubagents` |
+| `models` | `{agentId, options: [ModelOption]}`; `ModelOption` = `{id, displayName, isDefault: Bool, defaultEffort?: String, efforts: [{level, description?}]}` (lista tolerante, na ordem do App Server) | Resposta a `listModels` (codex-paridade) |
 | `webServers` | `{host: String, servers: [WebServer]}` (`host` é o `hostName` do daemon; `WebServer` = `{pid: Int, process: String, port: Int, title?: String, directory?: String, workspaceId?: WorkspaceID}`; lista tolerante, por porta crescente) | Resposta a `listWebServers` (§9.3) |
 | `chatAppend` | `{<ChatTarget>, items: [ChatItem]}` | Evento: itens novos num chat aberto |
 | `chatUpdate` | `{<ChatTarget>, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
 | `chatMeta` | `{<ChatTarget>, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
 | `pending` | `{requests: [PendingRequest]}` (lista completa) | 1b. Evento: mudança na lista (também enviado logo depois de `tree`) |
-| `ack` | `{}`, ou `{agentId}` para `newAgentTab` | Resposta simples |
+| `ack` | `{}`, ou `{agentId}` para `newAgentTab` e para o `/clear` do Codex | Resposta simples |
 | `pong` | `{}` | Resposta a `ping` |
 | `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `sessionNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `modeUnavailable`, `screenBusy`, `internal` |
 
@@ -1454,7 +1459,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - vale para subagentes de `Agent`, aninhados e agentes de workflow, de sessão atual ou não; o chat é acompanhado ao vivo como qualquer outro, e o `chatPage` e os eventos voltam com o mesmo `sessionId` e `subagentId`;
   - `sendPrompt`, `interrupt`, `slash` e `archive` não aceitam alvo de subagente: os payloads deles não têm `subagentId`, e o app não oferece envio, interrupção nem arquivamento no chat de subagente.
 - **`listSubagents`**:
-  - agente desconhecido, depois de `resolve` → `agentNotFound`; agente com `kind != "claude"` → `invalidPayload`, com a mensagem do `openChat`; agente sem sessão → `subagentList` com `items: []`;
+  - agente desconhecido, depois de `resolve` → `agentNotFound`; agente com `kind` diferente de `claude` e de `codex` → `invalidPayload`, com a mensagem do `openChat`; agente Codex segue a §13.4 (`codexUnavailable` sem App Server ou sem thread ligada); agente sem sessão → `subagentList` com `items: []`;
   - `items` traz só os subagentes de `Agent` da sessão atual, inclusive os aninhados; os agentes de workflow ficam no card do workflow;
   - ordem: primeiro os `running`, depois os terminados, cada grupo do mais recente ao mais antigo (pelo `startedAt` nos `running` e pelo fim, `startedAt` + `durationMs`, nos terminados); cada aninhado vem logo abaixo do pai, na mesma ordem entre irmãos, e um aninhado cujo pai não está na lista entra como de primeiro nível;
   - sem push contínuo: o app pede a lista ao abrir o Detalhe e de novo a cada `treeChanged` que muda o `runningSubagents` do agente.
@@ -1466,6 +1471,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - o `ack` sai depois da troca conferida na tela (§4.1.1). Em seguida vêm `treeChanged` e `chatMeta` com o valor lido, não o pedido;
   - `HerdrBridgeError.modeUnavailable` → `modeUnavailable` ("Modo indisponível neste modelo"); `screenBusy` → `screenBusy` ("Feche o seletor aberto no terminal");
   - `setEffort` num modelo sem effort → `invalidPayload`.
+- **Agentes Codex** (codex-paridade): as regras acima que pedem `kind == "claude"` continuam valendo para o Claude; um agente Codex segue a §13.4 em `openChat`, `sendPrompt`, `interrupt`, `slash`, `archive`, `listSubagents`, `listModels`, `setModel`, `setEffort` e `setMode`. `listModels` num agente Claude → `invalidPayload` ("Lista de modelos só para Codex").
 - **`newAgentTab`**:
   - `workspaceId` fora da árvore → `invalidPayload` ("Workspace não encontrado");
   - o daemon chama `tab.create {workspace_id, cwd: <diretório do workspace (§3.1.4)>, focus: false}` e depois `agent.start {name: "mocha-<n>", kind: "claude", pane_id: <root_pane.pane_id>, args: []}`, com `<n>` o menor inteiro a partir de 1 cujo nome não está em uso entre os agentes do Herdr;
@@ -1593,6 +1599,7 @@ O visual segue o **mock aprovado**: `docs/design/mock.html`, com uma captura 3x 
 | `composer` | `#383838` translúcido | Composer flutuante |
 | `controlBg` | `#202225` / selecionado `#121416` | Controle segmentado (recentes/árvore) |
 | `claude` | `#D87454` | Ícone asterisco do Claude |
+| `codex` | `#1A7F64` | Verde-escuro da OpenAI nos agentes Codex: marca (`CodexMark`), nome no Uso, destaque do card, ícone de subagente, pulso na gaveta e "trabalhando" na Live Activity, onde o Claude usa `claude` |
 | `gitAccent` | `#FB923C` | Botão circular de git no header (fora do MVP; o espaço fica reservado) |
 | `statusOk` | `#00FF00` | Disco de status no header, com um glifo `−` preto no centro (print `chat-conversa.png`) |
 | `dirty` | `#F4B450` | Asterisco de alterações pendentes ao lado da branch |
@@ -1612,6 +1619,8 @@ O visual segue o **mock aprovado**: `docs/design/mock.html`, com uma captura 3x 
 | `barTrack` | `#191B1D` | Trilho das barras de uso |
 | `paceMark` | `#979899` | Traço do ritmo constante nas barras de uso |
 | `claudeTile` | `#2E221F` | Ladrilho do asterisco no Uso |
+| `usagePillDivider` | branco 7% | Divisória entre Claude e Codex na pílula de uso |
+| `codexTile` | `#142B27` | Ladrilho da marca da OpenAI nos agentes Codex, onde o Claude usa `claudeTile` |
 | `heroBg` | `#120A08` | Fundo do bloco principal do Detalhe |
 | `heroTile` | `#2E1914` | Ladrilho do asterisco no Detalhe |
 | `tableBorder` | `#2B2B2B` | Borda das tabelas do markdown |
@@ -1645,7 +1654,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - "Este iPhone não está mais pareado" (`unauthorized`).
 
 **Início** (`21-inicio`, `21e-inicio-vazia`)
-- Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringAuto`) enche um quinto por agente Claude com `permissionMode` `auto`, `acceptEdits` ou `bypassPermissions` (cheio com 5 ou mais) e o interno (`ringPlan`) um quarto por agente Claude em `plan` (cheio com 4 ou mais), os dois das 12 h no sentido horário e sem animação; `default` e os agentes Codex não entram nos anéis. A bolinha de 9,2 pt no centro dos anéis, com o mesmo glifo do selo do anel de contexto (raio quando trabalhando, exclamação quando bloqueado), pulsa (opacidade de 30% a 100% num ciclo de 1,4 s; fixa com Reduzir movimento): `dirty` quando algum agente está `blocked`, senão `statusOk` quando algum está `working`, e some quando nenhum. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
+- Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringAuto`) enche um quinto por agente Claude com `permissionMode` `auto`, `acceptEdits` ou `bypassPermissions` (cheio com 5 ou mais) e o interno (`ringPlan`) um quarto por agente Claude ou Codex em `plan` (cheio com 4 ou mais), os dois das 12 h no sentido horário e sem animação; `default` não entra nos anéis. A bolinha de 9,2 pt no centro dos anéis, com o mesmo glifo do selo do anel de contexto (raio quando trabalhando, exclamação quando bloqueado), pulsa (opacidade de 30% a 100% num ciclo de 1,4 s; fixa com Reduzir movimento): `dirty` quando algum agente está `blocked`, senão `statusOk` quando algum está `working`, e some quando nenhum. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
 - RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
 - Embaixo, ABERTOS: todos os agentes Claude e Codex vivos na árvore (`StartSections.open`), com os mesmos cards do Histórico, primeiro os bloqueados, depois os trabalhando, depois por atividade. Sessões encerradas não entram. Sem a pílula de uso.
   - arrastar o card para a esquerda (hint "Fechar", `destructive`) abre a confirmação "Fechar este agente?" ("Fechar" / "Cancelar"); confirmando, manda `closeAgent{agentId}`, e uma falha abre o alerta "Não foi possível fechar o agente";
@@ -1655,7 +1664,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Vazia: "Nenhum agente aberto no Herdr" e "Toque em + para abrir uma tab com Claude ou Codex num workspace."
 
 **Nova sessão** (`21b-nova-sessao-agente`, `21c-nova-sessao-workspace`, `21d-nova-sessao-abrindo`)
-- Folha `drawerBg` na altura do conteúdo, sem título, X ou indicador de passo. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": um cartão por workspace raiz, com os worktrees (`children`) logo abaixo, recuados e com ícone de branch. Cada linha tem nome, branch e `*` em `dirty`; num worktree cujo `label` é igual ao da raiz, o título é a branch. À direita, com agentes nas tabs, o `StatusDot` do `agentStatus` e "1 agente"/"N agentes".
+- Painel próprio (`BottomPanelLayer`, altura `.content`) com fundo `drawerBg`, colado às bordas e na altura do conteúdo mais a área do indicador de home; arrastar para baixo ou um toque fora fecha; sem título, X ou indicador de passo. Não é sheet do sistema: desde o iOS 26, a sheet de altura parcial fica solta das bordas, e não há API para colá-la. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": um cartão por workspace raiz, com os worktrees (`children`) logo abaixo, recuados e com ícone de branch. Cada linha tem nome, branch e `*` em `dirty`; num worktree cujo `label` é igual ao da raiz, o título é a branch. À direita, com agentes nas tabs, o `StatusDot` do `agentStatus` e "1 agente"/"N agentes".
 - Tocar num workspace manda `newAgentTab{workspaceId, kind}` e mostra só um indicador de progresso na linha. No `ack{agentId}`, a folha fecha e o chat abre por push; um erro aparece no rodapé. Fechar (arrastar ou tocar fora) e reabrir volta ao passo 1.
 
 **Histórico** (`22-historico`)
@@ -1672,12 +1681,12 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - segunda linha, opcional: em `blocked`, "Precisa de você · <ferramenta>" em `dirty` (só "Precisa de você" sem `activity`); em `working` com `activity`, "<ferramenta>: <resumo>" em `textSecondary`; numa `ArchivedSession`, "Sessão encerrada". O nome da ferramenta segue o card de ferramenta (`Bash` → "Shell");
   - metadados: selo do workspace (`badgeOk`), "Claude Code" em `claude` e o tempo relativo de `lastActivityAt` ("agora" abaixo de 1 min, "há N min", "há N h", "ontem", "há N dias"), separados por `sepDot`;
   - tocar abre o chat (`agentId`, ou `sessionId` numa `ArchivedSession`); segurar abre o Detalhe; arrastar para a esquerda um card de CONCLUÍDOS manda `archive{sessionId}` (a ação "Arquivar"). Os outros cards não arrastam.
-- **Pílula de uso** flutuante no rodapé (`glassPill`): asterisco, "5h" com barra e %, divisória, "7d" com barra e %. Tocar abre o Uso. Some sem `usage`.
+- **Pílula de uso** flutuante no rodapé (`glassPill`, 38 pt de altura, 22 pt das laterais): um trecho por provedor com `usage`, Claude primeiro e Codex depois, em metades iguais. Trecho: marca de 16 pt, 5 pt, nome em 13 pt semibold na cor do provedor (`claude` ou `codex`), 7 pt e a barra de 4 pt da janela de 5 horas, que ocupa o resto. Entre os trechos, divisória `usagePillDivider` de 1 × 15 pt com 10 pt de cada lado; 13 pt à esquerda e 14 pt à direita. Tocar abre o Uso. Some sem `usage`.
 - **Sem conexão**: a lista fica com o último estado conhecido, anéis parados em cinza, e uma cápsula no topo ("Sem conexão com o Mac", ou a mensagem do estado) abre Ajustes. Nada some; a reconexão é automática.
 - **Vazio**: nenhum agente nem sessão arquivada. Texto "Nenhum agente aberto", sem botão.
 
 **Servidores web** (referência: `docs/referencias/moshi/servidores-web.jpg`, sem o card de usos grátis)
-- Painel próprio igual ao do Uso (`BottomPanelLayer`), colado às bordas, com o topo em 50% da tela; arrastar para baixo fecha. Fundo `drawerBg`, título "Servidores web". Ao abrir, manda `listWebServers` e mostra um indicador até a resposta; a lista também recarrega quando a conexão volta. Não há puxar para recarregar, que conflitaria com arrastar para fechar.
+- Painel próprio igual ao do Uso (`BottomPanelLayer`), colado às bordas e na altura do conteúdo (como o Uso); arrastar para baixo ou um toque fora fecha. Fundo `drawerBg`, título "Servidores web". Ao abrir, manda `listWebServers` e mostra um indicador até a resposta; a lista também recarrega quando a conexão volta. Não há puxar para recarregar, que conflitaria com arrastar para fechar.
 - Uma seção por workspace do Herdr, na ordem da árvore (worktrees como workspaces próprios), com o `label` em maiúsculas no estilo de cabeçalho de seção; servidores sem `workspaceId` (ou de um workspace fora da árvore) vão numa última seção com o `host`. As linhas ficam num cartão arredondado com divisórias: ícone de disco (`externaldrive`) à esquerda, o `title` (ou, sem ele, o nome da pasta de `directory`, ou "Porta <port>") em 17 pt semibold e, embaixo, "PID <pid> · <process> · PORT <port>" em mono `textSecondary`.
 - Tocar numa linha abre o Navegador (§9.3). Só em Debug, `-open-web-servers` abre a folha ao iniciar; com `-demo`, a lista traz os dois servidores do print, e com `-demo-empty` vem vazia. Sem servidores: "Nenhum servidor web rodando no Mac". Sem conexão: a lista some e fica a mesma mensagem da cápsula "Sem conexão com o Mac".
 
@@ -1686,8 +1695,8 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Enquanto o túnel abre, um indicador com "Conectando ao Mac…"; falha do SSH mostra o erro e "Tentar de novo". Sem a chave autorizada no Mac, o erro aponta para Ajustes (chave pública, §9.1). Abrir o Navegador fecha a folha ou o painel aberto. Só em Debug, `-open-web-preview <porta>` abre o Navegador ao iniciar; com `-demo`, a página vem do próprio app (`StaticPageTunnelChannel`), sem SSH.
 
 **Uso do plano** (`03-uso-plano`)
-- Folha média sobre a Home (arrastar fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
-- Um cartão por provedor com `usage`, Claude primeiro e Codex depois, 12 pt entre eles; a altura do painel cresce 182 pt por cartão a mais. Cartão: ladrilho do provedor, "<plano> (<conta>)" (sem plano, "Claude" ou "Codex"; sem conta, sem parênteses) e "Claude Code · <hostName>" ou "Codex · <hostName>".
+- Folha média sobre a Home (`BottomPanelLayer`; arrastar ou um toque fora fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
+- Um cartão por provedor com `usage`, Claude primeiro e Codex depois, 12 pt entre eles. Como todo painel de baixo (`BottomPanelLayer`: Uso, Servidores web, Nova sessão e Inbox), tem a altura do conteúdo, com 24 pt depois do último item mais a área do indicador de home, até 40 pt abaixo da barra de status; a lista só rola quando não cabe, e o painel sobe com o teclado. Cartão: ladrilho do provedor, "<plano> (<conta>)" (sem plano, "Claude" ou "Codex"; sem conta, sem parênteses) e "Claude Code · <hostName>" ou "Codex · <hostName>".
 - Uma linha por janela (`fiveHour` → "5h", `weekly` → "7d"): barra com o `usedPercent`, o traço `paceMark` na posição do tempo decorrido, o % e o tempo até zerar ("3h 35m", "2d 10h").
 - Na linha de 5h com `resetsAt` no futuro, um sino (`bell`, `textSecondary`; ligado, `bell.fill` em `statusOk`) agenda o aviso local do reset (§7.6).
 - Tempo decorrido da janela = `1 − (resetsAt − agora) / duração` (5 h ou 7 dias). Ritmo = `usedPercent − decorrido × 100`: acima de +5, "ritmo mais rápido"; abaixo de −5, "ritmo mais lento"; entre os dois, "no ritmo". A linha de baixo junta as duas: "5h: ritmo mais lento · 7d: no ritmo".
@@ -1711,7 +1720,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - O conteúdo rola por baixo do header e do composer.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
-  - `assistantText`: markdown à esquerda, largura total, sem bolha.
+  - `assistantText` e `plan`: markdown à esquerda, largura total, sem bolha.
   - `toolCall`: card `toolCard` de uma linha (ícone, nome em negrito, resumo, e à direita ✓, ✗ em `error` ou o giro de `running`). O nome de exibição de `Bash` é "Shell". Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`) e ✗ quando alguma falhou. Tocar expande: por chamada, o input (`$ comando` no Shell) e a prévia do resultado numa caixa `codeInner`; o card expandido ganha a borda `toolBorder`. Tocar de novo recolhe.
   - `thinking`: linha colapsada "Pensou" em itálico `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
   - `turnFooter`: "Brewed for 45s" em itálico `textSecondary`.
@@ -1773,7 +1782,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com os controles "Turno concluído" e "Silenciar enquanto uso o Mac" (fase alertas, ligado por padrão, §7.7) (`setPreferences`, 1a-final; cada um volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
 
 **Inbox** (1b, `13-inbox`)
-- Sino na cápsula da Início, com a contagem. Abre uma folha.
+- Sino na cápsula da Início, com a contagem. Abre um painel próprio (`BottomPanelLayer`) colado às bordas e na altura do conteúdo, como o Uso e a Nova sessão.
 - Um cartão por `PendingRequest`, com agente, workspace e tempo, e as mesmas ações do pedido no chat.
 - Tocar no nome do agente abre o chat.
 
@@ -1888,6 +1897,7 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 - `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`). "Negar" manda `deny` com a mensagem padrão (§8.2): o Claude recebe a negação e continua o turno.
 - `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Com `QUESTION`, o corpo é o texto exato da pergunta (até 2.000 bytes), que o app usa como chave de `answers`. Várias perguntas, `multiSelect` ou uma pergunta maior vão com a categoria `NEEDS_INPUT`, sem ações, e o corpo é a prévia de `questions[0].question`: o toque abre o chat com o card.
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
+- Pedidos Codex (codex-paridade, §13.4) usam as mesmas categorias e ações. O `POST /v1/respond` roteia o prefixo `codex:`, e o daemon troca a chave de `answers` (o texto exato da pergunta) pelo `id` da pergunta do App Server. "Negar" vira `decline`, sem motivo.
 
 ### §7.3 Live Activity agregada (1b, substituída pela §7.5)
 
@@ -1978,7 +1988,7 @@ public struct ContentState: Codable, Hashable {
 Decisão do João em 2026-09-27, depois de comparar com o Moshi com vários agentes em paralelo: uma atividade por agente Claude, no layout do Moshi (`docs/referencias/moshi/live-activity.jpg`).
 
 - **Tipo**: `MochaAgentAttributes` (`MochaProtocol`, só iOS), atributo estático `agentId`; `attributes-type: "MochaAgentAttributes"` e `attributes: {"agentId": "<id>"}` no push-to-start. `ContentState`: `status`, `title`, `workspaceLabel`, `since`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `prompt?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as mesmas regras de preenchimento, limites e orçamentos da §7.3 (sem contagens nem `agentId` no `pending`).
-- **Card** (tela bloqueada e Dynamic Island expandida): o card do WP-I16 sem a linha de contagem. Cabeçalho "<workspaceLabel> · <modelo>": o projeto (workspace do Herdr, ex.: "Core") em peso regular na cor do status e o modelo em cinza claro #D4D4D4, 13 pt, 6 pt entre os itens, ponto #555555; sem título de tab. Sem `pending` (ocupado ou parado): linha 1 = a `preview` (senão a `activity`, senão o `title`); linha 2 = "Você: <prompt>" (senão a continuação da linha 1). Medidas da tela bloqueada, tiradas do print do Moshi em 3x: margens 16 nas laterais, 15 no topo e 16 embaixo; 4 pt do cabeçalho à linha 1 e 2 pt entre as linhas; linha 1 19 pt bold (encolhe até 0,86 antes de cortar), linha 2 15 pt #A9A9A9 (até 0,95). As cores do card são declaradas em Display P3, porque os valores vêm de prints do Moshi (P3); em sRGB o verde e o laranja saem lavados. Paleta do card no tom do Moshi: verde #9AF768, tile #CA7B5D, trilho da barra #463B38, cinza #A9A9A9 (âmbar e vermelho da §6.2); barra de contexto + tile; linha 1/linha 2; botões do `pending`. Compacta, no estilo do Moshi: à esquerda a xícara do Mocha (`cup.and.saucer`) na cor do rótulo do status (verde, âmbar esperando), à direita o tile do provedor (círculo #CA7B5D com o asterisco branco; no Codex, fundo `controlBg` e losango); mínima: o tile. `widgetURL` = deep link do agente. `relevance-score`: `blocked` 100, `working` 50, parado 10.
+- **Card** (tela bloqueada e Dynamic Island expandida): o card do WP-I16 sem a linha de contagem. Cabeçalho "<workspaceLabel> · <modelo>": o projeto (workspace do Herdr, ex.: "Core") em peso regular na cor do status e o modelo em cinza claro #D4D4D4, 13 pt, 6 pt entre os itens, ponto #555555; sem título de tab. Sem `pending` (ocupado ou parado): linha 1 = a `preview` (senão a `activity`, senão o `title`); linha 2 = "Você: <prompt>" (senão a continuação da linha 1). Medidas da tela bloqueada, tiradas do print do Moshi em 3x: margens 16 nas laterais, 15 no topo e 16 embaixo; 4 pt do cabeçalho à linha 1 e 2 pt entre as linhas; linha 1 19 pt bold (encolhe até 0,86 antes de cortar), linha 2 15 pt #A9A9A9 (até 0,95). As cores do card são declaradas em Display P3, porque os valores vêm de prints do Moshi (P3); em sRGB o verde e o laranja saem lavados. Paleta do card no tom do Moshi: verde #9AF768, tile #CA7B5D, trilho da barra #463B38, cinza #A9A9A9 (âmbar e vermelho da §6.2); barra de contexto + tile; linha 1/linha 2; botões do `pending`. Compacta, no estilo do Moshi: à esquerda a xícara do Mocha (`cup.and.saucer`) na cor do rótulo do status (verde, âmbar esperando), à direita o tile do provedor (círculo #CA7B5D com o asterisco branco; no Codex, círculo verde-escuro #1A7F64 com a marca da OpenAI branca); mínima: o tile. `widgetURL` = deep link do agente. `relevance-score`: `blocked` 100, `working` 50, parado 10.
 - **Início**: quando um agente passa a `working` e não tem atividade. App em primeiro plano: o app inicia (`Activity.request` com o `agentId`). Senão, push-to-start com `alert` `{"title": "Claude trabalhando · <rótulo>", "body": "<title>"}`.
 - **Limites**: no máximo 5 atividades por aparelho. Cheio: um agente que fica `blocked` encerra a atividade parada mais antiga e ocupa a vaga; senão fica sem atividade. O orçamento de 10 push-to-starts por hora é do app inteiro; esgotado, o agente fica sem atividade. Agente sem atividade recebe as notificações da §7.1.
 - **Atualização**: por atividade, no máximo uma a cada 10 s, sempre com o estado mais recente; prioridade 10 em mudança de `status` ou de `pending`, 5 no resto (texto, contexto, modelo); refresh 5 a cada 10 min enquanto `working`/`blocked`; `stale-date` = agora + 15 min.
@@ -2223,7 +2233,7 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | Tailscale fora no iPhone | Bloqueio B6 (VPN On Demand); o app mostra "Sem conexão com o Mac" e as ações de notificação avisam a falha |
 | `moshi-hook` competindo pelos hooks | Detecção no `doctor`/`install-hooks` e bloqueio B7 |
 | Arquivos de transcript muito grandes | Índice de offsets, leitura pelo fim, prévias truncadas (§3.2.3) |
-| O Herdr ignora parâmetros desconhecidos, e o alvo omitido cai no pane focado do João | Tipos de parâmetro com os nomes exatos de `herdr-api.schema.json`, alvo sempre explícito, teste de contrato contra o schema; o daemon não chama métodos de foco, split, layout nem escrita de workspace |
+| O Herdr ignora parâmetros desconhecidos, e o alvo omitido cai no pane focado do João | Tipos de parâmetro com os nomes exatos de `herdr-api.schema.json`, alvo sempre explícito, teste de contrato contra o schema; o daemon não chama métodos de foco, layout nem escrita de workspace, e o split só no `/clear` do Codex |
 | Troca de sessão (`/clear`) sem evento do Herdr | Detecção por `pane_updated`, `agent.get` e reconciliação (§3.1.3); hook `SessionStart` a partir da 1a-final |
 | Build do Xcode e perfil com push expiram | Perfil de desenvolvimento de ~1 ano; `doctor` do app em Ajustes mostra a validade quando disponível |
 | A extensão do Tailscale standalone não abre socket Unix fora do sandbox | Gateway em TCP `127.0.0.1:47421` (S5); o `doctor` acusa alvo `unix:` no Serve |
@@ -2268,3 +2278,93 @@ Esta fase acrescenta Codex sem alterar os contratos específicos do Claude das �
 
 - O desktop fornece `thread/list` e leitura paginada pelo App Server sem `thread/resume`, envio, interrupção ou resposta. A Home mostra até 20 conversas recentes; a gaveta pagina o histórico inteiro. As conversas desktop não se associam a panes Herdr.
 - Uma conexão separada pode devolver `notLoaded` para uma conversa ativa no desktop; nesse caso o Mocha mostra estado desconhecido. Hooks `SessionStart`, `UserPromptSubmit`, `Stop`, `PermissionRequest`, `Interrupt` e `SessionEnd` podem complementar estado e alertas, mas sua configuração exata deve ser revista pelo João antes da instalação real. A leitura não depende dos hooks.
+
+### §13.4 Paridade do CLI (codex-paridade)
+
+Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App Server ou por ações do Herdr (`pane split`, `agent start`, `pane close`). Nenhuma tecla vai para o pane do Codex, e o JSONL não é lido.
+
+- **Ligação pane–thread durável**:
+  - o daemon grava `~/Library/Application Support/Mocha/codex-panes.json` (0600) com pane → `{threadId, cwd}` a cada mudança;
+  - no boot e a cada reconexão ao App Server, chama `thread/loaded/list`. Se a thread do mapa estiver carregada, faz `thread/resume`;
+  - se não estiver (o TUI trocou de thread enquanto o daemon estava fora; uma thread sem inscritos recebe `thread/closed` cerca de 1 min depois), o pane assume a única thread carregada com o mesmo cwd (`thread/read`) que não tenha dono, não seja `ephemeral` e não tenha `parentThreadId`;
+  - sem candidata única, o pane fica com `controlAvailable: false` até o próximo `thread/started` com o mesmo cwd;
+  - `pane_moved` move a ligação e os pedidos do pane;
+  - quando o pane troca de thread ou fecha, o daemon manda `thread/unsubscribe` da antiga. Enquanto ele estiver inscrito, a thread não fecha.
+- **Pedidos**:
+  - a chave interna é `codex:<threadId>:<itemId>`;
+  - o `thread/resume` reentrega os pendentes com o mesmo `itemId` e um id JSON-RPC novo, que substitui o anterior sem push nem Live Activity novos;
+  - a queda do App Server interrompe o turno e apaga os pedidos;
+  - `POST /v1/respond` aceita pedidos Codex (§7.2). Em `answers`, a chave pode ser o `id` (o WS usa `PendingQuestion.id`) ou o texto exato da pergunta (notificação e Live Activity), e o daemon traduz para o `id`;
+  - `deny` vira `decline`, sem motivo; o App Server aceita `decline` mesmo fora de `availableDecisions`;
+  - `item/permissions/requestApproval` (feature `request_permissions_tool` desligada por padrão) e `mcpServer/elicitation/request` viram push `NEEDS_INPUT` sem ações e deixam o pane `blocked`. O corpo é o `reason` da permissão ("O Codex pede uma permissão no terminal." sem ele) ou "<servidor>: <mensagem>" da elicitação. Um `thread/status/changed` com `waitingOnApproval` ou `waitingOnUserInput` sem pedido mapeado vira o alerta de agente bloqueado (§7.1), depois da carência e só se o agente continuar `blocked` sem pedido;
+  - uma pergunta Codex única, sem `multiSelect` e com até 2000 bytes, sai com a categoria `QUESTION` e o corpo igual ao texto exato da pergunta, que a resposta pela notificação usa como chave;
+  - os outros `ServerRequest` ficam para o TUI;
+  - o desfecho (Aprovado, Negado, Respondido) entra no snapshot da Live Activity como no Claude (§7.5);
+  - texto do pedido: `commandActions[].command` (o `command` vem embrulhado em `/bin/zsh -lc '…'`), `reason` e `cwd`, com `toolName` "Bash"; num `fileChange`, os `changes[].path` do `item/started`, relativos ao cwd e separados por ", ", com `toolName` "Edit" (sem o `item/started`, o `reason`).
+- **Controles**. São API experimental; o daemon inicializa com `experimentalApi: true`, e o `scripts/check-codex-update.sh` compara o schema experimental a cada versão.
+  - Num agente Codex com `controlAvailable: false`, `listModels`, `listSubagents`, `setModel`, `setEffort`, `setMode` e `slash` respondem `codexUnavailable`, como `sendPrompt` e `interrupt`.
+  - `listModels` → `model/list` sem os `hidden`, com o `supportedReasoningEfforts` e o `defaultReasoningEffort` de cada modelo.
+  - `setModel` e `setEffort` → `thread/settings/update {threadId, model}` ou `{threadId, effort}`. Com turno ativo, também `turn/settings/update` no turno atual. Modelo fora do `model/list` → `invalidPayload` ("Modelo indisponível no Codex"); effort fora do modelo atual → `invalidPayload` ("Effort indisponível neste modelo"). `listModels` num agente Claude → `invalidPayload` ("Lista de modelos só para Codex").
+  - `setMode` com `plan` ou `default` → `thread/settings/update {collaborationMode: {mode, settings: {model, reasoning_effort, developer_instructions: null}}}`, com o modelo e o effort atuais. `acceptEdits` e `auto` → `invalidPayload` ("Modo indisponível no Codex"). Os perfis de permissão (`permissions`) ficam fora desta fase.
+  - O `ack` sai na resposta `{}`. O valor mostrado vem da resposta do `thread/resume` e de `thread/settings/updated`, que só chega a quem está inscrito e também traz o `/plan` e o `/model` digitados no TUI. Em seguida vêm `treeChanged` e `chatMeta`.
+  - `slash "/compact"` → `thread/compact/start`, que roda como um turno próprio com o item `contextCompaction`.
+  - `slash "/clear"` → sessão nova no mesmo lugar:
+    1. `pane split` do pane atual à direita, no mesmo cwd, com `focus: false`;
+    2. `agent start` Codex com os argumentos da tab Codex (§13.1) mais `-m <modelo>` e `-c model_reasoning_effort="<effort>"`, com a espera de prontidão do `newAgentTab`;
+    3. o daemon espera o pane novo virar `codex` na árvore, liga o pane por `expectPane` (com folga de 2 s antes do split) e espera a thread por no máximo 15 s; depois do `thread/started`, `thread/settings/update` com o modo atual;
+    4. `pane close` do pane antigo.
+    O daemon move chats, foreground e controles do pane antigo para o novo, como no `pane_moved`, e responde `ack{agentId}` com o pane novo. A thread antiga vai para o Histórico. Uma falha antes do passo 4 deixa o pane antigo e o chat intactos, deixa o pane novo aberto ao lado e devolve o erro: do Herdr como `herdrUnavailable`/`agentNotFound`, e o timeout como `internal` ("O Codex novo não abriu uma conversa a tempo."). Um segundo `/clear` no mesmo pane enquanto o primeiro corre → `internal` ("O /clear anterior ainda está em andamento.").
+  - Outros comandos em `slash` → `invalidPayload` ("Comando indisponível no Codex").
+  - **Aprovar plano**: no último item `plan` de um agente Codex em Plano, sem turno ativo, o app manda `setMode default` e depois `sendPrompt` com "Implemente o plano.". O "Implement this plan?" do TUI continua aberto no Mac. Fechá-lo com Esc fica para o shell mode, como exceção à §13.1 a decidir nessa fase.
+- **Chat**:
+  - página por `thread/items/list {threadId, limit, sortDirection: "desc", cursor}`: o `before` do protocolo é o cursor do App Server, `limit` conta itens e a hora de cada item vem de `startedAtMs`;
+  - ao vivo, `item/started` vira `chatAppend` e `item/completed` vira `chatUpdate`. Os deltas não são repassados. Um `item/completed` que chega depois do `turn/completed` (comando de turno interrompido) atualiza o card;
+  - a releitura inteira acontece só na reconexão;
+  - uma `agentMessage` ou um `plan` com texto vazio no `item/started` só entra no `item/completed`, sem bolha vazia; itens em andamento não aparecem no `thread/items/list`;
+  - cada turno fechado ganha um item `<turnId>#end` (rodapé, "Interrompido" ou o erro), com hora = max(`completedAt`, hora do último item do turno), porque o `completedAt` vem em segundos.
+  
+  Projeção:
+  - nomes das ferramentas: "Shell" (`commandExecution`), "Edit" (`fileChange`), "Read" (`imageView`), "WebSearch" e `mcp__<servidor>__<ferramenta>`; o app mostra "Shell" como shell;
+  - `commandExecution` → `toolCall` "Shell" com `commandActions[0].command`; a prévia é o `aggregatedOutput`, e o status vem de `status` e `exitCode`;
+  - `fileChange` → `toolCall` com os caminhos;
+  - `webSearch` → a query; `mcpToolCall` → servidor, ferramenta e resultado;
+  - `subAgentActivity` com `kind: started` → card de subagente (`agentId` = `agentThreadId`), concluído pelo `kind: completed`; `collabAgentToolCall` (`wait`, `sendInput`…) não vira card;
+  - `contextCompaction` → aviso "Contexto compactado"; turno `interrupted` → aviso "Interrompido"; `failed` → aviso com o `error`; rodapé `turnFooter` com o `durationMs`;
+  - `plan` (Plan mode) → `ChatItemKind.plan(markdown)` com o texto do plano (D9); `localImage` e `imageView` → `imagePaths` (§3.2, §6.5);
+  - a troca de thread no pane reabre o chat com a thread nova.
+- **Resumo do agente**:
+  - `sessionId` = `threadId`; `title` = `thread.name`, ou `preview` sem nome;
+  - prévia = último `agentMessage` ou `userMessage`; atividade = a ferramenta em andamento ou, sem ela, a última, como no Claude;
+  - sem `turn/started` (inscrição tardia), o turno abre pelo `turnId` do primeiro item;
+  - `model`, `effort` e `permissionMode` (`plan` ou `default`) vêm da resposta do `thread/resume` e de `thread/settings/updated`; `branch` vem de `gitInfo`;
+  - `turnStartedAt` e `turnEndedAt` vêm de `Turn.startedAt` e `completedAt`; `lastActivityAt`, do último evento; `sessionStartedAt`, de `thread.createdAt`. O `isDirty` do workspace é atualizado no `turn/completed`;
+  - contexto livre = `(janela − 12000 − max(0, last.totalTokens − 12000)) / (janela − 12000)`, com `last` e `modelContextWindow` de `thread/tokenUsage/updated`. É a conta do `/status` do TUI;
+  - push "terminou" só com `turn.status == completed`.
+- **Uso**: `account/read` dá o plano e o email, junto com o `account/rateLimits/read`.
+- **Subagentes**:
+  - as filhas não emitem `thread/started`; os eventos delas chegam a quem está inscrito no pai;
+  - o daemon acompanha pelo `subAgentActivity` e pelos eventos com o `threadId` da filha; na reconexão, por `thread/list {parentThreadId}`, que só aí infere o desfecho das filhas que terminaram sem evento. O `subAgentActivity` com `kind: interacted` (tarefa nova para uma filha que já existe) é ignorado; a árvore vai até 4 níveis, e as netas só aparecem pelos eventos ao vivo;
+  - `runningSubagents` e `listSubagents` (`agentId` = thread filha) seguem a ordem da §5.3.1. O `agentType` é o `agentNickname` que o `thread/list {parentThreadId}` devolve, pedido no spawn, no fim e na reconexão; sem ele, o último trecho de `agentPath`. O status vem do desfecho; sem desfecho, `running` enquanto há card, e `failed` com o `failureReason` quando o último turno da filha falhou. `durationMs` vai do spawn ao desfecho;
+  - uma filha que não está no cache (já arquivada) é lida por `thread/read {includeTurns: true}`;
+  - o chat da filha abre por `openChat` com `ChatTarget.codexThread(<filha>)`, só leitura e com `ChatMeta.subagent`.
+- **Histórico**: a thread do pane vira `ArchivedSession(provider: codex)` (§4.9), registrada pelo `threadId` com o título e o `workspaceLabel` do pane: `.ended` quando o pane sai da árvore e `.cleared` quando o pane passa a outra thread (`/clear`, `/new`, retomada de outra thread). `archive` com `provider: codex` aceita só a thread atual de um agente Codex da árvore (outra → `sessionNotCurrent`) e é desfeito pelo `turn/started` seguinte, como no Claude. O `turnStartedAt` do Codex tem resolução de segundos, e um turno que começa no mesmo segundo do `archive` só desarquiva no próximo.
+- **App**. Sem mock: segue os componentes existentes.
+  - O painel ↻ do Codex mostra Contexto, Modo (Padrão ou Plano), Uso do Codex, Subagentes, `/compact` e `/clear`.
+  - O seletor de modelo e effort usa a lista `models`; o effort oferecido é o do modelo atual.
+  - O header e o Detalhe mostram modelo, effort, branch e Sessão.
+  - O card de subagente Codex abre a thread filha, no chat vivo e no arquivado.
+  - O swipe de arquivar e o Histórico valem para Codex, e o anel interno da Início conta os Codex em Plano.
+  - O botão "Implementar plano" segue a regra acima.
+  - Os textos que hoje dizem "Claude" para um agente Codex passam a dizer "Codex".
+- **Diagnóstico**: §4.2. O `scripts/check-codex-update.sh` valida uma versão nova num lab com `CODEX_HOME` próprio, sem tocar no `~/.codex`, e falha se o `~/.codex/config.toml` mudar. Ele compara os métodos e os tipos de item dos schemas estável e experimental com `MochaKit/Fixtures/codex/schema/methods.json`: um método ou tipo removido falha, e um novo só aparece na saída. Ao validar uma versão nova, atualiza essa cópia.
+- **Limitações** (S9):
+  - sem pergunta `multiSelect`, sem motivo na negação, sem chip de slash, recap ou workflow;
+  - um steer feito durante uma ferramenta longa se perde se o turno for interrompido antes;
+  - toda thread nova cria uma thread `ephemeral` de título, que o daemon ignora;
+  - o primeiro SIGINT do App Server espera os turnos ativos;
+  - numa thread nova, o `thread/resume` logo depois do `turn/start` falha ("rollout … is empty") até o rollout ser gravado, cerca de 250 ms depois; o daemon repete;
+  - depois de um reinício do `mochad`, o contexto fica desconhecido até o próximo `thread/tokenUsage/updated` (o `thread/read` não traz uso de tokens);
+  - a Live Activity mostra "terminou" também num turno interrompido, como no Esc do Claude: o `AgentSummary` não diz como o turno terminou;
+  - quem se inscreve depois do `turn/start` não recebe o `turn/started` do primeiro turno, e às vezes nem o `item/started` do `userMessage`; o `Turn.startedAt` do `turn/completed` é a fonte do início do turno;
+  - `requestUserInput` e a elicitação MCP não trazem `startedAtMs`: uma pergunta que já estava pendente quando o `mochad` reiniciou gera push de novo no `thread/resume`;
+  - se o `mochad` reiniciar menos de cerca de 1 min depois de um `/new` no TUI, a thread antiga ainda está carregada e o pane religa nela até o próximo `thread/started` no mesmo cwd.

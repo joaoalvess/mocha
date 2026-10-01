@@ -30,6 +30,16 @@ struct ChatTargetTrackingTests {
         #expect(ChatTargetTracking.change(for: .agent("w1:p2"), knownSessionId: nil, in: workspaces) == .unchanged)
     }
 
+    @Test func codexClearAckMovesTheChatToTheNewPane() {
+        #expect(ChatTargetTracking.target(afterAck: "w3:p7", from: .agent("w3:p5")) == .agent("w3:p7"))
+    }
+
+    @Test func ackWithoutANewPaneKeepsTheChat() {
+        #expect(ChatTargetTracking.target(afterAck: nil, from: .agent("w3:p5")) == nil)
+        #expect(ChatTargetTracking.target(afterAck: "w3:p5", from: .agent("w3:p5")) == nil)
+        #expect(ChatTargetTracking.target(afterAck: "w3:p7", from: .codexThread("t-1")) == nil)
+    }
+
     @Test func archivedSessionTargetIsUnchanged() {
         #expect(ChatTargetTracking.change(for: .session("s-login"), knownSessionId: "s-login", in: workspaces) == .unchanged)
     }

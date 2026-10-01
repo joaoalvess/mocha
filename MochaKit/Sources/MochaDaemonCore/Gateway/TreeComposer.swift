@@ -83,6 +83,9 @@ enum TreeComposer {
     }
 
     static func agentChatMeta(summary: AgentSummary?, meta: TranscriptMeta?, controls: AgentControls? = nil) -> ChatMeta {
+        if let summary, summary.kind == codexKind {
+            return codexChatMeta(summary)
+        }
         let controls = controls.flatMap { $0.sessionId == summary?.sessionId ? $0 : nil }
         return ChatMeta(
             title: title(meta) ?? summary?.title ?? HerdrTreeBuilder.defaultAgentTitle,
@@ -116,19 +119,59 @@ enum TreeComposer {
         agents(in: tree).first { $0.id == id }
     }
 
-    static func codexSummary(_ agent: AgentSummary, pane: CodexPaneState?, connected: Bool) -> AgentSummary {
+    static func codexSummary(
+        _ agent: AgentSummary,
+        pane: CodexPaneState?,
+        connected: Bool,
+        archivedAts: [String: Date] = [:],
+        runningSubagents: [String: Int] = [:]
+    ) -> AgentSummary {
         guard agent.kind == codexKind else { return agent }
         var agent = agent
         agent.controlAvailable = connected && pane != nil
         guard let pane else { return agent }
+        let summary = pane.summary
+        agent.sessionId = pane.threadId
         agent.status = pane.status
-        if let title = pane.title, !title.isEmpty {
+        if let title = summary.title {
             agent.title = title
         }
+        agent.model = pane.settings.model ?? agent.model
+        agent.effort = pane.settings.effort
+        agent.permissionMode = pane.settings.mode
+        agent.branch = summary.branch ?? agent.branch
+        agent.lastActivityAt = summary.lastActivityAt ?? agent.lastActivityAt
+        agent.preview = summary.preview
+        agent.activity = summary.activity
+        agent.contextLeftPercent = summary.contextLeftPercent
+        agent.contextUsedTokens = summary.contextUsedTokens
+        agent.sessionStartedAt = summary.sessionStartedAt
+        agent.turnStartedAt = summary.turnStartedAt
+        agent.turnEndedAt = summary.turnEndedAt
+        agent.archivedAt = archivedAts[pane.threadId]
+        agent.runningSubagents = runningSubagents[pane.threadId].flatMap { $0 > 0 ? $0 : nil }
         return agent
     }
 
-    static func codexOverlay(_ tree: [WorkspaceNode], panes: [AgentID: CodexPaneState], connected: Bool) -> [WorkspaceNode] {
+    static func codexChatMeta(_ summary: AgentSummary) -> ChatMeta {
+        ChatMeta(
+            title: summary.title,
+            workspaceLabel: summary.workspaceLabel,
+            model: summary.model,
+            branch: summary.branch,
+            status: summary.status,
+            permissionMode: summary.permissionMode,
+            effort: summary.effort
+        )
+    }
+
+    static func codexOverlay(
+        _ tree: [WorkspaceNode],
+        panes: [AgentID: CodexPaneState],
+        connected: Bool,
+        archivedAts: [String: Date] = [:],
+        runningSubagents: [String: Int] = [:]
+    ) -> [WorkspaceNode] {
         tree.map { workspace in
             var updated = workspace
             var touched = false
@@ -137,14 +180,14 @@ enum TreeComposer {
                 tab.agents = tab.agents.map { agent in
                     guard agent.kind == codexKind else { return agent }
                     touched = true
-                    return codexSummary(agent, pane: panes[agent.id], connected: connected)
+                    return codexSummary(agent, pane: panes[agent.id], connected: connected, archivedAts: archivedAts, runningSubagents: runningSubagents)
                 }
                 return tab
             }
             if touched {
                 updated.agentStatus = HerdrTreeBuilder.aggregateStatus(updated.tabs.flatMap { $0.agents.map(\.status) })
             }
-            updated.children = codexOverlay(workspace.children, panes: panes, connected: connected)
+            updated.children = codexOverlay(workspace.children, panes: panes, connected: connected, archivedAts: archivedAts, runningSubagents: runningSubagents)
             return updated
         }
     }

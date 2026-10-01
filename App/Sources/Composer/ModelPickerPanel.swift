@@ -3,30 +3,34 @@ import MochaProtocol
 import SwiftUI
 
 struct ModelPickerPanel: View {
-    let model: ModelAlias?
-    let effort: EffortLevel?
-    let onModel: (ModelAlias) -> Void
-    let onEffort: (EffortLevel) -> Void
+    let content: ModelPickerContent
+    var notice: ModelPickerNotice?
+    let onModel: (String) -> Void
+    let onEffort: (String) -> Void
     @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 17
     @ScaledMetric(relativeTo: .subheadline) private var detailSize: CGFloat = 14
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if SessionControlChoices.hasEffort(model) {
+            if !content.efforts.isEmpty {
                 ControlsSegments(
-                    items: SessionControlChoices.efforts.map { ControlsSegmentItem(id: $0.level.rawValue, title: $0.title) },
-                    selectedId: effort?.rawValue,
+                    items: content.efforts.map { ControlsSegmentItem(id: $0.id, title: $0.title) },
+                    selectedId: content.selectedEffort,
                     accessibilityLabel: "Effort",
-                    onSelect: { id in
-                        guard let level = EffortLevel(rawValue: id) else { return }
-                        onEffort(level)
-                    }
+                    onSelect: onEffort
                 )
                 .padding(.bottom, 4)
             }
+            if let notice {
+                Text(notice.text)
+                    .font(.system(size: detailSize))
+                    .foregroundStyle(notice.isError ? Palette.error : Palette.textSecondary)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 42)
+            }
             VStack(spacing: 2) {
-                ForEach(SessionControlChoices.models) { choice in
-                    row(choice)
+                ForEach(content.models) { option in
+                    row(option)
                 }
             }
         }
@@ -37,19 +41,21 @@ struct ModelPickerPanel: View {
         .accessibilityLabel("Modelo")
     }
 
-    private func row(_ choice: ModelChoice) -> some View {
-        let isSelected = choice.alias == model
-        return Button { onModel(choice.alias) } label: {
+    private func row(_ option: PickerOption) -> some View {
+        let isSelected = option.id == content.selectedModel
+        return Button { onModel(option.id) } label: {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(choice.title)
+                Text(option.title)
                     .font(.system(size: titleSize, weight: .medium))
                     .foregroundStyle(isSelected ? Palette.textPrimary : Palette.textSecondary)
                     .fixedSize()
-                Text(choice.detail)
-                    .font(.system(size: detailSize))
-                    .foregroundStyle(Palette.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                if let detail = option.detail {
+                    Text(detail)
+                        .font(.system(size: detailSize))
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 14)
@@ -58,9 +64,14 @@ struct ModelPickerPanel: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel("\(choice.title), \(choice.detail)")
+        .accessibilityLabel([option.title, option.detail].compactMap { $0 }.joined(separator: ", "))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
+}
+
+struct ModelPickerNotice: Equatable {
+    let text: String
+    let isError: Bool
 }
 
 struct ControlToast: View {

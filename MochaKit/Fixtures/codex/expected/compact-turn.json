@@ -1,0 +1,68 @@
+{
+  "agent" : {
+    "branch" : "s9-branch",
+    "contextLeftPercent" : 100,
+    "contextUsedTokens" : 5630,
+    "controlAvailable" : true,
+    "id" : "w1:p2",
+    "kind" : "codex",
+    "lastActivityAt" : "2026-10-01T04:03:41.618Z",
+    "model" : "gpt-6.1-sol",
+    "pendingCount" : 0,
+    "permissionMode" : "default",
+    "sessionId" : "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "sessionStartedAt" : "2026-10-01T03:59:54.000Z",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "turnEndedAt" : "2026-10-01T04:03:41.000Z",
+    "turnStartedAt" : "2026-10-01T04:03:38.000Z",
+    "workspaceLabel" : "work"
+  },
+  "chatMeta" : {
+    "branch" : "s9-branch",
+    "model" : "gpt-6.1-sol",
+    "permissionMode" : "default",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "workspaceLabel" : "work"
+  },
+  "chats" : [
+    {
+      "items" : [
+        {
+          "at" : "2026-10-01T04:03:38.425Z",
+          "id" : "01a0f5a1-d339-70d0-8f83-2cfe4a69c9b1",
+          "text" : "Contexto compactado",
+          "type" : "notice"
+        },
+        {
+          "at" : "2026-10-01T04:03:41.000Z",
+          "durationMs" : 3209,
+          "id" : "01a0f5a1-d325-7321-8fe9-4c90f9bf1f86#end",
+          "type" : "turnFooter"
+        }
+      ],
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "operations" : [
+    {
+      "id" : "01a0f5a1-d339-70d0-8f83-2cfe4a69c9b1",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "01a0f5a1-d325-7321-8fe9-4c90f9bf1f86#end",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "turnEnds" : [
+    {
+      "durationMs" : 3209,
+      "id" : "01a0f5a1-d325-7321-8fe9-4c90f9bf1f86",
+      "status" : "completed",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ]
+}

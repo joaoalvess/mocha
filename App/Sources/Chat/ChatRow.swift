@@ -98,7 +98,7 @@ final class ChatRowBuilder {
             if name == Self.clearCommand {
                 rows.append(ChatRow(id: item.id + "#start", content: .sessionStart(item.at), spacingBelow: ChatRowSpacing.standard))
             }
-        case .assistantText(let markdown):
+        case .assistantText(let markdown), .plan(let markdown):
             let chunks = chunks(for: item.id, markdown: markdown)
             for (index, chunk) in chunks.enumerated() {
                 let spacing = chunk.endsWithHeading ? ChatRowSpacing.afterHeading : ChatRowSpacing.standard

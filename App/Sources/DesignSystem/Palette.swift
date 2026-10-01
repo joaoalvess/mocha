@@ -15,6 +15,7 @@ enum Palette {
     static let controlBg = Color(hex: 0x202225)
     static let controlSel = Color(hex: 0x121416)
     static let claude = Color(hex: 0xD87454)
+    static let codex = Color(hex: 0x1A7F64)
     static let gitAccent = Color(hex: 0xFB923C)
     static let statusOk = Color(hex: 0x00FF00)
     static let dirty = Color(hex: 0xF4B450)
@@ -33,6 +34,7 @@ enum Palette {
     static let paceMark = Color(hex: 0x979899)
     static let usageBarFill = Color(.displayP3, red: 0, green: 1, blue: 0)
     static let claudeTile = Color(hex: 0x2E221F)
+    static let codexTile = Color(hex: 0x142B27)
     static let heroBg = Color(hex: 0x120A08)
     static let heroTile = Color(hex: 0x2E1914)
     static let tableBorder = Color(hex: 0x2B2B2B)
@@ -57,6 +59,7 @@ enum Palette {
     static let glassMenu = Color(hex: 0x2E2E31, opacity: 0.5)
     static let menuIconBadge = Color(hex: 0xFFFFFF, opacity: 0.1)
     static let menuIconBadgeBorder = Color(hex: 0xFFFFFF, opacity: 0.08)
+    static let usagePillDivider = Color(hex: 0xFFFFFF, opacity: 0.07)
 
     static let glyphOnAccent = Color(hex: 0x000000)
     static let glyphOnDirty = Color(hex: 0x1A1206)

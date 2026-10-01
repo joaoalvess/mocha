@@ -1,0 +1,12 @@
+{
+  "method": "item/fileChange/requestApproval",
+  "id": 3,
+  "params": {
+    "threadId": "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "turnId": "01a0f5a3-9897-7e41-8c29-41d1b3bfc6be",
+    "itemId": "call_patch_7f3a",
+    "startedAtMs": 1790827540100,
+    "reason": "Editar README.md e criar notas.txt",
+    "grantRoot": null
+  }
+}

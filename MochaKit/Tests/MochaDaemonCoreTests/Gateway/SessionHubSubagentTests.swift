@@ -114,7 +114,7 @@ import Testing
                 Issue.record("codex agent answered \(codex)")
                 return
             }
-            #expect(code == .invalidPayload)
+            #expect(code == .codexUnavailable)
             let unknown = try await socket.reply(to: .listSubagents(agentId: "w9:p9"), id: "c-3")
             guard case .error(let unknownCode, _) = unknown else { return }
             #expect(unknownCode == .agentNotFound)

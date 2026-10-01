@@ -243,13 +243,14 @@ extension SessionHub {
         case .ping:
             send(.pong, id: id, to: clientId)
         case .archive(let sessionId, let provider):
-            if provider == .claude {
+            switch provider {
+            case .claude:
                 await archiveSession(sessionId, id: id, clientId: clientId)
-            } else {
-                send(.notClaude, id: id, to: clientId)
+            case .codex:
+                await archiveCodexSession(sessionId, id: id, clientId: clientId)
             }
         case .slash(let agentId, let command):
-            await run(.prompt(command), agentId: agentId, id: id, clientId: clientId)
+            await slash(command, agentId: agentId, id: id, clientId: clientId)
         case .setPreferences(let preferences):
             await setPreferences(preferences, id: id, clientId: clientId)
         case .newAgentTab(let workspaceId, let kind):
@@ -275,9 +276,19 @@ extension SessionHub {
             await runControl(.effort(level), agentId: agentId, id: id, clientId: clientId)
         case .setMode(let agentId, let mode):
             await runControl(.mode(mode), agentId: agentId, id: id, clientId: clientId)
+        case .listModels(let agentId):
+            await listModels(agentId, id: id, clientId: clientId)
         case .respond, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
+    }
+
+    private func slash(_ command: String, agentId: AgentID, id: String, clientId: UUID) async {
+        guard await herdr.isAvailable, let agent = await herdr.agent(await herdr.resolve(agentId)), agent.kind == TreeComposer.codexKind else {
+            await run(.prompt(command), agentId: agentId, id: id, clientId: clientId)
+            return
+        }
+        await runCodexSlash(command, agent: agent, id: id, clientId: clientId)
     }
 
     private func run(_ command: AgentCommand, agentId: AgentID, id: String, clientId: UUID) async {

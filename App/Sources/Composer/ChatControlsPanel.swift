@@ -3,6 +3,7 @@ import MochaProtocol
 import SwiftUI
 
 struct ChatControlsState {
+    var provider: AgentProvider = .claude
     var agentId: AgentID?
     var sessionId: String?
     var contextLeftPercent: Int?
@@ -50,6 +51,7 @@ struct ChatControlsPanel: View {
     let onMode: (PermissionModeTarget) -> Void
     let onOpenSubagent: (ChatTarget) -> Void
     let onAction: (SlashMenuAction) -> Void
+    let onFailure: (String) -> Void
     @State private var subagents: [SubagentSummary] = []
     @State private var page: ControlsPage = .root
     @State private var detailPage: ControlsPage?
@@ -127,6 +129,7 @@ struct ChatControlsPanel: View {
             contextLeftPercent: state.contextLeftPercent,
             contextUsedTokens: state.contextUsedTokens,
             mode: state.mode,
+            provider: state.provider,
             usage: usageWindows(now: now),
             subagents: sessionAgents
         )
@@ -173,7 +176,7 @@ struct ChatControlsPanel: View {
                 }
             case .subagents:
                 if let sessionId = state.sessionId {
-                    ControlsSubagentList(items: sessionAgents, sessionId: sessionId, onOpen: onOpenSubagent)
+                    ControlsSubagentList(items: sessionAgents, sessionId: sessionId, provider: state.provider, onOpen: onOpenSubagent)
                 }
             }
         }
@@ -181,7 +184,7 @@ struct ChatControlsPanel: View {
 
     private var modeList: some View {
         VStack(spacing: 0) {
-            ForEach(SessionControlChoices.modes) { choice in
+            ForEach(SessionControlChoices.modes(for: state.provider)) { choice in
                 ControlsModeRow(
                     choice: choice,
                     isSelected: choice.mode == state.mode,
@@ -214,11 +217,13 @@ struct ChatControlsPanel: View {
 
     private func loadSubagents() async {
         guard let key = subagentListKey, key.isConnected else { return }
-        guard
-            let reply = try? await session.request(.listSubagents(agentId: key.agentId)),
-            case .subagentList(_, let items) = reply
-        else { return }
-        subagents = items
+        do {
+            subagents = try await session.listSubagents(agentId: key.agentId)
+        } catch is CancellationError {
+            return
+        } catch {
+            onFailure(SubagentText.loadFailure)
+        }
     }
 
     private func openPageForDebugLaunch() {
@@ -455,6 +460,7 @@ private struct ControlsUsageList: View {
 private struct ControlsSubagentList: View {
     let items: [SubagentSummary]
     let sessionId: String
+    let provider: AgentProvider
     let onOpen: (ChatTarget) -> Void
 
     var body: some View {
@@ -471,7 +477,7 @@ private struct ControlsSubagentList: View {
         VStack(spacing: 0) {
             ForEach(items) { item in
                 Button {
-                    onOpen(.subagent(sessionId: sessionId, agentId: item.agentId))
+                    onOpen(SubagentRoute.target(agentId: item.agentId, sessionId: sessionId, provider: provider))
                 } label: {
                     HStack(spacing: MenuRowStyle.rowSpacing) {
                         MenuIconBadge {

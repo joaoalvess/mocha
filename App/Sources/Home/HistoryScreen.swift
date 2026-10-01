@@ -39,7 +39,10 @@ private struct HomeContent: View {
 
     var body: some View {
         let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
-        let usageWindows = session.usage.map { UsagePace.summaries(of: $0, now: now) } ?? []
+        let usages = session.usagesByProvider.compactMap { usage -> HomeUsageEntry? in
+            let windows = UsagePace.summaries(of: usage, now: now)
+            return windows.isEmpty ? nil : HomeUsageEntry(provider: usage.provider, windows: windows)
+        }
         ZStack(alignment: .top) {
             HomeBackground()
             if !sections.isEmpty {
@@ -48,7 +51,7 @@ private struct HomeContent: View {
                     sections: sections,
                     isOffline: offlineMessage != nil,
                     topInset: Metrics.homeListTopInset + (offlineMessage == nil ? 0 : RootHeader.offlineExtent),
-                    bottomInset: usageWindows.isEmpty ? Self.listBottom : Self.listBottomWithPill
+                    bottomInset: usages.isEmpty ? Self.listBottom : Self.listBottomWithPill
                 )
             } else if session.hasReceivedTree {
                 HomeEmptyState()
@@ -56,8 +59,8 @@ private struct HomeContent: View {
         }
         .animation(.smooth(duration: 0.25), value: offlineMessage)
         .overlay(alignment: .bottom) {
-            if !usageWindows.isEmpty {
-                HomeUsagePill(provider: session.usage?.provider ?? .claude, windows: usageWindows, isDimmed: offlineMessage != nil) {
+            if !usages.isEmpty {
+                HomeUsagePill(usages: usages, isDimmed: offlineMessage != nil) {
                     session.showUsage()
                 }
                 .padding(.horizontal, Self.pillSide)
@@ -73,6 +76,7 @@ private struct HomeList: View {
     let isOffline: Bool
     let topInset: CGFloat
     let bottomInset: CGFloat
+    @State private var archiveFailure: String?
 
     var body: some View {
         ScrollView {
@@ -100,6 +104,18 @@ private struct HomeList: View {
         }
         .scrollIndicators(.hidden)
         .animation(.smooth(duration: 0.3), value: sections)
+        .alert("Não foi possível arquivar a sessão", isPresented: archiveFailureBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(archiveFailure ?? "")
+        }
+    }
+
+    private var archiveFailureBinding: Binding<Bool> {
+        Binding(
+            get: { archiveFailure != nil },
+            set: { if !$0 { archiveFailure = nil } }
+        )
     }
 
     private func archiveAction(for card: HomeCard) -> HomeCardSwipeAction? {
@@ -119,6 +135,7 @@ private struct HomeList: View {
             try await session.archive(sessionId: sessionId, provider: provider)
             return true
         } catch {
+            archiveFailure = (error as? AppSessionError)?.message ?? AppSessionError.notConnected.message
             return false
         }
     }

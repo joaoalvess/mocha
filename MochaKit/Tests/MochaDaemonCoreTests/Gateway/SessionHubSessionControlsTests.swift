@@ -55,7 +55,7 @@ struct SessionHubSessionControlsTests {
             let (socket, _) = try await harness.pairedClient()
             _ = try await socket.reply(to: .openChat(target: .agent("w1:p1")), id: "c-0")
 
-            #expect(try await socket.reply(to: .setEffort(agentId: "w1:p1", level: .xhigh)) == .ack())
+            #expect(try await socket.reply(to: .setEffort(agentId: "w1:p1", level: "xhigh")) == .ack())
             #expect(Self.agent(in: try await socket.nextMessage())?.effort == "xhigh")
             guard case .chatMeta(_, let meta) = try await socket.nextMessage() else {
                 Issue.record("expected chatMeta")
@@ -70,7 +70,7 @@ struct SessionHubSessionControlsTests {
         try await Self.withControlsHub(meta: Self.haiku) { harness in
             let (socket, _) = try await harness.pairedClient()
 
-            #expect(try await socket.reply(to: .setEffort(agentId: "w1:p1", level: .low)).errorCode == .invalidPayload)
+            #expect(try await socket.reply(to: .setEffort(agentId: "w1:p1", level: "low")).errorCode == .invalidPayload)
             #expect(harness.herdr.controlCalls.isEmpty)
         }
     }
@@ -81,13 +81,13 @@ struct SessionHubSessionControlsTests {
             let (socket, _) = try await harness.pairedClient()
             harness.herdr.setCurrentMode("plan", of: "w1:p1")
 
-            #expect(try await socket.reply(to: .setModel(agentId: "w1:p1", model: .haiku)) == .ack())
+            #expect(try await socket.reply(to: .setModel(agentId: "w1:p1", model: "haiku")) == .ack())
             #expect(Self.agent(in: try await socket.nextMessage())?.permissionMode == "plan")
             #expect(harness.herdr.controlCalls == [.model("w1:p1", .haiku)])
             #expect(await gate.approves("w1:p1", at: Date()) == false)
 
             harness.herdr.setControlError(.screenBusy)
-            #expect(try await socket.reply(to: .setModel(agentId: "w1:p1", model: .opus), id: "c-2").errorCode == .screenBusy)
+            #expect(try await socket.reply(to: .setModel(agentId: "w1:p1", model: "opus"), id: "c-2").errorCode == .screenBusy)
             #expect(await gate.approves("w1:p1", at: Date()) == false)
         }
     }
@@ -112,11 +112,11 @@ struct SessionHubSessionControlsTests {
         try await Self.withControlsHub { harness in
             let (socket, _) = try await harness.pairedClient()
 
-            #expect(try await socket.reply(to: .setMode(agentId: "w1:p2", mode: .plan), id: "c-1").errorCode == .invalidPayload)
-            #expect(try await socket.reply(to: .setModel(agentId: "w9:p9", model: .opus), id: "c-2").errorCode == .agentNotFound)
+            #expect(try await socket.reply(to: .setMode(agentId: "w1:p2", mode: .plan), id: "c-1").errorCode == .codexUnavailable)
+            #expect(try await socket.reply(to: .setModel(agentId: "w9:p9", model: "opus"), id: "c-2").errorCode == .agentNotFound)
             harness.herdr.setAvailable(false)
             _ = try await socket.nextMessage { $0 == .herdrStatus(connected: false) }
-            #expect(try await socket.reply(to: .setEffort(agentId: "w1:p1", level: .low), id: "c-3").errorCode == .herdrUnavailable)
+            #expect(try await socket.reply(to: .setEffort(agentId: "w1:p1", level: "low"), id: "c-3").errorCode == .herdrUnavailable)
             #expect(harness.herdr.controlCalls.isEmpty)
         }
     }

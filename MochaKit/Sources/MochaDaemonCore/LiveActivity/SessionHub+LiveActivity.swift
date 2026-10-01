@@ -51,7 +51,11 @@ extension SessionHub {
     private func prompts(of agents: [AgentSummary]) -> [AgentID: String] {
         var prompts: [AgentID: String] = [:]
         for agent in agents {
-            if let sessionId = agent.sessionId, let prompt = metas[sessionId]?.prompt {
+            if agent.kind == TreeComposer.codexKind {
+                if let prompt = codexPanes[agent.id]?.summary.prompt {
+                    prompts[agent.id] = prompt
+                }
+            } else if let sessionId = agent.sessionId, let prompt = metas[sessionId]?.prompt {
                 prompts[agent.id] = prompt
             }
         }

@@ -15,7 +15,7 @@ struct AgentRingCounts: Equatable {
     init(agents: [AgentSummary]) {
         let modes = agents.filter { $0.kind == AgentKind.claude }.compactMap(\.permissionMode)
         auto = modes.filter { Self.autoModes.contains($0) }.count
-        plan = modes.filter { $0 == Self.planMode }.count
+        plan = agents.filter { $0.kind == AgentKind.claude || $0.kind == AgentKind.codex }.filter { $0.permissionMode == Self.planMode }.count
         working = agents.filter { $0.status == .working }.count
         blocked = agents.filter { $0.status == .blocked }.count
     }

@@ -7,13 +7,13 @@ struct WebServersSheet: View {
 
     static let emptyMessage = "Nenhum servidor web rodando no Mac"
     static let workspaceEmptyMessage = "Nenhum servidor web neste workspace"
-    static let panelHeight = BottomPanelHeight.screenFraction(0.5)
 
     private static let titleTop: CGFloat = 46
     private static let titleSide: CGFloat = 21
     private static let listSide: CGFloat = 20
     private static let listTop: CGFloat = 24
     private static let listBottom: CGFloat = 24
+    private static let messageVertical: CGFloat = 32
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +25,7 @@ struct WebServersSheet: View {
             }
             content
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
         .animation(.smooth(duration: 0.25), value: session.webServers)
         .onChange(of: session.connectionState) { previous, state in
             guard state == .connected, previous != .connected else { return }
@@ -51,7 +51,8 @@ struct WebServersSheet: View {
             case .loading:
                 ProgressView()
                     .tint(Palette.textSecondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Self.messageVertical)
             case .failed(let text):
                 message(text)
             case .loaded(let sections) where sections.allSatisfy(\.servers.isEmpty):
@@ -68,7 +69,7 @@ struct WebServersSheet: View {
     }
 
     private func list(_ sections: [WebServerGroup]) -> some View {
-        ScrollView {
+        FittingScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(sections.filter { !$0.servers.isEmpty }) { section in
                     WebServersSectionView(section: section)
@@ -87,7 +88,8 @@ struct WebServersSheet: View {
             .foregroundStyle(Palette.textSecondary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, Self.listSide)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Self.messageVertical)
     }
 }
 

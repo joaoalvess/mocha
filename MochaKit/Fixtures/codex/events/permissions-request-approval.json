@@ -1,0 +1,17 @@
+{
+  "method": "item/permissions/requestApproval",
+  "id": 5,
+  "params": {
+    "threadId": "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "turnId": "01a0f5a3-9897-7e41-8c29-41d1b3bfc6be",
+    "itemId": "call_perm_2b81",
+    "startedAtMs": 1790827541200,
+    "cwd": "/Users/dev/Developer/mocha-lab/S9/work",
+    "environmentId": "local",
+    "reason": "Acesso à rede para baixar dependências",
+    "permissions": {
+      "network": { "enabled": true },
+      "fileSystem": null
+    }
+  }
+}

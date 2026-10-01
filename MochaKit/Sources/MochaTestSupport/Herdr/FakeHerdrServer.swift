@@ -569,6 +569,8 @@ public actor FakeHerdrServer {
             return result(["type": "ok"])
         case "tab.create":
             return createTab(request)
+        case "pane.split":
+            return splitPane(request)
         case "agent.start":
             return startAgent(request)
         case "agent.wait":
@@ -643,6 +645,29 @@ public actor FakeHerdrServer {
         snapshot["tabs"] = entries("tabs") + [tab]
         snapshot["panes"] = entries("panes") + [pane]
         return result(["type": "tab_created", "tab": tab, "root_pane": pane])
+    }
+
+    private func splitPane(_ request: FakeHerdrRequest) -> FakeHerdrReply {
+        let targetId = request.stringParam("target_pane_id") ?? ""
+        guard let target = entries("panes").first(where: { $0["pane_id"] as? String == targetId }),
+            let workspaceId = target["workspace_id"] as? String
+        else {
+            return .error(code: "pane_not_found", message: "pane \(targetId) not found")
+        }
+        let paneIds = Set(entries("panes").compactMap { $0["pane_id"] as? String })
+        var paneSuffix = 1
+        while paneIds.contains("\(workspaceId):p\(paneSuffix)") {
+            paneSuffix += 1
+        }
+        let paneId = "\(workspaceId):p\(paneSuffix)"
+        let cwd = request.stringParam("cwd") ?? target["cwd"] as? String ?? "/Users/dev"
+        let pane: [String: Any] = [
+            "pane_id": paneId, "terminal_id": "term_\(workspaceId)_\(paneSuffix)", "workspace_id": workspaceId,
+            "tab_id": target["tab_id"] ?? "", "focused": false, "cwd": cwd, "foreground_cwd": cwd, "agent_status": "unknown",
+            "scroll": ["offset_from_bottom": 0, "max_offset_from_bottom": 0, "viewport_rows": 41], "revision": 0,
+        ]
+        snapshot["panes"] = entries("panes") + [pane]
+        return result(["type": "pane_info", "pane": pane])
     }
 
     private func startAgent(_ request: FakeHerdrRequest) -> FakeHerdrReply {

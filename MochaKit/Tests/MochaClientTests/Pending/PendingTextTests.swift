@@ -9,6 +9,13 @@ struct PendingTextTests {
         #expect(PendingText.header(for: .question(questions: [PendingFixtures.formatQuestion])) == "Pergunta do Claude")
     }
 
+    @Test func codexHeadersAndNamesSayCodex() {
+        #expect(PendingText.header(for: .question(questions: [PendingFixtures.formatQuestion]), provider: .codex) == "Pergunta do Codex")
+        #expect(PendingText.header(for: PendingFixtures.permission("a").kind, provider: .codex) == "Precisa de você")
+        #expect(PendingText.agentName(for: .codex) == "Codex")
+        #expect(PendingText.agentName(for: .claude) == "Claude")
+    }
+
     @Test func shellPermissionShowsTheCommandWithThePrompt() {
         let text = PendingText.permission(toolName: "Bash", summary: "npm run build", inputJSON: #"{"command":"npm run build","description":"Build"}"#)
         #expect(text.toolName == "Shell")

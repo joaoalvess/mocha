@@ -9,7 +9,7 @@ struct ProviderTile: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(provider == .codex ? Palette.toolCard : Palette.claudeTile)
+            .fill(provider == .codex ? Palette.codexTile : Palette.claudeTile)
             .frame(width: size, height: size)
             .overlay { ProviderMark(provider: provider, size: markSize) }
     }

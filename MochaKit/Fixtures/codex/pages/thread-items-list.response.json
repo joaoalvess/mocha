@@ -1,0 +1,76 @@
+{
+  "id": 4,
+  "result": {
+    "data": [
+      {
+        "turnId": "01a0f5a4-e9c9-7db2-9616-66d30583af2d",
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0f438d23f1f4b339016abddc671e6087d2ba6cec97c011e442",
+          "text": "Vou executar `sleep 40` no terminal.",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "startedAtMs": 1790827623147,
+        "completedAtMs": 1790827623548
+      },
+      {
+        "turnId": "01a0f5a4-e9c9-7db2-9616-66d30583af2d",
+        "item": {
+          "type": "reasoning",
+          "id": "rs_0f438d23f1f4b339016abddc660ca487d2b290e6f6f17a1040",
+          "summary": [],
+          "content": []
+        },
+        "startedAtMs": 1790827622077,
+        "completedAtMs": 1790827623142
+      },
+      {
+        "turnId": "01a0f5a4-e9c9-7db2-9616-66d30583af2d",
+        "item": {
+          "type": "userMessage",
+          "id": "01a0f5a4-eaaf-7820-a995-53b804b410f9",
+          "clientId": "c75dd39b-60c3-4f06-b802-28afb3042d68",
+          "content": [
+            {
+              "type": "text",
+              "text": "Rode sleep 40 no terminal e depois responda FIM.",
+              "text_elements": []
+            }
+          ]
+        },
+        "startedAtMs": 1790827621042,
+        "completedAtMs": 1790827621044
+      },
+      {
+        "turnId": "01a0f5a3-9897-7e41-8c29-41d1b3bfc6be",
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0f438d23f1f4b339016abddc45f2e887d283e471b76e09717f",
+          "text": "Não consegui gravar: a solicitação de permissão para escrever fora do workspace foi rejeitada. `fora.txt` não foi alterado.",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "startedAtMs": 1790827589976,
+        "completedAtMs": 1790827590576
+      },
+      {
+        "turnId": "01a0f5a3-9897-7e41-8c29-41d1b3bfc6be",
+        "item": {
+          "type": "reasoning",
+          "id": "rs_0f438d23f1f4b339016abddc4571ec87d2946dd582c8488b7b",
+          "summary": [],
+          "content": []
+        },
+        "startedAtMs": 1790827589468,
+        "completedAtMs": 1790827589974
+      }
+    ],
+    "nextCursor": "{\"requestedThreadId\":\"01a0f59e-6845-7403-880c-44a4e20672d1\",\"rolloutOrdinal\":138,\"includeAnchor\":false,\"scope\":{\"kind\":\"itemsByCreatedAtOrdinal\"}}",
+    "backwardsCursor": "{\"requestedThreadId\":\"01a0f59e-6845-7403-880c-44a4e20672d1\",\"rolloutOrdinal\":152,\"includeAnchor\":true,\"scope\":{\"kind\":\"itemsByCreatedAtOrdinal\"}}"
+  }
+}

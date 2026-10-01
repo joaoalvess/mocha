@@ -31,6 +31,16 @@ extension SessionHub {
         scheduleTreeFlush()
     }
 
+    func archiveCodexSession(_ threadId: String, id: String, clientId: UUID) async {
+        guard codexPaneThreads()[threadId] != nil else {
+            send(.sessionNotCurrent, id: id, to: clientId)
+            return
+        }
+        await archive.archive(sessionId: threadId, at: clock.now())
+        send(.ack(), id: id, to: clientId)
+        scheduleTreeFlush()
+    }
+
     func archivedWorkspaceLabel(forSession sessionId: String?) -> String {
         guard let sessionId else { return "" }
         return archivedSessions.first { $0.id == sessionId }?.workspaceLabel ?? ""
@@ -45,8 +55,8 @@ extension SessionHub {
                 current[sessionId] = agent
             }
         }
-        let previous = trackedSessions
-        trackedSessions = current
+        let previous = trackedSessions.filter { $0.value.kind != TreeComposer.codexKind }
+        trackedSessions = trackedSessions.filter { $0.value.kind == TreeComposer.codexKind }.merging(current) { _, claude in claude }
         let now = clock.now()
         for (sessionId, agent) in previous.sorted(by: { $0.key < $1.key }) where current[sessionId] == nil {
             let replaced = agents.contains { $0.id == agent.id && $0.sessionId != nil }
@@ -58,24 +68,74 @@ extension SessionHub {
             )
             await archive.sessionEnded(record)
         }
+        await trackCodexSessions()
         await resumeArchivedSessions()
     }
 
     func refreshSessionState() async {
         let sessionIds = Set(TreeComposer.agents(in: baseTree).compactMap(\.sessionId))
+        let codexThreads = codexPaneThreads()
         var contexts: [String: Double] = [:]
         var archived: [String: Date] = [:]
-        for sessionId in sessionIds.sorted() {
-            if let started = metas[sessionId]?.turnStartedAt, reportedTurnStarts[sessionId] != started {
+        for sessionId in sessionIds.union(codexThreads.keys).sorted() {
+            if let started = metas[sessionId]?.turnStartedAt ?? codexThreads[sessionId]?.summary.turnStartedAt, reportedTurnStarts[sessionId] != started {
                 reportedTurnStarts[sessionId] = started
                 await archive.turnStarted(sessionId: sessionId, at: started)
             }
             archived[sessionId] = await archive.archivedAt(sessionId: sessionId)
-            contexts[sessionId] = await usage.contextUsedPercent(forSession: sessionId)
+            if sessionIds.contains(sessionId) {
+                contexts[sessionId] = await usage.contextUsedPercent(forSession: sessionId)
+            }
         }
         pluginContexts = contexts
         archivedAts = archived
-        reportedTurnStarts = reportedTurnStarts.filter { sessionIds.contains($0.key) }
+        reportedTurnStarts = reportedTurnStarts.filter { sessionIds.contains($0.key) || codexThreads[$0.key] != nil }
+        await trackCodexSessions()
+    }
+
+    func trackCodexSessions() async {
+        guard codex != nil, herdrAvailable, !isShuttingDown else { return }
+        var resolved: [AgentID: AgentID] = [:]
+        for summary in trackedSessions.values where summary.kind == TreeComposer.codexKind {
+            resolved[summary.id] = await herdr.resolve(summary.id)
+        }
+        guard herdrAvailable, !isShuttingDown else { return }
+        let agents = TreeComposer.agents(in: baseTree).filter { $0.kind == TreeComposer.codexKind }
+        var current: [String: AgentSummary] = [:]
+        for agent in agents {
+            if let threadId = codexPanes[agent.id]?.threadId {
+                current[threadId] = composedSummary(agent)
+            }
+        }
+        let previous = trackedSessions.filter { $0.value.kind == TreeComposer.codexKind }
+        var tracked = current
+        var ended: [ArchivedSession] = []
+        let now = clock.now()
+        for (threadId, summary) in previous.sorted(by: { $0.key < $1.key }) where current[threadId] == nil {
+            let agentId = resolved[summary.id] ?? summary.id
+            let inTree = agents.contains { $0.id == agentId }
+            if inTree, codexPanes[agentId] == nil {
+                tracked[threadId] = summary
+                continue
+            }
+            ended.append(ArchivedSession(summary: summary, sessionId: threadId, reason: inTree ? .cleared : .ended, endedAt: now))
+        }
+        trackedSessions = trackedSessions.filter { $0.value.kind != TreeComposer.codexKind }.merging(tracked) { _, codex in codex }
+        for record in ended {
+            await archive.sessionEnded(record)
+        }
+        if !Set(current.keys).isSubset(of: previous.keys) {
+            await resumeArchivedSessions()
+        }
+    }
+
+    private func codexPaneThreads() -> [String: CodexPaneState] {
+        let agentIds = Set(TreeComposer.agents(in: baseTree).filter { $0.kind == TreeComposer.codexKind }.map(\.id))
+        var threads: [String: CodexPaneState] = [:]
+        for (agentId, pane) in codexPanes where agentIds.contains(agentId) {
+            threads[pane.threadId] = pane
+        }
+        return threads
     }
 
     private func archivedChanged(_ sessions: [ArchivedSession]) async {

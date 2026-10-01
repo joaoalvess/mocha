@@ -2,6 +2,8 @@ import Foundation
 import MochaProtocol
 
 public enum SubagentText {
+    public static let loadFailure = "Não foi possível carregar os subagentes"
+
     public static func duration(milliseconds: Int) -> String {
         duration(seconds: milliseconds / 1_000)
     }

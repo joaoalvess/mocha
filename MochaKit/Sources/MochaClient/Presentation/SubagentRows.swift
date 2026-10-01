@@ -18,16 +18,25 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
     }
 }
 
+public enum SubagentRoute {
+    public static func target(agentId: String, sessionId: String, provider: AgentProvider) -> ChatTarget {
+        switch provider {
+        case .claude: .subagent(sessionId: sessionId, agentId: agentId)
+        case .codex: .codexThread(agentId)
+        }
+    }
+}
+
 public enum SubagentRows {
-    public static func make(items: [SubagentSummary], sessionId: String, now: Date) -> [SubagentRow] {
-        items.map { row(for: $0, sessionId: sessionId, now: now) }
+    public static func make(items: [SubagentSummary], sessionId: String, provider: AgentProvider = .claude, now: Date) -> [SubagentRow] {
+        items.map { row(for: $0, sessionId: sessionId, provider: provider, now: now) }
     }
 
-    public static func row(for item: SubagentSummary, sessionId: String, now: Date) -> SubagentRow {
+    public static func row(for item: SubagentSummary, sessionId: String, provider: AgentProvider = .claude, now: Date) -> SubagentRow {
         let elapsed = SubagentText.elapsed(status: item.status, startedAt: item.startedAt, durationMs: item.durationMs, now: now)
         return SubagentRow(
             agentId: item.agentId,
-            target: .subagent(sessionId: sessionId, agentId: item.agentId),
+            target: SubagentRoute.target(agentId: item.agentId, sessionId: sessionId, provider: provider),
             title: item.description,
             agentType: item.agentType,
             status: item.status,

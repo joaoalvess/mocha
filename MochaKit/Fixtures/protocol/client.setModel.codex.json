@@ -1,0 +1,9 @@
+{
+  "v": 2,
+  "id": "c-51",
+  "type": "setModel",
+  "payload": {
+    "agentId": "w17:p3",
+    "model": "gpt-6-luna"
+  }
+}

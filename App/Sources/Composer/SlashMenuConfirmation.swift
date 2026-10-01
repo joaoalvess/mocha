@@ -1,3 +1,5 @@
+import MochaClient
+import MochaProtocol
 import SwiftUI
 
 enum ClearConfirmationStyle {
@@ -13,6 +15,7 @@ enum ClearConfirmationStyle {
 }
 
 struct ClearConfirmation: View {
+    var provider: AgentProvider = .claude
     let onCancel: () -> Void
     let onConfirm: () -> Void
     @ScaledMetric(relativeTo: .headline) private var titleSize: CGFloat = 17
@@ -39,7 +42,7 @@ struct ClearConfirmation: View {
                 .foregroundStyle(Palette.textPrimary)
                 .systemLinePitch(22, size: titleSize)
                 .accessibilityAddTraits(.isHeader)
-            Text("O Claude começa uma sessão nova nesta tab do Herdr. O histórico atual continua salvo no Mac.")
+            Text("O \(PendingText.agentName(for: provider)) começa uma sessão nova nesta tab do Herdr. O histórico atual continua salvo no Mac.")
                 .font(.system(size: messageSize))
                 .foregroundStyle(ClearConfirmationStyle.message)
                 .multilineTextAlignment(.center)

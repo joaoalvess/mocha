@@ -90,7 +90,7 @@ struct SettingsScreen: View {
                 .toggleStyle(SettingsSwitchStyle())
                 .disabled(!canChangePreferences)
             }
-            SheetFootnote(text: Text("Turno concluído avisa quando o Claude termina e o chat dele não está aberto; pedidos de aprovação sempre avisam. Com o Mac desbloqueado, os avisos ficam em silêncio, e ao bloquear toca o mais urgente."))
+            SheetFootnote(text: Text("Turno concluído avisa quando o Claude ou o Codex termina e o chat dele não está aberto; pedidos de aprovação sempre avisam. Com o Mac desbloqueado, os avisos ficam em silêncio, e ao bloquear toca o mais urgente."))
         }
     }
 

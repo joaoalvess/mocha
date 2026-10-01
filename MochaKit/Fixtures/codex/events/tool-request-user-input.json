@@ -1,0 +1,23 @@
+{
+  "method": "item/tool/requestUserInput",
+  "id": 4,
+  "params": {
+    "threadId": "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "turnId": "01a0f5a3-9897-7e41-8c29-41d1b3bfc6be",
+    "itemId": "call_input_91c2",
+    "isBlocking": true,
+    "questions": [
+      {
+        "id": "banco",
+        "header": "Banco",
+        "question": "Qual banco de dados usar?",
+        "options": [
+          { "label": "SQLite", "description": "Arquivo local" },
+          { "label": "Postgres", "description": "Servidor" }
+        ],
+        "isOther": true,
+        "isSecret": false
+      }
+    ]
+  }
+}

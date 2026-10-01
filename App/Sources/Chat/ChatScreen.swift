@@ -28,9 +28,11 @@ struct ChatConversation: View {
     @State private var isConfirmingClear = false
     @State private var listGeneration = 0
     @State private var isModelPickerOpen = false
-    @State private var modelOverride = ControlOverride<ModelAlias>()
-    @State private var effortOverride = ControlOverride<EffortLevel>()
+    @State private var modelOverride = ControlOverride<String>()
+    @State private var effortOverride = ControlOverride<String>()
     @State private var modeOverride = ControlOverride<PermissionModeTarget>()
+    @State private var codexModels = ModelListState.idle
+    @State private var isImplementingPlan = false
     @State private var toast: ControlToastMessage?
     @State private var imageViewer = ChatImageViewerPresenter()
     @FocusState private var isFieldFocused: Bool
@@ -114,6 +116,11 @@ struct ChatConversation: View {
                         viewport.rowFrames[row.id] = frame
                     }
                     .onDisappear { viewport.rowFrames[row.id] = nil }
+                    if row.id == planApprovalRowId {
+                        PendingActionButton(title: PlanApproval.buttonTitle, style: .primary, action: implementPlan)
+                            .padding(.horizontal, Metrics.contentMargin)
+                            .padding(.bottom, ChatRowSpacing.standard)
+                    }
                 }
                 ForEach(list.pending.bubbles) { bubble in
                     PendingBubbleRow(bubble: bubble, thumbnails: list.pendingThumbnails[bubble.id]) { list.discardPending(bubble.id) }
@@ -175,6 +182,7 @@ struct ChatConversation: View {
     private var header: some View {
         if isSubagent {
             SubagentHeaderBar(
+                provider: provider,
                 title: title,
                 subtitle: subagentInfo.map { SubagentText.parentSubtitle($0.parentTitle) } ?? session.connectionState.statusText,
                 onBack: { session.goBack() },
@@ -210,7 +218,7 @@ struct ChatConversation: View {
                         .transition(.opacity)
                 }
                 if isModelPickerOpen {
-                    ModelPickerPanel(model: displayedModel, effort: displayedEffort, onModel: chooseModel, onEffort: chooseEffort)
+                    ModelPickerPanel(content: pickerContent, notice: modelPickerNotice, onModel: chooseModel, onEffort: chooseEffort)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 ChatComposer(
@@ -218,9 +226,8 @@ struct ChatConversation: View {
                     isExpanded: $isComposing,
                     isFocused: $isFieldFocused,
                     attachments: attachments,
-                    showsSlashMenu: provider == .claude,
                     isWorking: status == .working,
-                    effort: displayedEffort,
+                    effort: SessionControlChoices.gaugeLevel(displayedEffort),
                     onModelPicker: modelPickerAction,
                     onSend: send,
                     onStop: stop
@@ -233,11 +240,14 @@ struct ChatConversation: View {
                         onOpenSubagent: { subagent in
                             close()
                             dismissComposer()
-                            session.openChat(subagent)
+                            session.openSubagent(subagent)
                         },
                         onAction: { action in
                             close()
                             runSlashAction(action)
+                        },
+                        onFailure: { text in
+                            toast = ControlToastMessage(text: text)
                         }
                     )
                 }
@@ -251,6 +261,7 @@ struct ChatConversation: View {
         ZStack {
             if isConfirmingClear {
                 ClearConfirmation(
+                    provider: provider,
                     onCancel: { isConfirmingClear = false },
                     onConfirm: {
                         isConfirmingClear = false
@@ -304,7 +315,8 @@ struct ChatConversation: View {
     }
 
     private var isSubagent: Bool {
-        if case .subagent = liveTarget { true } else { false }
+        if case .subagent = liveTarget { return true }
+        return chat?.isSubagent == true || chat?.meta?.subagent != nil
     }
 
     private var subagentInfo: SubagentChatInfo? {
@@ -380,10 +392,10 @@ struct ChatConversation: View {
 
     private var subtitle: String {
         if let meta = chat?.meta {
-            return ChatSubtitle.text(workspace: meta.workspaceLabel, model: meta.model, branch: meta.branch)
+            return ChatSubtitle.text(workspace: meta.workspaceLabel, model: headerModel(meta.model, effort: meta.effort), branch: meta.branch)
         }
         if let agent {
-            return ChatSubtitle.text(workspace: agent.workspaceLabel, model: agent.model, branch: agent.branch)
+            return ChatSubtitle.text(workspace: agent.workspaceLabel, model: headerModel(agent.model, effort: agent.effort), branch: agent.branch)
         }
         if let archived {
             return ChatSubtitle.text(workspace: archived.workspaceLabel, model: archived.model, branch: archived.branch)
@@ -401,40 +413,73 @@ struct ChatConversation: View {
         }
     }
 
+    private func headerModel(_ model: String?, effort: String?) -> String? {
+        SessionControlChoices.headerModel(model, effort: effort, provider: provider)
+    }
+
     private var canControlModel: Bool {
         guard case .agent = liveTarget else { return false }
-        return !isReadOnly && provider == .claude
+        return !isReadOnly
     }
 
-    private var confirmedModel: ModelAlias? {
-        SessionControlChoices.alias(of: chat?.meta?.model ?? agent?.model)
+    private var confirmedModel: String? {
+        SessionControlChoices.confirmedModel(chat?.meta?.model ?? agent?.model, provider: provider)
     }
 
-    private var confirmedEffort: EffortLevel? {
-        SessionControlChoices.effort(chat?.meta?.effort ?? agent?.effort)
+    private var confirmedEffort: String? {
+        SessionControlChoices.confirmedEffort(chat?.meta?.effort ?? agent?.effort, provider: provider)
     }
 
     private var confirmedMode: PermissionModeTarget? {
-        SessionControlChoices.mode(chat?.meta?.permissionMode ?? agent?.permissionMode)
+        SessionControlChoices.mode(chat?.meta?.permissionMode ?? agent?.permissionMode, provider: provider)
     }
 
-    private var displayedModel: ModelAlias? {
+    private var displayedModel: String? {
         modelOverride.displayed(confirmed: confirmedModel)
     }
 
-    private var displayedEffort: EffortLevel? {
+    private var displayedEffort: String? {
         effortOverride.displayed(confirmed: confirmedEffort)
+    }
+
+    private var pickerContent: ModelPickerContent {
+        switch provider {
+        case .claude: SessionControlChoices.claudePicker(model: displayedModel, effort: displayedEffort)
+        case .codex: SessionControlChoices.codexPicker(options: codexModels.options, model: displayedModel, effort: displayedEffort)
+        }
+    }
+
+    private var modelPickerNotice: ModelPickerNotice? {
+        guard provider == .codex, let text = codexModels.notice else { return nil }
+        return ModelPickerNotice(text: text, isError: codexModels == .failed)
+    }
+
+    private var planApprovalRowId: String? {
+        guard
+            !isImplementingPlan,
+            list.pending.bubbles.isEmpty,
+            pendingRequest == nil,
+            let itemId = PlanApproval.planItemId(
+                provider: provider,
+                permissionMode: modeOverride.displayed(confirmed: confirmedMode)?.rawValue,
+                status: status,
+                canSend: isConnected && canControlModel,
+                items: chat?.items ?? []
+            )
+        else { return nil }
+        return list.rowId(forItem: itemId)
     }
 
     private var controlsState: ChatControlsState {
         ChatControlsState(
+            provider: provider,
             agentId: agent?.id,
             sessionId: chat?.sessionId ?? agent?.sessionId,
             contextLeftPercent: agent?.contextLeftPercent,
             contextUsedTokens: agent?.contextUsedTokens,
             ringStyle: ringStyle,
             usage: session.usage(for: provider),
-            model: displayedModel,
+            model: displayedModel.flatMap(ModelAlias.init(rawValue:)),
             mode: modeOverride.displayed(confirmed: confirmedMode),
             runningSubagents: agent?.runningSubagents ?? 0,
             chatItems: chat?.items ?? []
@@ -450,8 +495,23 @@ struct ChatConversation: View {
         guard canControlModel else { return }
         if !isModelPickerOpen {
             dismissComposer()
+            if provider == .codex, codexModels.needsLoad {
+                loadCodexModels()
+            }
         }
         isModelPickerOpen.toggle()
+    }
+
+    private func loadCodexModels() {
+        guard case .agent(let agentId) = liveTarget else { return }
+        codexModels = .loading
+        Task {
+            do {
+                codexModels = .loaded(try await session.listModels(agentId: agentId))
+            } catch {
+                codexModels = .failed
+            }
+        }
     }
 
     private func closeModelPicker() {
@@ -459,17 +519,37 @@ struct ChatConversation: View {
         isModelPickerOpen = false
     }
 
-    private func chooseModel(_ model: ModelAlias) {
+    private func chooseModel(_ model: String) {
         isModelPickerOpen = false
         guard case .agent(let agentId) = liveTarget, model != displayedModel else { return }
         modelOverride.choose(model)
         sendControl(.setModel(agentId: agentId, model: model)) { modelOverride.release(model) }
     }
 
-    private func chooseEffort(_ level: EffortLevel) {
+    private func chooseEffort(_ level: String) {
         guard case .agent(let agentId) = liveTarget, level != displayedEffort else { return }
         effortOverride.choose(level)
         sendControl(.setEffort(agentId: agentId, level: level)) { effortOverride.release(level) }
+    }
+
+    private func implementPlan() {
+        guard case .agent(let agentId) = liveTarget, !isImplementingPlan else { return }
+        isImplementingPlan = true
+        modeOverride.choose(.default)
+        Task {
+            do {
+                try await session.request(.setMode(agentId: agentId, mode: .default))
+            } catch {
+                isImplementingPlan = false
+                modeOverride.release(.default)
+                toast = ControlToastMessage(text: (error as? AppSessionError)?.message ?? ChatScreenLayout.controlFailureText)
+                return
+            }
+            submit(PlanApproval.prompt, attachments: [])
+            isImplementingPlan = false
+            try? await Task.sleep(for: ChatScreenLayout.controlConfirmationWindow)
+            modeOverride.release(.default)
+        }
     }
 
     private func chooseMode(_ mode: PermissionModeTarget) {
@@ -571,7 +651,7 @@ struct ChatConversation: View {
     private func openSubagent(_ agentId: String) {
         guard let subagent = session.subagentTarget(agentId: agentId, in: target) else { return }
         dismissComposer()
-        session.openChat(subagent)
+        session.openSubagent(subagent)
     }
 
     private func dismissComposer() {
@@ -639,9 +719,9 @@ struct ChatConversation: View {
     }
 
     private func perform(_ action: SlashMenuAction) {
-        guard case .agent(let agentId) = liveTarget else { return }
+        guard case .agent = liveTarget else { return }
         pinToBottom()
-        Task { try? await session.request(action.message(for: agentId)) }
+        Task { try? await session.slash(action.command, in: target) }
     }
 
     private func runDebugLaunch() async {
@@ -656,7 +736,7 @@ struct ChatConversation: View {
             return
         }
         if let agentId = options.openSubagentId, ChatDebugLaunch.consume(ChatDebugOptions.openSubagentKey), let subagent = session.subagentTarget(agentId: agentId, in: target) {
-            session.openChat(subagent)
+            session.openSubagent(subagent)
             return
         }
         if let text = options.draft, ChatDebugLaunch.consume(ChatDebugOptions.draftKey) {

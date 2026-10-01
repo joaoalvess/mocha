@@ -5,10 +5,6 @@ import SwiftUI
 struct UsageSheet: View {
     @Bindable var session: AppSession
 
-    static func panelHeight(cardCount: Int) -> BottomPanelHeight {
-        .fixed(473 + CGFloat(max(cardCount - 1, 0)) * 182)
-    }
-
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
             UsageSheetContent(usages: session.usagesByProvider, hostName: session.host?.hostName, now: context.date)
@@ -36,9 +32,9 @@ private struct UsageSheetContent: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 19.3)
-            Spacer(minLength: 0)
+            .padding(.bottom, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var header: some View {

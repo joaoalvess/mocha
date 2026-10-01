@@ -105,7 +105,7 @@ public enum AgentsActivityText {
 
     public static func lines(of content: AgentsActivityContent) -> AgentsActivityLines {
         if let pending = content.pending {
-            return pendingLines(pending)
+            return pendingLines(pending, provider: content.provider ?? .claude)
         }
         let prompt = singleLine(content.prompt).map { AgentsActivityLines.Detail.text(promptPrefix + $0) }
         if let outcome = content.outcome.flatMap(AgentsActivityOutcome.init(rawValue:)) {
@@ -132,10 +132,10 @@ public enum AgentsActivityText {
         return DeepLink.agent(agentId).url
     }
 
-    public static func permissionHeadline(toolName: String?) -> AgentsActivityPermissionHeadline {
+    public static func permissionHeadline(toolName: String?, provider: AgentProvider = .claude) -> AgentsActivityPermissionHeadline {
         let name = toolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !name.isEmpty else {
-            return AgentsActivityPermissionHeadline(toolName: PendingText.unknownAgent, verb: permissionFallbackVerb, showsPrompt: false)
+            return AgentsActivityPermissionHeadline(toolName: PendingText.agentName(for: provider), verb: permissionFallbackVerb, showsPrompt: false)
         }
         return AgentsActivityPermissionHeadline(
             toolName: ToolPresentation.displayName(for: name),
@@ -144,18 +144,18 @@ public enum AgentsActivityText {
         )
     }
 
-    private static func pendingLines(_ pending: AgentsActivityContent.Pending) -> AgentsActivityLines {
+    private static func pendingLines(_ pending: AgentsActivityContent.Pending, provider: AgentProvider) -> AgentsActivityLines {
         switch pending.kind {
         case .permission where pending.toolName == PendingText.planToolName:
             return AgentsActivityLines(headline: PendingText.planTitle, detail: singleLine(pending.text).map(AgentsActivityLines.Detail.text), emphasizesDetail: true)
         case .permission:
-            let headline = permissionHeadline(toolName: pending.toolName)
+            let headline = permissionHeadline(toolName: pending.toolName, provider: provider)
             let command = singleLine(pending.text).map { headline.showsPrompt ? shellPrompt + $0 : $0 }
             return AgentsActivityLines(headline: headline.toolName + " " + headline.verb, detail: command.map(AgentsActivityLines.Detail.command), emphasizesDetail: true)
         case .question:
             let hasTwoRowsOfActions = AgentsActivityActions.actions(for: pending, agentId: "").count > singleRowActionLimit
             return AgentsActivityLines(
-                headline: singleLine(pending.text) ?? PendingText.questionHeader,
+                headline: singleLine(pending.text) ?? PendingText.questionHeader(for: provider),
                 detail: hasTwoRowsOfActions ? nil : .continuation,
                 emphasizesDetail: true
             )

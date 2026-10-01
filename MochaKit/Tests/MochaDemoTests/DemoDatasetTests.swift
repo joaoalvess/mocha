@@ -41,7 +41,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
         #expect(rows(try #require(byLabel["login-social"])) == ["Login com a Apple"])
         #expect(rows(try #require(byLabel["site-pessoal"])) == ["Modo escuro e RSS", "npm run dev"])
         #expect(rows(try #require(byLabel["receitas-api"])) == [
-            "Paginação com cursor em /receitas", "Sessão limpa", "go run ./cmd/api", "psql",
+            "Paginação com cursor em /receitas", "Sessão limpa", "go run ./cmd/api", "psql", "Cache de /receitas", "Migrations de índice",
         ])
         #expect(workspaces.map(\.branch) == ["main", "feat/login-social", "main", "development", nil])
         #expect(workspaces.map(\.isDirty) == [true, true, false, false, false])
@@ -49,11 +49,11 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
 
     @Test func bundledChatsTogetherCoverEveryKind() {
         let everyKind: Set<String> = [
-            "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "subagent", "workflow", "turnFooter", "recap",
-            "notice", "unsupported",
+            "userPrompt", "slashCommand", "assistantText", "plan", "thinking", "toolCall", "subagent", "workflow", "turnFooter",
+            "recap", "notice", "unsupported",
         ]
         let bundled = dataset.chats.filter { $0.agentId != DemoLongChat.agentId }
-        #expect(bundled.count == 6)
+        #expect(bundled.count == 8)
         #expect(Set(bundled.flatMap { $0.items.map { kindName($0.kind) } }) == everyKind)
         for chat in bundled {
             #expect(Set(chat.items.map(\.id)).count == chat.items.count, "\(chat.agentId) repete ids")
@@ -65,7 +65,7 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
     }
 
     @Test func archivedChatsHaveUniqueIdsInOrder() {
-        #expect(dataset.sessionChats.count == 2)
+        #expect(dataset.sessionChats.count == 3)
         for chat in dataset.sessionChats {
             #expect(UUID(uuidString: chat.session.id) != nil)
             #expect(!chat.items.isEmpty)

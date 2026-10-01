@@ -37,6 +37,21 @@ struct AgentsActivityActionsTests {
         ])
     }
 
+    @Test func codexQuestionAnswersWithTheQuestionTextLikeClaude() {
+        let question = "Qual cache usar em /receitas?"
+        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .question, text: question, options: ["Redis", "Memória"]), agentId: "w3:p5")
+        #expect(actions.map(\.title) == ["Redis", "Memória"])
+        #expect(actions.allSatisfy { $0.agentId == "w3:p5" && $0.role == .option })
+        #expect(actions.map(\.choice.response) == [.answers([question: ["Redis"]]), .answers([question: ["Memória"]])])
+        #expect(actions.map(\.choice.outcome) == [.answered, .answered])
+    }
+
+    @Test func codexCommandApprovalOffersDenyThenAllow() {
+        let actions = AgentsActivityActions.actions(for: Self.pending(kind: .permission, text: "go test ./...", toolName: "Shell"), agentId: "w3:p6")
+        #expect(actions.map(\.title) == ["Negar", "Permitir"])
+        #expect(actions.map(\.choice.response) == [.deny(reason: nil), .allow])
+    }
+
     @Test(arguments: [1, 4])
     func questionOptionsUpToTheLimitAreOffered(count: Int) {
         let options = (1...count).map { "Opção \($0)" }

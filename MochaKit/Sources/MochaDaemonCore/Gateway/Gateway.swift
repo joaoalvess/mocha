@@ -65,8 +65,8 @@ public struct Gateway: Sendable {
                 return await liveActivity.respond(to: request)
             }
         }
-        if let pending = hub.pending {
-            let respond = RespondRoute(pending: pending, authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
+        if hub.pending != nil {
+            let respond = RespondRoute(hub: hub, authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
             router.route(.post, Self.respondPath) { request in
                 events(.httpRequest(request))
                 return await respond.respond(to: request)

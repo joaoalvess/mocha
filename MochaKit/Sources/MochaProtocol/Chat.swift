@@ -35,6 +35,7 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
     case userPrompt(text: String, imageCount: Int)
     case slashCommand(name: String, args: String, output: String?)
     case assistantText(markdown: String)
+    case plan(markdown: String)
     case thinking(text: String?)
     case toolCall(ToolCall)
     case subagent(SubagentCall)
@@ -50,6 +51,7 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
         case .userPrompt: "userPrompt"
         case .slashCommand: "slashCommand"
         case .assistantText: "assistantText"
+        case .plan: "plan"
         case .thinking: "thinking"
         case .toolCall: "toolCall"
         case .subagent: "subagent"
@@ -83,6 +85,8 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
             )
         case "assistantText":
             self = .assistantText(markdown: try container.decode(String.self, forKey: .markdown))
+        case "plan":
+            self = .plan(markdown: try container.decode(String.self, forKey: .markdown))
         case "thinking":
             self = .thinking(text: try container.decodeIfPresent(String.self, forKey: .text))
         case "toolCall":
@@ -115,7 +119,7 @@ public enum ChatItemKind: Codable, Sendable, Hashable {
             try container.encode(name, forKey: .name)
             try container.encode(args, forKey: .args)
             try container.encodeIfPresent(output, forKey: .output)
-        case .assistantText(let markdown):
+        case .assistantText(let markdown), .plan(let markdown):
             try container.encode(markdown, forKey: .markdown)
         case .thinking(let text):
             try container.encodeIfPresent(text, forKey: .text)

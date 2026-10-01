@@ -35,6 +35,7 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | 1b | Inbox e ações na notificação, Live Activity, voz | WP-X3 |
 | 1b-feed | Live Activity única que acompanha o último evento (§7.5); aceitar plano pela tela bloqueada | WP-XF |
 | codex | Codex CLI no Herdr com chat e ações; desktop como leitura posterior | WP-XC |
+| codex-paridade | Codex CLI parelho com o Claude: ações pela notificação e pela Live Activity, controles, chat ao vivo, contexto, subagentes e histórico (§13.4) | WP-CPX |
 | preview-web | Servidores web do Mac listados no app e abertos no iPhone por túnel SSH | WP-W5 |
 | alertas | Live Activity como canal único, silêncio com o Mac desbloqueado e toque ao bloquear (`docs/estudos/alertas-live-activity.md`) | WP-AL6 |
 | 2 | Terminal SSH | WP-X4 |
@@ -1305,6 +1306,151 @@ Com um agente trabalhando, o João dispensa o card. O orquestrador lê a respost
 - `updateInterval` passa a 6, e o `App/Info.plist` (orquestrador) ganha a chave.
 - **U3**: 1 h com 4 agentes, comparando p10/h e `lag` com o Dia 2. Se um pedido atrasar, volta a 10 s.
 
+## Fase codex-paridade: Codex CLI parelho com o Claude Code
+
+Branch `fase/codex-paridade`, criada de `main` depois do merge da fase imagens, num worktree do Herdr (`.claude/worktrees/codex-paridade`). Mapa e evidências no spike S9 (`docs/spikes/S9.md`); contrato na SPEC §13.4. Sem mock: o aceite de UI é `scripts/test.sh` + `scripts/build-app.sh`, e a conferência é no iPhone.
+
+Decisões do João (2026-10-01):
+- D1: o modo do Codex no painel é só Plano/Padrão.
+- D2: o `/clear` do Codex é uma sessão nova no mesmo lugar (`pane split` + `agent start` + `pane close`).
+- D3: o anel interno da Início conta os Codex em Plano.
+- D4: o checklist do WP-XC entra no WP-CPX.
+- D5: os labs usam um `CODEX_HOME` próprio.
+- D6: a lista de modelos é a do `model/list`, sem os ocultos.
+- D7: a fase começa depois do merge da fase imagens.
+- D8: aprovar plano pelo app é indispensável. O Esc no "Implement this plan?" do TUI fica para o shell mode.
+- D9: o item `plan` do Codex ganha o tipo `ChatItemKind.plan(markdown:)`. O botão "Implementar plano" só aparece nele.
+
+Ondas: contrato do orquestrador (S9, SPEC, PLANO, protocolo) → WP-CP1 ∥ WP-CA1 → D9 (orquestrador) → WP-CP2 ∥ WP-CV → WP-CP3 ∥ WP-CP4 → WP-CPX. O CP3 foi para a Onda 3 porque lê o estado da thread (modelo, effort, modo e turno ativo) que o CP2 cria no `CodexService`.
+
+### Contrato (orquestrador)
+
+- `ClientMessage.listModels`, `ServerMessage.models` com `ModelOption`/`EffortOption`; `setModel` e `setEffort` passam a levar `String` (o JSON no fio não muda; o daemon valida o Claude pelos enums).
+- Fixtures `client.listModels.json`, `server.models.json`, `client.setModel.codex.json`, `client.setEffort.codex.json`.
+
+### WP-CP1: Codex confiável no daemon
+
+- **Dono**:
+  - `MochaKit/Sources/MochaDaemonCore/Codex/` (exceto `CodexProjection.swift`);
+  - em `MochaKit/Sources/MochaDaemonCore/Gateway/`: `SessionHubCodex.swift`, `SessionHubPending.swift`, `HubError.swift` e o `pane_moved` do Codex em `SessionHub.swift`;
+  - `MochaKit/Sources/MochaDaemonCore/Pending/RespondRoute.swift`;
+  - `MochaKit/Sources/MochaDaemonCore/LiveActivity/LiveActivityPending.swift`;
+  - a parte Codex de `MochaKit/Sources/MochaDaemonCore/Push/PushAlertText.swift` e `PushService.swift`;
+  - os itens Codex de `MochaKit/Sources/MochaDaemonCore/App/Doctor*`, `HerdrProbe.swift` e `mochad/StatusCommand.swift`;
+  - `MochaKit/Sources/MochaTestSupport/Codex/` (novo), `MochaKit/Tests/MochaDaemonCoreTests/Codex/` e `MochaKit/Fixtures/codex/events/`.
+- **Faz** (§13.4 "Ligação", "Pedidos", "Diagnóstico"):
+  - protocolo `CodexServing` injetável no `SessionHub` e `FakeCodexAppServer` (JSON-RPC em socket Unix de teste);
+  - `codex-panes.json`, conferido com `thread/loaded/list`, `thread/resume` e `thread/unsubscribe`; `pane_moved`;
+  - pedidos com chave `threadId`+`itemId`, sem push duplicado no resume;
+  - `POST /v1/respond` para Codex; `answers` por texto ou `id`;
+  - desfecho na Live Activity;
+  - categoria `QUESTION` para uma pergunta Codex;
+  - push sem ações para permissões, elicitação MCP e bloqueio sem pedido;
+  - texto do pedido por `commandActions`;
+  - `codexUnavailable` com o código certo; textos dos controles sem "só para Claude Code";
+  - `sessionId` = `threadId` no resumo;
+  - `doctor` com `initialize` e `account/read`, e `agent.list` contando Codex; `status` com o App Server.
+- **Aceite**: `scripts/test.sh` verde, com testes contra o fake para:
+  - reinício do `mochad` (pane religado, pedido reentregue sem push duplicado), reconexão do App Server, thread do mapa fora do `loaded/list` e `pane_moved`;
+  - `POST /v1/respond` de pedido Codex → 200 e resposta no socket; pergunta respondida pelo texto;
+  - desfecho no snapshot; cada `ServerRequest` mapeado; `codexUnavailable` no fio; `doctor` ✅/❌ pelo `initialize`.
+
+### WP-CA1: Codex no app
+
+- **Dono**:
+  - em `App/Sources/`: `Chat/`, `Composer/`, `Home/`, `AgentDetail/`, `Inbox/`, `Settings/`, `LiveActivity/` e `AppShell/AppSession.swift`;
+  - `Shared/LiveActivity/`;
+  - em `MochaKit/Sources/MochaClient/`: `Presentation/`, `Pending/` e `LiveActivity/`;
+  - `MochaKit/Sources/MochaDemo/`;
+  - os testes de todos eles.
+- **Faz**, contra o demo e o contrato:
+  - painel ↻ do Codex (Contexto, Modo Padrão/Plano, Uso do Codex, Subagentes, `/compact`, `/clear` seguindo `ack{agentId}`);
+  - seletor de modelo e effort pela lista `models`;
+  - header e Detalhe com modelo, effort, branch e Sessão;
+  - subagente Codex abrindo `ChatTarget.codexThread(<filha>)`, no chat vivo e no arquivado;
+  - arquivar Codex pelo swipe; anel interno com Codex em Plano;
+  - botão "Implementar plano" (§13.4);
+  - textos "Claude" → "Codex" nos agentes Codex;
+  - erro visível quando `listSubagents`, `listModels` ou `archive` falham;
+  - demo com Codex em todos esses estados (`listModels` no demo).
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes, com testes de apresentação e navegação: ChatNavigation, HomeSections, SessionControlChoices, PendingText, AgentsActivityActions e um teste do demo para cada estado Codex.
+
+### WP-CP2: chat e resumo do Codex ao vivo
+
+- **Dono**:
+  - em `MochaKit/Sources/MochaDaemonCore/Codex/`: `CodexProjection.swift` e a leitura de chat do `CodexService.swift`;
+  - em `MochaKit/Sources/MochaDaemonCore/Gateway/`: `SessionHubCodex.swift` (chat e resumo) e a parte Codex do `TreeComposer.swift`;
+  - em `MochaKit/Sources/MochaDaemonCore/LiveActivity/`: `SessionHub+LiveActivity.swift` e `AgentActivitySnapshot.swift`;
+  - `MochaKit/Fixtures/codex/expected/` e os testes.
+- **Faz** (§13.4 "Chat", "Resumo do agente", "Uso"):
+  - `thread/items/list` com cursor por item e hora por item;
+  - `chatAppend`/`chatUpdate` por `item/started`/`item/completed`, com releitura só na reconexão;
+  - projeção rica, `subAgentActivity` como card e `imagePaths`;
+  - troca de thread reabrindo o chat;
+  - campos do `AgentSummary` e do `ChatMeta`, contexto com a reserva de 12.000 tokens e `isDirty` no `turn/completed`;
+  - push "terminou" só em turno concluído;
+  - Live Activity com esses campos; `account/read` no Uso.
+  - Publica um stream de eventos da thread que o CP3 e o CP4 consomem.
+- **Aceite**: `scripts/test.sh` verde, com:
+  - snapshot de cada fixture do S9 em `expected/`, revisado item a item;
+  - testes de cada campo do resumo e do `chatMeta`;
+  - `chatAppend` sem releitura;
+  - turno interrompido sem push.
+
+### WP-CP3: controles do Codex
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/CodexControls.swift` (novo), `MochaKit/Sources/MochaDaemonCore/Gateway/SessionHubControls.swift`, o `slash`/`listModels` de `SessionHubConnection.swift` e os testes.
+- **Faz** (§13.4 "Controles"):
+  - `listModels`;
+  - `setModel` e `setEffort`, com `turn/settings/update` no turno ativo;
+  - `setMode` Padrão/Plano;
+  - `ack` na resposta;
+  - `/compact`;
+  - `/clear` por `pane split` + `agent start` + `pane close`, com o `moveAgent` e o `ack{agentId}`;
+  - outros `slash` → `invalidPayload`.
+- **Aceite**: `scripts/test.sh` verde, com testes contra o fake e o `FakeHerdrServer` para cada controle, valor fora da lista, turno ativo, `/clear` (pane novo, chats movidos, pane antigo fechado, falha antes de fechar) e `listModels` num Claude.
+
+### WP-CV: validação de versão do Codex
+
+- **Dono**: `scripts/check-codex-update.sh` (novo), `MochaKit/Tests/MochaDaemonCoreTests/CodexIntegration/` (novo), `MochaKit/Fixtures/codex/schema/`.
+- **Faz**:
+  - lab `mocha-lab-codex-update` com `CODEX_HOME` próprio e App Server em socket do lab;
+  - suítes `.integration`: handshake; ciclo de uma thread com o TUI `--remote`; censo dos itens e eventos contra as fixtures; diff dos métodos do schema estável e do experimental contra a cópia versionada;
+  - sobe `CodexExecutable.lastValidatedVersion`;
+  - `--hook` para o `SessionStart`.
+  - O orquestrador aplica o `.claude/settings.json` e a seção "Atualização do Codex" do AGENTS.md.
+- **Aceite**:
+  - o script passa na 0.159.2 sem tocar no `~/.codex`;
+  - com uma versão validada menor, o `--hook` avisa;
+  - `scripts/test.sh` sem `MOCHA_INTEGRATION` não roda as suítes novas.
+
+### WP-CP4: subagentes e histórico do Codex
+
+- **Dono**: `MochaKit/Sources/MochaDaemonCore/Codex/CodexSubagents.swift` (novo), em `MochaKit/Sources/MochaDaemonCore/Gateway/` os arquivos `SessionHubSubagents.swift` e `SessionHubSessions.swift`, `MochaKit/Sources/MochaDaemonCore/Sessions/` e os testes.
+- **Faz** (§13.4 "Subagentes", "Histórico"):
+  - filhas por `subAgentActivity` e por `thread/list {parentThreadId}`;
+  - `runningSubagents`, `listSubagents` Codex, card vivo;
+  - chat da filha com `ChatMeta.subagent`;
+  - `ArchivedSession(provider: codex)` quando o pane fecha ou troca de thread;
+  - `archive` Codex e desarquivamento no turno seguinte.
+- **Aceite**: `scripts/test.sh` verde, com testes contra o fake para:
+  - filha rodando e terminando;
+  - lista na ordem da §5.3.1;
+  - chat da filha;
+  - arquivamento nos dois casos;
+  - `archive` e desarquivamento.
+
+### WP-CPX: checklist no iPhone (inclui o WP-XC)
+
+- Com o ok do João: `scripts/build-daemon.sh`, reinstalar o `mochad` (`rm` antes do `cp` em `~/.local/bin`) e `scripts/build-device.sh`.
+- Tab Codex nova; ligação que sobrevive ao `mochad` reiniciado e ao App Server reiniciado.
+- Chat ao vivo com comando, arquivos, rodapé, interrupção num turno longo e imagem.
+- Aprovação e pergunta em Plan pelo app, pela notificação e pela Live Activity, vencidas ora no terminal, ora no iPhone.
+- Modelo, effort, modo, `/compact`, `/clear` e "Implementar plano" pelo painel, refletidos no TUI.
+- Contexto, prévia e Live Activity com os campos do Codex; Uso com plano e conta.
+- Subagente Codex: card vivo, selo, lista e transcript. Codex no Histórico depois de fechar a tab.
+- `scripts/check-codex-update.sh` verde. O Claude continua funcionando (regressão rápida dos mesmos itens).
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1392,7 +1538,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-C2 | feito (peças sem a ligação no daemon; ver WP-C2-wiring) | 3ce45c9, 22f5a52, merge f8d43da |
 | WP-C3 | feito | 2f44cfb, 1e74585, f8defbf, 9a65999, df1e7e4, e01a435, merge c62b69d; correções 66d0821, 826fafa, 9f88a98, 7e16e2b |
 | WP-C2-wiring | feito (testes e builds passaram; sem teste real, que fica no WP-XC) | merge em `fase/codex` |
-| WP-XC | todo | |
+| WP-XC | absorvido pelo WP-CPX (D4 da codex-paridade) | |
 | WP-CD | todo | |
 | WP-H1 | feito sem device (testes e build passaram; gestos e tab real a conferir no iPhone) | `fase/inicio` |
 | WP-W1 | feito (build passou; conexão real depende do B5, no WP-W5) | deedcf1 |
@@ -1430,3 +1576,11 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-AL6 | todo | |
 | WP-AL7 | todo (adiado pelo João em 2026-10-01: conferir na Apple o `NSSupportsLiveActivitiesFrequentUpdates` e o `frequentPushesEnabled`, `updateInterval` 10 → 6 s, a chave no `App/Info.plist`, testes fixando 10 s, SPEC §7.5) | |
 | U3 | todo (depois do WP-AL7: 1 h com 4 agentes, `alerts-summary.sh` contra o uso de 2026-10-01) | |
+| S9 | feito (lab de 2026-10-01, L1–L13) | f61a373 |
+| WP-CP1 | feito (a linha do App Server no `mochad status` vai antes do Serve e o log de falha do `respond` Codex voltou, ajustes do orquestrador; `notClaude` para Codex em controles, subagentes e `archive` fica para o CP3 e o CP4; o `PushServiceTests.blockedWithoutARequest…` falhou uma vez sob carga e passou em 10 rodadas) | fc1b12a, 59b9aa8, 37b6185, merge db990f6 |
+| WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |
+| WP-CP2 | feito (estado por thread em `CodexThreadState` e `threadEvents()` para o CP3 e o CP4; achados do CV tratados; `"Shell"` como shell no app, ajuste do orquestrador; `chatMeta` da thread filha fica para o CP4) | a6a14f4, 1f9e0e0, 38278ca, merge 596c1ae |
+| WP-CP3 | feito (`pane.split` no `MochaHerdr` só para o `/clear` do Codex; `/clear` por split/start/close com trava e timeout de 15 s; conferir no WP-CPX: `turn/settings/update` com turno ativo, o argv `-c model_reasoning_effort` e o pane novo que fica aberto quando o `/clear` falha) | 85a862e, 42d2ecc, dfd51e6, 712cf16, merge 5335c74 |
+| WP-CV | feito (lab `~/Developer/mocha-lab/codex-update` com `CODEX_HOME` próprio e checagem do `~/.codex/config.toml`; 11 testes `.integration` verdes na 0.159.2; cópia do schema só com a lista de métodos e tipos; hook e seção do AGENTS.md aplicados pelo orquestrador) | 0d2079b, 321f559, merge 764a83c |
+| WP-CP4 | feito (filhas por `subAgentActivity` e `thread/list`, apelido pelo `agentNickname`; Histórico por `threadId` com `.ended`/`.cleared`; conferir no WP-CPX: rodapé duplo no chat da filha e `thread/items/list` de filha arquivada) | 2c2d813, e56a095, 84a8e1b, merge 679c92a |
+| WP-CPX | feito (testado pelo João no iPhone em 2026-10-01, que aprovou o merge; ajustes visuais dessa rodada: marca da OpenAI em verde-escuro, painéis de baixo colados às bordas e na altura do conteúdo, pílula de uso com Claude e Codex) | a7338ef, 721cc9b, d9e0439, 96bde3c |

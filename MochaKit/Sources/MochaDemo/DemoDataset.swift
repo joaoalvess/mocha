@@ -42,6 +42,8 @@ struct DemoDataset: Sendable {
     var sessionChats: [DemoSessionChat]
     var usage: UsageSnapshot
     var subagents: [DemoSubagent] = []
+    var codexSubagents: [DemoSubagent] = []
+    var codexUsage: UsageSnapshot?
 
     var archived: [ArchivedSession] {
         sessionChats.map(\.session).sortedByRecency()
@@ -75,6 +77,7 @@ struct DemoDataset: Sendable {
         var dataset = DemoDataset(workspaces: tree.workspaces, chats: chats, sessionChats: archived.chats, usage: usage.populated)
         try dataset.addLongChat()
         try dataset.addSubagents()
+        try dataset.addCodex()
         if isEmpty {
             dataset = dataset.withoutSupportedAgents(usage: usage.empty)
         }
@@ -112,6 +115,20 @@ struct DemoDataset: Sendable {
         }
     }
 
+    private mutating func addCodex() throws {
+        let added = workspaces.updateWorkspace(withId: DemoCodex.workspaceId) { workspace in
+            workspace.tabs += DemoCodex.tabs()
+            workspace.agentStatus = workspace.aggregatedAgentStatus
+        }
+        guard added else {
+            throw DemoError.missingResource("workspace \(DemoCodex.workspaceId)")
+        }
+        chats += DemoCodex.chats()
+        sessionChats.append(DemoCodex.archivedChat())
+        codexSubagents = DemoCodex.subagents()
+        codexUsage = DemoCodex.usage()
+    }
+
     private mutating func addItems(_ items: [ChatItem], toChatOf agentId: AgentID) throws {
         guard let index = chats.firstIndex(where: { $0.agentId == agentId }) else {
             throw DemoError.missingResource("chat de \(agentId)")
@@ -129,7 +146,9 @@ struct DemoDataset: Sendable {
             chats: chats.map { $0.shifted(by: interval) },
             sessionChats: sessionChats.map { $0.shifted(by: interval) },
             usage: usage.shifted(by: interval),
-            subagents: subagents.map { $0.shifted(by: interval) }
+            subagents: subagents.map { $0.shifted(by: interval) },
+            codexSubagents: codexSubagents.map { $0.shifted(by: interval) },
+            codexUsage: codexUsage?.shifted(by: interval)
         )
     }
 }

@@ -171,7 +171,7 @@ struct DrawerTabIconView: View {
                 .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.claude))
         case .codex(let isWorking):
             ProviderMark(provider: .codex, size: size)
-                .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.textPrimary))
+                .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.codex))
         case .otherAgent(let isWorking):
             LineIconView(icon: .sparkles, size: size, strokeWidth: 2.2, color: Palette.textSecondary)
                 .modifier(DrawerWorkingPulse(isWorking: isWorking, color: Palette.textSecondary))

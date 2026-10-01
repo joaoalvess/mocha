@@ -67,6 +67,7 @@ public enum HerdrRequest: Sendable, Hashable {
     case agentStart(name: String, kind: String, paneId: String, args: [String], timeoutMs: Int?)
     case agentWait(target: String, until: [HerdrAgentStatus], timeoutMs: Int)
     case eventsSubscribe([HerdrSubscription])
+    case paneSplit(targetPaneId: String, direction: HerdrSplitDirection, cwd: String?)
 
     public var method: String {
         switch self {
@@ -85,6 +86,7 @@ public enum HerdrRequest: Sendable, Hashable {
         case .agentStart: "agent.start"
         case .agentWait: "agent.wait"
         case .eventsSubscribe: "events.subscribe"
+        case .paneSplit: "pane.split"
         }
     }
 
@@ -119,6 +121,8 @@ public enum HerdrRequest: Sendable, Hashable {
             case timeoutMs = "timeout_ms"
             case source
             case lines
+            case targetPaneId = "target_pane_id"
+            case direction
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -158,6 +162,11 @@ public enum HerdrRequest: Sendable, Hashable {
                 try container.encode(timeoutMs, forKey: .timeoutMs)
             case .eventsSubscribe(let subscriptions):
                 try container.encode(subscriptions, forKey: .subscriptions)
+            case .paneSplit(let targetPaneId, let direction, let cwd):
+                try container.encode(targetPaneId, forKey: .targetPaneId)
+                try container.encode(direction.rawValue, forKey: .direction)
+                try container.encodeIfPresent(cwd, forKey: .cwd)
+                try container.encode(false, forKey: .focus)
             }
         }
     }

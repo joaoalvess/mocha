@@ -150,11 +150,13 @@ public actor SessionHub {
     var workflowStates: [String: WorkflowState] = [:]
     var runningSubagentCounts: [String: Int] = [:]
     var observedSubagentSessions: Set<String> = []
+    var codexSubagents: [String: CodexSubagent] = [:]
     var cardThrottles: [String: CardThrottle] = [:]
     var metaThrottles: [UUID: MetaThrottle] = [:]
     var subagentTasks: [Task<Void, Never>] = []
     var pendingRequests: [PendingRequest] = []
     var pendingDecisions: [AgentID: PendingDecision] = [:]
+    var storePendingDecisions: [AgentID: PendingDecision] = [:]
     var agentControls: [AgentID: AgentControls] = [:]
     var controlsInFlight: Set<AgentID> = []
     let observedSessionUpdates: AsyncStream<Set<String>>
@@ -162,12 +164,13 @@ public actor SessionHub {
     let liveActivityInputs: AsyncStream<LiveActivityInput>
     let liveActivityInputContinuation: AsyncStream<LiveActivityInput>.Continuation
     var liveActivityRegistrar: (any LiveActivityRegistering)?
-    var codex: CodexService?
+    var codex: (any CodexServing)?
     var codexPanes: [AgentID: CodexPaneState] = [:]
     var codexConnected = false
     var codexUsage: UsageSnapshot?
     var storePendingRequests: [PendingRequest] = []
     var codexPendingRequests: [PendingRequest] = []
+    var codexDecisions: [AgentID: PendingDecision] = [:]
     var codexRefreshes: [String: Task<Void, Never>] = [:]
     let codexAlerts: AsyncStream<CodexAlert>
     let codexAlertContinuation: AsyncStream<CodexAlert>.Continuation
@@ -348,7 +351,7 @@ public actor SessionHub {
             pendingCounts: pendingCounts(),
             controls: agentControls
         )
-        return TreeComposer.codexOverlay(tree, panes: codexPanes, connected: codexConnected)
+        return TreeComposer.codexOverlay(tree, panes: codexPanes, connected: codexConnected, archivedAts: archivedAts, runningSubagents: runningSubagentCounts)
     }
 
     func composedAgent(_ id: AgentID) -> AgentSummary? {
@@ -447,6 +450,7 @@ public actor SessionHub {
             await trackSessions()
         case .paneMoved(let from, let to):
             moveAgent(from: from, to: to)
+            await moveCodexPane(from: from, to: to)
             await trackSessions()
         }
     }
