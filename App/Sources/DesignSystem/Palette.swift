@@ -59,6 +59,7 @@ enum Palette {
     static let glassMenu = Color(hex: 0x2E2E31, opacity: 0.5)
     static let menuIconBadge = Color(hex: 0xFFFFFF, opacity: 0.1)
     static let menuIconBadgeBorder = Color(hex: 0xFFFFFF, opacity: 0.08)
+    static let usagePillDivider = Color(hex: 0xFFFFFF, opacity: 0.07)
 
     static let glyphOnAccent = Color(hex: 0x000000)
     static let glyphOnDirty = Color(hex: 0x1A1206)
