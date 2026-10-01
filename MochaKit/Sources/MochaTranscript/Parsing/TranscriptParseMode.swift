@@ -28,17 +28,20 @@ enum LineMode: Sendable, Hashable {
 
 struct SequentialLineParser {
     private(set) var mode: LineMode
+    var imageStore: TranscriptImageStore?
 
-    init(_ parseMode: TranscriptParseMode) {
+    init(_ parseMode: TranscriptParseMode, imageStore: TranscriptImageStore? = nil) {
         mode = parseMode.initialLineMode
+        self.imageStore = imageStore
     }
 
-    init(resuming mode: LineMode) {
+    init(resuming mode: LineMode, imageStore: TranscriptImageStore? = nil) {
         self.mode = mode
+        self.imageStore = imageStore
     }
 
     mutating func parse(_ bytes: UnsafeRawBufferPointer, offset: UInt64) -> ParsedLine {
-        let parsed = TranscriptLineParser.parse(bytes, offset: offset, mode: mode)
+        let parsed = TranscriptLineParser.parse(bytes, offset: offset, mode: mode, imageStore: imageStore)
         if parsed.crossesForkBoundary {
             mode = .subagent
         }

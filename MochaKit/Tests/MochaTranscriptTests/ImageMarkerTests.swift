@@ -109,6 +109,40 @@ struct ImageMarkerTests {
         }
     }
 
+    @Test func aBarePathLineInsideUploadsIsAMarker() throws {
+        let prompt = try onlyPrompt([L.user("Olha esse print\n\(Self.uploads)5B0E7C1A-3F2D-4E8B-9A61-7C4D2E9F8B30.jpg")])
+        #expect(prompt.text == "Olha esse print")
+        #expect(prompt.imageCount == 1)
+        #expect(prompt.imagePaths == ["\(Self.uploads)5B0E7C1A-3F2D-4E8B-9A61-7C4D2E9F8B30.jpg"])
+    }
+
+    @Test func barePathsAndBracketedMarkersKeepTheirOrder() throws {
+        let text = ["Compara", "\(Self.uploads)A.jpg", Self.marker("B.png"), "\(Self.uploads)C.heic", ""].joined(separator: "\n")
+        let prompt = try onlyPrompt([L.user(text)])
+        #expect(prompt.text == "Compara")
+        #expect(prompt.imageCount == 3)
+        #expect(prompt.imagePaths == ["A.jpg", "B.png", "C.heic"].map { Self.uploads + $0 })
+    }
+
+    @Test(arguments: [
+        "/tmp/mocha/A.jpg",
+        "/Users/outro/Library/Application Support/Mocha/uploads/A.jpg",
+        "\(ImageMarkers.uploadsDirectory)",
+        "\(ImageMarkers.uploadsDirectory)../devices.json",
+        "\(ImageMarkers.uploadsDirectory)./A.jpg",
+        "\(ImageMarkers.uploadsDirectory)sub//A.jpg",
+        "\(ImageMarkers.uploadsDirectory.dropLast())-velhos/A.jpg",
+        " \(ImageMarkers.uploadsDirectory)A.jpg",
+        "antes \(ImageMarkers.uploadsDirectory)A.jpg",
+    ])
+    func barePathOutsideUploadsOrNotAloneStaysInTheText(_ line: String) throws {
+        let text = "texto\n\(line)"
+        let prompt = try onlyPrompt([L.user(text)])
+        #expect(prompt.text == text)
+        #expect(prompt.imageCount == 0)
+        #expect(prompt.imagePaths.isEmpty)
+    }
+
     @Test func queuedCommandMarkersAreStripped() throws {
         let text = try onlyPrompt([H.queued("na fila\n\(Self.marker("A.jpg"))", at: "10:00:00")])
         #expect(text.text == "na fila")

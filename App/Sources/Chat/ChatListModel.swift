@@ -19,7 +19,7 @@ final class ChatListModel {
     @ObservationIgnored private let builder = ChatRowBuilder()
 
     @discardableResult
-    func apply(_ newItems: [ChatItem]) -> ChatItemsChange {
+    func apply(_ newItems: [ChatItem], imageCache: ChatImageCache) -> ChatItemsChange {
         let change = ChatItemsChange.between(itemIds, newItems)
         guard change != .unchanged || newItems != items else { return change }
         items = newItems
@@ -31,8 +31,10 @@ final class ChatListModel {
         }
         switch change {
         case .appended(let appended):
-            for id in pending.match(appended) {
-                pendingThumbnails[id] = nil
+            for match in pending.match(appended) {
+                if let thumbnails = pendingThumbnails.removeValue(forKey: match.bubbleId) {
+                    imageCache.seed(paths: match.item.imagePaths, images: thumbnails, maxPixelSize: ChatImageCache.thumbnailPixelSize)
+                }
             }
         case .replaced:
             pending.removeAll()

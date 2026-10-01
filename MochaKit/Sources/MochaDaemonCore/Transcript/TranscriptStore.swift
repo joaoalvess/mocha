@@ -28,22 +28,28 @@ public actor TranscriptStore: TranscriptProviding {
 
     private let locator: TranscriptLocator
     private let hooks: TranscriptStoreHooks
+    private let imageStore: TranscriptImageStore?
     private var trackers: [String: TranscriptTracker] = [:]
     private var metaCache: [String: Cached<TranscriptMeta>] = [:]
     private var statsCache: [String: Cached<TranscriptStats>] = [:]
     private var loggedUnknowns: [String: Set<String>] = [:]
 
-    public init(projectsRoot: String = TranscriptStore.defaultProjectsRoot) {
-        self.init(projectsRoot: projectsRoot, hooks: TranscriptStoreHooks())
+    public init(projectsRoot: String = TranscriptStore.defaultProjectsRoot, imageStore: TranscriptImageStore? = nil) {
+        self.init(projectsRoot: projectsRoot, hooks: TranscriptStoreHooks(), imageStore: imageStore)
     }
 
-    init(projectsRoot: String, hooks: TranscriptStoreHooks) {
+    init(projectsRoot: String, hooks: TranscriptStoreHooks, imageStore: TranscriptImageStore? = nil) {
         locator = TranscriptLocator(projectsRoot: projectsRoot)
         self.hooks = hooks
+        self.imageStore = imageStore
     }
 
     public func open(session: TranscriptSession, limit: Int) async throws -> TranscriptSubscription {
-        await tracker(for: session).subscribe(session: session, limit: limit)
+        await tracker(for: session).subscribe(session: session, limit: limit, readsImages: false)
+    }
+
+    public func openChat(session: TranscriptSession, limit: Int) async throws -> TranscriptSubscription {
+        await tracker(for: session).subscribe(session: session, limit: limit, readsImages: true)
     }
 
     public func page(session: TranscriptSession, before: String, limit: Int) async throws -> TranscriptPage {
@@ -106,7 +112,7 @@ public actor TranscriptStore: TranscriptProviding {
         if let existing = trackers[session.cursorKey] {
             return existing
         }
-        let created = TranscriptTracker(session: session, locator: locator, hooks: hooks)
+        let created = TranscriptTracker(session: session, locator: locator, hooks: hooks, imageStore: imageStore)
         trackers[session.cursorKey] = created
         return created
     }

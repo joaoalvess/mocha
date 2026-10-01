@@ -16,11 +16,17 @@ struct RealTranscriptCensusTests {
         var runningTools = 0
         var promptsWithPastedTags = 0
         var images = ImageCensus()
+        var pasted = PastedImageCensus()
         var lastVersions: [String: Int] = [:]
+        let cache = FileManager.default.temporaryDirectory.appending(path: "mocha-census-images-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let store = TranscriptImageStore(directory: cache)
         for project in projects {
             let entries = (try? FileManager.default.contentsOfDirectory(at: project, includingPropertiesForKeys: nil)) ?? []
             for entry in entries where entry.pathExtension == "jsonl" {
-                let document = try TranscriptDocument.read(path: entry.path(percentEncoded: false))
+                let path = entry.path(percentEncoded: false)
+                let document = try TranscriptDocument.read(path: path, imageStore: store)
+                pasted.promptLines += try Self.pastedPromptLines(in: path)
                 files += 1
                 dropped += document.statistics.dropped
                 orphans += document.statistics.orphanResults
@@ -30,6 +36,7 @@ struct RealTranscriptCensusTests {
                     if case .toolCall(let call) = item.kind, call.status == .running { runningTools += 1 }
                     if case .userPrompt(let text, _) = item.kind, text.contains("<pasted_content") { promptsWithPastedTags += 1 }
                     images.count(item)
+                    pasted.count(item, cache: store.directory.path(percentEncoded: false))
                 }
                 lastVersions[document.header.claudeVersion ?? "?", default: 0] += 1
             }
@@ -40,6 +47,7 @@ struct RealTranscriptCensusTests {
         print("census: versão da última linha por arquivo=\(lastVersions.sorted { $0.key < $1.key })")
         print("census: imagens \(images.summary)")
         print("census: userPrompt com <pasted_content> no texto=\(promptsWithPastedTags)")
+        print("census: anexos colados \(pasted.summary)")
         #expect(files > 0)
     }
 
@@ -110,6 +118,47 @@ struct RealTranscriptCensusTests {
                 + "Read com imagePaths=\(readItems) (existem=\(existingReadPaths)) "
                 + "userPrompt com imagePaths=\(promptItems) (existem=\(existingPromptPaths))"
         }
+    }
+
+    private struct PastedImageCensus {
+        var promptLines = 0
+        var blocksWithPath = 0
+        var blocksWithoutPath = 0
+        var leftoverChips = 0
+
+        mutating func count(_ item: ChatItem, cache: String) {
+            guard case .userPrompt(let text, let imageCount) = item.kind else { return }
+            let stored = item.imagePaths.count(where: { $0.hasPrefix(cache) })
+            let markers = item.imagePaths.count - stored
+            blocksWithPath += stored
+            blocksWithoutPath += imageCount - markers - stored
+            if text.contains("[Image #") { leftoverChips += 1 }
+        }
+
+        var summary: String {
+            "linhas user com imagePasteIds=\(promptLines) blocos image com caminho=\(blocksWithPath) sem caminho=\(blocksWithoutPath) "
+                + "userPrompt com [Image # no texto=\(leftoverChips)"
+        }
+    }
+
+    private static func pastedPromptLines(in path: String) throws -> Int {
+        let needle = Array("\"imagePasteIds\"".utf8)
+        var count = 0
+        try TranscriptFile(path: path).forEachAppendedLine { _, bytes in
+            let found = needle.withUnsafeBytes { pattern in
+                guard let base = bytes.baseAddress, let patternBase = pattern.baseAddress else { return false }
+                return memmem(base, bytes.count, patternBase, pattern.count) != nil
+            }
+            guard found,
+                  let root = try? JSONParser.parse(bytes).objectValue,
+                  root["type"]?.stringValue == "user",
+                  root["isMeta"]?.isTrue != true,
+                  root["imagePasteIds"]?.arrayValue?.isEmpty == false else {
+                return
+            }
+            count += 1
+        }
+        return count
     }
 
     private static func differingFields(_ lhs: TranscriptHeader, _ rhs: TranscriptHeader) -> [String] {

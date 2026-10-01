@@ -62,6 +62,13 @@ public final class ChatImageCache {
         store(image, for: Key(path: path, maxPixelSize: maxPixelSize))
     }
 
+    public func seed(paths: [String], images: [CGImage], maxPixelSize: Int) {
+        guard paths.count == images.count else { return }
+        for (path, image) in zip(paths, images) {
+            seed(path: path, image: image, maxPixelSize: maxPixelSize)
+        }
+    }
+
     public func removeAll() {
         entries.removeAll()
         totalCost = 0

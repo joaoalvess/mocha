@@ -9,7 +9,7 @@ public enum ImageReductionError: Error, Sendable, Equatable {
 }
 
 public enum ImageReduction {
-    public static let maximumPixelSize = 2_048
+    public static let maximumPixelSize = 2_000
     public static let jpegQuality = 0.85
 
     public static func reduce(_ data: Data) throws(ImageReductionError) -> PromptImage {

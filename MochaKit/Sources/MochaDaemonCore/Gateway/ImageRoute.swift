@@ -30,10 +30,12 @@ struct ImageRoute: Sendable {
 
     let authenticator: BearerAuthenticator
     let limiter: ImageDecodeLimiter
+    let transcriptImages: TranscriptImageCache?
 
-    init(authenticator: BearerAuthenticator, limiter: ImageDecodeLimiter = ImageDecodeLimiter()) {
+    init(authenticator: BearerAuthenticator, limiter: ImageDecodeLimiter = ImageDecodeLimiter(), transcriptImages: TranscriptImageCache? = nil) {
         self.authenticator = authenticator
         self.limiter = limiter
+        self.transcriptImages = transcriptImages
     }
 
     func respond(to request: HttpRequest) async -> HttpResponse {
@@ -52,6 +54,7 @@ struct ImageRoute: Sendable {
         await limiter.release()
         switch outcome {
         case .success(let transcoded):
+            transcriptImages?.markUsed(file.url)
             return HttpResponse(status: .ok, headers: ["Content-Type": transcoded.contentType], body: transcoded.data)
         case .failure(.undecodable):
             return HttpResponse(status: .unsupportedMediaType)

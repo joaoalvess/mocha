@@ -28,12 +28,24 @@ public final class TranscriptFollower {
     private var seedCache: ParsedLineCache
     private var parser: SequentialLineParser
     public private(set) var header: TranscriptHeader
+    public var imageStore: TranscriptImageStore? {
+        didSet {
+            parser.imageStore = imageStore
+            seedCache.imageStore = imageStore
+        }
+    }
 
-    public init(path: String, start: Start, mode: TranscriptParseMode = .main) throws(TranscriptFileError) {
+    public init(
+        path: String,
+        start: Start,
+        mode: TranscriptParseMode = .main,
+        imageStore: TranscriptImageStore? = nil
+    ) throws(TranscriptFileError) {
         file = try TranscriptFile(path: path)
         self.mode = mode
-        seedCache = ParsedLineCache(mode: mode)
-        parser = SequentialLineParser(mode)
+        self.imageStore = imageStore
+        seedCache = ParsedLineCache(mode: mode, imageStore: imageStore)
+        parser = SequentialLineParser(mode, imageStore: imageStore)
         header = TranscriptHeader()
         guard case .afterExistingLines = start else { return }
         try file.indexToEnd()
@@ -41,7 +53,7 @@ public final class TranscriptFollower {
         for index in seedStart..<file.lineCount {
             home.absorb(reducer.apply(try seedCache.line(index, in: file)))
         }
-        parser = SequentialLineParser(resuming: try seedCache.mode(forLine: file.lineCount, in: file))
+        parser = SequentialLineParser(resuming: try seedCache.mode(forLine: file.lineCount, in: file), imageStore: imageStore)
         let scanned = try TranscriptHeaderScanner.scan(file, end: file.indexedEnd, mode: mode)
         header = scanned.header
         home.seed(olderActivity: scanned.activity)
@@ -75,7 +87,7 @@ public final class TranscriptFollower {
 
     public func page(beforeOffset offset: UInt64, limit: Int) throws(TranscriptFileError) -> TranscriptPageSlice? {
         guard let line = file.lineIndex(forOffset: offset) else { return nil }
-        var cache = ParsedLineCache(mode: mode)
+        var cache = ParsedLineCache(mode: mode, imageStore: imageStore)
         return try TranscriptPager(file: file).page(endingBefore: line, limit: limit, cache: &cache)
     }
 
@@ -98,21 +110,23 @@ public final class TranscriptFollower {
 public final class TranscriptPageReader {
     private let file: TranscriptFile
     private let mode: TranscriptParseMode
+    private let imageStore: TranscriptImageStore?
 
-    public init(path: String, mode: TranscriptParseMode = .main) throws(TranscriptFileError) {
+    public init(path: String, mode: TranscriptParseMode = .main, imageStore: TranscriptImageStore? = nil) throws(TranscriptFileError) {
         file = try TranscriptFile(path: path)
         self.mode = mode
+        self.imageStore = imageStore
         try file.indexToEnd()
     }
 
     public func lastPage(limit: Int) throws(TranscriptFileError) -> TranscriptPageSlice {
-        var cache = ParsedLineCache(mode: mode)
+        var cache = ParsedLineCache(mode: mode, imageStore: imageStore)
         return try TranscriptPager(file: file).page(endingBefore: file.lineCount, limit: limit, cache: &cache)
     }
 
     public func page(beforeOffset offset: UInt64, limit: Int) throws(TranscriptFileError) -> TranscriptPageSlice? {
         guard let line = file.lineIndex(forOffset: offset) else { return nil }
-        var cache = ParsedLineCache(mode: mode)
+        var cache = ParsedLineCache(mode: mode, imageStore: imageStore)
         return try TranscriptPager(file: file).page(endingBefore: line, limit: limit, cache: &cache)
     }
 
