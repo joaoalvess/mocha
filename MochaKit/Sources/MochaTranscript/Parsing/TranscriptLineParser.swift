@@ -20,6 +20,7 @@ enum TranscriptLineParser {
     private static let detachedBranch = "HEAD"
 
     private static let forkDirectiveMarker = "Your directive: "
+    private static let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
 
     static func parse(_ bytes: [UInt8], offset: UInt64, mode: LineMode = .main) -> ParsedLine {
         bytes.withUnsafeBytes { parse($0, offset: offset, mode: mode) }
@@ -104,7 +105,7 @@ enum TranscriptLineParser {
             }
             switch attachment["prompt"] {
             case .string(let text):
-                return [.item(line.item(userPrompt(text, imageCount: 0)))]
+                return [.item(userPrompt(text, imageCount: 0, line: line))]
             case .array(let blocks):
                 return promptEffects(blocks: blocks, line: line)
             default:
@@ -175,7 +176,7 @@ enum TranscriptLineParser {
             let args = trimmed.dropFirst("/compact".count).trimmingCharacters(in: .whitespacesAndNewlines)
             return [.slashCommand(line.item(.slashCommand(name: "/compact", args: args, output: nil)), promptId: promptId)]
         }
-        return [.item(line.item(userPrompt(text, imageCount: 0)))]
+        return [.item(userPrompt(text, imageCount: 0, line: line))]
     }
 
     private static func userBlockEffects(_ blocks: [JSONValue], line: Line) -> [LineEffect] {
@@ -231,12 +232,12 @@ enum TranscriptLineParser {
             }
         }
         guard !texts.isEmpty || imageCount > 0 else { return effects }
-        return [.item(line.item(userPrompt(texts.joined(separator: "\n"), imageCount: imageCount)))] + effects
+        return [.item(userPrompt(texts.joined(separator: "\n"), imageCount: imageCount, line: line))] + effects
     }
 
-    private static func userPrompt(_ text: String, imageCount: Int) -> ChatItemKind {
+    private static func userPrompt(_ text: String, imageCount: Int, line: Line) -> ChatItem {
         let markers = ImageMarkers.extract(from: text)
-        return .userPrompt(text: markers.text, imageCount: imageCount + markers.count)
+        return line.item(.userPrompt(text: markers.text, imageCount: imageCount + markers.count), imagePaths: markers.paths)
     }
 
     private static func assistantEffects(_ line: Line) -> [LineEffect] {
@@ -263,14 +264,15 @@ enum TranscriptLineParser {
             switch block["type"]?.stringValue {
             case "text":
                 guard let text = block["text"]?.stringValue, !text.isBlank else { continue }
-                effects.append(.item(line.item(.assistantText(markdown: text), blockIndex: blockIndex)))
+                let imagePaths = ImageMentions.paths(in: text, cwd: line["cwd"]?.stringValue, home: home)
+                effects.append(.item(line.item(.assistantText(markdown: text), blockIndex: blockIndex, imagePaths: imagePaths)))
             case "thinking":
                 let text = block["thinking"]?.stringValue ?? ""
                 effects.append(.item(line.item(.thinking(text: text.isEmpty ? nil : text), blockIndex: blockIndex)))
             case "redacted_thinking":
                 effects.append(.item(line.item(.thinking(text: nil), blockIndex: blockIndex)))
             case "tool_use":
-                effects.append(.item(line.item(toolUseKind(block, line: line), blockIndex: blockIndex)))
+                effects.append(.item(line.item(toolUseKind(block, line: line), blockIndex: blockIndex, imagePaths: readImagePaths(block))))
             case let other:
                 effects.append(.unknown("block:\(other ?? "")"))
             }
@@ -317,6 +319,17 @@ enum TranscriptLineParser {
             inputJSON: (input ?? .object(JSONObject(members: []))).serialized().truncated(toCharacters: TextLimits.inputJSON),
             status: .running
         )
+    }
+
+    private static func readImagePaths(_ block: JSONValue) -> [String] {
+        guard block["name"]?.stringValue == "Read",
+              let path = block["input"]?["file_path"]?.stringValue,
+              path.hasPrefix("/"),
+              ImageFileExtension.matches(path),
+              !path.hasPrefix(ImageMarkers.uploadsDirectory) else {
+            return []
+        }
+        return [path]
     }
 
     private static func systemEffects(_ line: Line) -> [LineEffect] {
@@ -377,10 +390,10 @@ private struct Line {
         object["timestamp"]?.stringValue.flatMap(ProtocolDate.date(from:))
     }
 
-    func item(_ kind: ChatItemKind, blockIndex: Int? = nil) -> ChatItem {
+    func item(_ kind: ChatItemKind, blockIndex: Int? = nil, imagePaths: [String] = []) -> ChatItem {
         let base = object["uuid"]?.stringValue ?? "line@\(offset)"
         let id = blockIndex.map { "\(base)#\($0)" } ?? base
-        return ChatItem(id: id, at: timestamp, kind: kind)
+        return ChatItem(id: id, at: timestamp, kind: kind, imagePaths: imagePaths)
     }
 
     private var timestamp: Date {
