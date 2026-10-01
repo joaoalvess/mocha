@@ -56,6 +56,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
   - `scripts/build-daemon.sh`: build release do `mochad`;
   - `scripts/run-daemon.sh`: `mochad run` em primeiro plano.
   - `scripts/check-claude-update.sh`: valida o Claude Code instalado contra o Mocha (§Atualização do Claude Code); com `--hook`, só avisa se a versão é nova.
+  - `scripts/check-codex-update.sh`: valida o Codex instalado contra o Mocha (§Atualização do Codex); com `--hook`, só avisa se a versão é nova.
 
 ## Código
 
@@ -90,6 +91,20 @@ O daemon lê telas, hooks e transcripts do Claude Code, e nada disso é contrato
 - Com o aviso, antes de qualquer outro trabalho, rode `scripts/check-claude-update.sh`. Ele abre um Claude no workspace de laboratório `mocha-lab-claude-update` e roda os testes `.integration` das telas (`ClaudeScreenIntegrationTests`: rodapé, `/effort`, `/model`), do censo de transcripts reais e dos hooks. Se tudo passar, ele sobe a versão validada; commite em `chore(claude): validate Claude Code <versão>`.
 - Se falhar, pare e reporte ao João com a tela real que o teste imprime. A correção vem com um teste de regressão feito com essa tela, e a SPEC é atualizada onde descreve o formato.
 - Parser novo que leia algo do Claude Code (tela, hook, transcript) entra com um teste nessa lista.
+
+## Atualização do Codex
+
+O daemon fala com o Codex CLI pelo App Server, e parte do que ele usa é API experimental (`thread/settings/update`, `turn/settings/update`, `collaborationMode`): cada versão pode mudar um método, um campo ou um item.
+
+- A última versão validada é `CodexExecutable.lastValidatedVersion` (`MochaKit/Sources/MochaDaemonCore/Codex/CodexAppServerProcess.swift`). O hook `SessionStart` do projeto (`.claude/settings.json`) avisa quando o `codex --version` instalado é mais novo.
+- Com o aviso, antes de qualquer outro trabalho, rode `scripts/check-codex-update.sh`. Ele:
+  - monta o lab `~/Developer/mocha-lab/codex-update/` com `CODEX_HOME` próprio;
+  - abre o workspace `mocha-lab-codex-update` com o App Server do lab e um TUI `--remote`;
+  - roda as suítes `.integration` de `MochaKit/Tests/MochaDaemonCoreTests/CodexIntegration/`: handshake, ciclo de uma thread com um prompt curto, censo das fixtures de `MochaKit/Fixtures/codex/` contra os eventos reais e o schema instalado, e o diff dos métodos e tipos de item contra `MochaKit/Fixtures/codex/schema/methods.json`.
+  Se tudo passar, ele sobe a versão validada e atualiza a cópia do schema; commite as duas em `chore(codex): validate Codex <versão>`.
+- O script nunca toca no `~/.codex`: todo `codex` roda com o `CODEX_HOME` do lab, e ele falha se o `~/.codex/config.toml` mudar. Sem login no lab: `CODEX_HOME=~/Developer/mocha-lab/codex-update/codex-home codex login`.
+- Se falhar, pare e reporte ao João com o payload ou a tela real que o teste imprime. A correção vem com um teste de regressão feito com esse payload, e a §13.4 da SPEC é atualizada onde descreve o formato.
+- Método novo do App Server que o daemon passe a usar entra com um teste nessa lista.
 
 ## Limites no ambiente do João
 
