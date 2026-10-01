@@ -1128,6 +1128,7 @@ Decisões do João (2026-10-01):
 - D6: a lista de modelos é a do `model/list`, sem os ocultos.
 - D7: a fase começa depois do merge da fase imagens.
 - D8: aprovar plano pelo app é indispensável. O Esc no "Implement this plan?" do TUI fica para o shell mode.
+- D9: o item `plan` do Codex ganha o tipo `ChatItemKind.plan(markdown:)`. O botão "Implementar plano" só aparece nele.
 
 Ondas: contrato do orquestrador (S9, SPEC, PLANO, protocolo) → WP-CP1 ∥ WP-CA1 → WP-CP2 ∥ WP-CP3 ∥ WP-CV → WP-CP4 → WP-CPX.
 
@@ -1372,7 +1373,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
 | S9 | feito (lab de 2026-10-01, L1–L13) | f61a373 |
 | WP-CP1 | todo | |
-| WP-CA1 | todo | |
+| WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |
 | WP-CP2 | todo | |
 | WP-CP3 | todo | |
 | WP-CV | todo | |
