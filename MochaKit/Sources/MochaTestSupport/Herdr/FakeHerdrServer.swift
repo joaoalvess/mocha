@@ -48,7 +48,7 @@ public enum FakeHerdrReply: Sendable {
 public actor FakeHerdrServer {
     public static let perPaneSubscriptionTypes: Set<String> = ["pane.agent_status_changed", "pane.scroll_changed", "pane.output_matched"]
     public static let validKeys: Set<String> = [
-        "Escape", "esc", "enter", "Enter", "down", "up", "left", "right", "tab", "space", "s", "shift+tab",
+        "Escape", "esc", "enter", "Enter", "down", "up", "left", "right", "tab", "space", "s", "shift+tab", "C-c",
     ]
 
     public static func isValidKey(_ key: String) -> Bool {
@@ -560,6 +560,13 @@ public actor FakeHerdrServer {
                 return .error(code: "pane_not_found", message: "pane \(paneId) not found")
             }
             return result(["type": "pane_info", "pane": pane])
+        case "pane.close":
+            let paneId = request.stringParam("pane_id") ?? ""
+            guard entries("panes").contains(where: { $0["pane_id"] as? String == paneId }) else {
+                return .error(code: "pane_not_found", message: "pane \(paneId) not found")
+            }
+            removePanes([paneId])
+            return result(["type": "ok"])
         case "tab.create":
             return createTab(request)
         case "agent.start":

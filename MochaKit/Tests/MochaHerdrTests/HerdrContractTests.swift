@@ -25,6 +25,7 @@ struct HerdrContractTests {
         .agentWait(target: "w1A:p1", until: [.idle, .done], timeoutMs: 30000),
         .eventsSubscribe(HerdrSubscription.globalLifecycle),
         .eventsSubscribe([.agentStatusChanged(paneId: "w1A:p1")]),
+        .paneClose(paneId: "w1A:p2"),
     ]
 
     private func send(_ request: HerdrRequest, with client: HerdrClient) async throws {
@@ -45,6 +46,8 @@ struct HerdrContractTests {
             _ = try await client.paneGet(paneId: paneId)
         case .paneRead(let paneId, let source, let lines):
             _ = try await client.paneRead(paneId: paneId, source: source, lines: lines)
+        case .paneClose(let paneId):
+            try await client.paneClose(paneId: paneId)
         case .agentPrompt(let target, let text):
             _ = try await client.agentPrompt(target: target, text: text)
         case .agentSendKeys(let target, let keys):

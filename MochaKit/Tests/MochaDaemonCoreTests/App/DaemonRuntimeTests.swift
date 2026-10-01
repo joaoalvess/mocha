@@ -13,7 +13,8 @@ struct DaemonRuntimeTests {
             herdrSocketPath: herdrSocket,
             projectsRoot: home.url.appending(path: "projects").path(percentEncoded: false),
             pairingURL: { Sample.pairingURL },
-            hookPort: hookPort
+            hookPort: hookPort,
+            codexExecutable: { nil }
         )
     }
 

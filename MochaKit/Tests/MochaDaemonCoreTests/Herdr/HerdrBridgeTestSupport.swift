@@ -37,7 +37,7 @@ enum HerdrBridgeFixtures {
 struct HerdrBridgeHarness {
     static let allowedMethods: Set<String> = [
         "events.subscribe", "ping", "session.snapshot", "agent.list", "agent.get", "agent.prompt", "agent.send_keys",
-        "tab.create", "agent.start", "agent.wait", "pane.read",
+        "tab.create", "agent.start", "agent.wait", "pane.read", "pane.close",
     ]
 
     static let fastConfiguration = HerdrBridgeConfiguration(

@@ -39,6 +39,8 @@ public final class FakeHerdrBridge: HerdrBridging {
         var interruptError: HerdrBridgeError?
         var promptCalls: [FakeHerdrPromptCall] = []
         var interruptCalls: [AgentID] = []
+        var closeAgentError: HerdrBridgeError?
+        var closeAgentCalls: [AgentID] = []
         var openChatsCalls: [Set<AgentID>] = []
         var resolveCalls: [AgentID] = []
         var sessionRefreshCalls: [FakeHerdrSessionRefresh] = []
@@ -113,6 +115,14 @@ public final class FakeHerdrBridge: HerdrBridging {
         let error = state.withLock { state in
             state.interruptCalls.append(id)
             return state.interruptError
+        }
+        try failIfNeeded(error)
+    }
+
+    public func closeAgent(_ id: AgentID) async throws {
+        let error = state.withLock { state in
+            state.closeAgentCalls.append(id)
+            return state.closeAgentError
         }
         try failIfNeeded(error)
     }
@@ -278,6 +288,10 @@ public final class FakeHerdrBridge: HerdrBridging {
         state.withLock { $0.interruptError = error }
     }
 
+    public func setCloseAgentError(_ error: HerdrBridgeError?) {
+        state.withLock { $0.closeAgentError = error }
+    }
+
     public func setServerInfo(_ info: HerdrServerInfo?) {
         state.withLock { $0.serverInfo = info }
     }
@@ -296,6 +310,10 @@ public final class FakeHerdrBridge: HerdrBridging {
 
     public var interruptCalls: [AgentID] {
         state.withLock { $0.interruptCalls }
+    }
+
+    public var closeAgentCalls: [AgentID] {
+        state.withLock { $0.closeAgentCalls }
     }
 
     public var openChatsCalls: [Set<AgentID>] {

@@ -16,6 +16,7 @@ struct NewSessionSheet: View {
     private static let pickHeight: CGFloat = 78
     private static let pickSpacing: CGFloat = 10
     private static let workspaceRowHeight: CGFloat = 66
+    private static let workspaceGroupSpacing: CGFloat = 10
     private static let footerHeight: CGFloat = 31
     private static let maxHeight: CGFloat = 720
 
@@ -64,7 +65,9 @@ struct NewSessionSheet: View {
         if kind == nil {
             content = Self.pickHeight * 3 + Self.pickSpacing * 2
         } else {
-            content = Self.workspaceRowHeight * CGFloat(max(1, workspaces.count))
+            let rows = workspaceGroups.reduce(0) { $0 + $1.count }
+            let gaps = Self.workspaceGroupSpacing * CGFloat(max(0, workspaceGroups.count - 1))
+            content = Self.workspaceRowHeight * CGFloat(max(1, rows)) + gaps
         }
         let footer = errorText == nil ? 0 : Self.footerHeight
         return min(Self.maxHeight, Self.titleTop + Self.titleHeight + Self.titleGap + content + footer + Self.bottomSpace)
@@ -80,30 +83,34 @@ struct NewSessionSheet: View {
 
     @ViewBuilder
     private var workspaceList: some View {
-        if workspaces.isEmpty {
+        if workspaceGroups.isEmpty {
             Text("Nenhum workspace aberto no Herdr")
                 .font(.system(size: 15))
                 .foregroundStyle(Palette.textSecondary)
                 .frame(maxWidth: .infinity, minHeight: Self.workspaceRowHeight)
         } else {
-            VStack(spacing: 0) {
-                ForEach(Array(workspaces.enumerated()), id: \.element.id) { index, workspace in
-                    if index > 0 {
-                        Palette.divider.frame(height: 1)
+            VStack(spacing: Self.workspaceGroupSpacing) {
+                ForEach(workspaceGroups, id: \.first?.id) { group in
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                Palette.divider.frame(height: 1)
+                            }
+                            WorkspacePickRow(item: item, isCreating: creating == item.id) {
+                                create(in: item.id)
+                            }
+                            .disabled(creating != nil)
+                        }
                     }
-                    WorkspacePickRow(workspace: workspace, isCreating: creating == workspace.id) {
-                        create(in: workspace.id)
-                    }
-                    .disabled(creating != nil)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Palette.toolCard))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Palette.toolCard))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
     }
 
-    private var workspaces: [WorkspaceNode] {
-        NewSessionWorkspaces.flattened(session.workspaces)
+    private var workspaceGroups: [[WorkspacePickItem]] {
+        NewSessionWorkspaces.groups(session.workspaces)
     }
 
     private func create(in workspaceId: WorkspaceID) {
@@ -126,9 +133,34 @@ struct NewSessionSheet: View {
     }
 }
 
+struct WorkspacePickItem: Identifiable {
+    let workspace: WorkspaceNode
+    let isWorktree: Bool
+    let title: String
+    let showsBranch: Bool
+
+    var id: WorkspaceID { workspace.id }
+
+    var agentCount: Int {
+        workspace.tabs.reduce(0) { $0 + $1.agents.count }
+    }
+}
+
 enum NewSessionWorkspaces {
-    static func flattened(_ workspaces: [WorkspaceNode]) -> [WorkspaceNode] {
-        workspaces.flatMap { [$0] + flattened($0.children) }
+    static func groups(_ workspaces: [WorkspaceNode]) -> [[WorkspacePickItem]] {
+        workspaces.map { root in
+            let rootItem = WorkspacePickItem(workspace: root, isWorktree: false, title: root.label, showsBranch: true)
+            let worktreeItems = root.children.flattenedWorkspaces.map { worktree in
+                let title = worktree.label == root.label ? (worktree.branch ?? worktree.label) : worktree.label
+                return WorkspacePickItem(
+                    workspace: worktree,
+                    isWorktree: true,
+                    title: title,
+                    showsBranch: title != worktree.branch
+                )
+            }
+            return [rootItem] + worktreeItems
+        }
     }
 }
 
@@ -210,9 +242,11 @@ private struct AgentPickCard: View {
 }
 
 private struct WorkspacePickRow: View {
-    let workspace: WorkspaceNode
+    let item: WorkspacePickItem
     let isCreating: Bool
     let action: () -> Void
+
+    private var workspace: WorkspaceNode { item.workspace }
 
     var body: some View {
         Button(action: action) {
@@ -221,16 +255,27 @@ private struct WorkspacePickRow: View {
                     .fill(Color(hex: 0x15251A))
                     .frame(width: 38, height: 38)
                     .overlay {
-                        Image(systemName: "folder")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Palette.statusOk)
+                        if item.isWorktree {
+                            LineIconView(icon: .branch, size: 17, strokeWidth: 1.9, color: Palette.statusOk)
+                        } else {
+                            Image(systemName: "folder")
+                                .font(.system(size: 17))
+                                .foregroundStyle(Palette.statusOk)
+                        }
                     }
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(workspace.label)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Palette.textPrimary)
-                        .lineLimit(1)
-                    if workspace.branch != nil || workspace.isDirty {
+                    HStack(spacing: 4) {
+                        Text(item.title)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Palette.textPrimary)
+                            .lineLimit(1)
+                        if workspace.isDirty && !item.showsBranch {
+                            Text(verbatim: "*")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(Palette.dirty)
+                        }
+                    }
+                    if item.showsBranch && (workspace.branch != nil || workspace.isDirty) {
                         HStack(spacing: 4) {
                             if let branch = workspace.branch {
                                 LineIconView(icon: .branch, size: 12, strokeWidth: 1.9, color: Palette.textSecondary)
@@ -250,12 +295,21 @@ private struct WorkspacePickRow: View {
                 if isCreating {
                     ProgressView()
                         .tint(Palette.statusOk)
-                        .accessibilityLabel("Abrindo tab em \(workspace.label)")
+                        .accessibilityLabel("Abrindo tab em \(item.title)")
                 } else {
+                    if item.agentCount > 0 {
+                        HStack(spacing: 12) {
+                            StatusDot(indicator: .agent(workspace.agentStatus))
+                            Text(item.agentCount == 1 ? "1 agente" : "\(item.agentCount) agentes")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Palette.textSecondary)
+                        }
+                    }
                     LineIconView(icon: .chevronRight, size: 12, strokeWidth: 2.4, color: Palette.textSecondary)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.leading, item.isWorktree ? 30 : 16)
+            .padding(.trailing, 16)
             .frame(height: 66)
             .contentShape(Rectangle())
         }

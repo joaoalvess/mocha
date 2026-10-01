@@ -20,6 +20,7 @@ public struct DaemonOptions: Sendable {
     public var hookPort: UInt16?
     public var apnsCredentials: ApnsCredentials.Loader?
     public var apnsTransport: (any ApnsTransport)?
+    public var codexExecutable: @Sendable () -> String?
 
     public init(
         paths: DaemonPaths = DaemonPaths(),
@@ -28,7 +29,8 @@ public struct DaemonOptions: Sendable {
         pairingURL: @escaping LocalControl.PairingURLProvider = { try await TailscaleCLI().webSocketURL() },
         hookPort: UInt16? = nil,
         apnsCredentials: ApnsCredentials.Loader? = nil,
-        apnsTransport: (any ApnsTransport)? = nil
+        apnsTransport: (any ApnsTransport)? = nil,
+        codexExecutable: @escaping @Sendable () -> String? = { CodexExecutable.resolve() }
     ) {
         self.paths = paths
         self.herdrSocketPath = herdrSocketPath
@@ -37,6 +39,7 @@ public struct DaemonOptions: Sendable {
         self.hookPort = hookPort
         self.apnsCredentials = apnsCredentials
         self.apnsTransport = apnsTransport
+        self.codexExecutable = codexExecutable
     }
 }
 
@@ -111,7 +114,7 @@ public actor DaemonRuntime {
         await push.attachLiveActivity(liveActivity)
         await hub.attachLiveActivity(liveActivity)
         let codexSocket = paths.codexSocket.fileSystemPath
-        let codexProcess = CodexAppServerProcess(socketPath: codexSocket)
+        let codexProcess = CodexAppServerProcess(socketPath: codexSocket, resolveExecutable: options.codexExecutable)
         let codex = CodexService(socketPath: codexSocket, uploadsDirectory: paths.uploadsDirectory)
         await hub.attachCodex(codex)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)

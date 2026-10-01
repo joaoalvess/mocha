@@ -277,6 +277,10 @@ final class AppSession {
         usages[provider]
     }
 
+    var usagesByProvider: [UsageSnapshot] {
+        AgentProvider.allCases.compactMap { usages[$0] }
+    }
+
     func showUsage() {
         isDrawerOpen = false
         sheet = .usage
@@ -393,6 +397,10 @@ final class AppSession {
 
     func archive(sessionId: String, provider: AgentProvider = .claude) async throws {
         try await request(.archive(sessionId: sessionId, provider: provider))
+    }
+
+    func closeAgent(_ agentId: AgentID) async throws {
+        try await request(.closeAgent(agentId: agentId))
     }
 
     func sendPrompt(_ text: String) async throws {
@@ -609,6 +617,7 @@ final class AppSession {
             archivedSessions = sessions
         case .usage(let snapshot):
             usages[snapshot.provider] = snapshot
+            UsageResetReminder.shared.usageChanged(snapshot)
         case .herdrStatus(let connected):
             herdrConnected = connected
             host?.herdrConnected = connected

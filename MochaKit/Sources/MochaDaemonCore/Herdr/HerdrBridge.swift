@@ -7,10 +7,16 @@ let herdrLogger = Logger(subsystem: "com.joaoalves.mocha", category: "herdr")
 
 public actor HerdrBridge: HerdrBridging {
     public static let interruptKeys = ["Escape"]
+    public static let quitKeys = ["C-c", "C-c"]
     public static let newAgentKind = "claude"
     public static let newAgentNamePrefix = "mocha-"
     public static let codexAgentKind = "codex"
     static let codexStartTimeout: Duration = .seconds(4)
+    static let codexLaunchOverrides = ["-c", "check_for_update_on_startup=false"]
+
+    static func codexArguments(remote: String, directory: String?) -> [String] {
+        ["--remote", remote] + codexLaunchOverrides + (directory.map { ["--cd", $0] } ?? [])
+    }
     public static let readyStatuses: [HerdrAgentStatus] = [.idle, .blocked]
 
     private struct PaneSubscription {
@@ -134,6 +140,18 @@ public actor HerdrBridge: HerdrBridging {
         }
     }
 
+    public func closeAgent(_ id: AgentID) async throws {
+        guard let pane = state.pane(id) else { throw HerdrBridgeError.agentNotFound }
+        let sharesWorkspace = state.panes.contains { $0.workspaceId == pane.workspaceId && $0.paneId != pane.paneId }
+        try await command { client in
+            if sharesWorkspace {
+                try await client.paneClose(paneId: id)
+            } else {
+                try await client.agentSendKeys(target: id, keys: Self.quitKeys)
+            }
+        }
+    }
+
     public func setOpenChats(_ ids: Set<AgentID>) {
         openChats = ids
         updateReconciliation()
@@ -217,7 +235,7 @@ public actor HerdrBridge: HerdrBridging {
                     name: name,
                     kind: Self.codexAgentKind,
                     paneId: paneId,
-                    args: ["--remote", remote],
+                    args: Self.codexArguments(remote: remote, directory: directory),
                     timeout: Self.codexStartTimeout
                 )
             }

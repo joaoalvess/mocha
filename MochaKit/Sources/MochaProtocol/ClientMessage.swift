@@ -27,6 +27,7 @@ public enum ClientMessage: Sendable, Hashable {
     case listSubagents(agentId: AgentID)
     case sendPrompt(agentId: AgentID, text: String)
     case interrupt(agentId: AgentID)
+    case closeAgent(agentId: AgentID)
     case setForeground(agentId: AgentID?, isActive: Bool)
     case unpair
     case ping
@@ -50,6 +51,7 @@ public enum ClientMessage: Sendable, Hashable {
         case .listSubagents: "listSubagents"
         case .sendPrompt: "sendPrompt"
         case .interrupt: "interrupt"
+        case .closeAgent: "closeAgent"
         case .setForeground: "setForeground"
         case .unpair: "unpair"
         case .ping: "ping"
@@ -101,6 +103,9 @@ extension ClientMessage {
         case "interrupt":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .interrupt(agentId: try payload.decode(AgentID.self, forKey: .agentId))
+        case "closeAgent":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .closeAgent(agentId: try payload.decode(AgentID.self, forKey: .agentId))
         case "setForeground":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .setForeground(
@@ -179,7 +184,7 @@ extension ClientMessage {
         case .listSubagents(let agentId):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
-        case .interrupt(let agentId):
+        case .interrupt(let agentId), .closeAgent(let agentId):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
         case .sendPrompt(let agentId, let text):

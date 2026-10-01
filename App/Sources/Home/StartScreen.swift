@@ -23,34 +23,35 @@ private struct StartContent: View {
     private static let listTop: CGFloat = 118
     private static let activeTopGap: CGFloat = 22
     private static let listBottom: CGFloat = 110
+    private static let scrollFadeHeight: CGFloat = 12
     private static let fabTrailing: CGFloat = 20
     private static let fabBottom: CGFloat = 6
 
+    @State private var closingCard: HomeCard?
+    @State private var closeFailure: String?
+
     var body: some View {
-        let sections = HomeSections.make(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
-        let active = StartSections.active(sections)
+        let openCards = StartSections.open(agents: session.workspaces.allAgents, now: now)
         let recents = StartSections.recents(agents: session.workspaces.allAgents, archived: session.archivedSessions, now: now)
         ZStack(alignment: .top) {
             HomeBackground()
-            if !recents.isEmpty || !active.isEmpty {
+            if !recents.isEmpty || !openCards.isEmpty {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if !recents.isEmpty {
                             RecentsHeader()
                             RecentCarousel(items: recents, isOffline: offlineMessage != nil, open: open, showDetail: showDetail)
                         }
-                        ForEach(Array(active.enumerated()), id: \.element.id) { index, section in
-                            SectionHeader(
-                                title: section.kind.title,
-                                topPadding: index == 0 ? Self.activeTopGap : Metrics.sectionHeaderTopAfterCard
-                            )
-                            ForEach(section.cards) { card in
+                        if !openCards.isEmpty {
+                            SectionHeader(title: "Abertos", topPadding: Self.activeTopGap)
+                            ForEach(openCards) { card in
                                 HomeCardRow(
                                     card: card,
                                     isOffline: offlineMessage != nil,
                                     open: { open(card.target) },
                                     showDetail: { showDetail(card.target) },
-                                    archive: { _, _ in false }
+                                    leftAction: closeAction(for: card),
+                                    rightAction: detailAction(for: card)
                                 )
                                 .padding(.horizontal, Metrics.contentMargin)
                                 .padding(.bottom, Metrics.homeCardSpacing)
@@ -59,9 +60,10 @@ private struct StartContent: View {
                     }
                     .padding(.top, listTop)
                     .padding(.bottom, Self.listBottom)
-                    .animation(.smooth(duration: 0.3), value: active)
+                    .animation(.smooth(duration: 0.3), value: openCards)
                 }
                 .scrollIndicators(.hidden)
+                .mask { scrollMask }
             } else if session.hasReceivedTree {
                 StartEmptyState()
             }
@@ -75,6 +77,17 @@ private struct StartContent: View {
                 .padding(.trailing, Self.fabTrailing)
                 .padding(.bottom, Self.fabBottom)
         }
+        .alert("Fechar este agente?", isPresented: closingBinding, presenting: closingCard) { card in
+            Button("Cancelar", role: .cancel) {}
+            Button("Fechar", role: .destructive) { close(card) }
+        } message: { _ in
+            Text("O agente é encerrado no Mac e a conversa fica no Histórico.")
+        }
+        .alert("Não foi possível fechar o agente", isPresented: closeFailureBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(closeFailure ?? "")
+        }
     }
 
     private var offlineExtent: CGFloat {
@@ -85,12 +98,73 @@ private struct StartContent: View {
         Self.listTop + offlineExtent
     }
 
+    private var scrollMask: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: Metrics.homeButtonTopInset + Self.searchTop + Self.searchHeight + offlineExtent)
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: Self.scrollFadeHeight)
+            Color.black
+        }
+    }
+
     private func open(_ target: ChatTarget) {
         session.openChat(target)
     }
 
     private func showDetail(_ target: ChatTarget) {
         session.showDetail(target)
+    }
+
+    private var closingBinding: Binding<Bool> {
+        Binding(
+            get: { closingCard != nil },
+            set: { if !$0 { closingCard = nil } }
+        )
+    }
+
+    private var closeFailureBinding: Binding<Bool> {
+        Binding(
+            get: { closeFailure != nil },
+            set: { if !$0 { closeFailure = nil } }
+        )
+    }
+
+    private func closeAction(for card: HomeCard) -> HomeCardSwipeAction? {
+        guard case .agent = card.target else { return nil }
+        return HomeCardSwipeAction(
+            title: "Fechar",
+            systemImage: "xmark",
+            armedColor: Palette.destructive,
+            accessibilityName: "Fechar agente",
+            perform: {
+                closingCard = card
+                return false
+            }
+        )
+    }
+
+    private func detailAction(for card: HomeCard) -> HomeCardSwipeAction {
+        HomeCardSwipeAction(
+            title: "Detalhes",
+            systemImage: "info.circle",
+            armedColor: Palette.statusOk,
+            perform: {
+                showDetail(card.target)
+                return false
+            }
+        )
+    }
+
+    private func close(_ card: HomeCard) {
+        guard case .agent(let agentId) = card.target else { return }
+        Task {
+            do {
+                try await session.closeAgent(agentId)
+            } catch {
+                closeFailure = (error as? AppSessionError)?.message ?? AppSessionError.notConnected.message
+            }
+        }
     }
 }
 

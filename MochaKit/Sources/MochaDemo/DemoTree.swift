@@ -27,6 +27,18 @@ extension WorkspaceNode {
         return children.updateAgent(withId: id, update)
     }
 
+    mutating func removeAgent(withId id: AgentID) -> Bool {
+        guard let tabIndex = tabs.firstIndex(where: { $0.agents.contains { $0.id == id } }) else {
+            return children.removeAgent(withId: id)
+        }
+        tabs[tabIndex].agents.removeAll { $0.id == id }
+        if tabs[tabIndex].agents.isEmpty {
+            tabs.remove(at: tabIndex)
+        }
+        agentStatus = aggregatedAgentStatus
+        return true
+    }
+
     func withoutSupportedAgents() -> WorkspaceNode {
         var workspace = self
         workspace.tabs = tabs.map { tab in
@@ -83,6 +95,14 @@ extension [WorkspaceNode] {
             if self[index].updateAgent(withId: id, update) {
                 return true
             }
+        }
+        return false
+    }
+
+    @discardableResult
+    mutating func removeAgent(withId id: AgentID) -> Bool {
+        for index in indices where self[index].removeAgent(withId: id) {
+            return true
         }
         return false
     }

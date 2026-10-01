@@ -89,7 +89,7 @@ private func chatUpdateItems(_ items: String) throws -> [ChatItem] {
     }
 
     @Test func agentOnlyMessagesRejectASubagentTarget() {
-        for type in ["sendPrompt", "interrupt", "slash", "listSubagents"] {
+        for type in ["sendPrompt", "interrupt", "closeAgent", "slash", "listSubagents"] {
             #expect(throws: DecodingError.self, "\(type)") {
                 try decode(
                     ClientEnvelope.self,

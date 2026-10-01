@@ -43,10 +43,29 @@ public struct RecentItem: Sendable, Hashable, Identifiable {
 
 public enum StartSections {
     public static let recentLimit = 10
-    public static let activeKinds: Set<HomeSectionKind> = [.needsYou, .working]
 
-    public static func active(_ sections: [HomeSection]) -> [HomeSection] {
-        sections.filter { activeKinds.contains($0.kind) }
+    public static func open(agents: [AgentSummary], now: Date) -> [HomeCard] {
+        let cards = agents
+            .filter { $0.kind == HomeSections.claudeKind || $0.kind == HomeSections.codexKind }
+            .map { HomeSections.card(for: $0, in: HomeSections.kind(of: $0, now: now), now: now) }
+        return cards.enumerated()
+            .sorted { lhs, rhs in
+                let left = openRank(lhs.element.state)
+                let right = openRank(rhs.element.state)
+                guard left == right else { return left < right }
+                let leftActivity = lhs.element.activityAt ?? .distantPast
+                let rightActivity = rhs.element.activityAt ?? .distantPast
+                return leftActivity == rightActivity ? lhs.offset < rhs.offset : leftActivity > rightActivity
+            }
+            .map(\.element)
+    }
+
+    private static func openRank(_ state: HomeCardState) -> Int {
+        switch state {
+        case .blocked: 0
+        case .working: 1
+        case .ready, .archived: 2
+        }
     }
 
     public static func recents(agents: [AgentSummary], archived: [ArchivedSession], now: Date, limit: Int = recentLimit) -> [RecentItem] {

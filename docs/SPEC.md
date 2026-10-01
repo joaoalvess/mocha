@@ -241,8 +241,9 @@ O app (`project.yml`) depende de `MochaProtocol`, `MochaClient`, `MochaDemo` e `
 | `agent.get` | `{target}` (pane id ou nome do agente) | `agent_info` | Reconsulta de um agente (sessão, título, status) | 1a-core |
 | `workspace.list`, `tab.list`, `pane.get` | `{}`, `{workspace_id?}`, `{pane_id}` | `workspace_list`, `tab_list`, `pane_info` | `doctor` e diagnóstico | 1a-core |
 | `agent.prompt` | `{target, text}` | `agent_prompted` (`AgentInfo` do momento do envio) | Enviar prompt ou slash command (texto + Enter, ~300 ms). Com o agente `blocked`, devolve `agent_blocked` sem enviar nada | 1a-core |
-| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Na fase controles também `shift+tab` (sem diferença de caixa; `S-Tab`, `btab` e `backtab` são inválidos), `up`, `down`, `left`, `right`, `s` e `enter` (S8). Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
+| `agent.send_keys` | `{target, keys: [String]}` | `ok` | `["Escape"]` interrompe. Na fase controles também `shift+tab` (sem diferença de caixa; `S-Tab`, `btab` e `backtab` são inválidos), `up`, `down`, `left`, `right`, `s` e `enter` (S8). `["C-c", "C-c"]` encerra o Claude e o Codex e deixa o shell no pane (`closeAgent` no último pane do workspace). Tecla inválida → `invalid_key`, nada é enviado | 1a-core |
 | `pane.read` | `{pane_id, source: "visible", lines}` | `pane_read` (`read.text`, `read.revision`, `read.truncated`) | Ler o rodapé do Claude (modo de permissão) e os seletores `/model` e `/effort` (§4.1.1) | controles |
+| `pane.close` | `{pane_id}` | `ok` | Fechar agente (`closeAgent`) quando o workspace tem outros panes. Fechar o último pane fecha o workspace inteiro | uso-codex |
 | `tab.create` | `{workspace_id, cwd, label?, focus: false}` | `tab_created` (`tab`, `root_pane`) | Nova tab | 1a-final |
 | `agent.start` | `{name, kind: "claude", pane_id, args: [String], timeout_ms?}` | `agent_started` (`argv`, `agent` com `launch_pending: true`) | Digita `claude <args>` no shell do pane e volta na hora. A prontidão chega por `pane.agent_status_changed` (`idle`) ou `agent.wait`. `name` único, `[a-z][a-z0-9_-]{0,31}` | 1a-final |
 | `agent.wait` | `{target, until: [status], timeout_ms}` | `agent_info` ou erro `timeout` | Esperar a prontidão depois do `agent.start` | 1a-final |
@@ -671,6 +672,7 @@ public enum HerdrBridgeError: Error, Sendable, Equatable {
 - `agent(_:)` devolve o agente como o Herdr o vê: pane, workspace, tipo, status, sessão, `cwd`, `foreground_cwd` e título do terminal.
 - `resolve(_:)` traduz um id antigo pelo mapa do `pane_moved` (§3.1.3). Um id sem tradução volta igual.
 - `prompt` usa `agent.prompt` e `interrupt` usa `agent.send_keys` com `["Escape"]` (§3.1.2). Os dois lançam `HerdrBridgeError`.
+- `closeAgent` usa `pane.close` quando o workspace do pane tem outros panes; se é o último, manda `agent.send_keys` com `["C-c", "C-c"]`, que encerra o agente e deixa o shell, porque fechar o último pane fecha o workspace. Lança `HerdrBridgeError` (`agentNotFound` sem o pane no estado).
 - **Controles** (fase controles, `docs/spikes/S8.md`):
   - **Tela ocupada**: antes de `prompt`, `setModel`, `setEffort` e `setMode`, o `pane.read` da última linha não pode mostrar o seletor `/model`, o `/effort` nem o diálogo "Switch model?". O Herdr fica em `done`/`working` com eles abertos, e um `agent.prompt` ali perde o texto. Com a tela ocupada, lança `screenBusy` sem tecla nenhuma.
   - **`setMode`** lê o rodapé. Se não for o alvo, manda `shift+tab` e espera o rodapé mudar (poll a cada 15 ms, até 500 ms por tecla, no máximo 5 teclas), e devolve o modo lido. Nunca usa espera fixa curta: a leitura antes de 20 ms devolve o modo antigo.
@@ -1352,6 +1354,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `listSubagents` | `{agentId}` | `subagentList` | subagentes |
 | `sendPrompt` | `{agentId, text}` | `ack{}` | 1a-core |
 | `interrupt` | `{agentId}` | `ack{}` | 1a-core |
+| `closeAgent` | `{agentId}` | `ack{}`. Vale para Claude e Codex; o card sai da árvore pelo `pane_closed`/`pane_updated` do Herdr. Erros: `herdrUnavailable`, `agentNotFound` | uso-codex |
 | `setForeground` | `{agentId?: String, isActive: Bool}` | `ack{}` | 1a-core |
 | `unpair` | `{}` | `ack{}` e o daemon fecha a conexão e apaga o aparelho | 1a-core |
 | `ping` | `{}` | `pong{}` | 1a-core |
@@ -1609,12 +1612,15 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 **Início** (`21-inicio`, `21e-inicio-vazia`)
 - Tela inicial. Header fixo, compartilhado com o Histórico: à esquerda, o botão redondo de anéis (44 pt, vidro `home`), que abre o Histórico; à direita, uma cápsula de vidro `home` (44 pt de altura) com o globo, que abre a folha Servidores web, e a engrenagem de Ajustes; o sino da Inbox, com a contagem, entra na cápsula antes do globo só quando há pedido pendente. Os anéis contam os agentes Claude e Codex: o externo (`ringAuto`) enche um quinto por agente Claude com `permissionMode` `auto`, `acceptEdits` ou `bypassPermissions` (cheio com 5 ou mais) e o interno (`ringPlan`) um quarto por agente Claude em `plan` (cheio com 4 ou mais), os dois das 12 h no sentido horário e sem animação; `default` e os agentes Codex não entram nos anéis. A bolinha de 9,2 pt no centro dos anéis, com o mesmo glifo do selo do anel de contexto (raio quando trabalhando, exclamação quando bloqueado), pulsa (opacidade de 30% a 100% num ciclo de 1,4 s; fixa com Reduzir movimento): `dirty` quando algum agente está `blocked`, senão `statusOk` quando algum está `working`, e some quando nenhum. Sem conexão, os anéis ficam em `offlineRing` e a bolinha some, e a cápsula "Sem conexão com o Mac" aparece no header, logo abaixo dos botões, nas duas telas. Abaixo do header, no conteúdo da Início, a barra "Buscar", só visual por enquanto.
 - RECENTES ("Segure para opções" à direita): carrossel horizontal com até 10 conversas por atividade (agentes e sessões arquivadas, lógica em `StartSections`). Cada card de 162 pt tem a miniatura (a `preview`: do usuário em bolha, do assistente em texto; e a `activity` como linha de ferramenta), o chip de estado e o do provedor; abaixo, o título do card e "<workspace em mono verde> · <tempo>". Tocar abre o chat; segurar abre o Detalhe.
-- Embaixo, só PRECISA DE VOCÊ e TRABALHANDO, com os mesmos cards do Histórico. Sem a pílula de uso.
+- Embaixo, ABERTOS: todos os agentes Claude e Codex vivos na árvore (`StartSections.open`), com os mesmos cards do Histórico, primeiro os bloqueados, depois os trabalhando, depois por atividade. Sessões encerradas não entram. Sem a pílula de uso.
+  - arrastar o card para a esquerda (hint "Fechar", `destructive`) abre a confirmação "Fechar este agente?" ("Fechar" / "Cancelar"); confirmando, manda `closeAgent{agentId}`, e uma falha abre o alerta "Não foi possível fechar o agente";
+  - arrastar para a direita (hint "Detalhes") abre o Detalhe;
+  - o arrasto no card ganha do pager: arrastar para a direita fora dos cards ainda volta ao Histórico.
 - Botão + verde (60 pt) no canto inferior direito: abre a folha Nova sessão.
 - Vazia: "Nenhum agente aberto no Herdr" e "Toque em + para abrir uma tab com Claude ou Codex num workspace."
 
 **Nova sessão** (`21b-nova-sessao-agente`, `21c-nova-sessao-workspace`, `21d-nova-sessao-abrindo`)
-- Folha `drawerBg` na altura do conteúdo, sem título, X ou indicador de passo. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": os workspaces (inclusive worktrees) com nome, branch e `*` em `dirty`.
+- Folha `drawerBg` na altura do conteúdo, sem título, X ou indicador de passo. Passo 1, "O que você quer abrir no Herdr?": Claude, Codex e Shell (desabilitado, selo FASE 2). Passo 2, "Escolha o workspace do Herdr": um cartão por workspace raiz, com os worktrees (`children`) logo abaixo, recuados e com ícone de branch. Cada linha tem nome, branch e `*` em `dirty`; num worktree cujo `label` é igual ao da raiz, o título é a branch. À direita, com agentes nas tabs, o `StatusDot` do `agentStatus` e "1 agente"/"N agentes".
 - Tocar num workspace manda `newAgentTab{workspaceId, kind}` e mostra só um indicador de progresso na linha. No `ack{agentId}`, a folha fecha e o chat abre por push; um erro aparece no rodapé. Fechar (arrastar ou tocar fora) e reabrir volta ao passo 1.
 
 **Histórico** (`22-historico`)
@@ -1646,8 +1652,9 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Uso do plano** (`03-uso-plano`)
 - Folha média sobre a Home (arrastar fecha), fundo `drawerBg`. Título "Uso" e, à direita, "atualizado há X" (de `fetchedAt`).
-- Cartão: ladrilho do asterisco, "<plano> (<conta>)" (sem plano, "Claude"; sem conta, sem parênteses) e "Claude Code · <hostName>".
+- Um cartão por provedor com `usage`, Claude primeiro e Codex depois, 12 pt entre eles; a altura do painel cresce 182 pt por cartão a mais. Cartão: ladrilho do provedor, "<plano> (<conta>)" (sem plano, "Claude" ou "Codex"; sem conta, sem parênteses) e "Claude Code · <hostName>" ou "Codex · <hostName>".
 - Uma linha por janela (`fiveHour` → "5h", `weekly` → "7d"): barra com o `usedPercent`, o traço `paceMark` na posição do tempo decorrido, o % e o tempo até zerar ("3h 35m", "2d 10h").
+- Na linha de 5h com `resetsAt` no futuro, um sino (`bell`, `textSecondary`; ligado, `bell.fill` em `statusOk`) agenda o aviso local do reset (§7.6).
 - Tempo decorrido da janela = `1 − (resetsAt − agora) / duração` (5 h ou 7 dias). Ritmo = `usedPercent − decorrido × 100`: acima de +5, "ritmo mais rápido"; abaixo de −5, "ritmo mais lento"; entre os dois, "no ritmo". A linha de baixo junta as duas: "5h: ritmo mais lento · 7d: no ritmo".
 - Nota fixa no rodapé: "Os números vêm do último turno do Claude no Mac e ficam velhos quando não há turnos. O traço cinza marca onde o uso estaria num ritmo constante até o fim da janela."
 
@@ -1958,6 +1965,11 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
 - **Fim**: 30 min sem nenhum agente `working`/`blocked` → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start.
 - **Tokens**: `registerLiveActivity` sem `agentId`: um token de push-to-start para o tipo e o token de update da atividade com `activityId`. O daemon guarda uma atividade por aparelho em `devices.json`; um registro antigo com `agentId` é ignorado.
 
+### §7.6 Aviso de reset da janela de 5h
+
+- Notificação **local** do app, sem daemon nem protocolo: o sino da folha Uso (§6.3) agenda um `UNNotificationRequest` com `UNTimeIntervalNotificationTrigger` até o `resetsAt` da janela `fiveHour` daquele provedor. Id `usage-reset-<provider>`; título "Janela de 5h zerada", corpo "O limite de 5h do Claude Code renovou." ou "…do Codex renovou.", som padrão. Ligar pede a permissão de notificação se ela ainda não foi pedida.
+- Vale **só o próximo reset**: o horário armado por provedor fica no `UserDefaults` (`usage.resetReminders`), e o sino conta como ligado enquanto esse horário está no futuro. Tocar de novo desliga e remove o pedido pendente. Um `usage` novo com outro `resetsAt` de 5h enquanto armado reagenda para o novo horário.
+
 ---
 
 ## §8 Aprovações e perguntas (1b)
@@ -2136,7 +2148,7 @@ Esta fase acrescenta Codex sem alterar os contratos específicos do Claude das �
 
 ### §13.1 CLI e fonte de dados
 
-- O `mochad` usa o Codex App Server local por socket Unix. Ele mesmo sobe o App Server como processo filho (`codex app-server --listen unix://~/Library/Application Support/Mocha/codex.sock`) e o reinicia 5 s depois de uma queda. O executável vem de `/opt/homebrew/bin`, `/usr/local/bin` ou `~/.local/bin`; sem ele, as tabs Codex ficam indisponíveis e o `doctor` avisa. A tab Codex criada pelo Mocha roda `codex --remote unix://<socket>` no Herdr. O pane continua sendo a identidade de agente da Home; a thread do App Server é a identidade da conversa. O observador envia `thread/resume` para receber eventos e pedidos pendentes; `thread/list` sozinho não o inscreve. A associação pane–thread deve ser verificável pelo daemon, pois o TUI remoto apareceu com `source=vscode` no S7 e `source` não identifica o pane.
+- O `mochad` usa o Codex App Server local por socket Unix. Ele mesmo sobe o App Server como processo filho (`codex app-server --listen unix://~/Library/Application Support/Mocha/codex.sock`) e o reinicia 5 s depois de uma queda. Antes de cada início, encerra com SIGTERM qualquer `codex app-server --listen unix://<socket>` que tenha sobrado no mesmo socket (de um `mochad` morto por SIGKILL, que não passa pelo encerramento normal) e espera 1 s: o App Server novo sai com status 1 enquanto outro ocupa o socket de controle do mesmo caminho. O executável vem de `/opt/homebrew/bin`, `/usr/local/bin` ou `~/.local/bin`; sem ele, as tabs Codex ficam indisponíveis e o `doctor` avisa. A tab Codex criada pelo Mocha roda `codex --remote unix://<socket> -c check_for_update_on_startup=false --cd <diretório do workspace>` no Herdr. Sem o override, uma versão nova do CLI abre a tela "Update available", o TUI não cria a thread e o pane não se liga a ela na janela de 120 s. Sem o `--cd`, o TUI remoto usa o diretório do App Server (`/`, herdado do launchd), a thread nasce com `cwd` `/` e também não se liga ao pane. O pane continua sendo a identidade de agente da Home; a thread do App Server é a identidade da conversa. O observador envia `thread/resume` para receber eventos e pedidos pendentes; `thread/list` sozinho não o inscreve. A associação pane–thread deve ser verificável pelo daemon, pois o TUI remoto apareceu com `source=vscode` no S7 e `source` não identifica o pane.
 - Associação pane–thread (lab de 2026-09-28): com `--remote`, os hooks rodam no App Server e o Herdr não recebe `agent_session`; o `herdr agent start` expira esperando prontidão. Por isso, ao criar a tab, o daemon anota (pane, cwd, instante) e liga o pane ao próximo `thread/started` global com o mesmo cwd normalizado, numa janela de 120 s; panes no mesmo cwd são atendidos em ordem. No `/new`, com um único pane Codex naquele cwd, o pane passa para a thread nova.
 - A thread nova não tem rollout antes do primeiro turno: `thread/resume` falha com "no rollout found", mas `turn/start` funciona. O daemon repete o resume a cada 2 s até a inscrição passar. Criar a thread pelo daemon (`thread/start`) e abrir o TUI com `codex resume --remote … <id>` falha pelo mesmo motivo.
 - O status das tabs Codex vem do App Server (`thread/status/changed`, `turn/started`, `turn/completed`; pedido pendente é `blocked`), não do Herdr. Os pedidos Codex usam o prefixo `codex:` no `requestId` interno para o `respond` rotear pelo provedor.

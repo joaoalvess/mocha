@@ -228,6 +228,8 @@ extension SessionHub {
             await run(.prompt(text), agentId: agentId, id: id, clientId: clientId)
         case .interrupt(let agentId):
             await run(.interrupt, agentId: agentId, id: id, clientId: clientId)
+        case .closeAgent(let agentId):
+            await closeAgent(agentId, id: id, clientId: clientId)
         case .setForeground(let agentId, let isActive):
             var resolved: AgentID?
             if let agentId {
@@ -303,6 +305,26 @@ extension SessionHub {
             case .interrupt:
                 try await herdr.interrupt(resolved)
             }
+            send(.ack(), id: id, to: clientId)
+        } catch let error as HerdrBridgeError {
+            send(.herdr(error), id: id, to: clientId)
+        } catch {
+            send(.herdrFailed, id: id, to: clientId)
+        }
+    }
+
+    private func closeAgent(_ agentId: AgentID, id: String, clientId: UUID) async {
+        guard await herdr.isAvailable else {
+            send(.herdrUnavailable, id: id, to: clientId)
+            return
+        }
+        let resolved = await herdr.resolve(agentId)
+        guard await herdr.agent(resolved) != nil else {
+            send(.agentNotFound, id: id, to: clientId)
+            return
+        }
+        do {
+            try await herdr.closeAgent(resolved)
             send(.ack(), id: id, to: clientId)
         } catch let error as HerdrBridgeError {
             send(.herdr(error), id: id, to: clientId)

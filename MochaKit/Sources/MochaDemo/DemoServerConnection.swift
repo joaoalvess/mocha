@@ -242,6 +242,8 @@ public actor DemoServerConnection: ServerConnection {
             sendPrompt(agentId: agentId, text: text, id: id)
         case .interrupt(let agentId):
             interrupt(agentId: agentId, id: id)
+        case .closeAgent(let agentId):
+            closeAgent(agentId: agentId, id: id)
         case .setModel(let agentId, let model):
             setModel(agentId: agentId, model: model, id: id)
         case .setEffort(let agentId, let level):
@@ -419,6 +421,16 @@ public actor DemoServerConnection: ServerConnection {
         }
         let now = Date()
         workspaces.updateAgent(withId: agent.id) { $0.archivedAt = now }
+        reply(id, .ack())
+        emitTree()
+    }
+
+    private func closeAgent(agentId: AgentID, id: String) {
+        let current = currentId(for: agentId)
+        guard workspaces.removeAgent(withId: current) else {
+            return fail(id, .agentNotFound, Self.agentNotFoundMessage)
+        }
+        turns[current]?.cancel()
         reply(id, .ack())
         emitTree()
     }

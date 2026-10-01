@@ -5,17 +5,19 @@ import SwiftUI
 struct UsageSheet: View {
     @Bindable var session: AppSession
 
-    static let panelHeight = BottomPanelHeight.fixed(473)
+    static func panelHeight(cardCount: Int) -> BottomPanelHeight {
+        .fixed(473 + CGFloat(max(cardCount - 1, 0)) * 182)
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: HomeSections.refreshInterval)) { context in
-            UsageSheetContent(usage: session.usage, hostName: session.host?.hostName, now: context.date)
+            UsageSheetContent(usages: session.usagesByProvider, hostName: session.host?.hostName, now: context.date)
         }
     }
 }
 
 private struct UsageSheetContent: View {
-    let usage: UsageSnapshot?
+    let usages: [UsageSnapshot]
     let hostName: String?
     let now: Date
 
@@ -27,11 +29,13 @@ private struct UsageSheetContent: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 46)
             }
-            if let usage {
-                UsageCard(usage: usage, hostName: hostName, now: now)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 19.3)
+            VStack(spacing: 12) {
+                ForEach(usages, id: \.provider) { usage in
+                    UsageCard(usage: usage, hostName: hostName, now: now)
+                }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 19.3)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -87,7 +91,7 @@ private struct UsageCard: View {
                     .frame(height: 1)
                 VStack(spacing: 0) {
                     ForEach(windows) { window in
-                        UsageWindowRow(window: window)
+                        UsageWindowRow(window: window, reminder: reminder(for: window))
                     }
                 }
                 .padding(.top, 7.7)
@@ -109,6 +113,13 @@ private struct UsageCard: View {
         .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Palette.toolCard))
     }
 
+    private func reminder(for window: UsageWindowSummary) -> UsageResetBell? {
+        guard window.kind == .fiveHour,
+              let resetsAt = UsageResetReminder.fiveHourReset(of: usage),
+              resetsAt > now else { return nil }
+        return UsageResetBell(provider: usage.provider, resetsAt: resetsAt)
+    }
+
     private var subtitle: String {
         let name = usage.provider == .codex ? "Codex" : "Claude Code"
         guard let hostName else { return name }
@@ -118,15 +129,29 @@ private struct UsageCard: View {
 
 private struct UsageWindowRow: View {
     let window: UsageWindowSummary
+    let reminder: UsageResetBell?
 
     var body: some View {
+        HStack(spacing: 0) {
+            summary
+            Group {
+                if let reminder {
+                    reminder
+                }
+            }
+            .frame(width: 22, alignment: .trailing)
+        }
+        .frame(height: 24)
+    }
+
+    private var summary: some View {
         HStack(spacing: 0) {
             Text(window.label)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Palette.textSecondary)
                 .frame(width: 40.3, alignment: .trailing)
             UsageBar(fraction: window.usedFraction, paceFraction: window.elapsedFraction)
-                .frame(width: 153.7)
+                .frame(width: 131.7)
                 .padding(.leading, 11.7)
             Text(window.percentText)
                 .font(.system(size: 12, design: .monospaced))
@@ -137,7 +162,6 @@ private struct UsageWindowRow: View {
                 .foregroundStyle(Palette.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(height: 24)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Janela de \(window.label)")
         .accessibilityValue(accessibilityValue)
@@ -152,5 +176,26 @@ private struct UsageWindowRow: View {
             parts.append(trend.text)
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+private struct UsageResetBell: View {
+    let provider: AgentProvider
+    let resetsAt: Date
+
+    var body: some View {
+        let isArmed = UsageResetReminder.shared.isArmed(provider)
+        Button {
+            UsageResetReminder.shared.toggle(provider, resetsAt: resetsAt)
+        } label: {
+            Image(systemName: isArmed ? "bell.fill" : "bell")
+                .font(.system(size: 13))
+                .foregroundStyle(isArmed ? Palette.statusOk : Palette.textSecondary)
+                .frame(width: 22, height: 24, alignment: .trailing)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Avisar quando a janela de 5h zerar")
+        .accessibilityValue(isArmed ? "Ligado" : "Desligado")
     }
 }

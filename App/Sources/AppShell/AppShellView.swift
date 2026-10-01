@@ -25,7 +25,7 @@ struct AppShellView: View {
                     }
             }
             DrawerLayer(session: session)
-            BottomPanelLayer(session: session, sheet: .usage, height: UsageSheet.panelHeight) {
+            BottomPanelLayer(session: session, sheet: .usage, height: UsageSheet.panelHeight(cardCount: session.usagesByProvider.count)) {
                 UsageSheet(session: session)
             }
             BottomPanelLayer(session: session, sheet: .webServers, height: WebServersSheet.panelHeight) {

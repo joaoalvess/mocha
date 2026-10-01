@@ -39,19 +39,23 @@ struct StartSectionsTests {
         )
     }
 
-    @Test func activeKeepsOnlyNeedsYouAndWorking() {
-        let sections = HomeSections.make(
+    @Test func openListsEveryLiveAgentWithAttentionFirstThenByActivity() {
+        let cards = StartSections.open(
             agents: [
-                agent("a", status: .blocked),
-                agent("b", status: .working),
-                agent("c", status: .idle),
-                agent("d", status: .idle, lastActivityAgo: 3_600),
+                agent("idle-old", status: .idle, lastActivityAgo: 3_600),
+                agent("working", status: .working, lastActivityAgo: 600),
+                agent("idle-new", status: .idle, lastActivityAgo: 30),
+                agent("blocked", status: .blocked, lastActivityAgo: 900),
+                agent("codex", kind: "codex", status: .done, lastActivityAgo: 120),
+                agent("shell", kind: "shell", status: .idle),
             ],
-            archived: [archived("e", endedAgo: 7_200)],
             now: now
         )
 
-        #expect(StartSections.active(sections).map(\.kind) == [.needsYou, .working])
+        #expect(cards.map(\.target) == [
+            .agent("blocked"), .agent("working"), .agent("idle-new"), .agent("codex"), .agent("idle-old"),
+        ])
+        #expect(cards.last?.state == .archived)
     }
 
     @Test func recentsAreSortedByActivityAndIncludeArchivedSessions() {

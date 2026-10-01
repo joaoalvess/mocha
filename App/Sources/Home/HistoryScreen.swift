@@ -88,7 +88,7 @@ private struct HomeList: View {
                             isOffline: isOffline,
                             open: { session.openChat(card.target) },
                             showDetail: { session.showDetail(card.target) },
-                            archive: archive
+                            leftAction: archiveAction(for: card)
                         )
                         .padding(.horizontal, Metrics.contentMargin)
                         .padding(.bottom, Metrics.homeCardSpacing)
@@ -100,6 +100,18 @@ private struct HomeList: View {
         }
         .scrollIndicators(.hidden)
         .animation(.smooth(duration: 0.3), value: sections)
+    }
+
+    private func archiveAction(for card: HomeCard) -> HomeCardSwipeAction? {
+        guard let sessionId = card.archiveSessionId else { return nil }
+        return HomeCardSwipeAction(
+            title: "Arquivar",
+            systemImage: "archivebox",
+            armedColor: Palette.statusOk,
+            accessibilityName: "Arquivar",
+            dismissesCard: true,
+            perform: { await archive(sessionId, provider: card.provider) }
+        )
     }
 
     private func archive(_ sessionId: String, provider: AgentProvider) async -> Bool {

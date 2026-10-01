@@ -236,26 +236,35 @@ public enum HomeSections {
     }
 }
 
+public enum HomeCardSwipeDirection: Sendable, Hashable {
+    case left
+    case right
+}
+
 public enum HomeCardSwipe {
-    public static let archiveWidthFraction = 0.4
+    public static let actionWidthFraction = 0.4
     public static let projectionTime = 0.2
 
-    public static func begins(velocityX: Double, velocityY: Double) -> Bool {
-        velocityX < 0 && abs(velocityX) > abs(velocityY)
+    public static func begins(velocityX: Double, velocityY: Double, directions: Set<HomeCardSwipeDirection> = [.left]) -> Bool {
+        guard velocityX != 0, abs(velocityX) > abs(velocityY) else { return false }
+        return directions.contains(velocityX < 0 ? .left : .right)
     }
 
-    public static func offset(forTranslation translation: Double) -> Double {
-        min(0, translation)
+    public static func offset(forTranslation translation: Double, directions: Set<HomeCardSwipeDirection> = [.left]) -> Double {
+        let lower = directions.contains(.left) ? -Double.infinity : 0
+        let upper = directions.contains(.right) ? Double.infinity : 0
+        return min(upper, max(lower, translation))
     }
 
-    public static func archives(translation: Double, velocity: Double, width: Double) -> Bool {
-        guard width > 0, translation < 0 else { return false }
+    public static func triggeredDirection(translation: Double, velocity: Double, width: Double) -> HomeCardSwipeDirection? {
+        guard width > 0, translation != 0 else { return nil }
         let projected = translation + velocity * projectionTime
-        return -projected >= width * archiveWidthFraction
+        guard (projected < 0) == (translation < 0), abs(projected) >= width * actionWidthFraction else { return nil }
+        return translation < 0 ? .left : .right
     }
 
-    public static func revealsArchiveAction(offset: Double, width: Double) -> Bool {
-        width > 0 && -offset >= width * archiveWidthFraction
+    public static func revealsAction(offset: Double, width: Double) -> Bool {
+        width > 0 && abs(offset) >= width * actionWidthFraction
     }
 }
 
