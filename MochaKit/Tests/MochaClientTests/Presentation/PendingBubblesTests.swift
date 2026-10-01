@@ -56,8 +56,10 @@ struct PendingBubblesTests {
         var pending = PendingBubbles()
         let first = pending.add("ok", at: Self.sentAt)
         let second = pending.add("ok", at: Self.sentAt.addingTimeInterval(1))
-        let matched = pending.match([Self.prompt("ok")])
-        #expect(matched == [first?.id].compactMap { $0 })
+        let item = Self.prompt("ok")
+        let matched = pending.match([item])
+        #expect(matched.map(\.bubbleId) == [first?.id].compactMap { $0 })
+        #expect(matched.map(\.item) == [item])
         #expect(pending.bubbles.map(\.id) == [second?.id].compactMap { $0 })
     }
 
