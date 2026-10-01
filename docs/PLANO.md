@@ -1224,4 +1224,4 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-X5 | todo | |
 | WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 8b3acb4, 61b989f, merge 7d516ab, 114637b |
 | WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | e09b3b4, 4532880, 39eb843, merge ea93311 |
-| WP-IM3 | todo | |
+| WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
