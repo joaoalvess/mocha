@@ -43,9 +43,10 @@ public actor AgentsActivityTokenSync {
         await flush(resendingAll: false)
     }
 
-    public func forgetActivity(_ activityId: String) {
+    public func forgetActivity(_ activityId: String) async {
         guard book.forgetActivity(activityId) else { return }
         persist()
+        await flush(resendingAll: false)
     }
 
     public func deliverPending() async {

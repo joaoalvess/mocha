@@ -37,7 +37,7 @@ struct ImagePromptSenderTests {
     private static let images = (1...3).map { PromptImage(data: Data([UInt8($0)]), contentType: .jpeg) }
     private static let uploads = "/Users/joao/Library/Application Support/Mocha/uploads"
 
-    @Test func uploadsInOrderThenSendsOnePromptWithTheMarkers() async throws {
+    @Test func uploadsInOrderThenSendsOnePromptWithThePaths() async throws {
         let uploader = ScriptedUploader()
         let recorder = PromptRecorder()
         try await ImagePromptSender.send(text: "compara as telas", images: Self.images, uploader: uploader) { prompt in
@@ -47,9 +47,9 @@ struct ImagePromptSenderTests {
         #expect(recorder.sent == [
             """
             compara as telas
-            [imagem: \(Self.uploads)/1.jpg]
-            [imagem: \(Self.uploads)/2.jpg]
-            [imagem: \(Self.uploads)/3.jpg]
+            \(Self.uploads)/1.jpg
+            \(Self.uploads)/2.jpg
+            \(Self.uploads)/3.jpg
             """,
         ])
     }
@@ -67,7 +67,7 @@ struct ImagePromptSenderTests {
         }
         #expect(recorder.sent == [
             "uploaded \(Self.uploads)/1.jpg,\(Self.uploads)/2.jpg",
-            "olha\n[imagem: \(Self.uploads)/1.jpg]\n[imagem: \(Self.uploads)/2.jpg]",
+            "olha\n\(Self.uploads)/1.jpg\n\(Self.uploads)/2.jpg",
         ])
     }
 

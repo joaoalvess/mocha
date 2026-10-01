@@ -24,7 +24,7 @@ enum ImageMarkers {
     }
 
     static func extract(from text: String, uploadsDirectory: String = ImageMarkers.uploadsDirectory) -> Extraction {
-        guard text.contains(prefix) else { return Extraction(text: text, paths: []) }
+        guard text.contains(prefix) || text.contains(uploadsDirectory) else { return Extraction(text: text, paths: []) }
         var kept: [Substring] = []
         var paths: [String] = []
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -42,8 +42,8 @@ enum ImageMarkers {
     }
 
     private static func markerPath(_ line: Substring, uploadsDirectory: String) -> Substring? {
-        guard line.hasPrefix(prefix), line.hasSuffix(suffix) else { return nil }
-        let path = line.dropFirst(prefix.count).dropLast(suffix.count)
+        let isBracketed = line.hasPrefix(prefix) && line.hasSuffix(suffix)
+        let path = isBracketed ? line.dropFirst(prefix.count).dropLast(suffix.count) : line
         guard path.hasPrefix(uploadsDirectory) else { return nil }
         let isInside = path.dropFirst(uploadsDirectory.count)
             .split(separator: "/", omittingEmptySubsequences: false)

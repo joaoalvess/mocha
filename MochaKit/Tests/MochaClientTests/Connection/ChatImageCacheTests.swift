@@ -72,6 +72,22 @@ struct ChatImageCacheTests {
         #expect(loader.requested.isEmpty)
     }
 
+    @Test func seedingAListPairsPathsAndImagesInOrder() throws {
+        let cache = ChatImageCache(loader: CountingImageLoader())
+        let images = try [TestImages.image(width: 12, height: 9), TestImages.image(width: 9, height: 12)]
+        cache.seed(paths: ["/cache/a.jpg", "/cache/b.png"], images: images, maxPixelSize: ChatImageCache.thumbnailPixelSize)
+        #expect(cache.image(for: "/cache/a.jpg", maxPixelSize: ChatImageCache.thumbnailPixelSize) === images[0])
+        #expect(cache.image(for: "/cache/b.png", maxPixelSize: ChatImageCache.thumbnailPixelSize) === images[1])
+    }
+
+    @Test func seedingAListWithDifferentCountsStoresNothing() throws {
+        let cache = ChatImageCache(loader: CountingImageLoader())
+        let image = try TestImages.image(width: 12, height: 9)
+        cache.seed(paths: ["/cache/a.jpg", "/cache/b.png"], images: [image], maxPixelSize: ChatImageCache.thumbnailPixelSize)
+        #expect(cache.image(for: "/cache/a.jpg", maxPixelSize: ChatImageCache.thumbnailPixelSize) == nil)
+        #expect(cache.totalCost == 0)
+    }
+
     @Test func evictsTheLeastRecentlyUsedByBytes() throws {
         let images = try (0..<3).map { _ in try TestImages.image(width: 16, height: 16) }
         let cost = ChatImageCache.cost(of: images[0])

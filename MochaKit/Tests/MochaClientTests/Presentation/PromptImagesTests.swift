@@ -4,7 +4,7 @@ import Testing
 struct PromptImagesTests {
     private static let uploads = "/Users/joao/Library/Application Support/Mocha/uploads"
 
-    @Test func promptPutsTheTextFirstAndOneMarkerLinePerImageInOrder() {
+    @Test func promptPutsTheTextFirstAndOnePathLinePerImageInOrder() {
         let text = PromptImages.promptText(
             "o que tem de errado\nnessa tela?",
             imagePaths: ["\(Self.uploads)/a.jpg", "\(Self.uploads)/b.jpg", "\(Self.uploads)/c.jpg"]
@@ -12,15 +12,15 @@ struct PromptImagesTests {
         #expect(text == """
         o que tem de errado
         nessa tela?
-        [imagem: \(Self.uploads)/a.jpg]
-        [imagem: \(Self.uploads)/b.jpg]
-        [imagem: \(Self.uploads)/c.jpg]
+        \(Self.uploads)/a.jpg
+        \(Self.uploads)/b.jpg
+        \(Self.uploads)/c.jpg
         """)
     }
 
-    @Test func promptWithoutTextIsOnlyTheMarkers() {
+    @Test func promptWithoutTextIsOnlyThePaths() {
         let text = PromptImages.promptText("", imagePaths: ["\(Self.uploads)/a.jpg", "\(Self.uploads)/b.jpg"])
-        #expect(text == "[imagem: \(Self.uploads)/a.jpg]\n[imagem: \(Self.uploads)/b.jpg]")
+        #expect(text == "\(Self.uploads)/a.jpg\n\(Self.uploads)/b.jpg")
     }
 
     @Test func promptWithoutImagesIsTheTextUnchanged() {

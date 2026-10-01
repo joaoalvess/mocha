@@ -82,6 +82,18 @@ struct SessionHubLiveActivityTests {
         }
     }
 
+    @Test func savedPreferencesReachTheLiveActivityService() async throws {
+        try await withHub { harness in
+            let registrar = FakeLiveActivityRegistrar()
+            await harness.hub.attachLiveActivity(registrar)
+            let (socket, helloOk) = try await harness.pairedClient()
+
+            #expect(try await socket.reply(to: .setPreferences(DevicePreferences(turnDoneAlerts: false)), id: "c-1") == .ack())
+            _ = try await eventually { registrar.preferences.isEmpty ? nil : true }
+            #expect(registrar.preferences == [helloOk.deviceId: DevicePreferences(turnDoneAlerts: false)])
+        }
+    }
+
     @Test func withoutTheServiceTheRequestIsAnInternalError() async throws {
         try await withHub { harness in
             let (socket, _) = try await harness.pairedClient()
@@ -121,14 +133,18 @@ struct SessionHubLiveActivityTests {
                 return input
             }
             #expect(working.foregroundDevices == [helloOk.deviceId])
+            #expect(working.foregroundAgents == [helloOk.deviceId: "w1:p1"])
             #expect(working.agents.map(\.id) == ["w1:p1", "w1:p2"])
             #expect(working.prompts == ["w1:p1": "Faz dnv"])
 
             #expect(try await reply(socket, to: .setForeground(agentId: nil, isActive: false), id: "c-2") == .ack())
             _ = try await eventually { recorder.input?.foregroundDevices.isEmpty == true ? true : nil }
 
+            #expect(recorder.input?.foregroundAgents.isEmpty == true)
+
             #expect(try await reply(socket, to: .setForeground(agentId: nil, isActive: true), id: "c-3") == .ack())
             _ = try await eventually { recorder.input?.foregroundDevices == [helloOk.deviceId] ? true : nil }
+            #expect(recorder.input?.foregroundAgents.isEmpty == true)
             socket.disconnect()
             _ = try await eventually { recorder.input?.foregroundDevices.isEmpty == true ? true : nil }
         }

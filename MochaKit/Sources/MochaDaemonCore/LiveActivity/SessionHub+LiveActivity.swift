@@ -23,8 +23,10 @@ extension SessionHub {
                 agents: agents,
                 pending: pendingRequests,
                 foregroundDevices: activeDevices(),
+                foregroundAgents: foregroundAgents(),
                 prompts: prompts(of: agents),
-                decisions: pendingDecisions
+                decisions: pendingDecisions,
+                herdrStatuses: Dictionary(TreeComposer.agents(in: baseTree).map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
             )
         )
     }
@@ -58,6 +60,16 @@ extension SessionHub {
             }
         }
         return prompts
+    }
+
+    private func foregroundAgents() -> [DeviceID: AgentID] {
+        var agents: [DeviceID: AgentID] = [:]
+        for client in clients.values where !client.isClosing && client.foreground?.isActive == true {
+            if let deviceId = client.deviceId, let agentId = client.foreground?.agentId {
+                agents[deviceId] = agentId
+            }
+        }
+        return agents
     }
 
     private func activeDevices() -> Set<DeviceID> {

@@ -81,8 +81,16 @@ struct SettingsScreen: View {
                 }
                 .toggleStyle(SettingsSwitchStyle())
                 .disabled(!canChangePreferences)
+                Toggle(isOn: silenceWhileAtMacBinding) {
+                    Text("Silenciar enquanto uso o Mac")
+                        .systemText(.sheetRowLabel)
+                        .foregroundStyle(Palette.textPrimary)
+                        .lineLimit(1)
+                }
+                .toggleStyle(SettingsSwitchStyle())
+                .disabled(!canChangePreferences)
             }
-            SheetFootnote(text: Text("Avisa quando o Claude ou o Codex termina um turno e o chat dele não está aberto. Pedidos de aprovação sempre avisam."))
+            SheetFootnote(text: Text("Turno concluído avisa quando o Claude ou o Codex termina e o chat dele não está aberto; pedidos de aprovação sempre avisam. Com o Mac desbloqueado, os avisos ficam em silêncio, e ao bloquear toca o mais urgente."))
         }
     }
 
@@ -144,6 +152,15 @@ struct SettingsScreen: View {
             get: { session.preferences?.turnDoneAlerts ?? DevicePreferences().turnDoneAlerts },
             set: { isOn in
                 Task { try? await session.setTurnDoneAlerts(isOn) }
+            }
+        )
+    }
+
+    private var silenceWhileAtMacBinding: Binding<Bool> {
+        Binding(
+            get: { session.preferences?.silenceWhileAtMac ?? DevicePreferences().silenceWhileAtMac },
+            set: { isOn in
+                Task { try? await session.setSilenceWhileAtMac(isOn) }
             }
         )
     }

@@ -13,6 +13,20 @@ import Testing
         #expect(prompt.imagePaths == ["\(uploads)/a.jpg", "\(uploads)/b.jpg"])
     }
 
+    @Test func pathLinesLeaveTheTextAndCountAsImages() {
+        let prompt = DemoImageMarkers.split("olha esses prints\n\(uploads)/a.jpg\n\(uploads)/b.jpg")
+        #expect(prompt.text == "olha esses prints")
+        #expect(prompt.imageCount == 2)
+        #expect(prompt.imagePaths == ["\(uploads)/a.jpg", "\(uploads)/b.jpg"])
+    }
+
+    @Test func pathOutsideTheUploadsOrInsideASentenceStaysInTheText() {
+        let text = "/tmp/a.jpg\nveja \(uploads)/a.jpg"
+        let prompt = DemoImageMarkers.split(text)
+        #expect(prompt.text == text)
+        #expect(prompt.imageCount == 0)
+    }
+
     @Test func promptWithOnlyMarkersBecomesEmpty() {
         let prompt = DemoImageMarkers.split("[imagem: \(uploads)/a.jpg]")
         #expect(prompt.text.isEmpty)
@@ -35,7 +49,7 @@ import Testing
         try await harness.connect()
         _ = try await harness.page("w1:p1")
 
-        _ = try await harness.request(.sendPrompt(agentId: "w1:p1", text: "olha\n[imagem: \(uploads)/a.jpg]"))
+        _ = try await harness.request(.sendPrompt(agentId: "w1:p1", text: "olha\n\(uploads)/a.jpg"))
 
         let echo = try await harness.messages.next()
         guard case .chatAppend(.agent("w1:p1"), let echoed) = echo.message else { throw UnexpectedMessage(envelope: echo) }

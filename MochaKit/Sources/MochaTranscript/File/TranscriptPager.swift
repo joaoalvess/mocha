@@ -18,15 +18,28 @@ public struct TranscriptPageSlice: Sendable, Equatable {
 struct ParsedLineCache {
     private var lines: [Int: ParsedLine] = [:]
     private var locator: ForkBoundaryLocator
+    var imageStore: TranscriptImageStore? {
+        didSet {
+            if imageStore != oldValue {
+                lines.removeAll()
+            }
+        }
+    }
 
-    init(mode: TranscriptParseMode = .main) {
+    init(mode: TranscriptParseMode = .main, imageStore: TranscriptImageStore? = nil) {
         locator = ForkBoundaryLocator(mode)
+        self.imageStore = imageStore
     }
 
     mutating func line(_ index: Int, in file: TranscriptFile) throws(TranscriptFileError) -> ParsedLine {
         if let cached = lines[index] { return cached }
         let mode = try locator.mode(forLine: index, in: file)
-        let parsed = TranscriptLineParser.parse(try file.lineBytes(at: index), offset: file.lineOffsets[index], mode: mode)
+        let parsed = TranscriptLineParser.parse(
+            try file.lineBytes(at: index),
+            offset: file.lineOffsets[index],
+            mode: mode,
+            imageStore: imageStore
+        )
         lines[index] = parsed
         return parsed
     }

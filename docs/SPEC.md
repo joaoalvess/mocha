@@ -53,6 +53,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Ditado por voz on-device | 1b |
 | Anexar imagem ao prompt | 1a-core |
 | Fotos enviadas e imagens do Claude (`Read` e caminhos citados) como miniaturas no chat, com tela cheia, zoom e compartilhar | imagens |
+| Foto do app como anexo nativo do Claude (`[Image #N]`), e miniatura também para a imagem colada direto no terminal | imagens-nativas |
 | Abrir nova tab com Claude num workspace existente | 1a-final |
 | Card vivo de cada subagente (`Agent`) no chat, que abre o transcript do subagente só de leitura | subagentes |
 | Selo de subagentes rodando no card da Home e lista de subagentes no Detalhe do agente | subagentes |
@@ -337,9 +338,25 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 | `system`, outro `subtype` | — | ignorado e contado |
 | outro `type` | — | ignorado e contado |
 
-**Marcadores de imagem do Mocha** (§6.5): no texto de todo `userPrompt` (content string, blocos `text` ou `prompt` do `queued_command`), cada linha que é exatamente `[imagem: <caminho>]`, com `<caminho>` absoluto dentro de `~/Library/Application Support/Mocha/uploads/`, sai do `text`, soma 1 no `imageCount` e põe o caminho no `imagePaths` do item, na ordem (fase imagens). As linhas vazias que sobram no fim do texto são aparadas. Um marcador com caminho fora de `uploads/` fica no texto.
+**Marcadores de imagem do Mocha** (§6.5): no texto de todo `userPrompt` (content string, blocos `text` ou `prompt` do `queued_command`), cada linha que é exatamente `[imagem: <caminho>]` ou, desde a fase imagens-nativas, só `<caminho>` (o plano B quando o Claude Code não troca o caminho por anexo, §6.5), com `<caminho>` absoluto dentro de `~/Library/Application Support/Mocha/uploads/`, sai do `text`, soma 1 no `imageCount` e põe o caminho no `imagePaths` do item, na ordem (fase imagens). As linhas vazias que sobram no fim do texto são aparadas. Um marcador com caminho fora de `uploads/` fica no texto.
 
 **Texto colado** (`PastedContent`, `MochaTranscript`): o Claude Code grava o texto colado de várias linhas, inclusive o que o Mocha envia pelo Herdr, entre uma linha `<pasted_content id="…">` e uma `</pasted_content id="…">`. Antes dos marcadores, as linhas que são só uma dessas tags saem do texto do `userPrompt`, e as quebras de linha que sobram nas pontas são aparadas. Assim a bolha definitiva tem o mesmo texto da pendente. Uma tag no meio de uma linha fica.
+
+**Anexos colados** (fase imagens-nativas, S10): quando o texto colado tem uma linha que é só o caminho de uma imagem que existe (ou vários caminhos separados por espaço), o Claude Code troca o caminho por um anexo. Caminho no meio de frase e arquivo inexistente ficam no texto. A linha `user` ganha `imagePasteIds` (ids da sessão, na ordem; eles avançam até em colagens apagadas, então o número nunca é uma contagem), um `[Image #N]` por id no texto e um bloco `image` (`source.type` `base64`) por anexo, na mesma ordem. A imagem já vem reduzida para no máximo 2000 px no lado maior. A imagem colada direto no terminal tem a mesma forma. Exemplos reais:
+- `"[Image #17] [Image #18] [Image #19]Compara as três em 10 palavras"`: os chips vêm no começo, sem espaço antes do texto;
+- `"[Image #24]\n\n<pasted_content id=\"e292\">\nlinha 1\n…\n</pasted_content id=\"e292\">\n"`: com 4 linhas de texto ou mais, os chips vêm antes do texto colado.
+
+Regras do parser para o `userPrompt`:
+- Texto: saem primeiro os `[Image #N]` cujo `N` está em `imagePasteIds`, com o espaço que vem logo depois; depois as tags do texto colado (`PastedContent`); depois os marcadores. As pontas são aparadas. Um `[Image #N]` fora de `imagePasteIds` fica.
+- `imageCount`: blocos `image` mais marcadores, como antes.
+- `imagePaths`: um caminho por bloco `image` com `media_type` `image/png`, `image/jpeg`, `image/gif` ou `image/webp`, na ordem dos blocos, seguido dos caminhos dos marcadores. O caminho é o arquivo do bloco no cache de imagens do transcript (abaixo). Um bloco de outro tipo, ou lido sem cache, não gera caminho e fica no "📎".
+- A linha seguinte, com `isMeta` e `turnCompanion`, traz um `[Image: source: <caminho>]` por anexo e continua ignorada. Na imagem colada no terminal, esse caminho aponta para um cache do Claude Code (`~/.claude/image-cache/<sessão>/N.png`) que é apagado, e não serve de fonte.
+- Mensagem na fila: o `queue-operation` `enqueue` tem só o texto com o chip. O bloco `image` chega quando a mensagem sai da fila, numa linha `user` com `promptSource: "queued"`. Nas versões 2.1.258 e 2.1.268, a mensagem humana anexada no meio do turno (`queued_command`) traz o `imagePasteIds` dentro do `attachment`, com o prompt em blocos `text` e `image`; o parser lê o campo da raiz da linha ou do `attachment` (WP-IN1).
+
+**Cache de imagens do transcript** (`TranscriptImageStore`, `MochaTranscript`, fase imagens-nativas): o parser recebe um store opcional, que passa por `SequentialLineParser`, `TranscriptFollower`, `TranscriptPager` e `TranscriptDocument` com padrão `nil`.
+- Sem store (censo, varredura da home e testes), nada é gravado e o bloco não gera caminho.
+- Com store, cada bloco vira o arquivo `<diretório>/<SHA-256 do base64 em hex>.<ext>` (`png`, `jpg`, `gif` ou `webp`, pelo `media_type`). O arquivo é gravado só quando falta (atômico, 0600; diretório 0700), e a data de modificação é renovada quando ele já existe. O base64 nunca fica no `ChatItem`.
+- O daemon passa o store (`~/Library/Caches/com.joaoalves.mocha/transcript-images/`, §4) só nas leituras que geram itens de chat para o app, e assim só as conversas abertas gravam imagens. O `TranscriptProviding` tem um `openChat`, usado pelo `SessionHubChats`, e o acompanhamento da sessão só liga o store enquanto há assinante de chat. Abrir um chat grava as imagens das últimas 256 linhas e das 64 linhas de contexto de cada página; uma página antiga (`page(before:)`) sempre usa o store. A varredura da home, o resumo, a home ao vivo e as pendências não gravam. Apagar um arquivo não perde nada: a próxima leitura do chat o recria a partir do transcript.
 
 **Imagens do Claude** (fase imagens, §6.5): o `imagePaths` (§5.2) recebe o que o Claude abriu ou citou:
 - **`Read` de imagem**: um `toolCall` de `Read` cujo `file_path` é absoluto, termina numa extensão de imagem e não fica em `uploads/` ganha `imagePaths = [file_path]`. Do `uploads/` fica de fora porque essa foto já aparece na bolha do usuário.
@@ -920,6 +937,7 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 | `~/Library/Application Support/Mocha/sessions.json` | Sessões arquivadas e arquivamentos do usuário (§4.9). Permissão 0600 |
 | `~/Library/Application Support/Mocha/mochad.sock` | Canal local (§4.8). Permissão 0600 |
 | `~/Library/Application Support/Mocha/uploads/` | Imagens recebidas (0700; arquivos 0600). Apagadas depois de 7 dias, na subida do daemon e a cada 6 h |
+| `~/Library/Caches/com.joaoalves.mocha/transcript-images/` | Imagens coladas extraídas do transcript (fase imagens-nativas, §3.2), uma por hash (0700; arquivos 0600). Gravar o arquivo, achá-lo já gravado ou servi-lo pela `/v1/image` renova a data de modificação. Na subida do daemon e a cada 6 h, saem as sem uso há 7 dias e, se o total passar de 200 MB, as de uso mais antigo até ficar abaixo |
 | `~/Library/Logs/Mocha/mochad.log` | stdout/stderr do LaunchAgent |
 | Keychain (login), serviço `com.joaoalves.mocha.apns`, conta = Key ID | Conteúdo da `.p8` (senha genérica). O ACL confia no binário que criou o item pelo requisito de assinatura, e a lista de partição recebe `teamid:<TEAM>` |
 
@@ -978,7 +996,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
   "createdAt": "ISO-8601",
   "lastSeenAt": "ISO-8601",
   "apns": {"token": "hex", "env": "sandbox|production"},
-  "preferences": {"turnDoneAlerts": true},
+  "preferences": {"turnDoneAlerts": true, "silenceWhileAtMac": true},
   "liveActivity": {"pushToStartToken": "hex", "activityId": "…", "updateToken": "hex", "env": "sandbox|production"}
 }]
 ```
@@ -1053,6 +1071,7 @@ public struct ApnsRegistration: Codable, Sendable {
 
 public struct DevicePreferences: Codable, Sendable {
     public var turnDoneAlerts: Bool        // padrão true
+    public var silenceWhileAtMac: Bool     // padrão true (fase alertas); ausente no JSON = true
 }
 
 public struct HostInfo: Codable, Sendable {
@@ -1310,7 +1329,7 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - **`ChatTarget`** é achatado no payload que o carrega: `.agent(id)` vira `"agentId": id`, `.session(id)` vira `"sessionId": id`, e `.subagent(sessionId, agentId)` vira `"sessionId": sessionId, "subagentId": agentId`. Na decodificação, exatamente um entre `agentId` e `sessionId` precisa existir, e `subagentId` só vale junto com `sessionId`; os dois, nenhum, ou `subagentId` sem `sessionId` é erro de decodificação.
 - `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `AgentSummary.preview` e `AgentSummary.activity` inválidos (autor ou status desconhecido) decodificam como `nil`, sem derrubar a árvore. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
 - `SubagentStatus`, `WorkflowStatus` e `WorkflowPhaseStatus` com valor desconhecido são erro de decodificação do item que os carrega (o item sai da lista tolerante). `ChatMeta.subagent` inválido decodifica como `nil`.
-- `ChatItem.imagePaths` (fase imagens) vai no mesmo nível de `id` e `at`, só quando não está vazio, e decodifica como `[]` quando falta. Ele guarda os uploads do `userPrompt` (o `imageCount` continua sendo o total, inclusive as imagens sem arquivo), os caminhos citados num `assistantText` e o `file_path` de um `toolCall` de `Read` de imagem. Os caminhos que o app recebe existem no Mac no momento do envio (§3.2). O campo é aditivo: um app antigo o ignora.
+- `ChatItem.imagePaths` (fase imagens) vai no mesmo nível de `id` e `at`, só quando não está vazio, e decodifica como `[]` quando falta. Ele guarda as imagens do `userPrompt` (desde a fase imagens-nativas, os arquivos do cache de imagens do transcript e, no histórico e no plano B, os uploads; o `imageCount` continua sendo o total, inclusive as imagens sem arquivo), os caminhos citados num `assistantText` e o `file_path` de um `toolCall` de `Read` de imagem. Os caminhos que o app recebe existem no Mac no momento do envio (§3.2). O campo é aditivo: um app antigo o ignora.
 - O caso `plan` (codex-paridade) é aditivo e leva `markdown`, como o `assistantText`. Um app antigo o recebe como `unsupported`.
 - Os campos e casos da fase subagentes são aditivos e o `v` continua 1: um app antigo recebe `subagent`, `workflow` e `task` como `unsupported`, e ignora `runningSubagents`, `ChatMeta.subagent` e a mensagem `subagentList`. O contrário não é suportado: o app da fase exige o `mochad` da mesma fase, e os dois sobem juntos.
 
@@ -1382,7 +1401,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
-| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
+| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment, endedActivityId?: String}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5). `endedActivityId` avisa que aquela atividade acabou no aparelho (dispensada ou encerrada, §7.5) | 1b; `endedActivityId` na fase alertas |
 | `listWebServers` | `{}` | `webServers` (§9.3) | preview-web |
 | `setModel` | `{agentId, model: String}`: no Claude, `"opus" \| "sonnet" \| "haiku" \| "fable"`; no Codex, um `id` do `models` | `ack{}` | controles (Codex: codex-paridade) |
 | `setEffort` | `{agentId, level: String}`: no Claude, `"low" \| "medium" \| "high" \| "xhigh" \| "max"`; no Codex, um `level` do modelo atual no `models` | `ack{}` | controles (Codex: codex-paridade) |
@@ -1488,7 +1507,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `GET /v1` (upgrade) | WebSocket | 1a-core |
 | `POST /v1/respond` | Corpo `{requestId, response}` (mesmo JSON de §5.2.1). Usado pelas ações de notificação sem abrir o app. 200 com `{}`, 404 se o pedido não existe mais | 1b |
 | `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta 200 `UploadResponse` (`{"path": "/Users/…/uploads/<uuid>.<ext>"}`, `MochaProtocol`). Erros: 401 sem Bearer válido, 411 sem `Content-Length`, 413 acima de 20 MiB (o `HttpServer` barra antes do handler, então vem antes do 401), 415 com outro `Content-Type`, 400 com corpo vazio. O arquivo é gravado atômico com 0600 em `uploads/` (0700), com nome UUID gerado pelo daemon e extensão pelo `Content-Type` (`jpg`, `png`, `heic`) | 1a-core |
-| `GET /v1/image?path=<caminho>&max=<px>` | Imagem do Mac para o chat (§6.5). `path` é absoluto (percent-encoded na query); `max` é o lado maior em pixels, de 64 a 4.096, padrão 2.048. A imagem é sempre reencodada pelo ImageIO, com a orientação aplicada, o lado maior até `min(max, lado maior da origem)` (sem ampliar e sem usar a miniatura EXIF embutida) e no máximo 2 decodificações ao mesmo tempo. Resposta 200 com `Content-Type: image/jpeg` (qualidade 0,85) ou `image/png` quando a imagem tem alfa; os bytes originais nunca saem. Erros, nesta ordem: 401 sem Bearer válido (a rota não atualiza o `lastSeenAt`, para não regravar o `devices.json` a cada miniatura); 400 com `path` ausente, relativo, com NUL ou com segmento `.`/`..`, ou `max` fora do intervalo; 415 com extensão fora de `png`, `jpg`, `jpeg`, `gif`, `webp`, `heic`, `heif` (antes de olhar o disco, para a rota não revelar se existe um arquivo que não é imagem); 404 se `path` não é arquivo regular ou não pode ser lido (inclusive EPERM); 413 com origem acima de 50 MiB; 415 com imagem que o ImageIO não decodifica. Um pedido cancelado enquanto espera vaga de decodificação responde 503 | imagens |
+| `GET /v1/image?path=<caminho>&max=<px>` | Imagem do Mac para o chat (§6.5). `path` é absoluto (percent-encoded na query); `max` é o lado maior em pixels, de 64 a 4.096, padrão 2.048. A imagem é sempre reencodada pelo ImageIO, com a orientação aplicada, o lado maior até `min(max, lado maior da origem)` (sem ampliar e sem usar a miniatura EXIF embutida) e no máximo 2 decodificações ao mesmo tempo. Resposta 200 com `Content-Type: image/jpeg` (qualidade 0,85) ou `image/png` quando a imagem tem alfa; os bytes originais nunca saem. Erros, nesta ordem: 401 sem Bearer válido (a rota não atualiza o `lastSeenAt`, para não regravar o `devices.json` a cada miniatura); 400 com `path` ausente, relativo, com NUL ou com segmento `.`/`..`, ou `max` fora do intervalo; 415 com extensão fora de `png`, `jpg`, `jpeg`, `gif`, `webp`, `heic`, `heif` (antes de olhar o disco, para a rota não revelar se existe um arquivo que não é imagem); 404 se `path` não é arquivo regular ou não pode ser lido (inclusive EPERM); 413 com origem acima de 50 MiB; 415 com imagem que o ImageIO não decodifica. Um pedido cancelado enquanto espera vaga de decodificação responde 503. Um 200 de um arquivo do `transcript-images/` renova a data de modificação dele (fase imagens-nativas, §4) | imagens |
 | `POST /v1/live-activity` | Corpo `LiveActivityRegistration` (mesmo JSON do `registerLiveActivity`), com `Authorization: Bearer`. Usado pelo app acordado em background por push-to-start, sem WebSocket aberto, para entregar o token de update da atividade nova. 200 com `{}` | 1b |
 
 ---
@@ -1760,7 +1779,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Ajustes** (`12-ajustes`)
 - Folha aberta pela engrenagem da Início.
-- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com o controle "Turno concluído" (`setPreferences`, 1a-final; volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
+- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com os controles "Turno concluído" e "Silenciar enquanto uso o Mac" (fase alertas, ligado por padrão, §7.7) (`setPreferences`, 1a-final; cada um volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
 
 **Inbox** (1b, `13-inbox`)
 - Sino na cápsula da Início, com a contagem. Abre um painel próprio (`BottomPanelLayer`) colado às bordas e na altura do conteúdo, como o Uso e a Nova sessão.
@@ -1820,15 +1839,15 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 ### §6.5 Imagem (1a-core)
 
 - O `+` do composer abre um menu no mesmo estilo do painel `↻` (§6.3) com "Fotos" (`PhotosPicker`, várias de uma vez, na ordem de seleção), "Câmera" (`UIImagePickerController`; some quando não há câmera) e "Áudio" (inicia o ditado). "Colar imagem" saiu na fase controles.
-- Até 5 imagens por prompt. Cada uma é reduzida para no máximo 2.048 px no lado maior e vira JPEG com qualidade 0,85, mantendo a orientação.
+- Até 5 imagens por prompt. Cada uma é reduzida para no máximo 2.000 px no lado maior (fase imagens-nativas; antes, 2.048 px) e vira JPEG com qualidade 0,85, mantendo a orientação. 2.000 px é o limite do Claude Code, que assim não redimensiona a foto de novo; ele ainda recomprime o JPEG (2000×1500: 593.055 → 501.246 bytes, WP-IN1).
 - As imagens anexadas aparecem como miniaturas quadradas numa faixa acima do campo, cada uma com um "x" para remover. Com imagem anexada, enviar fica habilitado mesmo sem texto.
-- Ao enviar: cada imagem vai por `POST /v1/upload` (§5.5), em sequência, com `Authorization: Bearer <deviceToken>` e a base `https://<host do pareamento>`. Depois de todos os uploads, o app manda um `sendPrompt` com o texto do campo seguido de uma linha `[imagem: <path>]` por imagem, na ordem das miniaturas. O Claude Code lê a imagem pelo caminho.
+- Ao enviar: cada imagem vai por `POST /v1/upload` (§5.5), em sequência, com `Authorization: Bearer <deviceToken>` e a base `https://<host do pareamento>`. Depois de todos os uploads, o app manda um `sendPrompt` com o texto do campo seguido de uma linha com o `path` devolvido por imagem, na ordem das miniaturas (fase imagens-nativas; antes, `[imagem: <path>]`). O `agent.prompt` do Herdr cola o texto, e o Claude Code troca cada uma dessas linhas por um anexo `[Image #N]` (§3.2, S10). Se não trocar, o caminho fica no texto, o daemon o trata como marcador e o Claude ainda pode abrir o arquivo com `Read`.
 - Se um upload falhar, nada é enviado: o texto e as miniaturas ficam no composer e o erro aparece como na falha de `sendPrompt`.
-- A bolha do usuário (pendente e definitiva) mostra o texto sem os marcadores. O daemon tira os marcadores do texto pela regra da §3.2. Na 1a-core, as imagens viravam só uma linha "📎 1 imagem" ou "📎 N imagens"; a fase imagens trocou essa linha pelas miniaturas abaixo.
+- A bolha do usuário (pendente e definitiva) mostra o texto sem os marcadores e sem os `[Image #N]`. O daemon tira os dois do texto pela regra da §3.2. Na 1a-core, as imagens viravam só uma linha "📎 1 imagem" ou "📎 N imagens"; a fase imagens trocou essa linha pelas miniaturas abaixo.
 
 **Imagens no chat (fase imagens)**: sem mock nem capturas, por decisão do João. A referência são os prints do Moshi em `docs/referencias/moshi/` e os componentes existentes, e a conferência é no iPhone.
-- **Bolha do usuário**: as imagens do `imagePaths` (§5.2) aparecem como miniaturas acima do balão, na mesma linha da bolha, alinhadas à direita. O balão aparece com texto ou com imagens sem arquivo (`imageCount - imagePaths.count > 0`); essas continuam na linha "📎 N imagens" (coladas no terminal, uploads com mais de 7 dias).
-- **Bolha pendente**: mostra as miniaturas locais (600 px, geradas fora da main thread no envio). Logo depois dos uploads, antes do `sendPrompt`, o app guarda essas miniaturas no cache de imagens pelo caminho devolvido pelo upload, e a bolha definitiva aparece sem piscar.
+- **Bolha do usuário**: as imagens do `imagePaths` (§5.2) aparecem como miniaturas acima do balão, na mesma linha da bolha, alinhadas à direita. O balão aparece com texto ou com imagens sem arquivo (`imageCount - imagePaths.count > 0`); essas continuam na linha "📎 N imagens" (blocos de tipo sem suporte e uploads antigos com mais de 7 dias). Desde a fase imagens-nativas, a imagem colada direto no terminal também tem miniatura.
+- **Bolha pendente**: mostra as miniaturas locais (600 px, geradas fora da main thread no envio). Logo depois dos uploads, antes do `sendPrompt`, o app guarda essas miniaturas no cache de imagens pelo caminho devolvido pelo upload (o caminho do plano B). Desde a fase imagens-nativas, o caminho da bolha definitiva é o do cache do transcript. Por isso, quando a pendente casa com o `userPrompt` definitivo, o app guarda as mesmas miniaturas pelos caminhos do `imagePaths` do item, na ordem, na mesma atualização que troca a bolha, e a definitiva aparece sem piscar.
 - **Imagens do Claude**: um `Read` de imagem mostra uma faixa de miniaturas, sempre visível, abaixo do card do grupo de ferramentas, alinhada à esquerda e fora da área de toque do card. Um `assistantText` com imagens mostra a mesma faixa abaixo do último pedaço do texto. As miniaturas ficam dentro das linhas que já existem, sem linha nova no chat.
 - **Uma vez por turno**: entre um `userPrompt` e o próximo, cada caminho aparece só na primeira vez. O upload citado pelo Claude e o print lido e depois citado não se repetem.
 - **Miniatura**: quadrado de tamanho fixo, com fundo `toolCard`, raio contínuo de 12 pt e a imagem em `scaledToFill`. 1 imagem fica num quadrado de 200 pt; de 2 em diante, quadrados de 96 pt em linhas de até 3. Enquanto carrega, aparece um `ProgressView`; se falhar, o ícone `photo` em cinza.
@@ -1856,7 +1875,12 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 - **Tipos**:
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown (`PlainText.preview(fromMarkdown:)`, §3.2.2). `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
-- **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
+- **Supressão**:
+  - nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X;
+  - os alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem;
+  - **fase alertas**: nenhum alerta para um aparelho com card da §7.5 e token de update conhecido. Quem decide é o estado do card em memória (`cardDevices()`), lido quando o alerta sai (na chegada do hook; no turno concluído, depois da espera); o card cuida do alerta;
+  - o turno concluído espera 5 s depois do `Stop` (ou do fim de turno do Codex) e só sai se o agente não voltou a `working`/`blocked` nem tem pedido;
+  - **presença (fase alertas, §7.7)**: com `silenceWhileAtMac` ligado e o Mac desbloqueado, o alerta não sai; ele fica guardado como silenciado. Ao bloquear o Mac, sai um alerta só, o mais urgente ainda não visto, com validade nova.
 - **Deduplicação**: um alerta de "precisa de você" por pedido, contado por `agentId`. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do último alerta de "precisa de você" do agente, o `blocked` do Herdr e o `Notification` `permission_prompt` desse agente não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo. O `blocked` do Herdr só alerta na transição para `blocked`, só em agente Claude e depois de 1 s ainda `blocked`, para o `PermissionRequest` do mesmo diálogo chegar antes. Os outros tipos de `Notification` não geram alerta. Os sinais secundários usam um corpo fixo em português, porque a mensagem do Claude vem em inglês; sem workspace conhecido, o título sai sem " · <workspace>".
 - **Payload**: `{"aps":{"alert":{"title","body"},"sound":"default","thread-id","category","interruption-level"?},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…","sentAt":<ms Unix>}`. O `sentAt` serve para diagnóstico de atraso. Payload ≤ 4 KB.
 - **Respostas**:
@@ -1983,9 +2007,12 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
 
 - **Tipo**: `MochaFeedAttributes` (`MochaProtocol`, só iOS), sem atributos estáticos; `attributes-type: "MochaFeedAttributes"` e `attributes: {}` no push-to-start. `ContentState`: `agentId` (o agente em foco) e os campos da `MochaAgentAttributes` (§7.4): `status`, `title`, `workspaceLabel`, `since`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `prompt?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as regras de preenchimento, limites e orçamentos da §7.3. O daemon codifica pelo espelho `LiveActivityContentState` com o `agentId`.
 - **Uma atividade por aparelho.** O app, ao abrir, encerra as `MochaAgentAttributes` e as `MochaAgentsAttributes` que achar; os dois tipos ficam no protocolo só para isso.
-- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada, entre os agentes Claude e Codex da árvore:
-  1. com pedido pendente em algum agente: o agente do pedido mais antigo (`createdAt`, depois `id`). O pedido segura o card até ser resolvido;
-  2. senão: o agente com o **evento** mais recente. Evento = a `preview` mudou, o `status` efetivo mudou (inclusive o turno concluído) ou o agente ficou `blocked` sem pedido. Empate: o agente em foco continua; depois o menor `agentId`.
+- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada e por aparelho, entre os agentes Claude e Codex da árvore (ordem da fase alertas):
+  1. com pedido pendente em algum agente: o agente do pedido mais antigo (`createdAt`, depois `id`). O pedido segura o card até ser resolvido; o segundo pedido espera a vez, sem push;
+  2. senão, a **fila de um ciclo**: o alerta mais antigo, sem pedido (turno concluído ou `blocked` sem pedido), que ainda não saiu nesse card e que toca nesse aparelho. Ele ganha o card por um update, com o alerta;
+  3. senão: o agente com o **evento** mais recente. Evento = a `preview` mudou, o `status` efetivo mudou (inclusive o turno concluído) ou o agente ficou `blocked` sem pedido. Empate: o agente em foco continua; depois o menor `agentId`.
+  - O tracker só publica a passagem de `working`/`blocked` para pronto depois de **5 s** ainda pronto, e a passagem para `blocked` sem pedido depois de **1 s**. Assim, um turno que recomeça em menos de 5 s (mensagem na fila do Claude) não gera evento nem alerta, e o pedido que chega em menos de 1 s entra direto como pedido. O `blocked` sem pedido do mesmo agente gera no máximo um alerta a cada 10 s.
+  - O status cru do Herdr (`done` → `idle`, §7.7) nunca conta como evento.
   - Mudança só de `activity`, `prompt`, `model`, `contextLeftPercent` ou `title` atualiza o card quando é do agente em foco, e não puxa o foco.
   - Um agente que some da árvore perde o foco; sem nenhum agente, o card mantém o último estado até o fim.
 - **Card**: o da §7.4 para o agente em foco, sem contagem de outros agentes. `widgetURL` e o botão "Abrir" = deep link do `agentId` do estado. `relevance-score` pelo `status` do agente em foco. Ajustes de 2026-09-27, pelo Moshi:
@@ -1995,15 +2022,58 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
   - desfecho: o `ContentState` ganha `outcome?` (`allowed`, `denied` ou `answered`). Sem `pending` e com `outcome`, linha 1 "Aprovado", "Negado" ou "Respondido" e linha 2 "Você: <prompt>". O daemon preenche o `outcome` do agente depois de uma resposta do celular a um pedido dele (`respond`), enquanto a `preview` do agente continua a do momento da resposta e não chega outro pedido. A resposta conta como evento para o foco. O `outcome` é o primeiro campo descartado pelo orçamento de 3.840 bytes. O app, ao limpar o `pending` localmente depois de uma resposta aceita, já põe o `outcome` da escolha;
   - o `prompt` (e a prévia de mensagem do usuário) sai sem as tags `<pasted_content …>` e `</pasted_content>`.
 - **Início**: quando algum agente passa a `working`/`blocked` e o aparelho não tem card. App em primeiro plano: `Activity.request` com o foco pelo mesmo critério, calculado no app pela árvore. Senão, push-to-start com `alert` `{"title": "Claude trabalhando · <rótulo>", "body": "<title>"}` do agente em foco.
-- **Atualização**: no máximo uma a cada 10 s, sempre com o estado mais recente. Prioridade 10 em troca de foco e em mudança de `status` ou de `pending`; 5 no resto; refresh 5 a cada 10 min enquanto algum agente está `working`/`blocked`; `stale-date` = agora + 15 min.
-- **Alertas no lugar das notificações**: enquanto o aparelho tem o card com token de update conhecido, o daemon não manda os alertas da §7.1 de **nenhum** agente. O alerta (texto e regras da §7.4) vai no update que traz o foco para o agente do evento. Um evento de outro agente que não ganha o foco, porque um pedido segura o card, sai como alerta da §7.1. Antes do token chegar, vale a §7.1.
+- **Atualização**: no máximo uma a cada 10 s, sempre com o estado mais recente. Prioridade 10 em troca de foco, em mudança de `status` ou de `pending` e em todo update com alerta; 5 no resto; refresh 5 a cada 10 min enquanto algum agente está `working`/`blocked`; `stale-date` = agora + 15 min.
+  - O alerta de um pedido novo que toca fura o limite de 10 s, com no mínimo 2 s desde o último envio. Só esse update fura.
+  - Pode sair um update só com o alerta, com o mesmo conteúdo, quando o card já mostra aquele estado.
+- **Alertas no lugar das notificações** (fase alertas): enquanto o aparelho tem o card com token de update conhecido, o daemon não manda os alertas da §7.1 de **nenhum** agente, e não há push de reserva.
+  - O alerta (texto e regras da §7.4) vai no update do agente do evento: na hora, se ele é o foco, ou na vez dele na fila de um ciclo.
+  - O alerta só sai da fila quando o APNs confirma a entrega; uma falha devolve o alerta.
+  - Antes do token chegar, vale a §7.1, e o alerta daquele momento conta como resolvido no card.
+  - **Quando um alerta toca naquele aparelho**: o app não está aberto naquele agente (`setForeground`), o tipo não está desligado (`turnDoneAlerts`) e, com `silenceWhileAtMac` ligado, o Mac não está desbloqueado (§7.7). Um alerta que não toca sai resolvido na hora, sem update só de alerta; um pedido silenciado não fura o limite de 10 s.
+  - O controle do que já saiu é por aparelho, e não por card. Uma renovação ou um card novo não repete nem engole alertas.
 - **Fim**: 30 min sem nenhum agente `working`/`blocked` → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start.
 - **Tokens**: `registerLiveActivity` sem `agentId`: um token de push-to-start para o tipo e o token de update da atividade com `activityId`. O daemon guarda uma atividade por aparelho em `devices.json`; um registro antigo com `agentId` é ignorado.
+- **Card perdido** (fase alertas): o app guarda no livro de tokens as atividades que acabaram (até 8). Elas entram pelo `activityStateUpdates`, com o app vivo, ou na abertura do app, quando a atividade do livro já não está viva. O app manda `endedActivityId` no próximo `registerLiveActivity` (WebSocket ou `POST /v1/live-activity`).
+  - Com `endedActivityId` igual à atividade do card, ou com `410`/`BadDeviceToken` num update, o daemon:
+    - esquece o card;
+    - marca o aparelho como dispensado: não há push-to-start até todos os agentes pararem;
+    - aposenta o token e o id;
+    - repassa à §7.1 **todos** os alertas que tocariam e ainda não saíram, com o título e o corpo do card, a categoria do tipo e sem ações.
+  - Daí em diante, vale a §7.1 até surgir card novo.
 
 ### §7.6 Aviso de reset da janela de 5h
 
 - Notificação **local** do app, sem daemon nem protocolo: o sino da folha Uso (§6.3) agenda um `UNNotificationRequest` com `UNTimeIntervalNotificationTrigger` até o `resetsAt` da janela `fiveHour` daquele provedor. Id `usage-reset-<provider>`; título "Janela de 5h zerada", corpo "O limite de 5h do Claude Code renovou." ou "…do Codex renovou.", som padrão. Ligar pede a permissão de notificação se ela ainda não foi pedida.
 - Vale **só o próximo reset**: o horário armado por provedor fica no `UserDefaults` (`usage.resetReminders`), e o sino conta como ligado enquanto esse horário está no futuro. Tocar de novo desliga e remove o pedido pendente. Um `usage` novo com outro `resetsAt` de 5h enquanto armado reagenda para o novo horário.
+
+### §7.7 Presença no Mac (fase alertas)
+
+O modelo e os casos estão em `docs/estudos/alertas-live-activity.md`.
+
+- **Sonda**: o daemon lê `IOConsoleLocked` na raiz do IORegistry (`IORegistryGetRootEntry(kIOMainPortDefault)` + `IORegistryEntryCreateCFProperty`), sem permissão do sistema. É a mesma leitura do `ioreg -n Root -d1`.
+  - `No` → `unlocked`; `Yes` → `locked`.
+  - Com a tampa fechada, o valor continua `Yes`. Na tomada com `caffeinate`, o Mac fica em DarkWake e o daemon segue lendo.
+  - Sem a propriedade → `unknown`, que conta como fora do Mac (falha segura: toca).
+- **Monitor**: um `PresenceMonitor` (actor) único no daemon.
+  - `current()` lê na hora.
+  - Um polling de 3 s avisa as transições aos assinantes (`transitions()`).
+  - Cada mudança vai ao log `presence: locked|unlocked|unknown` (`.notice`, categoria `presence`).
+- **Status cru do Herdr**: a entrada da Live Activity leva `herdrStatuses` (o status do Herdr antes da troca pelo do app-server do Codex). `done` = ainda não visto no Herdr (§3.1). O status cru nunca conta como evento do card.
+- **Modo sombra (E1)**: só log, com `.notice` (o `.info` não fica guardado), na categoria `alerts`. O comportamento não muda.
+  - Para cada alerta novo do tracker do card, o desfecho que o modelo novo daria: `shadow alert <kind> of <agent> gen=<n> channel=card|push lock=<…> would=ring|silent`. O `turnDone` que deixa de valer em menos de 5 s registra `would=cancelled`.
+  - Cada update do card: `card update of <agent> p<5|10> alert=<kind|none> lag=<s>`. O `lag` é o tempo desde o último evento do agente em foco.
+  - Cada push da §7.1: `push <kind> of <agent> device <id> fallback=yes|no`.
+  - Na transição para bloqueado: `shadow lock-ring <agent> <kind>`, para o item mais urgente ainda não visto (pedido aberto, agente `blocked` ou status cru `done`) entre os `would=silent` desde o último desbloqueio. Sem candidato, `shadow lock-ring none`.
+- **Silêncio no Mac (E3)**: a preferência `silenceWhileAtMac` do aparelho (padrão `true`; desligada, toca sempre).
+  - Com ela ligada e o Mac `unlocked`, o alerta não toca: no card, o update sai sem `alert`; sem card, o push da §7.1 não sai. O alerta entra na lista de silenciados do aparelho, uma vez por agente e geração.
+  - Na transição para `locked`/`unknown`, para cada aparelho com a preferência ligada, toca **um** item: o mais urgente entre os silenciados ainda não vistos (pedido ainda aberto > agente ainda `blocked` > turno concluído com o status cru `done`; no empate, o mais recente). No card, ele volta a não resolvido e sai pelo fluxo normal; se o card acabou depois do silêncio, ele vai para o push (§7.1). Sem card, sai o push guardado, depois de reconferir as preferências, o primeiro plano e o token do aparelho; aparelho que ganhou card no meio tempo não recebe push. O resto da lista é limpo, e um item que tocou ou foi limpo não toca de novo.
+  - Os logs de sombra continuam, e a decisão real ganha linhas próprias, por aparelho: `alert <kind> of <agent> [gen=<n>] device <id> silent reason=atMac` e, ao bloquear, `lock-ring <agent> <kind> device <id>` (ou `lock-ring none device <id>`).
+- **Resumo**: `scripts/alerts-summary.sh [--last <tempo>] [--file <log salvo>]` (padrão `24h`) lê o `log show --style compact` do processo `mochad` no subsystem `com.joaoalves.mocha` e conta:
+  - alertas `ring`, `silent` e `cancelled`;
+  - pushes com e sem `fallback`;
+  - toques ao bloquear;
+  - updates p10 e p5 por hora;
+  - `lag` mediano e máximo.
 
 ---
 
@@ -2174,6 +2244,7 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | O cache de uso é privado do plugin `herdr-agent-usage` e pode mudar de formato ou deixar de existir | Leitura tolerante de só quatro campos (§3.4), fixture sintética versionada, contexto com reserva pelo transcript, pílula de uso escondida sem cache e item Uso no `doctor` |
 | O plano e a conta vêm de chaves de `~/.claude.json` inferidas, sem leitura real pelos agentes | Só `organizationRateLimitTier` e `emailAddress`, com fallback para "Claude" sem plano; conferência do João no WP-X1 |
 | Os arquivos de subagentes e workflows (`meta.json`, `journal.jsonl`, `wf_*.json`) e a notificação de tarefa são internos do Claude Code e mudam sem aviso | Estado derivado de mais de um sinal, com o mais recente valendo (§3.5.2), leitura tolerante, fases com reserva pelo journal (§3.5.3), fixtures redigidas versionadas e o aviso de versão do `doctor` (§3.2.2) |
+| A troca do caminho colado por anexo (`[Image #N]`) é comportamento do Claude Code, sem contrato estável (fase imagens-nativas) | Teste `.integration` no `scripts/check-claude-update.sh` (§Atualização do Claude Code do AGENTS.md). Sem a troca, o caminho fica no texto como marcador, e o Claude ainda pode abrir o arquivo com `Read` (§6.5) |
 | O `mochad` (LaunchAgent) lendo uma imagem em `~/Desktop`, `~/Documents` ou `~/Downloads` dispara o pedido de privacidade do macOS ou recebe EPERM | EPERM conta como arquivo ausente: a miniatura não aparece (§3.2). O pedido aparece uma vez no Mac; o checklist da fase imagens confere com um print do `~/Desktop` |
 | A janela de contexto do modelo é inferida pelo nome | Primeiro o `used_percent` do plugin, que vem do próprio Claude Code; a tabela de `ContextWindow` é só reserva |
 

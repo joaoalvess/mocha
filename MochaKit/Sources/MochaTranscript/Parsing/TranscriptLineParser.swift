@@ -22,11 +22,16 @@ enum TranscriptLineParser {
     private static let forkDirectiveMarker = "Your directive: "
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
 
-    static func parse(_ bytes: [UInt8], offset: UInt64, mode: LineMode = .main) -> ParsedLine {
-        bytes.withUnsafeBytes { parse($0, offset: offset, mode: mode) }
+    static func parse(_ bytes: [UInt8], offset: UInt64, mode: LineMode = .main, imageStore: TranscriptImageStore? = nil) -> ParsedLine {
+        bytes.withUnsafeBytes { parse($0, offset: offset, mode: mode, imageStore: imageStore) }
     }
 
-    static func parse(_ bytes: UnsafeRawBufferPointer, offset: UInt64, mode: LineMode = .main) -> ParsedLine {
+    static func parse(
+        _ bytes: UnsafeRawBufferPointer,
+        offset: UInt64,
+        mode: LineMode = .main,
+        imageStore: TranscriptImageStore? = nil
+    ) -> ParsedLine {
         guard bytes.contains(where: { !isJSONWhitespace($0) }) else { return .empty }
         if case .forkPrelude(let toolUseId) = mode {
             return forkPreludeLine(bytes, offset: offset, toolUseId: toolUseId)
@@ -35,7 +40,7 @@ enum TranscriptLineParser {
               let type = root["type"]?.stringValue else {
             return .dropped
         }
-        let line = Line(object: root, offset: offset, isSubagent: mode == .subagent)
+        let line = Line(object: root, offset: offset, isSubagent: mode == .subagent, imageStore: imageStore)
         let version = root["version"]?.stringValue
         guard line.isSubagent || !root["isSidechain"].isTrue else { return ParsedLine(version: version, effects: []) }
         return ParsedLine(version: version, timestamp: root["timestamp"]?.stringValue, effects: effects(type: type, line: line))
@@ -220,6 +225,7 @@ enum TranscriptLineParser {
     private static func promptEffects(blocks: [JSONValue], line: Line) -> [LineEffect] {
         var texts: [String] = []
         var imageCount = 0
+        var imagePaths: [String] = []
         var effects: [LineEffect] = []
         for block in blocks {
             switch block["type"]?.stringValue {
@@ -227,17 +233,22 @@ enum TranscriptLineParser {
                 texts.append(block["text"]?.stringValue ?? "")
             case "image":
                 imageCount += 1
+                if let path = line.storedImagePath(of: block) {
+                    imagePaths.append(path)
+                }
             case let other:
                 effects.append(.unknown("block:\(other ?? "")"))
             }
         }
         guard !texts.isEmpty || imageCount > 0 else { return effects }
-        return [.item(userPrompt(texts.joined(separator: "\n"), imageCount: imageCount, line: line))] + effects
+        let item = userPrompt(texts.joined(separator: "\n"), imageCount: imageCount, imagePaths: imagePaths, line: line)
+        return [.item(item)] + effects
     }
 
-    private static func userPrompt(_ text: String, imageCount: Int, line: Line) -> ChatItem {
-        let markers = ImageMarkers.extract(from: PastedContent.unwrapped(text))
-        return line.item(.userPrompt(text: markers.text, imageCount: imageCount + markers.count), imagePaths: markers.paths)
+    private static func userPrompt(_ text: String, imageCount: Int, imagePaths: [String] = [], line: Line) -> ChatItem {
+        let withoutChips = ImagePasteChips.removing(ids: line.imagePasteIds, from: text)
+        let markers = ImageMarkers.extract(from: PastedContent.unwrapped(withoutChips))
+        return line.item(.userPrompt(text: markers.text, imageCount: imageCount + markers.count), imagePaths: imagePaths + markers.paths)
     }
 
     private static func assistantEffects(_ line: Line) -> [LineEffect] {
@@ -377,9 +388,25 @@ private struct Line {
     let object: JSONObject
     let offset: UInt64
     let isSubagent: Bool
+    var imageStore: TranscriptImageStore?
 
     subscript(key: String) -> JSONValue? {
         object[key]
+    }
+
+    var imagePasteIds: [Int] {
+        (object["imagePasteIds"] ?? object["attachment"]?["imagePasteIds"])?.arrayValue?.compactMap(\.intValue) ?? []
+    }
+
+    func storedImagePath(of block: JSONValue) -> String? {
+        guard let imageStore,
+              let source = block["source"],
+              source["type"]?.stringValue == "base64",
+              let data = source["data"]?.stringValue,
+              let mediaType = source["media_type"]?.stringValue else {
+            return nil
+        }
+        return imageStore.path(forBase64: data, mediaType: mediaType)
     }
 
     var isRoot: Bool {

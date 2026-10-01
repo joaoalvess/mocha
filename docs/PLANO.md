@@ -37,6 +37,7 @@ Este plano é executado por **um agente orquestrador** que distribui pacotes de 
 | codex | Codex CLI no Herdr com chat e ações; desktop como leitura posterior | WP-XC |
 | codex-paridade | Codex CLI parelho com o Claude: ações pela notificação e pela Live Activity, controles, chat ao vivo, contexto, subagentes e histórico (§13.4) | WP-CPX |
 | preview-web | Servidores web do Mac listados no app e abertos no iPhone por túnel SSH | WP-W5 |
+| alertas | Live Activity como canal único, silêncio com o Mac desbloqueado e toque ao bloquear (`docs/estudos/alertas-live-activity.md`) | WP-AL6 |
 | 2 | Terminal SSH | WP-X4 |
 | 3 | Mosh | WP-X5 |
 
@@ -1115,6 +1116,196 @@ Branch `fase/imagens`, criada de `main`. Contrato do orquestrador (SPEC §3.2, �
 - Tela cheia: zoom, fechar, compartilhar e salvar em Fotos.
 - Citar um print de `~/Desktop`: ver se o macOS pede permissão ao `mochad`.
 
+## Fase imagens-nativas: foto do app como anexo nativo do Claude
+
+Branch `fase/imagens-nativas`, criada de `main`, no worktree do Herdr `.claude/worktrees/imagens-nativas`, porque outra sessão trabalha em paralelo no repositório principal. S10 → contrato do orquestrador (SPEC §1.3, §3.2, §4, §5.2, §5.5, §6.5 e §12; AGENTS.md §Atualização do Claude Code) → onda única com WP-IN1 e WP-IN2 em paralelo → WP-IN3 no iPhone. Sem mock nem capturas (decisão do João); o aceite de UI é `scripts/test.sh` + `scripts/build-app.sh`, e a conferência é no iPhone. Decisões do João (2026-10-01):
+
+- A foto vai como anexo nativo pela colagem do caminho (S10), sem clipboard. O envio antigo fica como plano B.
+- A imagem da bolha vem do bloco `image` do transcript, gravada num cache em disco (opção A do S10). Só as conversas abertas gravam; o que fica 7 dias sem uso sai, com teto de 200 MB.
+- O app reduz a foto para 2.000 px.
+
+### S10: anexo nativo pela colagem do caminho
+
+- Feito: `docs/spikes/S10.md`. O `agent.prompt` do Herdr cola, e o Claude Code troca cada linha que é só caminho de imagem existente por `[Image #N]` + bloco `image` base64 (até 2000 px), com uma linha `isMeta` `[Image: source: …]` depois. Vale também com a mensagem na fila.
+
+### WP-IN1: anexos no transcript e cache de imagens (daemon)
+
+- **Dono**: `MochaKit/Sources/MochaTranscript/` (`Parsing/`, `File/`, `TranscriptDocument.swift`), `MochaKit/Sources/MochaDaemonCore/` (`Transcript/`, `Gateway/`, `Images/`, `Uploads/`), `scripts/check-claude-update.sh` e os testes de `MochaTranscriptTests` e `MochaDaemonCoreTests`, inclusive os `.integration` do Claude.
+- **Transcript** (§3.2):
+  - os `[Image #N]` de `imagePasteIds` saem do texto antes do `PastedContent` e dos marcadores;
+  - uma linha só com um caminho dentro de `uploads/` conta como marcador (plano B);
+  - `TranscriptImageStore`: SHA-256 (CryptoKit) do base64, gravação atômica 0600 só quando falta, data renovada quando já existe;
+  - o `imagePaths` do `userPrompt` traz os blocos e depois os marcadores;
+  - o store passa por `SequentialLineParser`, `TranscriptFollower`, `TranscriptPager` e `TranscriptDocument`, com padrão `nil`.
+- **Daemon**:
+  - o store com `~/Library/Caches/com.joaoalves.mocha/transcript-images/` só nas leituras que geram itens de chat para o app; a varredura da home não recebe store;
+  - a `/v1/image` renova a data do arquivo do cache num 200;
+  - a limpeza roda junto com a do `uploads/` (na subida e a cada 6 h): 7 dias sem uso e teto de 200 MB, pelo uso mais antigo.
+- **Integração**: `ClaudeImagePasteIntegrationTests` (`.integration`), chamado pelo `scripts/check-claude-update.sh`. Um PNG gerado no teste, colado pelo `agent.prompt` junto com texto no laboratório `mocha-lab-claude-update`, vira 1 `imagePasteIds`, 1 bloco `image` e o chip no texto. O parser devolve o texto sem o chip e 1 caminho num store de teste. No laboratório, conferir e registrar no relatório se um JPEG de 2.000 px chega ao transcript com os mesmos bytes.
+- **Censo** (`RealTranscriptCensusTests`): contagens de `userPrompt` com `imagePasteIds`, de blocos com e sem caminho e de `[Image #` que sobrou no texto.
+- **Aceite**:
+  - `scripts/test.sh` verde, com testes de chips (no começo, no meio, fora de `imagePasteIds` e com `<pasted_content>`), de blocos (png, jpeg, tipo sem suporte, sem store), do store (nome por hash, não regrava, renova a data, 0600), do marcador de caminho puro, da limpeza (7 dias e teto) e da rota renovando a data;
+  - `ClaudeImagePasteIntegrationTests` verde com `MOCHA_INTEGRATION=1`.
+
+### WP-IN2: envio com caminho e troca da bolha (app)
+
+- **Dono**: `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaClient/Connection/`, `MochaKit/Sources/MochaDemo/`, `App/Sources/Chat/` e os testes de `MochaClientTests` e `MochaDemoTests`.
+- **Envio** (§6.5):
+  - `PromptImages.promptText` monta o texto seguido de uma linha com o caminho puro por imagem;
+  - `ImageReduction.maximumPixelSize` passa a 2.000.
+- **Bolha pendente**: quando a pendente casa com o `userPrompt` definitivo (`PendingBubbles.match`), as miniaturas locais dela vão para o `ChatImageCache` (600 px) pelos `imagePaths` do item, na ordem, na mesma atualização que troca a bolha. O caminho do item é o do cache do transcript, e não o do upload. A semeadura pelo caminho do upload continua, para o plano B.
+- **Demo**: o `echoPrompt` reconhece as linhas de caminho puro (`DemoImageMarkers`), e o item ecoado traz o texto sem elas e os caminhos.
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes, com testes do texto enviado, da semeadura na troca e do eco no demo.
+
+### WP-IN3: checklist no iPhone
+
+- Com o ok do João: `scripts/build-daemon.sh`, reinstalar o `mochad` (`rm` antes do `cp` em `~/.local/bin`) e `scripts/build-device.sh`.
+- Mandar 1 e depois 3 fotos com texto. A bolha pendente mostra as fotos, e a definitiva troca sem piscar e sem `[Image #N]` no texto. No Mac, o terminal mostra os `[Image #N]`.
+- Mandar uma foto com o Claude ocupado: a mensagem entra na fila, e a foto aparece quando ela sai.
+- Mandar texto de 4 linhas ou mais com foto: a bolha vem sem tags e sem chip.
+- Colar uma imagem direto no terminal do Mac: a miniatura aparece na bolha.
+- Abrir uma conversa antiga com imagem colada: a miniatura aparece, e o `transcript-images/` ganha o arquivo.
+- Tela cheia e compartilhar com uma imagem do cache.
+
+## Fase alertas: Live Activity como canal único e presença no Mac
+
+Branch `fase/alertas`, criada de `main`, no worktree do Herdr `.claude/worktrees/alertas`. O modelo e os casos estão em `docs/estudos/alertas-live-activity.md` (aprovado em 2026-10-01): regras R1–R10, casos 1–9 e perguntas abertas U1–U7.
+
+A fase tem 4 etapas em sequência, e cada uma tem aceite próprio. Os WPs são feitos pelo orquestrador, com um subagente revisando o diff da E2 e o da E3. Sem mock (decisão do João). O merge em `main` acontece depois do WP-AL6; a E4 entra num merge à parte.
+
+**Decisões do João (2026-10-01):**
+- com card e token de update, nenhum push da §7.1;
+- a presença é lida pelo `IOConsoleLocked` do IORegistry, e com o Mac desbloqueado tudo fica em silêncio;
+- ao bloquear o Mac, um toque pelo item mais urgente ainda não visto;
+- o "terminou" espera 5 s e ganha um ciclo no card;
+- o pedido real segura o card e fura o limite;
+- o card dispensado volta ao push;
+- o toggle "Silenciar enquanto uso o Mac" vem ligado por padrão;
+- o início do card fica como hoje;
+- 6 s com `NSSupportsLiveActivitiesFrequentUpdates` só depois do U3.
+
+**Ordem:**
+1. WP-AL1 → instalar → U1 e Dia 1 (uso normal), com a E2 sendo implementada enquanto isso.
+2. Resumo da E1 aprovado → instalar a E2 → Dia 2.
+3. U2 → WP-AL4 e WP-AL5 → WP-AL6.
+4. WP-AL7 e U3.
+
+### WP-AL1: presença, status cru e modo sombra (daemon, E1)
+
+- **Dono**:
+  - `MochaKit/Sources/MochaDaemonCore/Presence/` (novo) e `MochaKit/Sources/MochaTestSupport/Presence/`;
+  - `LiveActivity/LiveActivityInput.swift` e `LiveActivity/SessionHub+LiveActivity.swift`;
+  - as linhas de log e o status cru em `LiveActivity/` e `Push/PushService.swift`;
+  - `App/DaemonRuntime.swift` e `scripts/alerts-summary.sh`;
+  - os testes de `Presence/` e `LiveActivity/`.
+- **Presença**:
+  - `ConsoleLock` (`locked`, `unlocked`, `unknown`) lido do `IOConsoleLocked` na raiz do IORegistry;
+  - um `PresenceMonitor` (actor) único no daemon, com polling de 3 s, `current()`, `transitions()` e log `.notice`;
+  - um `FakeConsoleLock` para os testes.
+- **Status cru**:
+  - `LiveActivityInput.herdrStatuses`, montado do `baseTree` (cobre o Codex);
+  - o tracker guarda esse status sem gerar evento.
+- **Sombra** (`.notice`, sem mudar o comportamento):
+  - uma linha por alerta do tracker, com o desfecho do modelo novo (`channel`, `lock`, `would=ring|silent`) e `cancelled` quando o "terminou" deixa de valer em menos de 5 s;
+  - `card update … p<n> alert=… lag=<s>`;
+  - `push … fallback=yes|no`;
+  - `shadow lock-ring` ao bloquear.
+- **`scripts/alerts-summary.sh`** conta o que a sombra registrou: alertas `ring`/`silent`/`cancelled`, pushes, toques ao bloquear, p10/h, p5/h e `lag`.
+- **SPEC**: §7.7.
+- **Aceite**:
+  - `scripts/test.sh` verde, com testes da sonda falsa, das transições, do polling com o `ManualClock` e do status cru (`done` → `idle` não muda o foco);
+  - `presence:` no log do `mochad` real, inclusive com a tampa fechada na tomada;
+  - resumo do Dia 1 aprovado pelo João.
+
+### U1: card dispensado no APNs
+
+Com um agente trabalhando, o João dispensa o card. O orquestrador lê a resposta dos updates seguintes (200 ou 410) com `log stream --level info` e registra o resultado na §7.5.
+
+### WP-AL2: canal único, pedido e "terminou" (daemon, E2)
+
+- **Dono**:
+  - `LiveActivity/`, `Push/PushService.swift`, `Devices/DeviceRecord.swift` e `App/DaemonRuntime.swift`;
+  - o `setPreferences` de `Gateway/SessionHubConnection.swift`;
+  - os testes de `LiveActivity/`, `Push/` e `Devices/`.
+- **Contrato (orquestrador)**: `LiveActivityRegistration.endedActivityId` e a SPEC §5, §7.1 e §7.5.
+- **Espera no tracker**:
+  - busy → idle é publicado só depois de 5 s, e a passagem para `blocked` sem pedido depois de 1 s;
+  - um prazo do `nextDeadline` reaplica a última entrada;
+  - o `needsInput` sem pedido tem janela de 10 s por agente.
+- **Por aparelho**:
+  - `alerted` sai do card e vai para o aparelho;
+  - sem card com token, o alerta nasce resolvido;
+  - o push-to-start não zera mais o `alerted`.
+- **Decisão síncrona de tocar**: a entrada ganha `foregroundAgents`, e o daemon guarda as preferências em cache (`preferencesChanged`). O alerta que não toca já sai resolvido.
+- **Foco**:
+  1. o pedido real (o alerta dele fura o limite uma vez, com no mínimo 2 s entre envios);
+  2. a fila de um ciclo (`turnDone` e `blocked` sem pedido, o mais antigo primeiro);
+  3. o último evento.
+  - Pode sair update só de alerta, sempre p10.
+- **Saem**: `LiveActivityAlertFallback`, os alertas estacionados do `PushService` e `DeviceRecord.hasLiveActivityCard`. O `cardHolder()` vira `cardDevices()`.
+- **Card perdido** (`.invalidToken` ou `endedActivityId`):
+  - `isDismissed` e `retired`;
+  - todos os alertas pendentes vão para o `PushService` (`LiveActivityAlertHandoff`).
+- **`PushService`**:
+  - `recipients` sem os aparelhos com card, lidos quando o hook chega;
+  - espera de 5 s do `turnDone`.
+- **`DaemonRuntime`**: o `liveActivity.start` vem antes do laço de alertas do Codex.
+- **Aceite**:
+  - `scripts/test.sh` verde, com os casos 3, 4 e 9 do estudo, mais estes testes:
+    - só alerta;
+    - rajada de pedidos;
+    - `blocked` que pisca;
+    - app aberto em outro agente;
+    - `turnDoneAlerts` desligado;
+    - renovação;
+    - card perdido;
+    - `.failed`;
+    - hook com card sem token;
+  - revisão independente;
+  - Dia 2 com push da §7.1 para aparelho com card = 0.
+
+### WP-AL3: card encerrado avisa o daemon (app, E2)
+
+- **Dono**: `MochaKit/Sources/MochaClient/LiveActivity/`, `App/Sources/LiveActivity/AgentsActivityController.swift` e os testes de `MochaClientTests/LiveActivity`.
+- **Livro de tokens**:
+  - ganha `ended` (até 8 ids), alimentado pelo `forgetActivity` e pelo `forgetActivities(except:)`;
+  - `registrations` emite `endedActivityId`, e o `markDelivered` tira o id;
+  - o `forgetActivity` chama `flush`.
+- **Aceite**: `scripts/test.sh` e `scripts/build-device.sh` verdes, este com o ok do João.
+
+### WP-AL4: silêncio no Mac e toque ao bloquear (daemon, E3)
+
+- **Dono**: o do WP-AL2, mais `Presence/`.
+- **Contrato (orquestrador)**: `DevicePreferences.silenceWhileAtMac` (padrão `true`, `decodeIfPresent`), as fixtures e a SPEC §6.3, §7.1, §7.5 e §7.7.
+- **U2**: no laboratório `mocha-lab-alertas`, ver se o Herdr marca `done` num pane do Codex.
+- **R5**: o `LiveActivityService` guarda o último `ConsoleLock`. Com o toggle ligado e o Mac `unlocked`, o alerta não toca: fica resolvido, entra em `silenced` e não fura o limite.
+- **R6**: na transição para `locked`/`unknown`, o candidato é o item de `silenced` mais urgente ainda não visto (pedido aberto, `blocked` ou status cru `done`), na ordem pedido > `blocked` > `turnDone`. Ele volta a não resolvido, e o resto é limpo. Cada (agente, geração) entra em `silenced` no máximo uma vez.
+- **`PushService`** (aparelho sem card): faz o mesmo com `presence.current()`, e o `PushAudience` ganha `herdrStatus(of:)`.
+- **Aceite**:
+  - `scripts/test.sh` verde, com os casos 1, 2, 5, 6 e 8, mais estes testes:
+    - toggle desligado;
+    - `unknown` toca;
+    - toque ao bloquear único;
+    - pedido silenciado sem furar o limite;
+  - revisão independente.
+
+### WP-AL5: toggle "Silenciar enquanto uso o Mac" (app, E3)
+
+- **Dono**: `App/Sources/Settings/SettingsScreen.swift`, `App/Sources/AppSession.swift` (`setSilenceWhileAtMac`, no padrão do `setTurnDoneAlerts`) e os testes de `MochaClientTests/Settings`.
+- **Aceite**: `scripts/test.sh` e `scripts/build-device.sh` verdes, este com o ok do João.
+
+### WP-AL6: checklist no iPhone (E3)
+
+- Casos 1–9 do estudo.
+- U4: alerta do card com o iPhone desbloqueado e no Watch.
+- U7: o push-to-start sem `sound` só acende a tela.
+
+### WP-AL7: 6 s e `FrequentUpdates` (E4)
+
+- Conferir na documentação da Apple o `NSSupportsLiveActivitiesFrequentUpdates` e o `frequentPushesEnabled`.
+- `updateInterval` passa a 6, e o `App/Info.plist` (orquestrador) ganha a chave.
+- **U3**: 1 h com 4 agentes, comparando p10/h e `lag` com o Dia 2. Se um pedido atrasar, volta a 10 s.
+
 ## Fase codex-paridade: Codex CLI parelho com o Claude Code
 
 Branch `fase/codex-paridade`, criada de `main` depois do merge da fase imagens, num worktree do Herdr (`.claude/worktrees/codex-paridade`). Mapa e evidências no spike S9 (`docs/spikes/S9.md`); contrato na SPEC §13.4. Sem mock: o aceite de UI é `scripts/test.sh` + `scripts/build-app.sh`, e a conferência é no iPhone.
@@ -1371,6 +1562,20 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 8b3acb4, 61b989f, merge 7d516ab, 114637b |
 | WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | e09b3b4, 4532880, 39eb843, merge ea93311 |
 | WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
+| S10 | feito (colagem do caminho, sem clipboard) | 33ec237 |
+| WP-IN1 | feito (subagente; `DaemonRuntime`, `DaemonPaths` e o snapshot `images-and-queued` aplicados pelo orquestrador; `check-claude-update.sh` verde com o Claude 2.1.286) | f36a0ad, 26748a4, 24b0d3b, merge 4001ed1 |
+| WP-IN2 | feito pelo orquestrador (testes do escopo verdes; `build-app.sh` e `build-device.sh` verdes) | 51188c1, f900964, 0312489, merge 43ffc77 |
+| WP-IN3 | feito (`test.sh` completo verde, exceto `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude`, instável sob carga e verde sozinho; pelo iPhone, 3 fotos e depois 1 foto com texto chegaram como `[Image #N]` com os blocos `image` no transcript e os arquivos no `transcript-images/`; o João fechou a fase sem conferir a fila, o texto de 4 linhas, a colagem no terminal, a conversa antiga e a tela cheia) | d422b0c |
+| WP-AL1 | código feito (109 testes do escopo verdes; falta instalar o `mochad`, o Dia 1 e o resumo aprovado) | a5a509d, cc8dc1d, 6e57931, ca7275b, merge d22828f |
+| U1 | todo | |
+| WP-AL2 | código feito (canal único, espera de 5 s do "terminou" e de 1 s do `blocked` no tracker, fila de um ciclo, pedido que fura o limite com 2 s de intervalo, card perdido repassa os pendentes ao push; extras: `pushedAfter` contra a renovação que engolia alertas e o alerta do foco sai antes do card acabar; revisão independente com 4 correções; falta instalar e o Dia 2) | 19d65a6, merge 3c753e9, 99a81ad |
+| WP-AL3 | código feito (`endedActivityId` com até 8 ids no livro de tokens; o `forgetActivity` dá `flush`; 22 testes verdes; `build-device.sh` verde; falta instalar no iPhone) | 64dfd20, merge 1a4d59d |
+| U2 | feito (Herdr 0.9.3 marca `done` no pane do Codex 0.159.2 ao fim do turno, e o `done` fica enquanto o pane não ganha foco: o Codex entra no toque ao bloquear; o diálogo de confiança da pasta aparece como `blocked` e tocou um `needsInput` no card) | |
+| WP-AL4 | código feito (silêncio com o Mac desbloqueado e um toque ao bloquear no card e no push; o `PushService` usa o `lock` em cache das transições; logs reais `silent reason=atMac` e `lock-ring … device`, contados pelo `alerts-summary.sh`; revisão independente com 3 correções (card que acabou repassa o toque ao push; o push ao bloquear reconfere preferências, primeiro plano, token e card); `test.sh` completo verde; falta instalar e o U2) | 4d64f7a, 22cec29, 781a6a3, merge 8b4eed8, f3cc708, f47715b, fa5fc65 |
+| WP-AL5 | código feito (toggle "Silenciar enquanto uso o Mac" e o rodapé novo; `build-device.sh` verde; falta instalar no iPhone e o checklist) | 4f37913, merge b9e0d2a |
+| WP-AL6 | todo | |
+| WP-AL7 | todo (adiado pelo João em 2026-10-01: conferir na Apple o `NSSupportsLiveActivitiesFrequentUpdates` e o `frequentPushesEnabled`, `updateInterval` 10 → 6 s, a chave no `App/Info.plist`, testes fixando 10 s, SPEC §7.5) | |
+| U3 | todo (depois do WP-AL7: 1 h com 4 agentes, `alerts-summary.sh` contra o uso de 2026-10-01) | |
 | S9 | feito (lab de 2026-10-01, L1–L13) | f61a373 |
 | WP-CP1 | feito (a linha do App Server no `mochad status` vai antes do Serve e o log de falha do `respond` Codex voltou, ajustes do orquestrador; `notClaude` para Codex em controles, subagentes e `archive` fica para o CP3 e o CP4; o `PushServiceTests.blockedWithoutARequest…` falhou uma vez sob carga e passou em 10 rodadas) | fc1b12a, 59b9aa8, 37b6185, merge db990f6 |
 | WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |

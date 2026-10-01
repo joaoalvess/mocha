@@ -66,6 +66,7 @@ public actor DaemonRuntime {
     private var push: PushService?
     private var pending: PendingStore?
     private var liveActivity: LiveActivityService?
+    private var presence: PresenceMonitor?
     private var uploadCleanup: Task<Void, Never>?
     private var codexProcess: CodexAppServerProcess?
     private var codex: CodexService?
@@ -82,7 +83,8 @@ public actor DaemonRuntime {
         let preparation = try DaemonConfigStore(url: paths.configFile).prepareForDaemon()
         let port = preparation.config.gatewayPort
         let herdr = HerdrBridge(client: HerdrClient(configuration: HerdrClientConfiguration(socketPath: options.herdrSocketPath)))
-        let transcripts = TranscriptStore(projectsRoot: options.projectsRoot)
+        let transcriptImages = TranscriptImageCache(directory: paths.transcriptImagesDirectory)
+        let transcripts = TranscriptStore(projectsRoot: options.projectsRoot, imageStore: transcriptImages.store)
         let devices = DeviceStore(fileURL: paths.devicesFile)
         let pairing = Pairing()
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
@@ -110,8 +112,10 @@ public actor DaemonRuntime {
             credentials: options.apnsCredentials ?? ApnsCredentials.loader(configFile: paths.configFile),
             transport: options.apnsTransport ?? URLSessionApnsTransport()
         )
-        let liveActivity = LiveActivityService(devices: devices, sender: push)
+        let presence = PresenceMonitor()
+        let liveActivity = LiveActivityService(devices: devices, sender: push, presence: presence)
         await push.attachLiveActivity(liveActivity)
+        await push.attachPresence(presence)
         await hub.attachLiveActivity(liveActivity)
         let codexSocket = paths.codexSocket.fileSystemPath
         let codexProcess = CodexAppServerProcess(socketPath: codexSocket, resolveExecutable: options.codexExecutable)
@@ -119,7 +123,7 @@ public actor DaemonRuntime {
         await hub.attachCodex(codex)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
-        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, liveActivities: liveActivity, events: events)
+        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, transcriptImages: transcriptImages, liveActivities: liveActivity, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let configFile = paths.configFile
         let hooks = HookServer(
@@ -151,17 +155,23 @@ public actor DaemonRuntime {
         self.push = push
         self.pending = pending
         self.liveActivity = liveActivity
+        self.presence = presence
         self.hookRouter = hookRouter
         self.codexProcess = codexProcess
         self.codex = codex
         uploads.removeExpired(now: Date())
+        transcriptImages.removeExpired(now: Date())
         let clock = SystemGatewayClock()
         uploadCleanup = Task {
-            await uploads.removeExpiredPeriodically(clock: clock)
+            async let uploadsCleanup: Void = uploads.removeExpiredPeriodically(clock: clock)
+            async let imagesCleanup: Void = transcriptImages.removeExpiredPeriodically(clock: clock)
+            _ = await (uploadsCleanup, imagesCleanup)
         }
+        await presence.start()
         await usage.start()
         await codexProcess.start()
         await codex.start()
+        await liveActivity.start(inputs: hub.liveActivityUpdates)
         let alerts = hub.codexAlerts
         codexAlerts = Task {
             for await alert in alerts {
@@ -171,7 +181,6 @@ public actor DaemonRuntime {
         await herdr.start()
         await hub.start()
         await pending.start()
-        await liveActivity.start(inputs: hub.liveActivityUpdates)
         await hookRouter.start(hooks: hookEvents.events())
         do {
             try await gatewayServer.start()
@@ -217,6 +226,8 @@ public actor DaemonRuntime {
         hookRouter = nil
         await liveActivity?.shutdown()
         liveActivity = nil
+        await presence?.shutdown()
+        presence = nil
         await push?.shutdown()
         push = nil
         await gateway?.shutdown()

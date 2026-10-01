@@ -88,7 +88,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 O daemon lê telas, hooks e transcripts do Claude Code, e nada disso é contrato estável: cada versão pode mudar um seletor ou um formato.
 
 - A última versão validada é `ClaudeCodeVersion.lastValidated` (`MochaKit/Sources/MochaDaemonCore/App/ClaudeCodeVersion.swift`). O hook `SessionStart` do projeto (`.claude/settings.json`) avisa quando o `claude --version` instalado é mais novo.
-- Com o aviso, antes de qualquer outro trabalho, rode `scripts/check-claude-update.sh`. Ele abre um Claude no workspace de laboratório `mocha-lab-claude-update` e roda os testes `.integration` das telas (`ClaudeScreenIntegrationTests`: rodapé, `/effort`, `/model`), do censo de transcripts reais e dos hooks. Se tudo passar, ele sobe a versão validada; commite em `chore(claude): validate Claude Code <versão>`.
+- Com o aviso, antes de qualquer outro trabalho, rode `scripts/check-claude-update.sh`. Ele abre um Claude no workspace de laboratório `mocha-lab-claude-update` e roda os testes `.integration` das telas (`ClaudeScreenIntegrationTests`: rodapé, `/effort`, `/model`), do censo de transcripts reais, dos hooks e da colagem de imagem (`ClaudeImagePasteIntegrationTests`: o caminho colado vira `[Image #N]`). Se tudo passar, ele sobe a versão validada; commite em `chore(claude): validate Claude Code <versão>`.
 - Se falhar, pare e reporte ao João com a tela real que o teste imprime. A correção vem com um teste de regressão feito com essa tela, e a SPEC é atualizada onde descreve o formato.
 - Parser novo que leia algo do Claude Code (tela, hook, transcript) entra com um teste nessa lista.
 
