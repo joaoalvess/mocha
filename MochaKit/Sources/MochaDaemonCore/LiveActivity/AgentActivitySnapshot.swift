@@ -105,6 +105,7 @@ struct AgentActivitySnapshot: Sendable, Equatable {
 struct AgentFeedAlert: Sendable, Equatable {
     let generation: Int
     let kind: PushAlertKind
+    let at: Date
 
     func isValid(for status: AgentStatus) -> Bool {
         switch kind {
@@ -141,8 +142,10 @@ struct AgentActivityTracker: Sendable {
     private var entries: [AgentID: Entry] = [:]
     private var observations: [AgentID: Observation] = [:]
     private var outcomes: [AgentID: ShownOutcome] = [:]
-    private var generation = 0
+    private(set) var generation = 0
     private(set) var eventGenerations: [AgentID: Int] = [:]
+    private(set) var eventDates: [AgentID: Date] = [:]
+    private(set) var herdrStatuses: [AgentID: AgentStatus] = [:]
     private(set) var alerts: [AgentID: AgentFeedAlert] = [:]
     private(set) var droppedAlerts: [DroppedFeedAlert] = []
     private(set) var holder: AgentID?
@@ -178,12 +181,14 @@ struct AgentActivityTracker: Sendable {
             )
             let observation = Observation(status: status, preview: preview, requestId: request?.id)
             observed[agent.id] = observation
-            record(observation, since: observations[agent.id], of: agent.id)
+            record(observation, since: observations[agent.id], of: agent.id, at: now)
         }
+        herdrStatuses = Dictionary(uniqueKeysWithValues: tracked.keys.map { ($0, input.herdrStatuses[$0] ?? Self.agentStatus(of: $0, in: input)) })
         entries = tracked
         observations = observed
         outcomes = outcomes.filter { tracked[$0.key] != nil }
         eventGenerations = eventGenerations.filter { tracked[$0.key] != nil }
+        eventDates = eventDates.filter { tracked[$0.key] != nil }
         for (agentId, alert) in alerts where tracked[agentId] == nil {
             droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: alert))
         }
@@ -222,15 +227,16 @@ struct AgentActivityTracker: Sendable {
         return shown.outcome
     }
 
-    private mutating func record(_ observation: Observation, since previous: Observation?, of agentId: AgentID) {
+    private mutating func record(_ observation: Observation, since previous: Observation?, of agentId: AgentID, at now: Date) {
         if observation != previous, previous != nil || observation.status.isBusy {
             eventGenerations[agentId] = generation
+            eventDates[agentId] = now
         }
         if let kind = Self.alert(observation, since: previous) {
             if let replaced = alerts[agentId] {
                 droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: replaced))
             }
-            alerts[agentId] = AgentFeedAlert(generation: generation, kind: kind)
+            alerts[agentId] = AgentFeedAlert(generation: generation, kind: kind, at: now)
         } else if let alert = alerts[agentId], !alert.isValid(for: observation.status) {
             droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: alert))
             alerts[agentId] = nil
@@ -249,6 +255,10 @@ struct AgentActivityTracker: Sendable {
             return .turnDone
         }
         return nil
+    }
+
+    private static func agentStatus(of agentId: AgentID, in input: LiveActivityInput) -> AgentStatus {
+        input.agents.first { $0.id == agentId }?.status ?? .unknown
     }
 
     private static func effectiveStatus(of agent: AgentSummary, hasPending: Bool) -> AgentStatus {
