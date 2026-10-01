@@ -236,7 +236,7 @@ enum TranscriptLineParser {
     }
 
     private static func userPrompt(_ text: String, imageCount: Int, line: Line) -> ChatItem {
-        let markers = ImageMarkers.extract(from: text)
+        let markers = ImageMarkers.extract(from: PastedContent.unwrapped(text))
         return line.item(.userPrompt(text: markers.text, imageCount: imageCount + markers.count), imagePaths: markers.paths)
     }
 

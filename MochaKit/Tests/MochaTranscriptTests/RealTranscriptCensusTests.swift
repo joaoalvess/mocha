@@ -14,6 +14,7 @@ struct RealTranscriptCensusTests {
         var unknown: [String: Int] = [:]
         var kinds: [String: Int] = [:]
         var runningTools = 0
+        var promptsWithPastedTags = 0
         var images = ImageCensus()
         var lastVersions: [String: Int] = [:]
         for project in projects {
@@ -27,6 +28,7 @@ struct RealTranscriptCensusTests {
                 for item in document.items {
                     kinds[item.kind.type, default: 0] += 1
                     if case .toolCall(let call) = item.kind, call.status == .running { runningTools += 1 }
+                    if case .userPrompt(let text, _) = item.kind, text.contains("<pasted_content") { promptsWithPastedTags += 1 }
                     images.count(item)
                 }
                 lastVersions[document.header.claudeVersion ?? "?", default: 0] += 1
@@ -37,6 +39,7 @@ struct RealTranscriptCensusTests {
         print("census: itens=\(kinds.sorted { $0.key < $1.key })")
         print("census: versão da última linha por arquivo=\(lastVersions.sorted { $0.key < $1.key })")
         print("census: imagens \(images.summary)")
+        print("census: userPrompt com <pasted_content> no texto=\(promptsWithPastedTags)")
         #expect(files > 0)
     }
 
