@@ -37,13 +37,14 @@ struct ImageRouteTests {
         return components.string ?? Gateway.imagePath
     }
 
-    private func withImageGateway(_ body: (Harness) async throws -> Void) async throws {
+    private func withImageGateway(transcriptImages: String? = nil, _ body: (Harness) async throws -> Void) async throws {
         try await withHub { hub in
             let token = SecureToken.generate()
             let device = try await hub.devices.register(name: "iPhone do João", token: token, at: Sample.start)
             let files = try TestImages.directory()
             defer { try? FileManager.default.removeItem(at: files) }
-            let gateway = Gateway(version: "9.9.9", herdr: hub.herdr, hub: hub.hub)
+            let cache = transcriptImages.map { TranscriptImageCache(directory: files.appending(path: $0, directoryHint: .isDirectory)) }
+            let gateway = Gateway(version: "9.9.9", herdr: hub.herdr, hub: hub.hub, transcriptImages: cache)
             try await withRunningServer(gateway.makeRouter()) { port in
                 try await body(Harness(port: port, token: token, device: device, files: files, hub: hub))
             }
@@ -252,6 +253,43 @@ struct ImageRouteTests {
             try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
             #expect(try await harness.get(path: link.fileSystemPath).status == 200)
         }
+    }
+
+    @Test func servingAFileOfTheTranscriptImageCacheRenewsItsDate() async throws {
+        try await withImageGateway(transcriptImages: "transcript-images") { harness in
+            let cache = harness.files.appending(path: "transcript-images", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+            let cached = try jpeg(harness, name: "transcript-images/abc.jpg")
+            let outside = try jpeg(harness, name: "fora.jpg")
+            let broken = cache.appending(path: "quebrada.jpg")
+            try Data("não é imagem".utf8).write(to: broken)
+            let old = Date(timeIntervalSince1970: 1_600_000_000)
+            for file in [cached, outside, broken] {
+                try setModificationDate(old, of: file)
+            }
+
+            #expect(try await harness.get(path: cached.fileSystemPath).status == 200)
+            #expect(try await harness.get(path: outside.fileSystemPath).status == 200)
+            #expect(try await harness.get(path: broken.fileSystemPath).status == 415)
+
+            #expect(try Date().timeIntervalSince(Self.modificationDate(cached)) < 60)
+            #expect(try Self.modificationDate(outside) == old)
+            #expect(try Self.modificationDate(broken) == old)
+        }
+    }
+
+    @Test func withoutACacheNothingIsRenewed() async throws {
+        try await withImageGateway { harness in
+            let file = try jpeg(harness, name: "abc.jpg")
+            let old = Date(timeIntervalSince1970: 1_600_000_000)
+            try setModificationDate(old, of: file)
+            #expect(try await harness.get(path: file.fileSystemPath).status == 200)
+            #expect(try Self.modificationDate(file) == old)
+        }
+    }
+
+    private static func modificationDate(_ url: URL) throws -> Date {
+        try #require(try FileManager.default.attributesOfItem(atPath: url.fileSystemPath)[.modificationDate] as? Date)
     }
 
     @Test func queryParsingFollowsTheContract() {

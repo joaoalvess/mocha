@@ -3,9 +3,16 @@ import MochaProtocol
 
 public protocol TranscriptProviding: Sendable {
     func open(session: TranscriptSession, limit: Int) async throws -> TranscriptSubscription
+    func openChat(session: TranscriptSession, limit: Int) async throws -> TranscriptSubscription
     func page(session: TranscriptSession, before: String, limit: Int) async throws -> TranscriptPage
     func meta(forSession session: TranscriptSession) async -> TranscriptMeta?
     func stats(forSession session: TranscriptSession) async -> TranscriptStats?
+}
+
+extension TranscriptProviding {
+    public func openChat(session: TranscriptSession, limit: Int) async throws -> TranscriptSubscription {
+        try await open(session: session, limit: limit)
+    }
 }
 
 public struct TranscriptSession: Sendable, Hashable {

@@ -35,6 +35,10 @@ public struct DaemonPaths: Sendable, Equatable {
         supportDirectory.appending(path: "uploads", directoryHint: .isDirectory)
     }
 
+    public var transcriptImagesDirectory: URL {
+        home.appending(path: "Library/Caches/com.joaoalves.mocha/transcript-images", directoryHint: .isDirectory)
+    }
+
     public var logsDirectory: URL {
         home.appending(path: "Library/Logs/Mocha", directoryHint: .isDirectory)
     }

@@ -8,10 +8,14 @@ public struct TranscriptDocument: Sendable, Equatable {
     public var pendingByteCount: Int
     public var changes: [TranscriptChange]
 
-    public static func read(path: String, mode: TranscriptParseMode = .main) throws(TranscriptFileError) -> TranscriptDocument {
+    public static func read(
+        path: String,
+        mode: TranscriptParseMode = .main,
+        imageStore: TranscriptImageStore? = nil
+    ) throws(TranscriptFileError) -> TranscriptDocument {
         let file = try TranscriptFile(path: path)
         var accumulator = Accumulator(keepingItems: true)
-        var parser = SequentialLineParser(mode)
+        var parser = SequentialLineParser(mode, imageStore: imageStore)
         try file.forEachAppendedLine { offset, bytes in
             accumulator.consume(parser.parse(bytes, offset: offset))
         }
@@ -28,9 +32,9 @@ public struct TranscriptDocument: Sendable, Equatable {
         return accumulator.document(pendingByteCount: file.pendingByteCount)
     }
 
-    public init(bytes: [UInt8], mode: TranscriptParseMode = .main) {
+    public init(bytes: [UInt8], mode: TranscriptParseMode = .main, imageStore: TranscriptImageStore? = nil) {
         var accumulator = Accumulator(keepingItems: true)
-        var parser = SequentialLineParser(mode)
+        var parser = SequentialLineParser(mode, imageStore: imageStore)
         var lineStart = 0
         bytes.withUnsafeBytes { buffer in
             for index in buffer.indices where buffer[index] == 0x0A {

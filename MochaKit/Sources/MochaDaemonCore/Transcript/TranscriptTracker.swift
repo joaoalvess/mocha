@@ -30,7 +30,9 @@ actor TranscriptTracker {
     private var session: TranscriptSession
     private let locator: TranscriptLocator
     private let hooks: TranscriptStoreHooks
+    private let imageStore: TranscriptImageStore?
     private var subscribers: [UUID: AsyncStream<TranscriptDelta>.Continuation] = [:]
+    private var imageReaders: Set<UUID> = []
     private var follower: TranscriptFollower?
     private var followedFile: TranscriptFileStatus?
     private var liveMeta = TranscriptMeta()
@@ -40,10 +42,11 @@ actor TranscriptTracker {
     private var eventLoop: Task<Void, Never>?
     private var loggedUnknowns: Set<String> = []
 
-    init(session: TranscriptSession, locator: TranscriptLocator, hooks: TranscriptStoreHooks) {
+    init(session: TranscriptSession, locator: TranscriptLocator, hooks: TranscriptStoreHooks, imageStore: TranscriptImageStore? = nil) {
         self.session = session
         self.locator = locator
         self.hooks = hooks
+        self.imageStore = imageStore
     }
 
     var subscriberCount: Int {
@@ -58,9 +61,14 @@ actor TranscriptTracker {
         follower != nil
     }
 
-    func subscribe(session requested: TranscriptSession, limit: Int) -> TranscriptSubscription {
+    func subscribe(session requested: TranscriptSession, limit: Int, readsImages: Bool = false) -> TranscriptSubscription {
+        let id = UUID()
+        if readsImages {
+            imageReaders.insert(id)
+        }
         if isActive {
             catchUp()
+            follower?.imageStore = activeImageStore
         } else {
             session = requested
             activate()
@@ -68,7 +76,6 @@ actor TranscriptTracker {
         let page = lastPage(limit: limit)
         hooks.afterPageRead?(session)
         let (deltas, continuation) = AsyncStream.makeStream(of: TranscriptDelta.self)
-        let id = UUID()
         subscribers[id] = continuation
         continuation.onTermination = { [weak self] _ in
             Task { await self?.unsubscribe(id) }
@@ -95,18 +102,25 @@ actor TranscriptTracker {
     func unsubscribe(_ id: UUID) {
         guard let continuation = subscribers.removeValue(forKey: id) else { return }
         continuation.finish()
+        imageReaders.remove(id)
         if subscribers.isEmpty {
             deactivate()
+        } else {
+            follower?.imageStore = activeImageStore
         }
+    }
+
+    private var activeImageStore: TranscriptImageStore? {
+        imageReaders.isEmpty ? nil : imageStore
     }
 
     func page(beforeOffset offset: UInt64, limit: Int) -> TranscriptPageSlice? {
         do {
-            if let follower {
+            if let follower, follower.imageStore == imageStore {
                 return try follower.page(beforeOffset: offset, limit: limit)
             }
-            guard let path = locator.path(for: session) else { return nil }
-            return try TranscriptPageReader(path: path, mode: session.parseMode).page(beforeOffset: offset, limit: limit)
+            guard let path = follower?.path ?? locator.path(for: session) else { return nil }
+            return try TranscriptPageReader(path: path, mode: session.parseMode, imageStore: imageStore).page(beforeOffset: offset, limit: limit)
         } catch TranscriptFileError.notFound {
             return nil
         } catch {
@@ -143,7 +157,7 @@ actor TranscriptTracker {
     private func openFollower(start: TranscriptFollower.Start) -> Bool {
         guard let path = locator.path(for: session) else { return false }
         do {
-            let opened = try TranscriptFollower(path: path, start: start, mode: session.parseMode)
+            let opened = try TranscriptFollower(path: path, start: start, mode: session.parseMode, imageStore: activeImageStore)
             follower = opened
             followedFile = opened.status()
             liveMeta = TranscriptMeta(header: opened.header, lastModified: followedFile?.modificationDate)
