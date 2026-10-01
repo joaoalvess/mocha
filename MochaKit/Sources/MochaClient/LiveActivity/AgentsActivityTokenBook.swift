@@ -12,14 +12,25 @@ public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
         }
     }
 
+    public static let endedLimit = 8
+
     public private(set) var environment: ApnsEnvironment?
     public private(set) var pushToStart: Token?
     public private(set) var activities: [String: Token] = [:]
+    public private(set) var ended: [String] = []
 
     public init() {}
 
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        environment = try container.decodeIfPresent(ApnsEnvironment.self, forKey: .environment)
+        pushToStart = try container.decodeIfPresent(Token.self, forKey: .pushToStart)
+        activities = try container.decode([String: Token].self, forKey: .activities)
+        ended = try container.decodeIfPresent([String].self, forKey: .ended) ?? []
+    }
+
     public var hasUndelivered: Bool {
-        pushToStart?.isDelivered == false || activities.values.contains { !$0.isDelivered }
+        pushToStart?.isDelivered == false || activities.values.contains { !$0.isDelivered } || !ended.isEmpty
     }
 
     @discardableResult
@@ -49,15 +60,24 @@ public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
 
     @discardableResult
     public mutating func forgetActivity(_ activityId: String) -> Bool {
-        activities.removeValue(forKey: activityId) != nil
+        guard activities.removeValue(forKey: activityId) != nil else { return false }
+        rememberEnded(activityId)
+        return true
     }
 
     @discardableResult
     public mutating func forgetActivities(except activityIds: Set<String>) -> Bool {
-        let kept = activities.filter { activityIds.contains($0.key) }
-        guard kept.count != activities.count else { return false }
-        activities = kept
+        let forgotten = activities.keys.filter { !activityIds.contains($0) }.sorted()
+        guard !forgotten.isEmpty else { return false }
+        activities = activities.filter { activityIds.contains($0.key) }
+        forgotten.forEach { rememberEnded($0) }
         return true
+    }
+
+    private mutating func rememberEnded(_ activityId: String) {
+        ended.removeAll { $0 == activityId }
+        ended.append(activityId)
+        ended = Array(ended.suffix(Self.endedLimit))
     }
 
     public func registrations(includingDelivered: Bool) -> [LiveActivityRegistration] {
@@ -69,7 +89,10 @@ public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
             .map {
                 LiveActivityRegistration(pushToStartToken: pushToStartToken, activityId: $0.key, updateToken: $0.value.value, env: environment)
             }
-        guard activityRegistrations.isEmpty else { return activityRegistrations }
+        let endedRegistrations = ended.map {
+            LiveActivityRegistration(pushToStartToken: pushToStartToken, env: environment, endedActivityId: $0)
+        }
+        guard activityRegistrations.isEmpty, endedRegistrations.isEmpty else { return activityRegistrations + endedRegistrations }
         guard let pushToStart, includingDelivered || !pushToStart.isDelivered else { return [] }
         return [LiveActivityRegistration(pushToStartToken: pushToStart.value, env: environment)]
     }
@@ -85,6 +108,10 @@ public struct AgentsActivityTokenBook: Codable, Equatable, Sendable {
         if let activityId = registration.activityId, let token = registration.updateToken,
            activities[activityId]?.value == token, activities[activityId]?.isDelivered == false {
             activities[activityId]?.isDelivered = true
+            changed = true
+        }
+        if let activityId = registration.endedActivityId, let index = ended.firstIndex(of: activityId) {
+            ended.remove(at: index)
             changed = true
         }
         return changed
