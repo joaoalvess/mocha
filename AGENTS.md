@@ -131,7 +131,8 @@ O daemon fala com o Codex CLI pelo App Server, e parte do que ele usa é API exp
   O primeiro commit do repositório é `docs(spec): add spec, plan and agent rules`.
   Um ou mais commits por WP, sempre com caminhos explícitos no `git add`.
 - Nunca adicione `Co-Authored-By` nem qualquer atribuição a IA.
-- Não há remoto. Não faça push. `reset --hard`, `clean -f` e rebase só com o ok do João.
+- O remoto `origin` é o repositório público `joaoalvess/mocha` no GitHub. Push só do `main` e só quando o João pedir. `reset --hard`, `clean -f`, rebase e reescrita de histórico só com o ok do João.
+- O repositório é público: segredos, valores pessoais (tailnet, UDID, IDs da conta Apple, bundle do app) e nomes de trabalho nunca entram no git. Eles ficam no `Config/Signing.xcconfig` ou no `.env`, e docs e testes usam valores de exemplo.
 - Mudanças temporárias de depuração (logs, mocks, overrides) saem antes do commit.
 
 ## Contexto e retomada
