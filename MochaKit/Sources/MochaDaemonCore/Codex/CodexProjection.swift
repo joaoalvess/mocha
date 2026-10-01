@@ -49,8 +49,10 @@ enum CodexProjection {
             let text = content.compactMap { $0["text"]?.stringValue }.joined(separator: "\n")
             let images = content.filter { ["image", "localImage"].contains($0["type"]?.stringValue ?? "") }.count
             kind = .userPrompt(text: text, imageCount: images)
-        case "agentMessage", "plan":
+        case "agentMessage":
             kind = .assistantText(markdown: raw["text"]?.stringValue ?? "")
+        case "plan":
+            kind = .plan(markdown: raw["text"]?.stringValue ?? "")
         case "reasoning":
             let summary = raw["summary"]?.arrayValue?.compactMap(\.stringValue).joined(separator: "\n")
             kind = .thinking(text: summary)

@@ -18,6 +18,15 @@ struct CodexProjectionTests {
         #expect(page.items[3].kind == .userPrompt(text: "Verifique este arquivo", imageCount: 1))
     }
 
+    @Test func planItemBecomesAPlanAndAgentMessageStaysText() throws {
+        let at = Date(timeIntervalSince1970: 1_790_337_600)
+        let plan = try OrderedJSON.parse(Data(#"{"type":"plan","id":"plan-1","text":"1. Ler o README"}"#.utf8))
+        let message = try OrderedJSON.parse(Data(#"{"type":"agentMessage","id":"agent-1","text":"Pronto."}"#.utf8))
+
+        #expect(CodexProjection.item(plan, at: at)?.kind == .plan(markdown: "1. Ler o README"))
+        #expect(CodexProjection.item(message, at: at)?.kind == .assistantText(markdown: "Pronto."))
+    }
+
     @Test func usesDurationAndResetReturnedByCodex() throws {
         let raw = try OrderedJSON.parse(Fixtures.data("codex/rate-limits.json"))
         let snapshot = try #require(CodexProjection.usage(raw))
