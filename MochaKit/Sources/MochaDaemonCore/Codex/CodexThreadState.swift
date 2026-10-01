@@ -359,6 +359,7 @@ struct CodexThreadState: Sendable {
             } else if !runningTools.contains(item.id) {
                 runningTools.append(item.id)
                 lastToolId = item.id
+                toolUses += 1
             }
             if lastToolId == nil { lastToolId = item.id }
             pruneTools()
@@ -384,5 +385,25 @@ struct CodexThreadState: Sendable {
 
     private mutating func refreshActivity() {
         summary.activity = (runningTools.last ?? lastToolId).flatMap { tools[$0] }
+    }
+
+    private(set) var toolUses = 0
+    private(set) var listedChildren: [String: CodexListedThread] = [:]
+
+    var lastClosedTurn: CodexTurn? {
+        closedTurns.values.max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
+    }
+
+    mutating func absorb(children: [CodexListedThread], inferOutcomes: Bool) {
+        for child in children {
+            listedChildren[child.id] = child
+            guard inferOutcomes, child.status != .running, outcomes[child.id] == nil,
+                  let at = child.updatedAt ?? child.createdAt else { continue }
+            let outcome = CodexSubagentOutcome(status: child.status, at: at)
+            outcomes[child.id] = outcome
+            if let card = cards[child.id] {
+                cards[child.id] = CodexProjection.withOutcome(card, outcome)
+            }
+        }
     }
 }

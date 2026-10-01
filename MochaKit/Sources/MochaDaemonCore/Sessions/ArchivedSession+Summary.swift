@@ -5,6 +5,7 @@ extension ArchivedSession {
     init(summary: AgentSummary, sessionId: String, reason: ArchiveReason, endedAt: Date) {
         self.init(
             id: sessionId,
+            provider: AgentProvider(rawValue: summary.kind) ?? .claude,
             agentId: summary.id,
             title: summary.title,
             workspaceLabel: summary.workspaceLabel,

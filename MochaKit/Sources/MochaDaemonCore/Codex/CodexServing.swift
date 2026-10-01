@@ -27,4 +27,7 @@ protocol CodexServing: Actor {
     func applySettings(_ change: CodexSettingsChange, to threadId: String) async throws
     func compact(_ threadId: String) async throws
     func waitForThread(of paneId: AgentID, timeout: Duration) async -> String?
+    func subagentTree(containing threadId: String) -> CodexSubagentTree?
+    func subagent(_ threadId: String) async -> CodexSubagent?
+    func refreshSubagents(of threadId: String, inferOutcomes: Bool) async
 }

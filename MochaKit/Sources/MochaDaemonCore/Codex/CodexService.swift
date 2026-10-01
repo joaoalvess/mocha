@@ -839,4 +839,44 @@ actor CodexService: CodexServing {
         guard await server.isConnected else { throw CodexServiceError.unavailable }
         return try await server.request(method, params: params)
     }
+
+    func subagentTree(containing threadId: String) -> CodexSubagentTree? {
+        let roots = Set(paneThreads.values)
+        if roots.contains(threadId) {
+            return CodexSubagents.tree(of: threadId, threads: threads)
+        }
+        for root in roots.sorted() {
+            let tree = CodexSubagents.tree(of: root, threads: threads)
+            if tree.subagents.contains(where: { $0.threadId == threadId }) { return tree }
+        }
+        return nil
+    }
+
+    func subagent(_ threadId: String) async -> CodexSubagent? {
+        if let known = subagentTree(containing: threadId)?.subagents.first(where: { $0.threadId == threadId }) {
+            return known
+        }
+        guard await server.isConnected,
+              let result = try? await server.request("thread/read", params: .object([
+                  .init("threadId", .string(threadId)), .init("includeTurns", .bool(true)),
+              ])) else { return nil }
+        return CodexSubagents.read(result["thread"] ?? .null)
+    }
+
+    func refreshSubagents(of threadId: String, inferOutcomes: Bool) async {
+        guard await server.isConnected else { return }
+        var children: [CodexListedThread] = []
+        var cursor: String?
+        var requests = 0
+        repeat {
+            requests += 1
+            var params: [OrderedJSON.Member] = [.init("parentThreadId", .string(threadId))]
+            if let cursor { params.append(.init("cursor", .string(cursor))) }
+            guard let result = try? await server.request("thread/list", params: .object(params)) else { return }
+            children += CodexSubagents.children(result)
+            cursor = result["nextCursor"]?.stringValue
+        } while cursor != nil && requests < Self.turnPagesLimit
+        guard !children.isEmpty, threads[threadId] != nil else { return }
+        threads[threadId]?.absorb(children: children, inferOutcomes: inferOutcomes)
+    }
 }

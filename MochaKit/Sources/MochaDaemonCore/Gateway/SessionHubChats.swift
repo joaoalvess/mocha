@@ -37,6 +37,7 @@ extension SessionHub {
             target = requested
             sessionId = requestedSessionId
         case .codexThread(let threadId):
+            await prepareCodexThreadChat(threadId)
             await openCodexChat(requested, threadId: threadId, before: before, limit: limit, id: id, clientId: clientId)
             return
         case .subagent(let requestedSessionId, let agentId):
@@ -270,8 +271,8 @@ extension SessionHub {
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: meta, controls: agentControls[agentId])
         case .session:
             return TreeComposer.sessionChatMeta(meta: meta, workspaceLabel: archivedWorkspaceLabel(forSession: sessionId))
-        case .codexThread:
-            return ChatMeta(title: "Codex", workspaceLabel: "", status: .unknown)
+        case .codexThread(let threadId):
+            return codexThreadChatMeta(threadId)
         case .subagent(let sessionId, let agentId):
             return subagentChatMeta(sessionId: sessionId, agentId: agentId, meta: subagentMeta)
         }

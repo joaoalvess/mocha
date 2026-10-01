@@ -3,6 +3,7 @@ import MochaProtocol
 
 extension SessionHub {
     static let cardInterval: TimeInterval = 1
+    static let codexSubagentCacheLimit = 64
 
     struct CardThrottle {
         let clientId: UUID
@@ -35,6 +36,7 @@ extension SessionHub {
     }
 
     func publishObservedSessions() {
+        pruneCodexSubagents()
         guard subagents != nil, !isShuttingDown else { return }
         var sessionIds = Set(TreeComposer.agents(in: baseTree).filter { $0.kind == TreeComposer.claudeKind }.compactMap(\.sessionId))
         for client in clients.values {
@@ -48,7 +50,8 @@ extension SessionHub {
         observedSubagentSessions = sessionIds
         subagentStates = subagentStates.filter { sessionIds.contains($0.value.sessionId) }
         workflowStates = workflowStates.filter { sessionIds.contains($0.value.sessionId) }
-        runningSubagentCounts = runningSubagentCounts.filter { sessionIds.contains($0.key) }
+        let codexRoots = Set(codexPanes.values.map(\.threadId))
+        runningSubagentCounts = runningSubagentCounts.filter { sessionIds.contains($0.key) || codexRoots.contains($0.key) }
         observedSessionContinuation.yield(sessionIds)
     }
 
@@ -56,6 +59,10 @@ extension SessionHub {
         let resolved = await herdr.resolve(agentId)
         guard let agent = await herdr.agent(resolved) else {
             send(.agentNotFound, id: id, to: clientId)
+            return
+        }
+        if agent.kind == TreeComposer.codexKind {
+            await listCodexSubagents(resolved, id: id, clientId: clientId)
             return
         }
         guard agent.kind == TreeComposer.claudeKind else {
@@ -97,6 +104,10 @@ extension SessionHub {
         }
         switch item.kind {
         case .subagent(var call):
+            if let subagent = call.agentId.flatMap({ codexSubagents[$0] }) {
+                copy.kind = .subagent(subagent.overlay(call))
+                return copy
+            }
             let state = call.agentId.flatMap { subagentStates[$0] }
                 ?? subagentStates.values.first { $0.toolUseId == call.toolUseId && $0.runId == nil }
             guard let state else { return copy }
@@ -278,7 +289,7 @@ extension SessionHub {
         throttle.lastSentAt = .distantPast
         cardThrottles[key] = throttle
         guard let chat = clients[throttle.clientId]?.chats.values.first(where: { $0.token == throttle.token }),
-              let card = chat.cards[throttle.itemId] else {
+              let card = chat.cards[throttle.itemId] ?? chat.codexItems[throttle.itemId] else {
             return
         }
         sendCard(card, token: throttle.token, clientId: throttle.clientId)
@@ -314,6 +325,138 @@ extension SessionHub {
         switch item.kind {
         case .subagent, .workflow: true
         default: false
+        }
+    }
+
+    func codexSubagentEvent(_ event: CodexThreadEvent) async {
+        guard let codex else { return }
+        switch event {
+        case .resubscribed(let threadId):
+            Task { [weak self] in
+                await codex.refreshSubagents(of: threadId, inferOutcomes: true)
+                await self?.refreshCodexSubagents(around: threadId)
+            }
+        case .item(let item):
+            guard item.item["type"]?.stringValue == "subAgentActivity" || codexSubagents[item.threadId] != nil else { return }
+            await refreshCodexSubagents(around: item.threadId, delivered: item.chatItems)
+        case .turn(let threadId, _, let chatItems):
+            guard codexSubagents[threadId] != nil else { return }
+            await refreshCodexSubagents(around: threadId, delivered: chatItems)
+        case .settings:
+            break
+        }
+    }
+
+    func prepareCodexThreadChat(_ threadId: String) async {
+        guard let codex, codexSubagents[threadId] == nil,
+              !codexPanes.values.contains(where: { $0.threadId == threadId }),
+              !archivedSessions.contains(where: { $0.id == threadId }),
+              let subagent = await codex.subagent(threadId),
+              codexSubagents[threadId] == nil else { return }
+        codexSubagents[threadId] = subagent
+    }
+
+    func codexThreadChatMeta(_ threadId: String) -> ChatMeta {
+        guard let subagent = codexSubagents[threadId] else { return codexRootChatMeta(threadId) }
+        let root = codexRootChatMeta(subagent.rootThreadId)
+        let parentTitle = subagent.isNested ? codexSubagents[subagent.parentThreadId]?.description ?? root.title : root.title
+        return ChatMeta(
+            title: subagent.description,
+            workspaceLabel: root.workspaceLabel,
+            model: subagent.model ?? root.model,
+            branch: subagent.branch ?? root.branch,
+            status: .unknown,
+            subagent: subagent.chatInfo(parentTitle: parentTitle)
+        )
+    }
+
+    private func listCodexSubagents(_ agentId: AgentID, id: String, clientId: UUID) async {
+        guard let codex, codexConnected, let pane = codexPanes[agentId] else {
+            send(.codexUnavailable, id: id, to: clientId)
+            return
+        }
+        let subagents = await codex.subagentTree(containing: pane.threadId)?.subagents ?? []
+        send(.subagentList(agentId: agentId, items: CodexSubagents.listed(subagents)), id: id, to: clientId)
+    }
+
+    private func refreshCodexSubagents(around threadId: String, delivered: [ChatItem] = []) async {
+        guard let codex, let tree = await codex.subagentTree(containing: threadId) else { return }
+        let root = tree.rootThreadId
+        let previous = codexSubagents.filter { $0.value.rootThreadId == root }
+        var fresh: [String: CodexSubagent] = [:]
+        for subagent in tree.subagents {
+            fresh[subagent.threadId] = subagent
+        }
+        for id in previous.keys where fresh[id] == nil {
+            codexSubagents[id] = nil
+        }
+        codexSubagents.merge(fresh) { _, new in new }
+        let running = tree.subagents.count { $0.status == .running }
+        if runningSubagentCounts[root, default: 0] != running {
+            runningSubagentCounts[root] = running > 0 ? running : nil
+            scheduleTreeFlush()
+        }
+        let changed = tree.subagents.filter { previous[$0.threadId] != $0 }
+        guard !changed.isEmpty else { return }
+        refreshCodexCards(Set(changed.map(\.threadId)), delivered: delivered, deliveredThreadId: threadId)
+        refreshChatMetas()
+        let unnamed = changed.filter { $0.nickname == nil && previous[$0.threadId]?.status != $0.status }
+        for parent in Set(unnamed.map(\.parentThreadId)).sorted() {
+            Task { [weak self] in
+                await codex.refreshSubagents(of: parent, inferOutcomes: false)
+                await self?.refreshCodexSubagents(around: root)
+            }
+        }
+    }
+
+    private func refreshCodexCards(_ children: Set<String>, delivered: [ChatItem], deliveredThreadId: String) {
+        var deliveredCards: [String: ChatItem] = [:]
+        for item in delivered where Self.isCard(item) {
+            deliveredCards[item.id] = item
+        }
+        let now = clock.now()
+        for (clientId, client) in clients where client.isAuthenticated && !client.isClosing {
+            for chat in client.chats.values where chat.codexThreadId != nil {
+                for card in chat.codexItems.values {
+                    guard case .subagent(let call) = card.kind, let child = call.agentId, children.contains(child) else { continue }
+                    guard chat.codexThreadId == deliveredThreadId, let fresh = deliveredCards[card.id] else {
+                        sendCard(card, token: chat.token, clientId: clientId)
+                        continue
+                    }
+                    let key = Self.cardKey(clientId: clientId, token: chat.token, itemId: card.id)
+                    cardThrottles[key]?.pending?.cancel()
+                    cardThrottles[key] = CardThrottle(clientId: clientId, token: chat.token, itemId: card.id, lastItem: overlaid(fresh), lastSentAt: now)
+                }
+            }
+        }
+    }
+
+    private func codexRootChatMeta(_ threadId: String) -> ChatMeta {
+        if let agentId = codexPanes.first(where: { $0.value.threadId == threadId })?.key, let summary = composedAgent(agentId) {
+            return TreeComposer.agentChatMeta(summary: summary, meta: nil)
+        }
+        if let archived = archivedSessions.first(where: { $0.id == threadId }) {
+            return ChatMeta(
+                title: archived.title,
+                workspaceLabel: archived.workspaceLabel,
+                model: archived.model,
+                branch: archived.branch,
+                status: .unknown
+            )
+        }
+        return ChatMeta(title: "Codex", workspaceLabel: "", status: .unknown)
+    }
+
+    private func pruneCodexSubagents() {
+        let roots = Set(codexPanes.values.map(\.threadId))
+        let open = Set(clients.values.flatMap { $0.chats.values.compactMap(\.codexThreadId) })
+        let stale = codexSubagents.filter { !roots.contains($0.value.rootThreadId) && !open.contains($0.key) }
+        for root in Set(stale.values.map(\.rootThreadId)) {
+            runningSubagentCounts[root] = nil
+        }
+        guard stale.count > Self.codexSubagentCacheLimit else { return }
+        for id in stale.keys {
+            codexSubagents[id] = nil
         }
     }
 }

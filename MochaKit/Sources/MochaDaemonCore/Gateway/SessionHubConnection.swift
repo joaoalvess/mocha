@@ -243,10 +243,11 @@ extension SessionHub {
         case .ping:
             send(.pong, id: id, to: clientId)
         case .archive(let sessionId, let provider):
-            if provider == .claude {
+            switch provider {
+            case .claude:
                 await archiveSession(sessionId, id: id, clientId: clientId)
-            } else {
-                send(.notClaude, id: id, to: clientId)
+            case .codex:
+                await archiveCodexSession(sessionId, id: id, clientId: clientId)
             }
         case .slash(let agentId, let command):
             await slash(command, agentId: agentId, id: id, clientId: clientId)
