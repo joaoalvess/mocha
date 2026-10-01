@@ -79,11 +79,13 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
 
     private static let tolerance: TimeInterval = 0.001
     private static let retiredLimit = 64
+    private static let shadowTurnDoneCooldown: TimeInterval = 5
 
     private let devices: DeviceStore
     private let sender: any LiveActivityPushSending
     private let clock: any GatewayClock
     private let configuration: LiveActivityConfiguration
+    private let presence: PresenceMonitor?
 
     private var tracker = AgentActivityTracker()
     private var snapshots: [AgentID: AgentActivitySnapshot] = [:]
@@ -94,23 +96,38 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
     private var sends: [UUID: Task<Void, Never>] = [:]
     private var inputTask: Task<Void, Never>?
     private var alertFallback: (any LiveActivityAlertFallback)?
+    private var lock: ConsoleLock = .unknown
+    private var presenceTask: Task<Void, Never>?
+    private var shadowSilenced: [AgentID: AgentFeedAlert] = [:]
     private var isShutDown = false
 
     public init(
         devices: DeviceStore,
         sender: any LiveActivityPushSending,
         clock: any GatewayClock = SystemGatewayClock(),
-        configuration: LiveActivityConfiguration = LiveActivityConfiguration()
+        configuration: LiveActivityConfiguration = LiveActivityConfiguration(),
+        presence: PresenceMonitor? = nil
     ) {
         self.devices = devices
         self.sender = sender
         self.clock = clock
         self.configuration = configuration
+        self.presence = presence
     }
 
     public func start(inputs: AsyncStream<LiveActivityInput>) async {
         guard inputTask == nil, !isShutDown else { return }
         await loadRegistrations()
+        if let presence {
+            lock = await presence.current()
+            let transitions = await presence.transitions()
+            presenceTask = Task { [weak self] in
+                for await lock in transitions {
+                    guard let self else { break }
+                    await self.presenceChanged(to: lock)
+                }
+            }
+        }
         inputTask = Task { [weak self] in
             for await input in inputs {
                 guard let self else { break }
@@ -123,6 +140,8 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         isShutDown = true
         inputTask?.cancel()
         inputTask = nil
+        presenceTask?.cancel()
+        presenceTask = nil
         wake?.task.cancel()
         wake = nil
         let running = Array(sends.values)
@@ -136,7 +155,9 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         guard !isShutDown else { return }
         hasInput = true
         foreground = input.foregroundDevices
-        snapshots = tracker.snapshots(of: input, at: clock.now(), titleLimit: configuration.titleLimit)
+        let now = clock.now()
+        snapshots = tracker.snapshots(of: input, at: now, titleLimit: configuration.titleLimit)
+        logShadowAlerts(at: now)
         settleAlertsOutsideTheCard()
         evaluate()
     }
@@ -236,6 +257,61 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             device.card = nil
         }
         states[id] = device
+    }
+
+    private func logShadowAlerts(at now: Date) {
+        for dropped in tracker.droppedAlerts where dropped.alert.kind == .turnDone && snapshots[dropped.agentId]?.isBusy == true
+            && now.timeIntervalSince(dropped.alert.at) < Self.shadowTurnDoneCooldown {
+            liveActivityLogger.notice(
+                "shadow alert turnDone of \(dropped.agentId, privacy: .public) gen=\(dropped.alert.generation, privacy: .public) would=cancelled"
+            )
+        }
+        let channel = states.values.contains { $0.card?.updateToken != nil } ? "card" : "push"
+        for (agentId, alert) in tracker.alerts.sorted(by: { $0.key < $1.key }) where alert.generation == tracker.generation {
+            let would = lock.isAtMac ? "silent" : "ring"
+            if lock.isAtMac {
+                shadowSilenced[agentId] = alert
+            }
+            liveActivityLogger.notice(
+                "shadow alert \(alert.kind.rawValue, privacy: .public) of \(agentId, privacy: .public) gen=\(alert.generation, privacy: .public) channel=\(channel, privacy: .public) lock=\(self.lock.rawValue, privacy: .public) would=\(would, privacy: .public)"
+            )
+        }
+    }
+
+    private func presenceChanged(to newLock: ConsoleLock) {
+        let wasAtMac = lock.isAtMac
+        lock = newLock
+        guard wasAtMac, !newLock.isAtMac else {
+            if newLock.isAtMac {
+                shadowSilenced.removeAll()
+            }
+            return
+        }
+        let candidate = shadowSilenced
+            .filter { isUnseen($0.value, of: $0.key) }
+            .max { shadowUrgency($0.value, of: $0.key) < shadowUrgency($1.value, of: $1.key) }
+        shadowSilenced.removeAll()
+        if let candidate {
+            liveActivityLogger.notice("shadow lock-ring \(candidate.key, privacy: .public) \(candidate.value.kind.rawValue, privacy: .public)")
+        } else {
+            liveActivityLogger.notice("shadow lock-ring none")
+        }
+    }
+
+    private func isUnseen(_ alert: AgentFeedAlert, of agentId: AgentID) -> Bool {
+        guard tracker.alerts[agentId]?.generation == alert.generation else { return false }
+        switch alert.kind {
+        case .needsInput: return snapshots[agentId]?.isBlocked == true
+        case .turnDone: return tracker.herdrStatuses[agentId] == .done
+        }
+    }
+
+    private func shadowUrgency(_ alert: AgentFeedAlert, of agentId: AgentID) -> (Int, Int) {
+        let rank = switch alert.kind {
+        case .needsInput: snapshots[agentId]?.pending == nil ? 1 : 2
+        case .turnDone: 0
+        }
+        return (rank, alert.generation)
     }
 
     private func settleAlertsOutsideTheCard() {
@@ -342,6 +418,10 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         let push = snapshot.push({ .update(alert: alertKind.map($0.alertContent)) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
         let focus = snapshot.agent.agentId
         let retriedAlert = alertKind.map { _ in RetriedAlert(agentId: focus, generation: card.alerted[focus]) }
+        let lag = tracker.eventDates[focus].map { now.timeIntervalSince($0) } ?? 0
+        liveActivityLogger.notice(
+            "card update of \(focus, privacy: .public) p\(update.priority.rawValue, privacy: .public) alert=\(alertKind?.rawValue ?? "none", privacy: .public) lag=\(String(format: "%.1f", lag), privacy: .public)"
+        )
         var reported = card
         if let alert = tracker.alerts[focus] {
             report(alert, of: focus, on: id, card: &reported, wasShown: alertKind != nil)

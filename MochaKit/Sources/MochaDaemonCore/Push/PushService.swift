@@ -149,7 +149,7 @@ public actor PushService {
             return
         }
         pushLogger.info("\(kind.rawValue, privacy: .public) alert of \(agentId, privacy: .public) was not shown on the card of device \(device, privacy: .public)")
-        deliver(parked.request, to: device, kind: kind, client: sender.client)
+        deliver(parked.request, to: device, kind: kind, agentId: agentId, isFallback: true, client: sender.client)
     }
 
     public func handle(_ hook: ReceivedHook) async {
@@ -354,7 +354,7 @@ public actor PushService {
             )
             let key = CardAlertKey(device: recipient.device, agentId: agentId, kind: kind)
             guard recipient.hasCard, missedCardAlerts.removeValue(forKey: key) == nil else {
-                deliver(request, to: recipient.device, kind: kind, client: sender.client)
+                deliver(request, to: recipient.device, kind: kind, agentId: agentId, isFallback: false, client: sender.client)
                 continue
             }
             parkedAlerts[key] = ParkedAlert(request: request, at: now)
@@ -411,8 +411,11 @@ public actor PushService {
         }
     }
 
-    private func deliver(_ request: ApnsRequest, to device: DeviceID, kind: PushAlertKind, client: ApnsClient) {
+    private func deliver(_ request: ApnsRequest, to device: DeviceID, kind: PushAlertKind, agentId: AgentID, isFallback: Bool, client: ApnsClient) {
         guard !isShutDown else { return }
+        pushLogger.notice(
+            "push \(kind.rawValue, privacy: .public) of \(agentId, privacy: .public) device \(device, privacy: .public) fallback=\(isFallback ? "yes" : "no", privacy: .public)"
+        )
         let id = UUID()
         let clock = clock
         let delays = configuration.retryDelays
