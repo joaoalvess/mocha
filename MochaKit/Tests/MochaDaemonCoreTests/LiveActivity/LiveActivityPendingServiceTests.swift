@@ -22,7 +22,7 @@ struct LiveActivityPendingServiceTests {
         LiveActivitySample.agent(id, .blocked, title: title, pendingCount: pendingCount)
     }
 
-    @Test func theOldestRequestHoldsTheCardAndTheNextOneTakesItWithoutAnotherAlert() async throws {
+    @Test func theOldestRequestHoldsTheCardAndTheNextOneRingsWhenItTakesIt() async throws {
         try await withLiveActivity { harness in
             let device = try await harness.pair()
             try await harness.registerUpdateToken(for: device)
@@ -45,7 +45,7 @@ struct LiveActivityPendingServiceTests {
             ))
             #expect(held.push.contentState.agent.status == "blocked")
             #expect(held.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "Qual banco?")))
-            #expect(await harness.service.cardHolder() == "w3:p1")
+            #expect(await harness.service.holder == "w3:p1")
 
             try await harness.advance(10)
             try await harness.agents([blocked("w1:p1"), LiveActivitySample.agent("w3:p1", .working, title: "Escrever testes")], pending: [unknown, permission])
@@ -54,8 +54,8 @@ struct LiveActivityPendingServiceTests {
             #expect(next.priority == .high)
             #expect(next.push.agentId == "w1:p1")
             #expect(next.push.contentState.pending?.requestId == "req-a")
-            #expect(next.push.event == .update(alert: nil))
-            #expect(await harness.service.cardHolder() == "w1:p1")
+            #expect(next.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "rm -rf build")))
+            #expect(await harness.service.holder == "w1:p1")
             #expect(await harness.service.focus(on: device) == "w1:p1")
         }
     }
@@ -75,7 +75,7 @@ struct LiveActivityPendingServiceTests {
             #expect(ask.priority == .high)
             #expect(ask.push.agentId == "w2:p1")
             #expect(ask.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "rm -rf build")))
-            #expect(await harness.service.cardHolder() == "w2:p1")
+            #expect(await harness.service.holder == "w2:p1")
 
             try await harness.advance(10)
             parser.preview = MessagePreview(author: .assistant, text: "Terminei.")
@@ -89,11 +89,17 @@ struct LiveActivityPendingServiceTests {
 
             try await harness.agents([parser, LiveActivitySample.agent("w2:p1", .working)])
             #expect(harness.sent.count == 3)
+            let queued = try harness.last()
+            #expect(queued.push.agentId == "w1:p1")
+            #expect(queued.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Terminei.")))
+            #expect(await harness.service.holder == nil)
+
+            try await harness.advance(10)
+            #expect(harness.sent.count == 4)
             let resolved = try harness.last()
             #expect(resolved.push.agentId == "w2:p1")
             #expect(resolved.push.contentState.pending == nil)
             #expect(resolved.push.event == .update(alert: nil))
-            #expect(await harness.service.cardHolder() == nil)
 
             try await harness.advance(10)
             parser.status = .working
@@ -177,31 +183,39 @@ struct LiveActivityPendingServiceTests {
         }
     }
 
-    @Test func requestChangesRespectTheTenSecondLimitWithTheLatestState() async throws {
+    @Test func requestAlertsSkipTheTenSecondLimitButStayTwoSecondsApart() async throws {
         try await withLiveActivity { harness in
             let first = LiveActivitySample.permission("req-a", agent: "w1:p1", createdAt: at(3))
-            let second = LiveActivitySample.question("req-b", agent: "w1:p1", createdAt: at(6), questions: [question])
+            let second = LiveActivitySample.question("req-b", agent: "w1:p1", createdAt: at(4), questions: [question])
 
             try await appStartedActivity(harness, agents: [blocked("w1:p1", pendingCount: 0)])
             try await harness.advance(3)
             try await harness.agents([blocked("w1:p1")], pending: [first])
-            try await harness.advance(3)
-            try await harness.agents([blocked("w1:p1")], pending: [second])
-            try await harness.advance(3)
-            #expect(harness.sent.count == 1)
+            #expect(harness.sent.count == 2)
+            let ask = try harness.last()
+            #expect(ask.priority == .high)
+            #expect(ask.push.timestamp == at(3))
+            #expect(ask.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "rm -rf build")))
 
             try await harness.advance(1)
+            try await harness.agents([blocked("w1:p1")], pending: [second])
             #expect(harness.sent.count == 2)
+
+            try await harness.advance(1)
+            #expect(harness.sent.count == 3)
             let update = try harness.last()
             #expect(update.priority == .high)
-            #expect(update.push.timestamp == at(10))
+            #expect(update.push.timestamp == at(5))
             #expect(update.push.contentState.pending?.requestId == "req-b")
             #expect(update.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "Qual banco?")))
 
-            try await harness.agents([blocked("w1:p1")], pending: [first])
-            try await harness.agents([blocked("w1:p1")], pending: [second])
-            try await harness.advance(10)
-            #expect(harness.sent.count == 2)
+            try await harness.agents([blocked("w1:p1", title: "Refatorar o lexer")], pending: [second])
+            try await harness.advance(9)
+            #expect(harness.sent.count == 3)
+            try await harness.advance(1)
+            #expect(harness.sent.count == 4)
+            #expect(try harness.last().push.event == .update(alert: nil))
+            #expect(try harness.last().push.timestamp == at(15))
         }
     }
 

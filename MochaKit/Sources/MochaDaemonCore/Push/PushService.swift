@@ -48,7 +48,7 @@ public struct PushServiceConfiguration: Sendable {
     public var retryDelays: [Duration]
     public var turnDoneLifetime: TimeInterval
     public var needsInputLifetime: TimeInterval
-    public var cardAlertWindow: TimeInterval
+    public var turnDoneCooldown: Duration
 
     public init(
         needsInputWindow: Duration = .seconds(10),
@@ -56,14 +56,14 @@ public struct PushServiceConfiguration: Sendable {
         retryDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(4), .seconds(8)],
         turnDoneLifetime: TimeInterval = 60 * 60,
         needsInputLifetime: TimeInterval = 10 * 60,
-        cardAlertWindow: TimeInterval = 60
+        turnDoneCooldown: Duration = .seconds(5)
     ) {
         self.needsInputWindow = needsInputWindow
         self.blockedGrace = blockedGrace
         self.retryDelays = retryDelays
         self.turnDoneLifetime = turnDoneLifetime
         self.needsInputLifetime = needsInputLifetime
-        self.cardAlertWindow = cardAlertWindow
+        self.turnDoneCooldown = turnDoneCooldown
     }
 }
 
@@ -76,21 +76,14 @@ public actor PushService {
     private struct Recipient {
         let device: DeviceID
         let apns: ApnsRegistration
-        let hasCard: Bool
-    }
-
-    private struct CardAlertKey: Hashable {
-        let device: DeviceID
-        let agentId: AgentID
-        let kind: PushAlertKind
-    }
-
-    private struct ParkedAlert {
-        let request: ApnsRequest
-        let at: Date
     }
 
     private struct BlockedCheck {
+        let token: UUID
+        let task: Task<Void, Never>
+    }
+
+    private struct TurnDoneCheck {
         let token: UUID
         let task: Task<Void, Never>
     }
@@ -106,11 +99,10 @@ public actor PushService {
     private var lastNeedsInput: [AgentID: Date] = [:]
     private var blockedAgents: Set<AgentID> = []
     private var blockedChecks: [AgentID: BlockedCheck] = [:]
+    private var turnDoneChecks: [AgentID: TurnDoneCheck] = [:]
     private var deliveries: [UUID: Task<Void, Never>] = [:]
     private var issues: [ApnsEnvironment: ApnsConfigurationIssue] = [:]
     private var liveActivityCards: (any LiveActivityCardHolding)?
-    private var parkedAlerts: [CardAlertKey: ParkedAlert] = [:]
-    private var missedCardAlerts: [CardAlertKey: Date] = [:]
     private var isShutDown = false
 
     public init(
@@ -131,32 +123,41 @@ public actor PushService {
 
     public func attachLiveActivity(_ cards: any LiveActivityCardHolding) async {
         liveActivityCards = cards
-        await cards.attachAlertFallback(self)
+        await cards.attachAlertHandoff(self)
     }
 
-    public func cardAlert(_ kind: PushAlertKind, of agentId: AgentID, on device: DeviceID, wasShown: Bool) {
-        guard !isShutDown else { return }
-        let now = clock.now()
-        pruneCardAlerts(at: now)
-        let key = CardAlertKey(device: device, agentId: agentId, kind: kind)
-        let parked = parkedAlerts.removeValue(forKey: key)
-        guard !wasShown else {
-            missedCardAlerts[key] = nil
+    public func cardLost(_ alerts: [LiveActivityLostAlert], on device: DeviceID) async {
+        guard !isShutDown, !alerts.isEmpty else { return }
+        let record: DeviceRecord?
+        do {
+            record = try await devices.devices().first { $0.id == device }
+        } catch {
+            pushLogger.error("failed to read devices: \(Self.describe(error), privacy: .public)")
             return
         }
-        guard let parked, let sender = loadSender() else {
-            missedCardAlerts[key] = now
-            return
+        guard let record, let apns = record.apns, ApnsRequest.isValidDeviceToken(apns.token), let sender = loadSender() else { return }
+        let recipient = Recipient(device: device, apns: apns)
+        for alert in alerts where alert.kind != .turnDone || record.preferences.turnDoneAlerts {
+            guard !isShutDown, await !audience.foregroundDevices(for: alert.agentId).contains(device) else { continue }
+            send(
+                alert.kind,
+                agentId: alert.agentId,
+                title: alert.title,
+                body: alert.body,
+                category: alert.kind.category,
+                requestId: alert.requestId,
+                to: [recipient],
+                isFallback: true,
+                sender: sender
+            )
         }
-        pushLogger.info("\(kind.rawValue, privacy: .public) alert of \(agentId, privacy: .public) was not shown on the card of device \(device, privacy: .public)")
-        deliver(parked.request, to: device, kind: kind, agentId: agentId, isFallback: true, client: sender.client)
     }
 
     public func handle(_ hook: ReceivedHook) async {
         guard !isShutDown else { return }
         switch hook.event {
         case .stop(let stop):
-            await alert(.turnDone, agentId: hook.agentId, body: PushAlertText.turnDoneBody(stop.lastAssistantMessage))
+            await turnDone(hook.agentId, body: PushAlertText.turnDoneBody(stop.lastAssistantMessage))
         case .permissionRequest(let request):
             rememberNeedsInput(hook.agentId, at: clock.now())
             await alert(
@@ -177,7 +178,7 @@ public actor PushService {
         guard !isShutDown else { return }
         switch alert {
         case .turnDone(let agentId, let lastMessage):
-            await self.alert(.turnDone, agentId: agentId, body: PushAlertText.turnDoneBody(lastMessage))
+            await turnDone(agentId, body: PushAlertText.turnDoneBody(lastMessage))
         case .needsInput(let request):
             rememberNeedsInput(request.agentId, at: clock.now())
             await self.alert(
@@ -267,6 +268,10 @@ public actor PushService {
             check.task.cancel()
         }
         blockedChecks.removeAll()
+        for check in turnDoneChecks.values {
+            check.task.cancel()
+        }
+        turnDoneChecks.removeAll()
         let running = Array(deliveries.values)
         deliveries.removeAll()
         for task in running {
@@ -281,6 +286,10 @@ public actor PushService {
         blockedChecks.count
     }
 
+    var pendingTurnDoneChecks: Int {
+        turnDoneChecks.count
+    }
+
     func waitForDeliveries() async {
         while let task = deliveries.values.first {
             await task.value
@@ -289,10 +298,45 @@ public actor PushService {
 
     private func blockedGraceElapsed(_ agentId: AgentID, token: UUID) async {
         guard blockedChecks[agentId]?.token == token else { return }
-        blockedChecks[agentId] = nil
+        defer {
+            if blockedChecks[agentId]?.token == token {
+                blockedChecks[agentId] = nil
+            }
+        }
         guard blockedAgents.contains(agentId) else { return }
         guard let agent = await audience.agentSummary(agentId), agent.kind == TreeComposer.claudeKind else { return }
         await secondaryNeedsInput(agentId, agent: agent)
+    }
+
+    private func turnDone(_ agentId: AgentID, body: String) async {
+        let cooldown = configuration.turnDoneCooldown
+        guard cooldown > .zero else {
+            await alert(.turnDone, agentId: agentId, body: body)
+            return
+        }
+        turnDoneChecks.removeValue(forKey: agentId)?.task.cancel()
+        let token = UUID()
+        let clock = clock
+        let task = Task { [weak self] in
+            guard (try? await clock.sleep(for: cooldown)) != nil else { return }
+            await self?.turnDoneCooldownElapsed(agentId, body: body, token: token)
+        }
+        turnDoneChecks[agentId] = TurnDoneCheck(token: token, task: task)
+    }
+
+    private func turnDoneCooldownElapsed(_ agentId: AgentID, body: String, token: UUID) async {
+        guard turnDoneChecks[agentId]?.token == token else { return }
+        defer {
+            if turnDoneChecks[agentId]?.token == token {
+                turnDoneChecks[agentId] = nil
+            }
+        }
+        guard !isShutDown else { return }
+        if let agent = await audience.agentSummary(agentId), agent.status.isBusy || agent.pendingCount > 0 {
+            pushLogger.notice("push turnDone of \(agentId, privacy: .public) cancelled: the agent is busy again")
+            return
+        }
+        await alert(.turnDone, agentId: agentId, body: body)
     }
 
     private func secondaryNeedsInput(_ agentId: AgentID, agent: AgentSummary?) async {
@@ -320,14 +364,38 @@ public actor PushService {
         guard !recipients.isEmpty, let sender = loadSender() else { return }
         let summary = await audience.agentSummary(agentId)
         let provider: AgentProvider? = summary?.kind == TreeComposer.codexKind ? .codex : nil
+        send(
+            kind,
+            agentId: agentId,
+            title: PushAlertText.title(kind, workspaceLabel: summary?.workspaceLabel, provider: provider),
+            body: body,
+            category: category ?? kind.category,
+            requestId: requestId,
+            to: recipients,
+            isFallback: false,
+            sender: sender
+        )
+    }
+
+    private func send(
+        _ kind: PushAlertKind,
+        agentId: AgentID,
+        title: String,
+        body: String,
+        category: String,
+        requestId: RequestID?,
+        to recipients: [Recipient],
+        isFallback: Bool,
+        sender: Sender
+    ) {
         let now = clock.now()
         let payload: Data
         do {
             payload = try ApnsAlertPush(
-                title: PushAlertText.title(kind, workspaceLabel: summary?.workspaceLabel, provider: provider),
+                title: title,
                 body: body,
                 threadId: agentId,
-                category: category ?? kind.category,
+                category: category,
                 interruptionLevel: kind.interruptionLevel,
                 agentId: agentId,
                 kind: kind.rawValue,
@@ -340,7 +408,6 @@ public actor PushService {
         }
         let lifetime = kind == .turnDone ? configuration.turnDoneLifetime : configuration.needsInputLifetime
         let collapseId = agentId.utf8.count <= ApnsRequest.maxCollapseIdBytes ? agentId : nil
-        pruneCardAlerts(at: now)
         for recipient in recipients {
             let request = ApnsRequest(
                 deviceToken: recipient.apns.token,
@@ -352,19 +419,8 @@ public actor PushService {
                 collapseId: collapseId,
                 payload: payload
             )
-            let key = CardAlertKey(device: recipient.device, agentId: agentId, kind: kind)
-            guard recipient.hasCard, missedCardAlerts.removeValue(forKey: key) == nil else {
-                deliver(request, to: recipient.device, kind: kind, agentId: agentId, isFallback: false, client: sender.client)
-                continue
-            }
-            parkedAlerts[key] = ParkedAlert(request: request, at: now)
+            deliver(request, to: recipient.device, kind: kind, agentId: agentId, isFallback: isFallback, client: sender.client)
         }
-    }
-
-    private func pruneCardAlerts(at now: Date) {
-        let window = configuration.cardAlertWindow
-        parkedAlerts = parkedAlerts.filter { now.timeIntervalSince($0.value.at) < window }
-        missedCardAlerts = missedCardAlerts.filter { now.timeIntervalSince($0.value) < window }
     }
 
     private func recipients(for kind: PushAlertKind, agentId: AgentID) async -> [Recipient] {
@@ -375,19 +431,23 @@ public actor PushService {
             pushLogger.error("failed to read devices: \(Self.describe(error), privacy: .public)")
             return []
         }
-        let cardIsHeldByAnotherAgent = await liveActivityCards?.cardHolder().map { $0 != agentId } ?? false
         let candidates = records.filter { record in
             record.apns != nil && (kind != .turnDone || record.preferences.turnDoneAlerts)
         }
         guard !candidates.isEmpty else { return [] }
+        let cards = await liveActivityCards?.cardDevices() ?? []
         let foreground = await audience.foregroundDevices(for: agentId)
         var tokens: Set<String> = []
         var recipients: [Recipient] = []
         for record in candidates where !foreground.contains(record.id) {
+            guard !cards.contains(record.id) else {
+                pushLogger.info("\(kind.rawValue, privacy: .public) alert of \(agentId, privacy: .public) left to the card of device \(record.id, privacy: .public)")
+                continue
+            }
             guard let apns = record.apns, ApnsRequest.isValidDeviceToken(apns.token), tokens.insert(apns.token.lowercased()).inserted else {
                 continue
             }
-            recipients.append(Recipient(device: record.id, apns: apns, hasCard: record.hasLiveActivityCard && !cardIsHeldByAnotherAgent))
+            recipients.append(Recipient(device: record.id, apns: apns))
         }
         return recipients
     }

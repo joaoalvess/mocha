@@ -12,6 +12,10 @@ public struct LiveActivityConfiguration: Sendable {
     public var retryDelay: TimeInterval
     public var configurationRetryDelay: TimeInterval
     public var titleLimit: Int
+    public var turnDoneCooldown: TimeInterval
+    public var blockedGrace: TimeInterval
+    public var blockedAlertWindow: TimeInterval
+    public var minimumAlertGap: TimeInterval
 
     public init(
         updateInterval: TimeInterval = 10,
@@ -24,7 +28,11 @@ public struct LiveActivityConfiguration: Sendable {
         pushToStartWindow: TimeInterval = 3600,
         retryDelay: TimeInterval = 10,
         configurationRetryDelay: TimeInterval = 5 * 60,
-        titleLimit: Int = 60
+        titleLimit: Int = 60,
+        turnDoneCooldown: TimeInterval = 5,
+        blockedGrace: TimeInterval = 1,
+        blockedAlertWindow: TimeInterval = 10,
+        minimumAlertGap: TimeInterval = 2
     ) {
         self.updateInterval = updateInterval
         self.idleTimeout = idleTimeout
@@ -37,5 +45,13 @@ public struct LiveActivityConfiguration: Sendable {
         self.retryDelay = retryDelay
         self.configurationRetryDelay = configurationRetryDelay
         self.titleLimit = titleLimit
+        self.turnDoneCooldown = turnDoneCooldown
+        self.blockedGrace = blockedGrace
+        self.blockedAlertWindow = blockedAlertWindow
+        self.minimumAlertGap = minimumAlertGap
+    }
+
+    var timing: AgentActivityTiming {
+        AgentActivityTiming(turnDoneCooldown: turnDoneCooldown, blockedGrace: blockedGrace, blockedAlertWindow: blockedAlertWindow)
     }
 }

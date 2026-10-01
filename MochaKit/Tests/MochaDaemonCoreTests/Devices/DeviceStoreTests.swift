@@ -148,14 +148,11 @@ struct DeviceStoreTests {
             #expect(try await store.setLiveActivities(pushToStart: starter, feedActivity: nil, for: "sumiu") == false)
             #expect(try await record(phone.id).liveActivity == starter)
             #expect(try await record(phone.id).feedActivity == card)
-            #expect(try await record(phone.id).hasLiveActivityCard)
-            #expect(try await record(watch.id).hasLiveActivityCard == false)
 
             let claimed = LiveActivityRegistration(activityId: "act-1", updateToken: update.uppercased(), env: .sandbox)
             #expect(try await store.setLiveActivities(pushToStart: nil, feedActivity: claimed, for: pad.id))
             #expect(try await record(phone.id).liveActivity == starter)
             #expect(try await record(phone.id).feedActivity == nil)
-            #expect(try await record(phone.id).hasLiveActivityCard == false)
             #expect(try await record(phone.id).apns == apns)
             #expect(try await record(pad.id).feedActivity == claimed)
             #expect(try await record(watch.id).liveActivity == other)
@@ -191,7 +188,7 @@ struct DeviceStoreTests {
 
             let records = try await store.devices()
             #expect(records.map(\.id) == ["d1", "d2", "d3"])
-            #expect(records.allSatisfy { $0.feedActivity == nil && !$0.hasLiveActivityCard })
+            #expect(records.allSatisfy { $0.feedActivity == nil })
             #expect(records.first?.liveActivity == LiveActivityRegistration(pushToStartToken: String(repeating: "a1", count: 40), env: .sandbox))
 
             #expect(try await store.setPreferences(DevicePreferences(turnDoneAlerts: false), for: "d1"))

@@ -106,6 +106,7 @@ struct AgentFeedAlert: Sendable, Equatable {
     let generation: Int
     let kind: PushAlertKind
     let at: Date
+    var requestId: RequestID?
 
     func isValid(for status: AgentStatus) -> Bool {
         switch kind {
@@ -115,9 +116,10 @@ struct AgentFeedAlert: Sendable, Equatable {
     }
 }
 
-struct DroppedFeedAlert: Sendable, Equatable {
-    let agentId: AgentID
-    let alert: AgentFeedAlert
+struct AgentActivityTiming: Sendable, Equatable {
+    var turnDoneCooldown: TimeInterval = 0
+    var blockedGrace: TimeInterval = 0
+    var blockedAlertWindow: TimeInterval = 0
 }
 
 struct AgentActivityTracker: Sendable {
@@ -132,6 +134,16 @@ struct AgentActivityTracker: Sendable {
         let requestId: RequestID?
     }
 
+    private struct Hold: Sendable, Equatable {
+        let status: AgentStatus
+        let since: Date
+        let delay: TimeInterval
+
+        var deadline: Date {
+            since.addingTimeInterval(delay)
+        }
+    }
+
     private struct ShownOutcome: Sendable, Equatable {
         let requestId: RequestID
         let outcome: PendingOutcome
@@ -139,7 +151,12 @@ struct AgentActivityTracker: Sendable {
         var isActive = true
     }
 
+    private static let tolerance: TimeInterval = 0.001
+
+    private let timing: AgentActivityTiming
     private var entries: [AgentID: Entry] = [:]
+    private var holds: [AgentID: Hold] = [:]
+    private var lastBlockedAlerts: [AgentID: Date] = [:]
     private var observations: [AgentID: Observation] = [:]
     private var outcomes: [AgentID: ShownOutcome] = [:]
     private(set) var generation = 0
@@ -147,20 +164,33 @@ struct AgentActivityTracker: Sendable {
     private(set) var eventDates: [AgentID: Date] = [:]
     private(set) var herdrStatuses: [AgentID: AgentStatus] = [:]
     private(set) var alerts: [AgentID: AgentFeedAlert] = [:]
-    private(set) var droppedAlerts: [DroppedFeedAlert] = []
+    private(set) var cancelledTurnsDone: [AgentID] = []
     private(set) var holder: AgentID?
     private(set) var lastBusyAt: Date?
 
+    init(timing: AgentActivityTiming = AgentActivityTiming()) {
+        self.timing = timing
+    }
+
+    var holdDeadline: Date? {
+        holds.values.map(\.deadline).min()
+    }
+
     mutating func snapshots(of input: LiveActivityInput, at now: Date, titleLimit: Int) -> [AgentID: AgentActivitySnapshot] {
         generation += 1
-        droppedAlerts = []
+        cancelledTurnsDone = []
         let pendingAgents = Set(input.pending.map(\.agentId))
         let wasBusy = observations.values.contains { $0.status.isBusy }
         var tracked: [AgentID: Entry] = [:]
         var observed: [AgentID: Observation] = [:]
         var snapshots: [AgentID: AgentActivitySnapshot] = [:]
         for agent in input.agents where (agent.kind == TreeComposer.claudeKind || agent.kind == AgentProvider.codex.rawValue) && tracked[agent.id] == nil {
-            let status = Self.effectiveStatus(of: agent, hasPending: pendingAgents.contains(agent.id))
+            let status = publishedStatus(
+                of: agent.id,
+                current: Self.effectiveStatus(of: agent, hasPending: pendingAgents.contains(agent.id)),
+                hasPending: pendingAgents.contains(agent.id),
+                at: now
+            )
             let entry = entries[agent.id].flatMap { $0.status == status ? $0 : nil } ?? Entry(status: status, since: now)
             tracked[agent.id] = entry
             let request = input.pending.filter { $0.agentId == agent.id }.min { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
@@ -189,9 +219,8 @@ struct AgentActivityTracker: Sendable {
         outcomes = outcomes.filter { tracked[$0.key] != nil }
         eventGenerations = eventGenerations.filter { tracked[$0.key] != nil }
         eventDates = eventDates.filter { tracked[$0.key] != nil }
-        for (agentId, alert) in alerts where tracked[agentId] == nil {
-            droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: alert))
-        }
+        holds = holds.filter { tracked[$0.key] != nil }
+        lastBlockedAlerts = lastBlockedAlerts.filter { tracked[$0.key] != nil && now.timeIntervalSince($0.value) < timing.blockedAlertWindow }
         alerts = alerts.filter { tracked[$0.key] != nil }
         holder = input.pending
             .filter { snapshots[$0.agentId] != nil }
@@ -215,6 +244,30 @@ struct AgentActivityTracker: Sendable {
         return tied.min()
     }
 
+    private mutating func publishedStatus(of agentId: AgentID, current: AgentStatus, hasPending: Bool, at now: Date) -> AgentStatus {
+        guard let previous = observations[agentId]?.status else {
+            holds[agentId] = nil
+            return current
+        }
+        let delay: TimeInterval
+        if previous.isBusy, !current.isBusy {
+            delay = timing.turnDoneCooldown
+        } else if current == .blocked, !hasPending, previous != .blocked {
+            delay = timing.blockedGrace
+        } else {
+            if let held = holds.removeValue(forKey: agentId), !held.status.isBusy, current.isBusy {
+                cancelledTurnsDone.append(agentId)
+            }
+            return current
+        }
+        if holds[agentId]?.status != current {
+            holds[agentId] = Hold(status: current, since: now, delay: delay)
+        }
+        guard let hold = holds[agentId], hold.deadline.timeIntervalSince(now) <= Self.tolerance else { return previous }
+        holds[agentId] = nil
+        return current
+    }
+
     private mutating func outcome(of agentId: AgentID, decision: PendingDecision?, preview: String?, hasRequest: Bool) -> PendingOutcome? {
         if let decision, decision.requestId != outcomes[agentId]?.requestId {
             outcomes[agentId] = ShownOutcome(requestId: decision.requestId, outcome: decision.outcome, preview: preview)
@@ -232,15 +285,20 @@ struct AgentActivityTracker: Sendable {
             eventGenerations[agentId] = generation
             eventDates[agentId] = now
         }
-        if let kind = Self.alert(observation, since: previous) {
-            if let replaced = alerts[agentId] {
-                droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: replaced))
-            }
-            alerts[agentId] = AgentFeedAlert(generation: generation, kind: kind, at: now)
+        if let kind = Self.alert(observation, since: previous), !isRepeatedBlock(kind, of: agentId, observation: observation, at: now) {
+            alerts[agentId] = AgentFeedAlert(generation: generation, kind: kind, at: now, requestId: kind == .needsInput ? observation.requestId : nil)
         } else if let alert = alerts[agentId], !alert.isValid(for: observation.status) {
-            droppedAlerts.append(DroppedFeedAlert(agentId: agentId, alert: alert))
             alerts[agentId] = nil
         }
+    }
+
+    private mutating func isRepeatedBlock(_ kind: PushAlertKind, of agentId: AgentID, observation: Observation, at now: Date) -> Bool {
+        guard kind == .needsInput, observation.requestId == nil else { return false }
+        if let last = lastBlockedAlerts[agentId], now.timeIntervalSince(last) < timing.blockedAlertWindow {
+            return true
+        }
+        lastBlockedAlerts[agentId] = now
+        return false
     }
 
     private static func alert(_ observation: Observation, since previous: Observation?) -> PushAlertKind? {
