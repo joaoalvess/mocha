@@ -1372,7 +1372,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | e09b3b4, 4532880, 39eb843, merge ea93311 |
 | WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
 | S9 | feito (lab de 2026-10-01, L1–L13) | f61a373 |
-| WP-CP1 | todo | |
+| WP-CP1 | feito (a linha do App Server no `mochad status` vai antes do Serve e o log de falha do `respond` Codex voltou, ajustes do orquestrador; `notClaude` para Codex em controles, subagentes e `archive` fica para o CP3 e o CP4; o `PushServiceTests.blockedWithoutARequest…` falhou uma vez sob carga e passou em 10 rodadas) | fc1b12a, 59b9aa8, 37b6185, merge db990f6 |
 | WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |
 | WP-CP2 | todo | |
 | WP-CP3 | todo | |
