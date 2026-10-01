@@ -1215,6 +1215,7 @@ public enum ChatItemKind: Codable, Sendable {
     case userPrompt(text: String, imageCount: Int)
     case slashCommand(name: String, args: String, output: String?)   // name: "/x" ou "!" (comando de shell do terminal)
     case assistantText(markdown: String)
+    case plan(markdown: String)            // item plan do Codex em Plan mode (§13.4)
     case thinking(text: String?)
     case toolCall(ToolCall)
     case subagent(SubagentCall)            // chamada de Agent (§3.2.2)
@@ -1310,6 +1311,7 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `AgentSummary.preview` e `AgentSummary.activity` inválidos (autor ou status desconhecido) decodificam como `nil`, sem derrubar a árvore. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
 - `SubagentStatus`, `WorkflowStatus` e `WorkflowPhaseStatus` com valor desconhecido são erro de decodificação do item que os carrega (o item sai da lista tolerante). `ChatMeta.subagent` inválido decodifica como `nil`.
 - `ChatItem.imagePaths` (fase imagens) vai no mesmo nível de `id` e `at`, só quando não está vazio, e decodifica como `[]` quando falta. Ele guarda os uploads do `userPrompt` (o `imageCount` continua sendo o total, inclusive as imagens sem arquivo), os caminhos citados num `assistantText` e o `file_path` de um `toolCall` de `Read` de imagem. Os caminhos que o app recebe existem no Mac no momento do envio (§3.2). O campo é aditivo: um app antigo o ignora.
+- O caso `plan` (codex-paridade) é aditivo e leva `markdown`, como o `assistantText`. Um app antigo o recebe como `unsupported`.
 - Os campos e casos da fase subagentes são aditivos e o `v` continua 1: um app antigo recebe `subagent`, `workflow` e `task` como `unsupported`, e ignora `runningSubagents`, `ChatMeta.subagent` e a mensagem `subagentList`. O contrário não é suportado: o app da fase exige o `mochad` da mesma fase, e os dois sobem juntos.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
@@ -1696,7 +1698,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
   - O conteúdo rola por baixo do header e do composer.
 - **Lista**:
   - `userPrompt`: bolha à direita, cantos arredondados de ~16 pt, largura máxima de 85 % da área de conteúdo (a bolha ocupa essa largura quando o texto quebra).
-  - `assistantText`: markdown à esquerda, largura total, sem bolha.
+  - `assistantText` e `plan`: markdown à esquerda, largura total, sem bolha.
   - `toolCall`: card `toolCard` de uma linha (ícone, nome em negrito, resumo, e à direita ✓, ✗ em `error` ou o giro de `running`). O nome de exibição de `Bash` é "Shell". Chamadas **consecutivas** da mesma ferramenta formam um card só, com contador (`Shell ×3 …`) e ✗ quando alguma falhou. Tocar expande: por chamada, o input (`$ comando` no Shell) e a prévia do resultado numa caixa `codeInner`; o card expandido ganha a borda `toolBorder`. Tocar de novo recolhe.
   - `thinking`: linha colapsada "Pensou" em itálico `textSecondary`; toque expande quando há texto. Vários `thinking` seguidos viram uma linha só (cerca de 90 % vêm sem texto).
   - `turnFooter`: "Brewed for 45s" em itálico `textSecondary`.
@@ -2251,7 +2253,7 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
   - `webSearch` → a query; `mcpToolCall` → servidor, ferramenta e resultado;
   - `subAgentActivity` com `kind: started` → card de subagente (`agentId` = `agentThreadId`), concluído pelo `kind: completed`; `collabAgentToolCall` (`wait`, `sendInput`…) não vira card;
   - `contextCompaction` → aviso "Contexto compactado"; turno `interrupted` → aviso "Interrompido"; `failed` → aviso com o `error`; rodapé `turnFooter` com o `durationMs`;
-  - `plan` (Plan mode) → texto do plano; `localImage` e `imageView` → `imagePaths` (§3.2, §6.5);
+  - `plan` (Plan mode) → `ChatItemKind.plan(markdown)` com o texto do plano (D9); `localImage` e `imageView` → `imagePaths` (§3.2, §6.5);
   - a troca de thread no pane reabre o chat com a thread nova.
 - **Resumo do agente**:
   - `sessionId` = `threadId`; `title` = `thread.name`, ou `preview` sem nome;
