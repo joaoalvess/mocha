@@ -1,0 +1,153 @@
+{
+  "agent" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "cat hello.txt",
+      "toolName" : "Shell"
+    },
+    "branch" : "s9-branch",
+    "contextLeftPercent" : 96,
+    "contextUsedTokens" : 23020,
+    "controlAvailable" : true,
+    "effort" : "high",
+    "id" : "w1:p2",
+    "kind" : "codex",
+    "lastActivityAt" : "2026-10-01T04:03:08.453Z",
+    "model" : "gpt-6-luna",
+    "pendingCount" : 0,
+    "permissionMode" : "default",
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Criei hello.txt com o texto oi e conferi o conteúdo."
+    },
+    "sessionId" : "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "sessionStartedAt" : "2026-10-01T03:59:54.000Z",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "turnEndedAt" : "2026-10-01T04:03:08.000Z",
+    "turnStartedAt" : "2026-10-01T04:03:00.000Z",
+    "workspaceLabel" : "work"
+  },
+  "chatMeta" : {
+    "branch" : "s9-branch",
+    "effort" : "high",
+    "model" : "gpt-6-luna",
+    "permissionMode" : "default",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "workspaceLabel" : "work"
+  },
+  "chats" : [
+    {
+      "items" : [
+        {
+          "at" : "2026-10-01T04:03:00.856Z",
+          "id" : "01a0f5a1-4077-79f3-83b3-8058426ded7f",
+          "imageCount" : 0,
+          "text" : "Implemente o plano.",
+          "type" : "userPrompt"
+        },
+        {
+          "at" : "2026-10-01T04:03:01.947Z",
+          "id" : "rs_0f438d23f1f4b339016abddb75eb2487d29ca69942affaba80",
+          "type" : "thinking"
+        },
+        {
+          "at" : "2026-10-01T04:03:03.648Z",
+          "id" : "msg_0f438d23f1f4b339016abddb779e6487d28b8a66d5f40d48fd",
+          "markdown" : "Vou criar `hello.txt` no diretório atual com o texto `oi` e conferir o conteúdo.",
+          "type" : "assistantText"
+        },
+        {
+          "at" : "2026-10-01T04:03:05.078Z",
+          "id" : "exec-8362d0c8-096b-40aa-9497-1aad0fde3c89",
+          "inputJSON" : "{\"command\":\"printf 'oi' > hello.txt\"}",
+          "name" : "Shell",
+          "status" : "succeeded",
+          "summary" : "printf 'oi' > hello.txt",
+          "toolUseId" : "exec-8362d0c8-096b-40aa-9497-1aad0fde3c89",
+          "type" : "toolCall"
+        },
+        {
+          "at" : "2026-10-01T04:03:06.768Z",
+          "id" : "exec-b8a03a30-4caf-4f78-bbe6-d1e1a006e14e",
+          "inputJSON" : "{\"command\":\"cat hello.txt\"}",
+          "name" : "Shell",
+          "resultPreview" : "oi",
+          "status" : "succeeded",
+          "summary" : "cat hello.txt",
+          "toolUseId" : "exec-b8a03a30-4caf-4f78-bbe6-d1e1a006e14e",
+          "type" : "toolCall"
+        },
+        {
+          "at" : "2026-10-01T04:03:07.707Z",
+          "id" : "msg_0f438d23f1f4b339016abddb7bab3487d2b8a36300fc2b573e",
+          "markdown" : "Criei [hello.txt](/Users/dev/Developer/mocha-lab/S9/work/hello.txt) com o texto `oi` e conferi o conteúdo.",
+          "type" : "assistantText"
+        },
+        {
+          "at" : "2026-10-01T04:03:08.000Z",
+          "durationMs" : 7720,
+          "id" : "01a0f5a1-4002-74e3-99de-cad3477bac9a#end",
+          "type" : "turnFooter"
+        }
+      ],
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "operations" : [
+    {
+      "id" : "01a0f5a1-4077-79f3-83b3-8058426ded7f",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "rs_0f438d23f1f4b339016abddb75eb2487d29ca69942affaba80",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "msg_0f438d23f1f4b339016abddb779e6487d28b8a66d5f40d48fd",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "exec-8362d0c8-096b-40aa-9497-1aad0fde3c89",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "exec-8362d0c8-096b-40aa-9497-1aad0fde3c89",
+      "op" : "update",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "exec-b8a03a30-4caf-4f78-bbe6-d1e1a006e14e",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "exec-b8a03a30-4caf-4f78-bbe6-d1e1a006e14e",
+      "op" : "update",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "msg_0f438d23f1f4b339016abddb7bab3487d2b8a36300fc2b573e",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "01a0f5a1-4002-74e3-99de-cad3477bac9a#end",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "turnEnds" : [
+    {
+      "durationMs" : 7720,
+      "id" : "01a0f5a1-4002-74e3-99de-cad3477bac9a",
+      "status" : "completed",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ]
+}

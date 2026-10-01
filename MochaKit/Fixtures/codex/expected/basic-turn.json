@@ -1,0 +1,84 @@
+{
+  "agent" : {
+    "branch" : "s9-branch",
+    "contextLeftPercent" : 97,
+    "contextUsedTokens" : 20136,
+    "controlAvailable" : true,
+    "id" : "w1:p2",
+    "kind" : "codex",
+    "lastActivityAt" : "2026-10-01T04:01:12.081Z",
+    "model" : "gpt-6.1-sol",
+    "pendingCount" : 0,
+    "permissionMode" : "default",
+    "preview" : {
+      "author" : "assistant",
+      "text" : "OK2"
+    },
+    "sessionId" : "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "sessionStartedAt" : "2026-10-01T03:59:54.000Z",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "turnEndedAt" : "2026-10-01T04:01:12.000Z",
+    "turnStartedAt" : "2026-10-01T04:01:10.000Z",
+    "workspaceLabel" : "work"
+  },
+  "chatMeta" : {
+    "branch" : "s9-branch",
+    "model" : "gpt-6.1-sol",
+    "permissionMode" : "default",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "workspaceLabel" : "work"
+  },
+  "chats" : [
+    {
+      "items" : [
+        {
+          "at" : "2026-10-01T04:01:10.581Z",
+          "id" : "01a0f59f-91b4-7f20-ae11-664d2ae7846a",
+          "imageCount" : 0,
+          "text" : "Responda só: OK2",
+          "type" : "userPrompt"
+        },
+        {
+          "at" : "2026-10-01T04:01:11.970Z",
+          "id" : "msg_0f438d23f1f4b339016abddb07f0fc87d2a4533206d0ac180d",
+          "markdown" : "OK2",
+          "type" : "assistantText"
+        },
+        {
+          "at" : "2026-10-01T04:01:12.000Z",
+          "durationMs" : 1576,
+          "id" : "01a0f59f-9171-7672-873f-2cb30bf0915d#end",
+          "type" : "turnFooter"
+        }
+      ],
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "operations" : [
+    {
+      "id" : "01a0f59f-91b4-7f20-ae11-664d2ae7846a",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "msg_0f438d23f1f4b339016abddb07f0fc87d2a4533206d0ac180d",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "01a0f59f-9171-7672-873f-2cb30bf0915d#end",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "turnEnds" : [
+    {
+      "durationMs" : 1576,
+      "id" : "01a0f59f-9171-7672-873f-2cb30bf0915d",
+      "status" : "completed",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ]
+}

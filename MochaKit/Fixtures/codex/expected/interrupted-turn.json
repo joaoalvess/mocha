@@ -1,0 +1,119 @@
+{
+  "agent" : {
+    "activity" : {
+      "status" : "succeeded",
+      "summary" : "sleep 40",
+      "toolName" : "Shell"
+    },
+    "branch" : "s9-branch",
+    "contextLeftPercent" : 98,
+    "contextUsedTokens" : 17356,
+    "controlAvailable" : true,
+    "id" : "w1:p2",
+    "kind" : "codex",
+    "lastActivityAt" : "2026-10-01T04:07:44.312Z",
+    "model" : "gpt-6.1-sol",
+    "pendingCount" : 0,
+    "permissionMode" : "default",
+    "preview" : {
+      "author" : "assistant",
+      "text" : "Vou executar sleep 40 no terminal."
+    },
+    "sessionId" : "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "sessionStartedAt" : "2026-10-01T03:59:54.000Z",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "turnEndedAt" : "2026-10-01T04:07:27.000Z",
+    "turnStartedAt" : "2026-10-01T04:07:00.000Z",
+    "workspaceLabel" : "work"
+  },
+  "chatMeta" : {
+    "branch" : "s9-branch",
+    "model" : "gpt-6.1-sol",
+    "permissionMode" : "default",
+    "status" : "idle",
+    "title" : "Responder OK1",
+    "workspaceLabel" : "work"
+  },
+  "chats" : [
+    {
+      "items" : [
+        {
+          "at" : "2026-10-01T04:07:01.042Z",
+          "id" : "01a0f5a4-eaaf-7820-a995-53b804b410f9",
+          "imageCount" : 0,
+          "text" : "Rode sleep 40 no terminal e depois responda FIM.",
+          "type" : "userPrompt"
+        },
+        {
+          "at" : "2026-10-01T04:07:02.077Z",
+          "id" : "rs_0f438d23f1f4b339016abddc660ca487d2b290e6f6f17a1040",
+          "type" : "thinking"
+        },
+        {
+          "at" : "2026-10-01T04:07:03.147Z",
+          "id" : "msg_0f438d23f1f4b339016abddc671e6087d2ba6cec97c011e442",
+          "markdown" : "Vou executar `sleep 40` no terminal.",
+          "type" : "assistantText"
+        },
+        {
+          "at" : "2026-10-01T04:07:04.400Z",
+          "id" : "exec-f8463abb-8d46-412a-b723-6e3e75d4a917",
+          "inputJSON" : "{\"command\":\"sleep 40\"}",
+          "name" : "Shell",
+          "status" : "succeeded",
+          "summary" : "sleep 40",
+          "toolUseId" : "exec-f8463abb-8d46-412a-b723-6e3e75d4a917",
+          "type" : "toolCall"
+        },
+        {
+          "at" : "2026-10-01T04:07:27.000Z",
+          "id" : "01a0f5a4-e9c9-7db2-9616-66d30583af2d#end",
+          "text" : "Interrompido",
+          "type" : "notice"
+        }
+      ],
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "operations" : [
+    {
+      "id" : "01a0f5a4-eaaf-7820-a995-53b804b410f9",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "rs_0f438d23f1f4b339016abddc660ca487d2b290e6f6f17a1040",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "msg_0f438d23f1f4b339016abddc671e6087d2ba6cec97c011e442",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "exec-f8463abb-8d46-412a-b723-6e3e75d4a917",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "01a0f5a4-e9c9-7db2-9616-66d30583af2d#end",
+      "op" : "append",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    },
+    {
+      "id" : "exec-f8463abb-8d46-412a-b723-6e3e75d4a917",
+      "op" : "update",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ],
+  "turnEnds" : [
+    {
+      "durationMs" : 26599,
+      "id" : "01a0f5a4-e9c9-7db2-9616-66d30583af2d",
+      "status" : "interrupted",
+      "threadId" : "01a0f59e-6845-7403-880c-44a4e20672d1"
+    }
+  ]
+}

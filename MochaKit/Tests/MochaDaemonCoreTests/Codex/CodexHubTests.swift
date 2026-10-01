@@ -197,6 +197,145 @@ struct CodexHubTests {
         }
     }
 
+    private static func appendedIds(_ socket: TestClientSocket) -> [String] {
+        socket.receivedMessages.flatMap { message -> [String] in
+            if case .chatAppend(_, let items) = message { items.map(\.id) } else { [] }
+        }
+    }
+
+    private static func updatedIds(_ socket: TestClientSocket) -> [String] {
+        socket.receivedMessages.flatMap { message -> [String] in
+            if case .chatUpdate(_, let items) = message { items.map(\.id) } else { [] }
+        }
+    }
+
+    private static func openCodexChat(_ socket: TestClientSocket, id: String = "o-1") async throws -> ChatPage {
+        let opened = try await reply(socket, to: .openChat(target: .agent(CodexSample.pane)), id: id)
+        guard case .chatPage(let page) = opened else { throw UnexpectedMessage(message: opened) }
+        return page
+    }
+
+    private static func readsOfTheThread(_ server: FakeCodexAppServer) async -> Int {
+        await server.requests(method: "thread/items/list").count + server.requests(method: "thread/read").count + server.requests(method: "thread/turns/list").count
+    }
+
+    private static func bindAndHydrate(_ harness: HubHarness, _ codexHarness: CodexServiceHarness, _ codex: CodexService) async throws {
+        await codexHarness.serveEmptyPages()
+        await codexHarness.server.setHandler("thread/read", CodexSample.readReply([CodexSample.threadId: try #require(try CodexSample.result("thread-read.response.json")["thread"])]))
+        try await codexHarness.bind(codex)
+        _ = try await eventually { await harness.hub.codexPanes[CodexSample.pane] != nil ? true : nil }
+        _ = try await eventually { await codexHarness.server.requests(method: "thread/items/list").isEmpty ? nil : true }
+    }
+
+    @Test func liveItemsReachTheOpenChatWithoutReadingTheThreadAgain() async throws {
+        try await withCodexHub { harness, codexHarness, codex in
+            let (socket, _) = try await harness.pairedClient()
+            try await Self.bindAndHydrate(harness, codexHarness, codex)
+            let page = try await Self.openCodexChat(socket)
+            #expect(page.items.isEmpty)
+            let reads = await Self.readsOfTheThread(codexHarness.server)
+
+            try await codexHarness.replay("command-turn")
+            let footer = "01a0f5a1-4002-74e3-99de-cad3477bac9a#end"
+            _ = try await eventually { Self.appendedIds(socket).contains(footer) ? true : nil }
+
+            #expect(Self.appendedIds(socket) == [
+                "01a0f5a1-4077-79f3-83b3-8058426ded7f",
+                "rs_0f438d23f1f4b339016abddb75eb2487d29ca69942affaba80",
+                "msg_0f438d23f1f4b339016abddb779e6487d28b8a66d5f40d48fd",
+                "exec-8362d0c8-096b-40aa-9497-1aad0fde3c89",
+                "exec-b8a03a30-4caf-4f78-bbe6-d1e1a006e14e",
+                "msg_0f438d23f1f4b339016abddb7bab3487d2b8a36300fc2b573e",
+                footer,
+            ])
+            #expect(Self.updatedIds(socket) == ["exec-8362d0c8-096b-40aa-9497-1aad0fde3c89", "exec-b8a03a30-4caf-4f78-bbe6-d1e1a006e14e"])
+            #expect(await Self.readsOfTheThread(codexHarness.server) == reads)
+            _ = try await eventually { harness.herdr.dirtyRefreshCalls.contains(CodexSample.pane) ? true : nil }
+        }
+    }
+
+    @Test func aLateItemOfAnInterruptedTurnUpdatesItsCardAndDoesNotAlert() async throws {
+        try await withCodexHub { harness, codexHarness, codex in
+            let (socket, _) = try await harness.pairedClient()
+            try await Self.bindAndHydrate(harness, codexHarness, codex)
+            _ = try await Self.openCodexChat(socket)
+
+            try await codexHarness.replay("interrupted-turn")
+            let command = "exec-f8463abb-8d46-412a-b723-6e3e75d4a917"
+            _ = try await eventually { Self.updatedIds(socket).contains(command) ? true : nil }
+            let notice = socket.receivedMessages.lazy.compactMap { message -> ChatItem? in
+                guard case .chatAppend(_, let items) = message else { return nil }
+                return items.first { $0.id == "01a0f5a4-e9c9-7db2-9616-66d30583af2d#end" }
+            }.first
+            #expect(notice?.kind == .notice(text: "Interrompido"))
+        }
+    }
+
+    @Test func theChatMetaCarriesTheThreadSettings() async throws {
+        try await withCodexHub { harness, codexHarness, codex in
+            try await codexHarness.serveResume()
+            let (socket, _) = try await harness.pairedClient()
+            try await Self.bindAndHydrate(harness, codexHarness, codex)
+            _ = try await eventually { await harness.hub.codexPanes[CodexSample.pane]?.title == "Responder OK1" ? true : nil }
+            let page = try await Self.openCodexChat(socket)
+            #expect(page.meta.title == "Responder OK1")
+            #expect(page.meta.model == "gpt-6.1-sol")
+            #expect(page.meta.branch == "s9-branch")
+            #expect(page.meta.permissionMode == "default")
+
+            let settings = try #require(try CodexLiveReplay.messages("plan-turn").first?["params"])
+            await codexHarness.server.notify("thread/settings/updated", params: settings)
+            let meta = try await eventually { () -> ChatMeta? in
+                harness.clock.advance(by: .milliseconds(150))
+                return socket.receivedMessages.lazy.compactMap { message -> ChatMeta? in
+                    if case .chatMeta(_, let meta) = message, meta.permissionMode == "plan" { meta } else { nil }
+                }.first
+            }
+            #expect(meta == ChatMeta(
+                title: "Responder OK1",
+                workspaceLabel: meta.workspaceLabel,
+                model: "gpt-6-luna",
+                branch: "s9-branch",
+                status: meta.status,
+                permissionMode: "plan",
+                effort: "high"
+            ))
+            let summary = try #require(await harness.hub.agentSummary(CodexSample.pane))
+            #expect(summary.model == "gpt-6-luna")
+            #expect(summary.effort == "high")
+            #expect(summary.permissionMode == "plan")
+        }
+    }
+
+    @Test func aThreadSwitchInThePaneMovesTheChatToTheNewThread() async throws {
+        try await withCodexHub { harness, codexHarness, codex in
+            let (socket, _) = try await harness.pairedClient()
+            try await Self.bindAndHydrate(harness, codexHarness, codex)
+            _ = try await Self.openCodexChat(socket)
+
+            await codexHarness.server.notify("thread/started", params: CodexSample.started(CodexSample.thread(CodexSample.thirdThreadId)))
+            _ = try await eventually { await harness.hub.codexPanes[CodexSample.pane]?.threadId == CodexSample.thirdThreadId ? true : nil }
+            _ = try await eventually { await harness.hub.agentSummary(CodexSample.pane)?.sessionId == CodexSample.thirdThreadId ? true : nil }
+
+            let item = { (threadId: String, id: String) in
+                OrderedJSON.object([
+                    .init("item", .object([
+                        .init("type", .string("userMessage")),
+                        .init("id", .string(id)),
+                        .init("content", .array([.object([.init("type", .string("text")), .init("text", .string("oi"))])])),
+                    ])),
+                    .init("threadId", .string(threadId)),
+                    .init("turnId", .string("t-\(id)")),
+                    .init("completedAtMs", CodexSample.nowMs()),
+                ])
+            }
+            await codexHarness.server.notify("item/completed", params: item(CodexSample.threadId, "da-antiga"))
+            await codexHarness.server.notify("item/completed", params: item(CodexSample.thirdThreadId, "da-nova"))
+            _ = try await eventually { Self.appendedIds(socket).contains("da-nova") ? true : nil }
+            #expect(!Self.appendedIds(socket).contains("da-antiga"))
+        }
+    }
+
     @Test func theSummaryCarriesTheThreadAsItsSession() async throws {
         try await withCodexHub { harness, codexHarness, codex in
             try await codexHarness.bind(codex)
