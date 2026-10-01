@@ -170,6 +170,7 @@ public actor DaemonRuntime {
         await usage.start()
         await codexProcess.start()
         await codex.start()
+        await liveActivity.start(inputs: hub.liveActivityUpdates)
         let alerts = hub.codexAlerts
         codexAlerts = Task {
             for await alert in alerts {
@@ -179,7 +180,6 @@ public actor DaemonRuntime {
         await herdr.start()
         await hub.start()
         await pending.start()
-        await liveActivity.start(inputs: hub.liveActivityUpdates)
         await hookRouter.start(hooks: hookEvents.events())
         do {
             try await gatewayServer.start()

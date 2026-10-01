@@ -15,6 +15,7 @@ public final class FakeLiveActivityRegistrar: LiveActivityRegistering {
 
     private struct State {
         var registered: [Registered] = []
+        var preferences: [DeviceID: DevicePreferences] = [:]
         var failure: (any Error)?
     }
 
@@ -24,6 +25,10 @@ public final class FakeLiveActivityRegistrar: LiveActivityRegistering {
 
     public var registered: [Registered] {
         state.withLock { $0.registered }
+    }
+
+    public var preferences: [DeviceID: DevicePreferences] {
+        state.withLock { $0.preferences }
     }
 
     public func fail(with error: (any Error)?) {
@@ -37,5 +42,9 @@ public final class FakeLiveActivityRegistrar: LiveActivityRegistering {
             }
             state.registered.append(Registered(registration: registration, deviceId: deviceId))
         }
+    }
+
+    public func preferencesChanged(_ preferences: DevicePreferences, for deviceId: DeviceID) async {
+        state.withLock { $0.preferences[deviceId] = preferences }
     }
 }

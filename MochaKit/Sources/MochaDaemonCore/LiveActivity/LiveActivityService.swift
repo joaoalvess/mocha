@@ -16,7 +16,6 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         var startedAt: Date
         var sent: AgentActivitySnapshot?
         var sentAt: Date?
-        var alerted: [AgentID: Int] = [:]
     }
 
     struct Device: Sendable {
@@ -28,14 +27,31 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         var isSending = false
         var isDismissed = false
         var retired: [String] = []
+        var alerted: [AgentID: Int] = [:]
+        var pushedAfter = 0
+        var preferences = DevicePreferences()
 
         var isReady: Bool {
             !isSending && retryAt == nil
         }
 
+        var hasUpdateToken: Bool {
+            card?.updateToken != nil
+        }
+
         func isRetired(_ registration: LiveActivityRegistration) -> Bool {
             guard let token = registration.updateToken else { return false }
             return retired.contains(token) || registration.activityId.map { retired.contains($0) } == true
+        }
+
+        mutating func retire(_ card: Card) {
+            retired.append(contentsOf: [card.updateToken, card.activityId].compactMap { $0 })
+            retired = Array(retired.suffix(LiveActivityService.retiredLimit))
+        }
+
+        mutating func loseCard(at generation: Int) {
+            card = nil
+            pushedAfter = generation
         }
     }
 
@@ -46,28 +62,30 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
 
     private struct Update {
         let snapshot: AgentActivitySnapshot
-        let alertKind: PushAlertKind?
+        let alert: AgentFeedAlert?
         let priority: ApnsPriority
+        let skipsTheLimit: Bool
     }
 
-    private struct RetriedAlert: Sendable {
+    private struct SentAlert: Sendable {
         let agentId: AgentID
-        let generation: Int?
+        let generation: Int
+        let previous: Int?
     }
 
     private enum Sent {
         case start(AgentActivitySnapshot, environment: ApnsEnvironment, at: Date)
-        case update(AgentActivitySnapshot, token: String, at: Date, retriedAlert: RetriedAlert?)
+        case update(AgentActivitySnapshot, token: String, at: Date, alert: SentAlert?)
         case end(token: String, activityId: String?)
     }
 
     private enum Outcome {
-        case delivery(LiveActivityDelivery)
+        case delivery(LiveActivityDelivery, preferences: DevicePreferences?)
         case deviceGone
     }
 
     private enum Lookup {
-        case paired(DevicePreferences)
+        case paired(DevicePreferences?)
         case gone
     }
 
@@ -78,8 +96,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
     }
 
     private static let tolerance: TimeInterval = 0.001
-    private static let retiredLimit = 64
-    private static let shadowTurnDoneCooldown: TimeInterval = 5
+    static let retiredLimit = 64
 
     private let devices: DeviceStore
     private let sender: any LiveActivityPushSending
@@ -87,15 +104,16 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
     private let configuration: LiveActivityConfiguration
     private let presence: PresenceMonitor?
 
-    private var tracker = AgentActivityTracker()
+    private var tracker: AgentActivityTracker
     private var snapshots: [AgentID: AgentActivitySnapshot] = [:]
-    private var hasInput = false
+    private var lastInput: LiveActivityInput?
     private var foreground: Set<DeviceID> = []
+    private var foregroundAgents: [DeviceID: AgentID] = [:]
     private var states: [DeviceID: Device] = [:]
     private var wake: Wake?
     private var sends: [UUID: Task<Void, Never>] = [:]
     private var inputTask: Task<Void, Never>?
-    private var alertFallback: (any LiveActivityAlertFallback)?
+    private var alertHandoff: (any LiveActivityAlertHandoff)?
     private var lock: ConsoleLock = .unknown
     private var presenceTask: Task<Void, Never>?
     private var shadowSilenced: [AgentID: AgentFeedAlert] = [:]
@@ -113,6 +131,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         self.clock = clock
         self.configuration = configuration
         self.presence = presence
+        tracker = AgentActivityTracker(timing: configuration.timing)
     }
 
     public func start(inputs: AsyncStream<LiveActivityInput>) async {
@@ -153,27 +172,47 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
 
     public func apply(_ input: LiveActivityInput) {
         guard !isShutDown else { return }
-        hasInput = true
+        lastInput = input
         foreground = input.foregroundDevices
-        let now = clock.now()
-        snapshots = tracker.snapshots(of: input, at: now, titleLimit: configuration.titleLimit)
-        logShadowAlerts(at: now)
-        settleAlertsOutsideTheCard()
+        foregroundAgents = input.foregroundAgents
+        track(input, at: clock.now())
         evaluate()
     }
 
-    public func cardHolder() -> AgentID? {
-        tracker.holder
+    public func cardDevices() -> Set<DeviceID> {
+        Set(states.filter { $0.value.hasUpdateToken }.keys)
     }
 
-    public func attachAlertFallback(_ fallback: any LiveActivityAlertFallback) {
-        alertFallback = fallback
+    public func attachAlertHandoff(_ handoff: any LiveActivityAlertHandoff) {
+        alertHandoff = handoff
+    }
+
+    public func preferencesChanged(_ preferences: DevicePreferences, for deviceId: DeviceID) {
+        guard states[deviceId] != nil else { return }
+        states[deviceId]?.preferences = preferences
+        evaluate()
     }
 
     public func register(_ registration: LiveActivityRegistration, from deviceId: DeviceID) async throws {
         let registration = try Self.normalized(registration)
+        let storedPreferences = states[deviceId] == nil ? await Self.preferences(of: deviceId, in: devices) : nil
         guard !isShutDown else { return }
-        var device = states[deviceId] ?? Device()
+        var device = states[deviceId] ?? Device(
+            alerted: tracker.alerts.mapValues(\.generation),
+            preferences: storedPreferences ?? DevicePreferences()
+        )
+        var lost: [LiveActivityLostAlert] = []
+        if let ended = registration.endedActivityId {
+            if let card = device.card, card.activityId == ended {
+                liveActivityLogger.info("the card on device \(deviceId, privacy: .public) ended on the iPhone")
+                device.retire(card)
+                lost = takePendingAlerts(of: &device, id: deviceId)
+                device.loseCard(at: tracker.generation)
+                device.isDismissed = true
+            } else if !device.retired.contains(ended) {
+                device.retired = Array((device.retired + [ended]).suffix(Self.retiredLimit))
+            }
+        }
         if let token = registration.pushToStartToken {
             device.pushToStart = ApnsRegistration(token: token, env: registration.env)
         } else if device.pushToStart?.env != registration.env {
@@ -191,12 +230,18 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         if try await devices.setLiveActivities(pushToStart: stored.pushToStart, feedActivity: stored.feedActivity, for: deviceId) == false {
             liveActivityLogger.error("ignored a live activity registration from unknown device \(deviceId, privacy: .public)")
             states[deviceId] = nil
+            return
         }
+        handOff(lost, on: deviceId)
         evaluate()
     }
 
     var nextWake: Date? {
         wake?.deadline
+    }
+
+    var holder: AgentID? {
+        tracker.holder
     }
 
     func focus(on deviceId: DeviceID) -> AgentID? {
@@ -219,7 +264,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         }
         let now = clock.now()
         for record in records where states[record.id] == nil {
-            var device = Device()
+            var device = Device(preferences: record.preferences)
             if let registration = record.liveActivity.flatMap({ try? Self.normalized($0) }) {
                 device.pushToStart = registration.pushToStartToken.map { ApnsRegistration(token: $0, env: registration.env) }
             }
@@ -254,19 +299,23 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             device.pushToStart = nil
         }
         if let token = registration.updateToken, registration.agentId == nil, device.card?.updateToken == token {
-            device.card = nil
+            device.loseCard(at: tracker.generation)
         }
         states[id] = device
     }
 
+    private func track(_ input: LiveActivityInput, at now: Date) {
+        snapshots = tracker.snapshots(of: input, at: now, titleLimit: configuration.titleLimit)
+        logShadowAlerts(at: now)
+    }
+
     private func logShadowAlerts(at now: Date) {
-        for dropped in tracker.droppedAlerts where dropped.alert.kind == .turnDone && snapshots[dropped.agentId]?.isBusy == true
-            && now.timeIntervalSince(dropped.alert.at) < Self.shadowTurnDoneCooldown {
+        for agentId in tracker.cancelledTurnsDone {
             liveActivityLogger.notice(
-                "shadow alert turnDone of \(dropped.agentId, privacy: .public) gen=\(dropped.alert.generation, privacy: .public) would=cancelled"
+                "shadow alert turnDone of \(agentId, privacy: .public) gen=\(self.tracker.generation, privacy: .public) would=cancelled"
             )
         }
-        let channel = states.values.contains { $0.card?.updateToken != nil } ? "card" : "push"
+        let channel = states.values.contains { $0.hasUpdateToken } ? "card" : "push"
         for (agentId, alert) in tracker.alerts.sorted(by: { $0.key < $1.key }) where alert.generation == tracker.generation {
             let would = lock.isAtMac ? "silent" : "ring"
             if lock.isAtMac {
@@ -308,53 +357,65 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
 
     private func shadowUrgency(_ alert: AgentFeedAlert, of agentId: AgentID) -> (Int, Int) {
         let rank = switch alert.kind {
-        case .needsInput: snapshots[agentId]?.pending == nil ? 1 : 2
+        case .needsInput: alert.requestId == nil ? 1 : 2
         case .turnDone: 0
         }
         return (rank, alert.generation)
     }
 
-    private func settleAlertsOutsideTheCard() {
-        for id in states.keys.sorted() {
-            guard var card = states[id]?.card else { continue }
-            guard card.updateToken != nil else {
-                for (agentId, alert) in tracker.alerts {
-                    card.alerted[agentId] = max(card.alerted[agentId] ?? 0, alert.generation)
-                }
-                states[id]?.card = card
-                continue
+    private func rings(_ alert: AgentFeedAlert, of agentId: AgentID, on device: Device, id: DeviceID) -> Bool {
+        foregroundAgents[id] != agentId && (alert.kind != .turnDone || device.preferences.turnDoneAlerts)
+    }
+
+    private func settle(_ device: inout Device, id: DeviceID) {
+        for (agentId, alert) in tracker.alerts where alert.generation > device.alerted[agentId] ?? 0 {
+            let isLeftToThePush = !device.hasUpdateToken && alert.generation > device.pushedAfter
+            if isLeftToThePush || !rings(alert, of: agentId, on: device, id: id) {
+                device.alerted[agentId] = alert.generation
             }
-            for dropped in tracker.droppedAlerts {
-                report(dropped.alert, of: dropped.agentId, on: id, card: &card, wasShown: false)
-            }
-            if let holder = tracker.holder {
-                for (agentId, alert) in tracker.alerts where agentId != holder {
-                    report(alert, of: agentId, on: id, card: &card, wasShown: false)
-                }
-            }
-            states[id]?.card = card
         }
     }
 
-    private func reportUnshownAlerts(on id: DeviceID, card: inout Card, except shown: AgentID?) {
-        for (agentId, alert) in tracker.alerts.sorted(by: { $0.key < $1.key }) where agentId != shown {
-            report(alert, of: agentId, on: id, card: &card, wasShown: false)
-        }
+    private func pendingAlerts(of device: Device) -> [(agentId: AgentID, alert: AgentFeedAlert)] {
+        tracker.alerts
+            .filter { $0.value.generation > device.alerted[$0.key] ?? 0 && snapshots[$0.key] != nil }
+            .map { (agentId: $0.key, alert: $0.value) }
+            .sorted { ($0.alert.generation, $0.agentId) < ($1.alert.generation, $1.agentId) }
     }
 
-    private func report(_ alert: AgentFeedAlert, of agentId: AgentID, on id: DeviceID, card: inout Card, wasShown: Bool) {
-        guard alert.generation > card.alerted[agentId] ?? 0 else { return }
-        card.alerted[agentId] = alert.generation
-        guard let fallback = alertFallback else { return }
+    private func takePendingAlerts(of device: inout Device, id: DeviceID) -> [LiveActivityLostAlert] {
+        var lost: [LiveActivityLostAlert] = []
+        for (agentId, alert) in pendingAlerts(of: device) {
+            device.alerted[agentId] = alert.generation
+            guard rings(alert, of: agentId, on: device, id: id), let snapshot = snapshots[agentId] else { continue }
+            let content = snapshot.alertContent(alert.kind)
+            lost.append(LiveActivityLostAlert(agentId: agentId, kind: alert.kind, requestId: alert.requestId, title: content.title, body: content.body))
+        }
+        return lost
+    }
+
+    private func handOff(_ lost: [LiveActivityLostAlert], on id: DeviceID) {
+        guard !lost.isEmpty, let handoff = alertHandoff else { return }
+        liveActivityLogger.notice("handed \(lost.count, privacy: .public) alerts of the lost card on device \(id, privacy: .public) to the notifications")
         let taskId = UUID()
         sends[taskId] = Task { [weak self] in
-            await fallback.cardAlert(alert.kind, of: agentId, on: id, wasShown: wasShown)
-            await self?.reportFinished(taskId)
+            await handoff.cardLost(lost, on: id)
+            await self?.handOffFinished(taskId)
         }
     }
 
-    private func reportFinished(_ taskId: UUID) {
+    private func handOffFinished(_ taskId: UUID) {
         sends[taskId] = nil
+    }
+
+    private func focus(for device: Device) -> AgentID? {
+        if let holder = tracker.holder, snapshots[holder] != nil {
+            return holder
+        }
+        if let queued = pendingAlerts(of: device).first(where: { $0.alert.requestId == nil }) {
+            return queued.agentId
+        }
+        return tracker.focus(among: snapshots, current: device.focus ?? device.card?.sent?.agent.agentId)
     }
 
     private var anyBusy: Bool {
@@ -362,7 +423,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
     }
 
     private func evaluate() {
-        guard hasInput, !isShutDown else { return }
+        guard lastInput != nil, !isShutDown else { return }
         let now = clock.now()
         for id in states.keys.sorted() {
             evaluate(id, at: now)
@@ -379,13 +440,9 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         if !anyBusy {
             device.isDismissed = false
         }
-        device.focus = tracker.focus(among: snapshots, current: device.focus ?? device.card?.sent?.agent.agentId)
+        settle(&device, id: id)
+        device.focus = focus(for: device)
         states[id] = device
-        if var card = device.card, card.updateToken != nil, let focus = device.focus, let alert = tracker.alerts[focus], snapshots[focus] == card.sent {
-            report(alert, of: focus, on: id, card: &card, wasShown: true)
-            states[id]?.card = card
-        }
-        guard let device = states[id] else { return }
         guard device.isReady else { return }
         if device.card != nil {
             evaluateCard(on: id, at: now)
@@ -405,47 +462,53 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             }
             return
         }
-        if let sentAt = card.sentAt, !isDue(sentAt.addingTimeInterval(configuration.updateInterval), at: now) {
-            return
-        }
-        guard !shouldEnd else {
+        let pending = pendingUpdate(for: device, card: card)
+        guard isOpen(card, for: pending, at: now) else { return }
+        guard !shouldEnd || pending?.alert != nil else {
             end(token: token, card: card, on: id, at: now)
             return
         }
-        guard let update = pendingUpdate(for: device, id: id, card: card) ?? refresh(for: device, card: card, at: now) else { return }
+        guard let update = pending ?? refresh(for: device, card: card, at: now) else { return }
         let snapshot = update.snapshot
-        let alertKind = update.alertKind
+        let alertKind = update.alert?.kind
         let push = snapshot.push({ .update(alert: alertKind.map($0.alertContent)) }, at: now, staleDate: now.addingTimeInterval(configuration.staleInterval))
         let focus = snapshot.agent.agentId
-        let retriedAlert = alertKind.map { _ in RetriedAlert(agentId: focus, generation: card.alerted[focus]) }
+        var sentAlert: SentAlert?
+        if let alert = update.alert {
+            sentAlert = SentAlert(agentId: focus, generation: alert.generation, previous: device.alerted[focus])
+            states[id]?.alerted[focus] = alert.generation
+        }
         let lag = tracker.eventDates[focus].map { now.timeIntervalSince($0) } ?? 0
         liveActivityLogger.notice(
             "card update of \(focus, privacy: .public) p\(update.priority.rawValue, privacy: .public) alert=\(alertKind?.rawValue ?? "none", privacy: .public) lag=\(String(format: "%.1f", lag), privacy: .public)"
         )
-        var reported = card
-        if let alert = tracker.alerts[focus] {
-            report(alert, of: focus, on: id, card: &reported, wasShown: alertKind != nil)
-        }
-        reportUnshownAlerts(on: id, card: &reported, except: focus)
-        states[id]?.card = reported
-        let sent = Sent.update(snapshot, token: token, at: now, retriedAlert: retriedAlert)
+        let sent = Sent.update(snapshot, token: token, at: now, alert: sentAlert)
         send(push, as: sent, alertKind: alertKind, to: token, environment: card.environment, priority: update.priority, device: id)
     }
 
-    private func pendingUpdate(for device: Device, id: DeviceID, card: Card) -> Update? {
-        guard let snapshot = device.focus.flatMap({ snapshots[$0] }), snapshot != card.sent else { return nil }
-        if let alert = tracker.alerts[snapshot.agent.agentId], alert.generation > card.alerted[snapshot.agent.agentId] ?? 0 {
-            return Update(snapshot: snapshot, alertKind: foreground.contains(id) ? nil : alert.kind, priority: .high)
+    private func isOpen(_ card: Card, for update: Update?, at now: Date) -> Bool {
+        guard let sentAt = card.sentAt else { return true }
+        if isDue(sentAt.addingTimeInterval(configuration.updateInterval), at: now) {
+            return true
+        }
+        return update?.skipsTheLimit == true && isDue(sentAt.addingTimeInterval(configuration.minimumAlertGap), at: now)
+    }
+
+    private func pendingUpdate(for device: Device, card: Card) -> Update? {
+        guard let focus = device.focus, let snapshot = snapshots[focus] else { return nil }
+        if let alert = tracker.alerts[focus], alert.generation > device.alerted[focus] ?? 0 {
+            let isHeldRequest = alert.requestId != nil && focus == tracker.holder
+            return Update(snapshot: snapshot, alert: alert, priority: .high, skipsTheLimit: isHeldRequest)
         }
         guard let priority = snapshot.priority(since: card.sent) else { return nil }
-        return Update(snapshot: snapshot, alertKind: nil, priority: priority)
+        return Update(snapshot: snapshot, alert: nil, priority: priority, skipsTheLimit: false)
     }
 
     private func refresh(for device: Device, card: Card, at now: Date) -> Update? {
         guard anyBusy, let sentAt = card.sentAt, isDue(sentAt.addingTimeInterval(configuration.refreshInterval), at: now),
               let snapshot = device.focus.flatMap({ snapshots[$0] }) ?? card.sent
         else { return nil }
-        return Update(snapshot: snapshot, alertKind: nil, priority: .low)
+        return Update(snapshot: snapshot, alert: nil, priority: .low, skipsTheLimit: false)
     }
 
     private func end(token: String, card: Card, on id: DeviceID, at now: Date) {
@@ -453,9 +516,6 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         let snapshot = (focus.flatMap { snapshots[$0] } ?? card.sent ?? .gone(focus ?? "", at: now)).ended
         let dismissalDate = now.addingTimeInterval(configuration.dismissalDelay)
         let push = snapshot.push({ _ in .end(dismissalDate: dismissalDate) }, at: now, staleDate: nil)
-        var reported = card
-        reportUnshownAlerts(on: id, card: &reported, except: nil)
-        states[id]?.card = reported
         send(push, as: .end(token: token, activityId: card.activityId), alertKind: nil, to: token, environment: card.environment, priority: .high, device: id)
     }
 
@@ -516,13 +576,24 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
                 outcome = .deviceGone
             case .paired(let preferences):
                 var push = push
-                if alertKind == .turnDone, !preferences.turnDoneAlerts {
+                if alertKind == .turnDone, preferences?.turnDoneAlerts == false {
                     push.event = .update(alert: nil)
                 }
-                outcome = .delivery(await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority))
+                let delivery = await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority)
+                outcome = .delivery(delivery, preferences: preferences)
             }
             await self?.finish(sent, outcome: outcome, device: id, taskId: taskId)
         }
+    }
+
+    private static func restore(_ alert: SentAlert, on device: inout Device) {
+        guard device.alerted[alert.agentId] == alert.generation else { return }
+        device.alerted[alert.agentId] = alert.previous
+    }
+
+    private static func preferences(of id: DeviceID, in devices: DeviceStore) async -> DevicePreferences? {
+        guard case .paired(let preferences) = await lookup(id, in: devices) else { return nil }
+        return preferences
     }
 
     private static func lookup(_ id: DeviceID, in devices: DeviceStore) async -> Lookup {
@@ -531,7 +602,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             return .paired(record.preferences)
         } catch {
             liveActivityLogger.error("failed to read devices: \(PushService.describe(error), privacy: .public)")
-            return .paired(DevicePreferences())
+            return .paired(nil)
         }
     }
 
@@ -539,25 +610,29 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         defer { sends[taskId] = nil }
         guard !isShutDown, var device = states[id] else { return }
         device.isSending = false
-        guard case .delivery(let delivery) = outcome else {
+        guard case .delivery(let delivery, let preferences) = outcome else {
             liveActivityLogger.info("dropped the live activity of removed device \(id, privacy: .public)")
             states[id] = nil
             evaluate()
             return
         }
+        if let preferences {
+            device.preferences = preferences
+        }
         let before = Self.stored(device)
         let now = clock.now()
+        var lost: [LiveActivityLostAlert] = []
         switch (sent, delivery) {
         case (_, .failed(let retryable)):
             device.retryAt = now.addingTimeInterval(retryable ? configuration.retryDelay : configuration.configurationRetryDelay)
-            if case .update(_, let token, _, let retriedAlert?) = sent, device.card?.updateToken == token {
-                device.card?.alerted[retriedAlert.agentId] = retriedAlert.generation
+            if case .update(_, let token, _, let alert?) = sent, device.card?.updateToken == token {
+                Self.restore(alert, on: &device)
             }
         case (.start(let snapshot, let environment, let at), .delivered):
             liveActivityLogger.info("started the card of \(snapshot.agent.agentId, privacy: .public) on device \(id, privacy: .public) by push-to-start")
             device.starts.append(at)
             if device.card == nil {
-                device.card = Card(environment: environment, startedAt: at, sent: snapshot, sentAt: at, alerted: tracker.alerts.mapValues(\.generation))
+                device.card = Card(environment: environment, startedAt: at, sent: snapshot, sentAt: at)
             }
         case (.start, .invalidToken):
             liveActivityLogger.info("APNs refused the push-to-start token of device \(id, privacy: .public)")
@@ -568,11 +643,14 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
                 card.sentAt = at
                 device.card = card
             }
-        case (.update(_, let token, _, _), .invalidToken):
+        case (.update(_, let token, _, let alert), .invalidToken):
             liveActivityLogger.info("APNs refused the update token of the card on device \(id, privacy: .public)")
-            if var card = device.card, card.updateToken == token {
-                reportUnshownAlerts(on: id, card: &card, except: nil)
-                device.card = nil
+            if device.card?.updateToken == token {
+                if let alert {
+                    Self.restore(alert, on: &device)
+                }
+                lost = takePendingAlerts(of: &device, id: id)
+                device.loseCard(at: tracker.generation)
                 device.isDismissed = true
             }
         case (.end(let token, let activityId), .delivered), (.end(let token, let activityId), .invalidToken):
@@ -580,7 +658,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             device.retired.append(contentsOf: [token] + (activityId.map { [$0] } ?? []))
             device.retired = Array(device.retired.suffix(Self.retiredLimit))
             if device.card?.updateToken == token {
-                device.card = nil
+                device.loseCard(at: tracker.generation)
             }
         }
         states[id] = device
@@ -592,11 +670,13 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
                 liveActivityLogger.error("failed to save the live activity of device \(id, privacy: .public): \(PushService.describe(error), privacy: .public)")
             }
         }
+        handOff(lost, on: id)
         evaluate()
     }
 
     private func scheduleWake(at now: Date) {
-        let deadline = states.compactMap { nextDeadline(for: $0.value, id: $0.key, at: now) }.min()
+        let deadlines = states.compactMap { nextDeadline(for: $0.value, id: $0.key, at: now) } + [tracker.holdDeadline].compactMap { $0 }
+        let deadline = deadlines.min()
         if let wake, let deadline, abs(wake.deadline.timeIntervalSince(deadline)) < Self.tolerance {
             return
         }
@@ -616,6 +696,10 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
     private func wakeFired(_ id: UUID) {
         guard wake?.id == id else { return }
         wake = nil
+        let now = clock.now()
+        if let lastInput, let hold = tracker.holdDeadline, isDue(hold, at: now) {
+            track(lastInput, at: now)
+        }
         evaluate()
     }
 
@@ -623,7 +707,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         guard !device.isSending else { return nil }
         let deadline: Date?
         if let card = device.card {
-            deadline = nextDeadline(for: card, of: device, id: id, at: now)
+            deadline = nextDeadline(for: card, of: device, at: now)
         } else if canStart(device, id: id), device.focus != nil {
             deadline = hasStartBudget(device) ? now : device.starts.min()?.addingTimeInterval(configuration.pushToStartWindow) ?? now
         } else {
@@ -633,20 +717,24 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         return device.retryAt.map { max($0, deadline) } ?? deadline
     }
 
-    private func nextDeadline(for card: Card, of device: Device, id: DeviceID, at now: Date) -> Date? {
+    private func nextDeadline(for card: Card, of device: Device, at now: Date) -> Date? {
         var candidates = [card.startedAt.addingTimeInterval(configuration.renewalAge)]
         if !anyBusy {
             candidates.append(idleDeadline(of: card))
         }
         guard card.updateToken != nil else { return candidates.min() }
         let gate = card.sentAt.map { $0.addingTimeInterval(configuration.updateInterval) } ?? now
-        if pendingUpdate(for: device, id: id, card: card) != nil {
+        let update = pendingUpdate(for: device, card: card)
+        if update != nil {
             candidates.append(gate)
         }
         if anyBusy, let sentAt = card.sentAt {
             candidates.append(sentAt.addingTimeInterval(configuration.refreshInterval))
         }
-        return candidates.min().map { max($0, gate) }
+        let limited = candidates.min().map { max($0, gate) }
+        guard update?.skipsTheLimit == true else { return limited }
+        let early = card.sentAt.map { $0.addingTimeInterval(configuration.minimumAlertGap) } ?? now
+        return limited.map { min($0, early) } ?? early
     }
 
     private func isDue(_ deadline: Date, at now: Date) -> Bool {
@@ -658,7 +746,15 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         let update = try registration.updateToken.map(validToken)
         let activityId = registration.activityId.flatMap { $0.isEmpty ? nil : $0 }
         let agentId = registration.agentId.flatMap { $0.isEmpty ? nil : $0 }
-        return LiveActivityRegistration(pushToStartToken: pushToStart, activityId: activityId, updateToken: update, agentId: agentId, env: registration.env)
+        let endedActivityId = registration.endedActivityId.flatMap { $0.isEmpty ? nil : $0 }
+        return LiveActivityRegistration(
+            pushToStartToken: pushToStart,
+            activityId: activityId,
+            updateToken: update,
+            agentId: agentId,
+            env: registration.env,
+            endedActivityId: endedActivityId
+        )
     }
 
     private static func validToken(_ token: String) throws -> String {
@@ -675,3 +771,4 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         )
     }
 }
+

@@ -28,7 +28,8 @@ struct HookRouterTests {
             audience: harness.hub,
             credentials: { ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId), key: key) },
             transport: transport,
-            clock: clock
+            clock: clock,
+            configuration: PushServiceConfiguration(turnDoneCooldown: .zero)
         )
         let hooks = HookEventHub()
         let router = HookRouter(hub: harness.hub, herdr: harness.herdr, push: push)

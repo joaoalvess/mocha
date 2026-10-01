@@ -34,10 +34,6 @@ public struct DeviceRecord: Codable, Sendable, Equatable, Identifiable {
         self.feedActivity = feedActivity
     }
 
-    public var hasLiveActivityCard: Bool {
-        feedActivity?.updateToken != nil
-    }
-
     private enum CodingKeys: String, CodingKey {
         case id, name, tokenSha256, createdAt, lastSeenAt, apns, preferences, liveActivity, feedActivity
     }

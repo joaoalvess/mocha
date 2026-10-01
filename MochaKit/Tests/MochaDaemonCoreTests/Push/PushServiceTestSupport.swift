@@ -28,6 +28,10 @@ final class FakePushAudience: PushAudience {
     func setForeground(_ devices: Set<DeviceID>, for agentId: AgentID) {
         state.withLock { $0.foreground[agentId] = devices }
     }
+
+    func setAgent(_ agent: AgentSummary) {
+        state.withLock { $0.agents[agent.id] = agent }
+    }
 }
 
 final class CredentialLoads: Sendable {
@@ -80,6 +84,11 @@ struct PushHarness {
         _ = try await eventually { await service.pendingBlockedChecks == 0 ? true : nil }
         await service.waitForDeliveries()
     }
+
+    func settleTurnDoneChecks() async throws {
+        _ = try await eventually { await service.pendingTurnDoneChecks == 0 ? true : nil }
+        await service.waitForDeliveries()
+    }
 }
 
 enum PushHooks {
@@ -99,7 +108,7 @@ enum PushHooks {
 func withPush(
     responses: [ApnsResponse] = [],
     audience: FakePushAudience = FakePushAudience(),
-    configuration: PushServiceConfiguration = PushServiceConfiguration(),
+    configuration: PushServiceConfiguration = PushServiceConfiguration(turnDoneCooldown: .zero),
     credentialsError: ApnsError? = nil,
     _ body: (PushHarness) async throws -> Void
 ) async throws {
