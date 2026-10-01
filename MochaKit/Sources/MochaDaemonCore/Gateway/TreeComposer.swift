@@ -119,7 +119,13 @@ enum TreeComposer {
         agents(in: tree).first { $0.id == id }
     }
 
-    static func codexSummary(_ agent: AgentSummary, pane: CodexPaneState?, connected: Bool) -> AgentSummary {
+    static func codexSummary(
+        _ agent: AgentSummary,
+        pane: CodexPaneState?,
+        connected: Bool,
+        archivedAts: [String: Date] = [:],
+        runningSubagents: [String: Int] = [:]
+    ) -> AgentSummary {
         guard agent.kind == codexKind else { return agent }
         var agent = agent
         agent.controlAvailable = connected && pane != nil
@@ -142,6 +148,8 @@ enum TreeComposer {
         agent.sessionStartedAt = summary.sessionStartedAt
         agent.turnStartedAt = summary.turnStartedAt
         agent.turnEndedAt = summary.turnEndedAt
+        agent.archivedAt = archivedAts[pane.threadId]
+        agent.runningSubagents = runningSubagents[pane.threadId].flatMap { $0 > 0 ? $0 : nil }
         return agent
     }
 
@@ -157,7 +165,13 @@ enum TreeComposer {
         )
     }
 
-    static func codexOverlay(_ tree: [WorkspaceNode], panes: [AgentID: CodexPaneState], connected: Bool) -> [WorkspaceNode] {
+    static func codexOverlay(
+        _ tree: [WorkspaceNode],
+        panes: [AgentID: CodexPaneState],
+        connected: Bool,
+        archivedAts: [String: Date] = [:],
+        runningSubagents: [String: Int] = [:]
+    ) -> [WorkspaceNode] {
         tree.map { workspace in
             var updated = workspace
             var touched = false
@@ -166,14 +180,14 @@ enum TreeComposer {
                 tab.agents = tab.agents.map { agent in
                     guard agent.kind == codexKind else { return agent }
                     touched = true
-                    return codexSummary(agent, pane: panes[agent.id], connected: connected)
+                    return codexSummary(agent, pane: panes[agent.id], connected: connected, archivedAts: archivedAts, runningSubagents: runningSubagents)
                 }
                 return tab
             }
             if touched {
                 updated.agentStatus = HerdrTreeBuilder.aggregateStatus(updated.tabs.flatMap { $0.agents.map(\.status) })
             }
-            updated.children = codexOverlay(workspace.children, panes: panes, connected: connected)
+            updated.children = codexOverlay(workspace.children, panes: panes, connected: connected, archivedAts: archivedAts, runningSubagents: runningSubagents)
             return updated
         }
     }

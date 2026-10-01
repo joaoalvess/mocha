@@ -23,4 +23,7 @@ protocol CodexServing: Actor {
     func prompt(_ agent: HerdrAgent, text: String) async throws
     func interrupt(_ agent: HerdrAgent) async throws
     func respond(to requestId: RequestID, with response: PendingResponse) async throws
+    func subagentTree(containing threadId: String) -> CodexSubagentTree?
+    func subagent(_ threadId: String) async -> CodexSubagent?
+    func refreshSubagents(of threadId: String, inferOutcomes: Bool) async
 }

@@ -150,6 +150,7 @@ public actor SessionHub {
     var workflowStates: [String: WorkflowState] = [:]
     var runningSubagentCounts: [String: Int] = [:]
     var observedSubagentSessions: Set<String> = []
+    var codexSubagents: [String: CodexSubagent] = [:]
     var cardThrottles: [String: CardThrottle] = [:]
     var metaThrottles: [UUID: MetaThrottle] = [:]
     var subagentTasks: [Task<Void, Never>] = []
@@ -350,7 +351,7 @@ public actor SessionHub {
             pendingCounts: pendingCounts(),
             controls: agentControls
         )
-        return TreeComposer.codexOverlay(tree, panes: codexPanes, connected: codexConnected)
+        return TreeComposer.codexOverlay(tree, panes: codexPanes, connected: codexConnected, archivedAts: archivedAts, runningSubagents: runningSubagentCounts)
     }
 
     func composedAgent(_ id: AgentID) -> AgentSummary? {

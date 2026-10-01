@@ -186,6 +186,8 @@ extension SessionHub {
         switch target {
         case .agent(let agentId):
             return TreeComposer.agentChatMeta(summary: composedAgent(agentId), meta: nil)
+        case .codexThread(let threadId):
+            return codexThreadChatMeta(threadId)
         default:
             return ChatMeta(title: "Codex", workspaceLabel: "", status: .unknown)
         }
@@ -222,6 +224,7 @@ extension SessionHub {
     }
 
     private func codexThreadEvent(_ event: CodexThreadEvent) async {
+        await codexSubagentEvent(event)
         switch event {
         case .item(let item):
             deliverCodexItems(item.chatItems, threadId: item.threadId)
