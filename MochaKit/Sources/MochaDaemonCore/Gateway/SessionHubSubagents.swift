@@ -92,11 +92,14 @@ extension SessionHub {
 
     func overlaid(_ item: ChatItem) -> ChatItem {
         var copy = item
+        if !copy.imagePaths.isEmpty {
+            copy.imagePaths = ImageFiles.existing(copy.imagePaths)
+        }
         switch item.kind {
         case .subagent(var call):
             let state = call.agentId.flatMap { subagentStates[$0] }
                 ?? subagentStates.values.first { $0.toolUseId == call.toolUseId && $0.runId == nil }
-            guard let state else { return item }
+            guard let state else { return copy }
             call.agentId = call.agentId ?? state.agentId
             call.status = state.status
             call.activity = state.activity
@@ -107,7 +110,7 @@ extension SessionHub {
             copy.kind = .subagent(call)
         case .workflow(var call):
             let state = call.runId.flatMap { workflowStates[$0] } ?? workflowStates.values.first { $0.toolUseId == call.toolUseId }
-            guard let state else { return item }
+            guard let state else { return copy }
             call.runId = call.runId ?? state.runId
             call.status = state.status
             call.phases = state.phases
@@ -116,7 +119,7 @@ extension SessionHub {
             call.durationMs = state.durationMs
             copy.kind = .workflow(call)
         default:
-            return item
+            return copy
         }
         return copy
     }
