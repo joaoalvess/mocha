@@ -1278,5 +1278,5 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
 | S10 | feito (colagem do caminho, sem clipboard) | 33ec237 |
 | WP-IN1 | feito (subagente; `DaemonRuntime`, `DaemonPaths` e o snapshot `images-and-queued` aplicados pelo orquestrador; `check-claude-update.sh` verde com o Claude 2.1.286) | f36a0ad, 26748a4, 24b0d3b, merge 4001ed1 |
-| WP-IN2 | feito pelo orquestrador (testes do escopo verdes; `build-app.sh` pendente, com o ok do João) | 51188c1, f900964, 0312489, merge 43ffc77 |
-| WP-IN3 | todo | |
+| WP-IN2 | feito pelo orquestrador (testes do escopo verdes; `build-app.sh` e `build-device.sh` verdes) | 51188c1, f900964, 0312489, merge 43ffc77 |
+| WP-IN3 | feito (`test.sh` completo verde, exceto `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude`, instável sob carga e verde sozinho; pelo iPhone, 3 fotos e depois 1 foto com texto chegaram como `[Image #N]` com os blocos `image` no transcript e os arquivos no `transcript-images/`; o João fechou a fase sem conferir a fila, o texto de 4 linhas, a colagem no terminal, a conversa antiga e a tela cheia) | d422b0c |
