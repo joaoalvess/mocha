@@ -174,7 +174,7 @@ struct DoctorTests {
     }
 
     @Test func codexItemWarnsAboutAVersionNewerThanTheValidatedOne() {
-        let item = DoctorChecks.codex(executable: "/opt/fake/codex", version: "0.158.0", socketReady: true)
+        let item = DoctorChecks.codex(executable: "/opt/fake/codex", version: "0.160.0", socketReady: true)
         #expect(item.status == .warning)
         #expect(item.details == ["versão mais nova que a \(CodexExecutable.lastValidatedVersion) validada"])
     }

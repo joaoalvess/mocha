@@ -4,7 +4,7 @@ import os
 let codexLogger = Logger(subsystem: "com.joaoalves.mocha", category: "codex")
 
 public enum CodexExecutable {
-    public static let lastValidatedVersion = "0.157.1"
+    public static let lastValidatedVersion = "0.159.2"
 
     public static func candidates(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [String] {
         [
