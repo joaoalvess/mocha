@@ -1424,7 +1424,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | U1 | todo | |
 | WP-AL2 | código feito (canal único, espera de 5 s do "terminou" e de 1 s do `blocked` no tracker, fila de um ciclo, pedido que fura o limite com 2 s de intervalo, card perdido repassa os pendentes ao push; extras: `pushedAfter` contra a renovação que engolia alertas e o alerta do foco sai antes do card acabar; revisão independente com 4 correções; falta instalar e o Dia 2) | 19d65a6, merge 3c753e9, 99a81ad |
 | WP-AL3 | código feito (`endedActivityId` com até 8 ids no livro de tokens; o `forgetActivity` dá `flush`; 22 testes verdes; `build-device.sh` verde; falta instalar no iPhone) | 64dfd20, merge 1a4d59d |
-| U2 | todo | |
+| U2 | feito (Herdr 0.9.3 marca `done` no pane do Codex 0.159.2 ao fim do turno, e o `done` fica enquanto o pane não ganha foco: o Codex entra no toque ao bloquear; o diálogo de confiança da pasta aparece como `blocked` e tocou um `needsInput` no card) | |
 | WP-AL4 | código feito (silêncio com o Mac desbloqueado e um toque ao bloquear no card e no push; o `PushService` usa o `lock` em cache das transições; logs reais `silent reason=atMac` e `lock-ring … device`, contados pelo `alerts-summary.sh`; revisão independente com 3 correções (card que acabou repassa o toque ao push; o push ao bloquear reconfere preferências, primeiro plano, token e card); `test.sh` completo verde; falta instalar e o U2) | 4d64f7a, 22cec29, 781a6a3, merge 8b4eed8, f3cc708, f47715b, fa5fc65 |
 | WP-AL5 | código feito (toggle "Silenciar enquanto uso o Mac" e o rodapé novo; `build-device.sh` verde; falta instalar no iPhone e o checklist) | 4f37913, merge b9e0d2a |
 | WP-AL6 | todo | |
