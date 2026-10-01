@@ -165,7 +165,7 @@ extension SessionHub {
         }
         let subscription: TranscriptSubscription
         do {
-            subscription = try await transcripts.open(session: transcriptSession(sessionId, subagent: subagent), limit: limit)
+            subscription = try await transcripts.openChat(session: transcriptSession(sessionId, subagent: subagent), limit: limit)
         } catch {
             removeChat(token, clientId: clientId)
             send(.transcriptFailed, id: id, to: clientId)
@@ -209,7 +209,7 @@ extension SessionHub {
         guard let sessionId else { return }
         let subscription: TranscriptSubscription
         do {
-            subscription = try await transcripts.open(session: transcriptSession(sessionId), limit: Self.defaultChatLimit)
+            subscription = try await transcripts.openChat(session: transcriptSession(sessionId), limit: Self.defaultChatLimit)
         } catch {
             gatewayLogger.error("failed to follow the new session of a chat: \(String(describing: error), privacy: .public)")
             return

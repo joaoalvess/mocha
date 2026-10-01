@@ -14,6 +14,7 @@ public struct Gateway: Sendable {
     let herdr: any HerdrBridging
     let hub: SessionHub
     let uploads: UploadStore?
+    let transcriptImages: TranscriptImageCache?
     let liveActivities: (any LiveActivityRegistering)?
     let events: EventSink
     private let connectionNumbers = GatewayConnectionNumbers()
@@ -23,6 +24,7 @@ public struct Gateway: Sendable {
         herdr: any HerdrBridging,
         hub: SessionHub,
         uploads: UploadStore? = nil,
+        transcriptImages: TranscriptImageCache? = nil,
         liveActivities: (any LiveActivityRegistering)? = nil,
         events: @escaping EventSink = { _ in }
     ) {
@@ -30,6 +32,7 @@ public struct Gateway: Sendable {
         self.herdr = herdr
         self.hub = hub
         self.uploads = uploads
+        self.transcriptImages = transcriptImages
         self.liveActivities = liveActivities
         self.events = events
     }
@@ -43,7 +46,7 @@ public struct Gateway: Sendable {
         router.webSocket(Self.webSocketPath) { request, socket in
             await serve(request, socket)
         }
-        let image = ImageRoute(authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
+        let image = ImageRoute(authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock), transcriptImages: transcriptImages)
         router.route(.get, Self.imagePath) { request in
             events(.httpRequest(request))
             return await image.respond(to: request)

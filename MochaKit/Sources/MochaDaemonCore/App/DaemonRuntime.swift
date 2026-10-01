@@ -82,7 +82,8 @@ public actor DaemonRuntime {
         let preparation = try DaemonConfigStore(url: paths.configFile).prepareForDaemon()
         let port = preparation.config.gatewayPort
         let herdr = HerdrBridge(client: HerdrClient(configuration: HerdrClientConfiguration(socketPath: options.herdrSocketPath)))
-        let transcripts = TranscriptStore(projectsRoot: options.projectsRoot)
+        let transcriptImages = TranscriptImageCache(directory: paths.transcriptImagesDirectory)
+        let transcripts = TranscriptStore(projectsRoot: options.projectsRoot, imageStore: transcriptImages.store)
         let devices = DeviceStore(fileURL: paths.devicesFile)
         let pairing = Pairing()
         let usage = UsageMonitor(cacheFile: paths.usageCacheFile, accountFile: paths.claudeAccountFile)
@@ -119,7 +120,7 @@ public actor DaemonRuntime {
         await hub.attachCodex(codex)
         let hookRouter = HookRouter(hub: hub, herdr: herdr, push: push)
         let uploads = UploadStore(directory: paths.uploadsDirectory)
-        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, liveActivities: liveActivity, events: events)
+        let gateway = Gateway(herdr: herdr, hub: hub, uploads: uploads, transcriptImages: transcriptImages, liveActivities: liveActivity, events: events)
         let gatewayServer = HttpServer(binding: .loopback(port: port), router: gateway.makeRouter())
         let configFile = paths.configFile
         let hooks = HookServer(
@@ -155,9 +156,12 @@ public actor DaemonRuntime {
         self.codexProcess = codexProcess
         self.codex = codex
         uploads.removeExpired(now: Date())
+        transcriptImages.removeExpired(now: Date())
         let clock = SystemGatewayClock()
         uploadCleanup = Task {
-            await uploads.removeExpiredPeriodically(clock: clock)
+            async let uploadsCleanup: Void = uploads.removeExpiredPeriodically(clock: clock)
+            async let imagesCleanup: Void = transcriptImages.removeExpiredPeriodically(clock: clock)
+            _ = await (uploadsCleanup, imagesCleanup)
         }
         await usage.start()
         await codexProcess.start()

@@ -15,6 +15,11 @@ struct UploadRuntimeTests {
         #expect(DaemonPaths().uploadsDirectory.fileSystemPath == ImageMarkers.uploadsDirectory)
     }
 
+    @Test func transcriptImagesLiveInTheUserCaches() {
+        let paths = DaemonPaths(home: URL(filePath: "/Users/dev", directoryHint: .isDirectory))
+        #expect(paths.transcriptImagesDirectory.fileSystemPath == "/Users/dev/Library/Caches/com.joaoalves.mocha/transcript-images/")
+    }
+
     @Test func runServesUploadsIntoTheSupportDirectoryAndCleansExpiredOnesOnStart() async throws {
         try await withTemporaryHome(short: true) { home in
             let port = try await DaemonRuntimeTests.freePort()
