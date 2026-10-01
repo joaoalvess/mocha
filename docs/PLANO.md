@@ -1420,7 +1420,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-IN1 | feito (subagente; `DaemonRuntime`, `DaemonPaths` e o snapshot `images-and-queued` aplicados pelo orquestrador; `check-claude-update.sh` verde com o Claude 2.1.286) | f36a0ad, 26748a4, 24b0d3b, merge 4001ed1 |
 | WP-IN2 | feito pelo orquestrador (testes do escopo verdes; `build-app.sh` e `build-device.sh` verdes) | 51188c1, f900964, 0312489, merge 43ffc77 |
 | WP-IN3 | feito (`test.sh` completo verde, exceto `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude`, instável sob carga e verde sozinho; pelo iPhone, 3 fotos e depois 1 foto com texto chegaram como `[Image #N]` com os blocos `image` no transcript e os arquivos no `transcript-images/`; o João fechou a fase sem conferir a fila, o texto de 4 linhas, a colagem no terminal, a conversa antiga e a tela cheia) | d422b0c |
-| WP-AL1 | todo | |
+| WP-AL1 | código feito (109 testes do escopo verdes; falta instalar o `mochad`, o Dia 1 e o resumo aprovado) | a5a509d, cc8dc1d, 6e57931, ca7275b, merge d22828f |
 | U1 | todo | |
 | WP-AL2 | todo | |
 | WP-AL3 | todo | |
