@@ -7,7 +7,7 @@ struct KeychainError: Error, Equatable {
 }
 
 struct KeychainTokenStore: TokenStore {
-    static let service = "com.example.mocha.device"
+    static let service = (Bundle.main.bundleIdentifier ?? "Mocha") + ".device"
     static let account = "gateway"
 
     func load() async throws -> DeviceCredential? {

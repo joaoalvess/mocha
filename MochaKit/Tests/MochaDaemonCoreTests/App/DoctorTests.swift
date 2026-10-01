@@ -98,7 +98,7 @@ struct DoctorTests {
     }
 
     @Test func apnsItemCombinesConfigSignatureAndKeychain() {
-        let config = ApnsConfig(teamId: "TEAM123456", keyId: "ABCDEFGHIJ")
+        let config = ApnsConfig(teamId: "TEAM123456", keyId: "ABCDEFGHIJ", bundleId: "com.example.mocha")
         let ready = DoctorChecks.apns(config: .success(config), signature: .teamSigned, binary: "~/.local/bin/mochad", keychain: { _ in .present })
         #expect(ready.status == .ok)
         #expect(ready.summary == "pronto")

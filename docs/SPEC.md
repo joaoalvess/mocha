@@ -31,7 +31,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Rede | Tailscale 1.98 no Mac (app standalone) e no iPhone. O iPhone só alcança o Mac pelo tailnet. Nome MagicDNS do Mac: `mac-mini.tail1234.ts.net` (certificados HTTPS do tailnet já ativos) |
 | Toolchain | Xcode 27, Swift 6.4, XcodeGen (`/opt/homebrew/bin/xcodegen`) |
 | Distribuição | Conta Apple Developer paga do time da empresa (B1), uso pessoal, **sem App Store**. Instalação pelo Xcode (perfil de desenvolvimento, validade de ~1 ano, APNs **sandbox**) ou TestFlight interno (build de 90 dias, APNs **produção**) |
-| Identificadores | App `com.example.mocha`, extensão `com.example.mocha.widgets`, LaunchAgent `com.joaoalves.mochad`. O Team ID é definido no bloqueio B1 (`docs/PLANO.md`). Tudo o que é registrado na conta Apple (App IDs, App Groups e afins) usa nomes discretos com o prefixo `com.example.mocha` e nunca leva "mocha" nem "joaoalves"; os identificadores locais do Mac (LaunchAgent, Keychain, log, filas) continuam `com.joaoalves.*` |
+| Identificadores | App: o bundle de `MOCHA_BUNDLE_ID` no `Config/Signing.xcconfig` (fora do git; o exemplo versionado usa `com.example.mocha`); extensão: o mesmo bundle com `.widgets`. LaunchAgent `com.joaoalves.mochad`. O Team ID é definido no bloqueio B1 (`docs/PLANO.md`). Tudo o que é registrado na conta Apple (App IDs, App Groups e afins) deriva de `MOCHA_BUNDLE_ID`; os identificadores locais do Mac (LaunchAgent, Keychain, log, filas) continuam `com.joaoalves.*` |
 
 ### §1.3 Escopo por fase
 
@@ -116,10 +116,11 @@ Princípios:
 ```
 ~/Developer/mocha/
   AGENTS.md  CLAUDE.md  README.md
+  .env.example                    MOCHA_FORBIDDEN_NAMES vazio (versionado); o .env local, fora do git, lista os nomes de trabalho que o modo demo não pode conter e é lido pelo test.sh
   project.yml                     XcodeGen: targets Mocha (app) e MochaWidgets (extensão)
   Config/
-    Signing.example.xcconfig      DEVELOPMENT_TEAM vazio (versionado)
-    Signing.xcconfig              cópia local com o Team ID (fora do git; criado pelo bootstrap.sh)
+    Signing.example.xcconfig      DEVELOPMENT_TEAM vazio e MOCHA_BUNDLE_ID de exemplo (versionado)
+    Signing.xcconfig              cópia local com o Team ID e o bundle do app em MOCHA_BUNDLE_ID (fora do git; criado pelo bootstrap.sh)
   App/
     Sources/                      código do app (§6)
     Resources/                    Assets.xcassets, fontes, Localizable (pt-BR)
@@ -149,7 +150,7 @@ Princípios:
     build-daemon.sh               swift build -c release --product mochad
     lib/xcode-lock.sh             trava que build-app.sh e build-device.sh pegam antes do xcodebuild (um por vez na máquina)
     run-daemon.sh                 roda o mochad em primeiro plano com log no stdout
-  docs/                           SPEC, PLANO, HANDOFF, spikes, referencias/moshi/ e design/ (mock.html e mock/NN-nome.png)
+  docs/                           SPEC, PLANO, HANDOFF, spikes, referencias/moshi/ (só local, fora do git) e design/ (mock.html e mock/NN-nome.png)
   prompts/
 ```
 
@@ -922,7 +923,7 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 | `mochad devices` | Lista os aparelhos pareados lendo `devices.json`. `--remove <id>` pede ao daemon (§4.8), que fecha as conexões do aparelho e o remove; só edita o arquivo direto se o socket recusar a conexão (`ECONNREFUSED` ou socket inexistente) |
 | `mochad install-hooks` / `uninstall-hooks` | §3.3 |
 | `mochad serve-setup` | Mostra o comando `tailscale serve` (§4.5); `--apply` executa, confere e aquece o certificado; `--remove` desfaz |
-| `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
+| `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> --bundle-id <id>` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
 | `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico da Live Activity (§7.5), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados, o App Server do Codex (no ar e versão) e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |

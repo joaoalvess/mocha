@@ -14,7 +14,10 @@ private func allNodes(_ workspaces: [WorkspaceNode]) -> [WorkspaceNode] {
     workspaces.flatMap { [$0] + allNodes($0.children) }
 }
 
-private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
+private let forbiddenNames = (ProcessInfo.processInfo.environment["MOCHA_FORBIDDEN_NAMES"] ?? "")
+    .split(separator: ",")
+    .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+    .filter { !$0.isEmpty }
 
 @Suite struct DemoDatasetTests {
     let dataset: DemoDataset

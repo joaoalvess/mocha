@@ -14,7 +14,7 @@ struct ApnsKeyImporterTests {
         let store = InMemoryApnsKeyStore()
         let importer = ApnsKeyImporter(keyStore: store, configStore: ApnsConfigStore(url: configURL))
 
-        let config = try importer.importKey(fileURL: keyFile, keyId: PushTestData.keyId, teamId: PushTestData.teamId)
+        let config = try importer.importKey(fileURL: keyFile, keyId: PushTestData.keyId, teamId: PushTestData.teamId, bundleId: PushTestData.bundleId)
 
         #expect(config == ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId, bundleId: "com.example.mocha"))
         #expect(try store.load(keyId: PushTestData.keyId) == pem)
@@ -35,7 +35,7 @@ struct ApnsKeyImporterTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: configURL.path(percentEncoded: false))
         let before = inode(configURL)
 
-        try ApnsConfigStore(url: configURL).write(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId))
+        try ApnsConfigStore(url: configURL).write(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId, bundleId: PushTestData.bundleId))
 
         #expect(fileMode(configURL) == 0o600)
         #expect(inode(configURL) != before)
@@ -43,7 +43,7 @@ struct ApnsKeyImporterTests {
         #expect(try PushTestData.jsonObject(try Data(contentsOf: configURL))["hookSecret"] as? String == "segredo")
 
         let nested = directory.appending(path: "Nova/config.json")
-        try ApnsConfigStore(url: nested).write(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId))
+        try ApnsConfigStore(url: nested).write(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId, bundleId: PushTestData.bundleId))
         #expect(fileMode(nested) == 0o600)
         #expect(fileMode(nested.deletingLastPathComponent()) == 0o700)
     }
@@ -77,10 +77,10 @@ struct ApnsKeyImporterTests {
         let importer = ApnsKeyImporter(keyStore: store, configStore: ApnsConfigStore(url: configURL))
 
         #expect(throws: ApnsError.invalidPrivateKey) {
-            try importer.importKey(fileURL: keyFile, keyId: PushTestData.keyId, teamId: PushTestData.teamId)
+            try importer.importKey(fileURL: keyFile, keyId: PushTestData.keyId, teamId: PushTestData.teamId, bundleId: PushTestData.bundleId)
         }
         #expect(throws: ApnsError.invalidKeyId) {
-            try importer.importKey(fileURL: keyFile, keyId: "5p55", teamId: PushTestData.teamId)
+            try importer.importKey(fileURL: keyFile, keyId: "5p55", teamId: PushTestData.teamId, bundleId: PushTestData.bundleId)
         }
         #expect(throws: ApnsError.invalidBundleId) {
             try importer.importKey(fileURL: keyFile, keyId: PushTestData.keyId, teamId: PushTestData.teamId, bundleId: "semponto")

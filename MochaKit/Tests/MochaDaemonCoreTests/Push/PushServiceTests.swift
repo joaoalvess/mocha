@@ -385,7 +385,7 @@ struct PushServiceTests {
             #expect(issues == [ApnsConfigurationIssue(environment: .production, status: 403, reason: reason, at: Sample.start)])
 
             let item = DoctorChecks.apns(
-                config: .success(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId)),
+                config: .success(ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId, bundleId: PushTestData.bundleId)),
                 signature: .teamSigned,
                 binary: "~/.local/bin/mochad",
                 keychain: { _ in .present },

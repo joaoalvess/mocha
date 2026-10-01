@@ -6,7 +6,7 @@ import Security
 enum ApnsCommand {
     static let usage = """
         uso:
-          mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]
+          mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> --bundle-id <id>
           mochad apns test --device <id> [envio] [--title <t>] [--body <b>] [--time-sensitive]
           mochad apns test --token <hex> --env sandbox|production [envio] [--title <t>] [--body <b>] [--time-sensitive]
           mochad apns liveactivity start|update|end --token <hex> --env sandbox|production [envio] [estado]
@@ -51,7 +51,7 @@ enum ApnsCommand {
             fileURL: fileURL,
             keyId: try options.required("--key-id"),
             teamId: try options.required("--team-id"),
-            bundleId: options.value("--bundle-id") ?? ApnsConfig.defaultBundleId
+            bundleId: try options.required("--bundle-id")
         )
         print("chave \(config.keyId) guardada no Keychain de login (serviço \(KeychainApnsKeyStore.service), conta \(config.keyId))")
         print("config: \(ApnsConfigStore.defaultURL.path(percentEncoded: false)) → apns {teamId, keyId \(config.keyId), bundleId \(config.bundleId)}")

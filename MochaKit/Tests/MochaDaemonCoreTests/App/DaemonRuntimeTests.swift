@@ -157,7 +157,7 @@ struct DaemonRuntimeTests {
             let key = try PushTestData.signingKey()
             let transport = FakeApnsTransport()
             var options = Self.options(home, herdrSocket: FakeHerdrServer.temporarySocketPath())
-            options.apnsCredentials = { ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId), key: key) }
+            options.apnsCredentials = { ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId, bundleId: PushTestData.bundleId), key: key) }
             options.apnsTransport = transport
             let runtime = DaemonRuntime(options: options)
 
