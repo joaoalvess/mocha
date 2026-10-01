@@ -254,6 +254,24 @@ struct HomeSectionsTests {
         #expect(!HomeSections.card(for: noSession, in: .done, now: now).canArchive)
     }
 
+    @Test func doneCodexCardArchivesItsThreadWithTheCodexProvider() throws {
+        let codex = agent("w3:p5", kind: "codex", sessionId: "thread-plan")
+        let card = try #require(HomeSections.make(agents: [codex], archived: [], now: now).first?.cards.first)
+        #expect(card.canArchive)
+        #expect(card.archiveSessionId == "thread-plan")
+        #expect(card.provider == .codex)
+        var archivedCodex = codex
+        archivedCodex.archivedAt = now
+        #expect(kinds(HomeSections.make(agents: [archivedCodex], archived: [], now: now)) == [.archived])
+    }
+
+    @Test func workingCodexCardCannotBeArchived() throws {
+        let codex = agent("w3:p6", kind: "codex", status: .working, runningSubagents: 1)
+        let card = try #require(HomeSections.make(agents: [codex], archived: [], now: now).first?.cards.first)
+        #expect(!card.canArchive)
+        #expect(card.runningSubagents == 1)
+    }
+
     @Test func finishingATurnMovesTheCardFromWorkingToDone() {
         var summary = agent("w5:p1", status: .working, lastActivityAgo: 5)
         #expect(ids(HomeSections.make(agents: [summary], archived: [], now: now), .working) == [.agent("w5:p1")])

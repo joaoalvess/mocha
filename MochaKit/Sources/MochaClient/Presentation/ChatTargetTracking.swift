@@ -21,4 +21,9 @@ public enum ChatTargetTracking {
         guard let knownSessionId, let moved = workspaces.agent(withSessionId: knownSessionId) else { return .unchanged }
         return .agentMoved(moved.id)
     }
+
+    public static func target(afterAck agentId: AgentID?, from target: ChatTarget) -> ChatTarget? {
+        guard let agentId, case .agent(let current) = target, current != agentId else { return nil }
+        return .agent(agentId)
+    }
 }

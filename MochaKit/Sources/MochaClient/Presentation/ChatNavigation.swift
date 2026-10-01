@@ -21,16 +21,26 @@ public enum ChatNavigationStep: Sendable, Equatable {
 
 public enum ChatNavigation {
     public static func open(_ target: ChatTarget, stack: [ChatStackEntry]) -> ChatNavigationStep {
+        if case .subagent = target {
+            return openSubagent(target, stack: stack)
+        }
         if stack.last?.matches(target) == true {
             return .stay
         }
         if let index = stack.firstIndex(where: { $0.matches(target) }) {
             return popping(to: index + 1, in: stack)
         }
-        if case .subagent = target {
-            return .show(path: stack.map(\.route) + [target], closing: [])
-        }
         return .show(path: [target], closing: stack.map(\.target))
+    }
+
+    public static func openSubagent(_ target: ChatTarget, stack: [ChatStackEntry]) -> ChatNavigationStep {
+        if stack.last?.matches(target) == true {
+            return .stay
+        }
+        if let index = stack.firstIndex(where: { $0.matches(target) }) {
+            return popping(to: index + 1, in: stack)
+        }
+        return .show(path: stack.map(\.route) + [target], closing: [])
     }
 
     public static func setPath(_ path: [ChatTarget], stack: [ChatStackEntry]) -> ChatNavigationStep {

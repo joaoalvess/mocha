@@ -60,4 +60,34 @@ struct ChatNavigationTests {
         #expect(ChatNavigation.reopening(stack: entries) == [.agent("w9:p4"), loadTest])
         #expect(ChatNavigation.reopening(stack: []) == [])
     }
+
+    @Test func codexChildThreadIsPushedOverTheLiveCodexChat() {
+        let codex = ChatTarget.agent("w3:p5")
+        let child = ChatTarget.codexThread("9f5e4d3c-6a7b-4c8d-9e0f-2a3b4c5d6e7f")
+        #expect(ChatNavigation.openSubagent(child, stack: stack(codex)) == .show(path: [codex, child], closing: []))
+        #expect(ChatNavigation.openSubagent(child, stack: stack(codex, child)) == .stay)
+    }
+
+    @Test func codexChildThreadIsPushedOverTheArchivedCodexChat() {
+        let archived = ChatTarget.codexThread("a06f5e4d-7b8c-4d9e-8f0a-3b4c5d6e7f80")
+        let child = ChatTarget.codexThread("b1706f5e-8c9d-4e0f-9a1b-4c5d6e7f8091")
+        #expect(ChatNavigation.openSubagent(child, stack: stack(archived)) == .show(path: [archived, child], closing: []))
+        #expect(ChatNavigation.openSubagent(archived, stack: stack(archived, child)) == .show(path: [archived], closing: [child]))
+    }
+
+    @Test func codexChildThreadFromTheDetailOverHomeOpensAlone() {
+        let child = ChatTarget.codexThread("9f5e4d3c-6a7b-4c8d-9e0f-2a3b4c5d6e7f")
+        #expect(ChatNavigation.openSubagent(child, stack: []) == .show(path: [child], closing: []))
+    }
+
+    @Test func archivedCodexThreadOpenedNormallyReplacesTheStack() {
+        let codex = ChatTarget.agent("w3:p5")
+        let archived = ChatTarget.codexThread("a06f5e4d-7b8c-4d9e-8f0a-3b4c5d6e7f80")
+        #expect(ChatNavigation.open(archived, stack: stack(codex)) == .show(path: [archived], closing: [codex]))
+    }
+
+    @Test func claudeSubagentOpensTheSameWayThroughEitherEntry() {
+        #expect(ChatNavigation.openSubagent(loadTest, stack: stack(agent)) == ChatNavigation.open(loadTest, stack: stack(agent)))
+        #expect(ChatNavigation.openSubagent(loadTest, stack: stack(agent, loadTest, nested)) == ChatNavigation.open(loadTest, stack: stack(agent, loadTest, nested)))
+    }
 }
