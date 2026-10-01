@@ -1222,6 +1222,6 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-T4 | todo | |
 | WP-T5 | todo | |
 | WP-X5 | todo | |
-| WP-IM1 | todo | |
+| WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 8b3acb4, 61b989f, merge 7d516ab, 114637b |
 | WP-IM2 | todo | |
 | WP-IM3 | todo | |
