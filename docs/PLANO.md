@@ -1428,5 +1428,5 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-AL4 | código feito (silêncio com o Mac desbloqueado e um toque ao bloquear no card e no push; o `PushService` usa o `lock` em cache das transições; logs reais `silent reason=atMac` e `lock-ring … device`, contados pelo `alerts-summary.sh`; revisão independente com 3 correções (card que acabou repassa o toque ao push; o push ao bloquear reconfere preferências, primeiro plano, token e card); `test.sh` completo verde; falta instalar e o U2) | 4d64f7a, 22cec29, 781a6a3, merge 8b4eed8, f3cc708, f47715b, fa5fc65 |
 | WP-AL5 | código feito (toggle "Silenciar enquanto uso o Mac" e o rodapé novo; `build-device.sh` verde; falta instalar no iPhone e o checklist) | 4f37913, merge b9e0d2a |
 | WP-AL6 | todo | |
-| WP-AL7 | todo | |
-| U3 | todo | |
+| WP-AL7 | todo (adiado pelo João em 2026-10-01: conferir na Apple o `NSSupportsLiveActivitiesFrequentUpdates` e o `frequentPushesEnabled`, `updateInterval` 10 → 6 s, a chave no `App/Info.plist`, testes fixando 10 s, SPEC §7.5) | |
+| U3 | todo (depois do WP-AL7: 1 h com 4 agentes, `alerts-summary.sh` contra o uso de 2026-10-01) | |
