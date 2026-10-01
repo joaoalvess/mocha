@@ -1114,6 +1114,57 @@ Branch `fase/imagens`, criada de `main`. Contrato do orquestrador (SPEC §3.2, �
 - Tela cheia: zoom, fechar, compartilhar e salvar em Fotos.
 - Citar um print de `~/Desktop`: ver se o macOS pede permissão ao `mochad`.
 
+## Fase imagens-nativas: foto do app como anexo nativo do Claude
+
+Branch `fase/imagens-nativas`, criada de `main`, no worktree do Herdr `.claude/worktrees/imagens-nativas`, porque outra sessão trabalha em paralelo no repositório principal. S10 → contrato do orquestrador (SPEC §1.3, §3.2, §4, §5.2, §5.5, §6.5 e §12; AGENTS.md §Atualização do Claude Code) → onda única com WP-IN1 e WP-IN2 em paralelo → WP-IN3 no iPhone. Sem mock nem capturas (decisão do João); o aceite de UI é `scripts/test.sh` + `scripts/build-app.sh`, e a conferência é no iPhone. Decisões do João (2026-10-01):
+
+- A foto vai como anexo nativo pela colagem do caminho (S10), sem clipboard. O envio antigo fica como plano B.
+- A imagem da bolha vem do bloco `image` do transcript, gravada num cache em disco (opção A do S10). Só as conversas abertas gravam; o que fica 7 dias sem uso sai, com teto de 200 MB.
+- O app reduz a foto para 2.000 px.
+
+### S10: anexo nativo pela colagem do caminho
+
+- Feito: `docs/spikes/S10.md`. O `agent.prompt` do Herdr cola, e o Claude Code troca cada linha que é só caminho de imagem existente por `[Image #N]` + bloco `image` base64 (até 2000 px), com uma linha `isMeta` `[Image: source: …]` depois. Vale também com a mensagem na fila.
+
+### WP-IN1: anexos no transcript e cache de imagens (daemon)
+
+- **Dono**: `MochaKit/Sources/MochaTranscript/` (`Parsing/`, `File/`, `TranscriptDocument.swift`), `MochaKit/Sources/MochaDaemonCore/` (`Transcript/`, `Gateway/`, `Images/`, `Uploads/`), `scripts/check-claude-update.sh` e os testes de `MochaTranscriptTests` e `MochaDaemonCoreTests`, inclusive os `.integration` do Claude.
+- **Transcript** (§3.2):
+  - os `[Image #N]` de `imagePasteIds` saem do texto antes do `PastedContent` e dos marcadores;
+  - uma linha só com um caminho dentro de `uploads/` conta como marcador (plano B);
+  - `TranscriptImageStore`: SHA-256 (CryptoKit) do base64, gravação atômica 0600 só quando falta, data renovada quando já existe;
+  - o `imagePaths` do `userPrompt` traz os blocos e depois os marcadores;
+  - o store passa por `SequentialLineParser`, `TranscriptFollower`, `TranscriptPager` e `TranscriptDocument`, com padrão `nil`.
+- **Daemon**:
+  - o store com `~/Library/Caches/com.joaoalves.mocha/transcript-images/` só nas leituras que geram itens de chat para o app; a varredura da home não recebe store;
+  - a `/v1/image` renova a data do arquivo do cache num 200;
+  - a limpeza roda junto com a do `uploads/` (na subida e a cada 6 h): 7 dias sem uso e teto de 200 MB, pelo uso mais antigo.
+- **Integração**: `ClaudeImagePasteIntegrationTests` (`.integration`), chamado pelo `scripts/check-claude-update.sh`. Um PNG gerado no teste, colado pelo `agent.prompt` junto com texto no laboratório `mocha-lab-claude-update`, vira 1 `imagePasteIds`, 1 bloco `image` e o chip no texto. O parser devolve o texto sem o chip e 1 caminho num store de teste. No laboratório, conferir e registrar no relatório se um JPEG de 2.000 px chega ao transcript com os mesmos bytes.
+- **Censo** (`RealTranscriptCensusTests`): contagens de `userPrompt` com `imagePasteIds`, de blocos com e sem caminho e de `[Image #` que sobrou no texto.
+- **Aceite**:
+  - `scripts/test.sh` verde, com testes de chips (no começo, no meio, fora de `imagePasteIds` e com `<pasted_content>`), de blocos (png, jpeg, tipo sem suporte, sem store), do store (nome por hash, não regrava, renova a data, 0600), do marcador de caminho puro, da limpeza (7 dias e teto) e da rota renovando a data;
+  - `ClaudeImagePasteIntegrationTests` verde com `MOCHA_INTEGRATION=1`.
+
+### WP-IN2: envio com caminho e troca da bolha (app)
+
+- **Dono**: `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaClient/Connection/`, `MochaKit/Sources/MochaDemo/`, `App/Sources/Chat/` e os testes de `MochaClientTests` e `MochaDemoTests`.
+- **Envio** (§6.5):
+  - `PromptImages.promptText` monta o texto seguido de uma linha com o caminho puro por imagem;
+  - `ImageReduction.maximumPixelSize` passa a 2.000.
+- **Bolha pendente**: quando a pendente casa com o `userPrompt` definitivo (`PendingBubbles.match`), as miniaturas locais dela vão para o `ChatImageCache` (600 px) pelos `imagePaths` do item, na ordem, na mesma atualização que troca a bolha. O caminho do item é o do cache do transcript, e não o do upload. A semeadura pelo caminho do upload continua, para o plano B.
+- **Demo**: o `echoPrompt` reconhece as linhas de caminho puro (`DemoImageMarkers`), e o item ecoado traz o texto sem elas e os caminhos.
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes, com testes do texto enviado, da semeadura na troca e do eco no demo.
+
+### WP-IN3: checklist no iPhone
+
+- Com o ok do João: `scripts/build-daemon.sh`, reinstalar o `mochad` (`rm` antes do `cp` em `~/.local/bin`) e `scripts/build-device.sh`.
+- Mandar 1 e depois 3 fotos com texto. A bolha pendente mostra as fotos, e a definitiva troca sem piscar e sem `[Image #N]` no texto. No Mac, o terminal mostra os `[Image #N]`.
+- Mandar uma foto com o Claude ocupado: a mensagem entra na fila, e a foto aparece quando ela sai.
+- Mandar texto de 4 linhas ou mais com foto: a bolha vem sem tags e sem chip.
+- Colar uma imagem direto no terminal do Mac: a miniatura aparece na bolha.
+- Abrir uma conversa antiga com imagem colada: a miniatura aparece, e o `transcript-images/` ganha o arquivo.
+- Tela cheia e compartilhar com uma imagem do cache.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1225,3 +1276,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 8b3acb4, 61b989f, merge 7d516ab, 114637b |
 | WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | e09b3b4, 4532880, 39eb843, merge ea93311 |
 | WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
+| S10 | feito (colagem do caminho, sem clipboard) | 33ec237 |
+| WP-IN1 | todo | |
+| WP-IN2 | todo | |
+| WP-IN3 | todo | |
