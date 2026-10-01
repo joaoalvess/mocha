@@ -236,3 +236,14 @@ private func encodedJSON<Value: Encodable>(_ value: Value) throws -> JSONValue {
         #expect(try decode(ChatItem.self, String(decoding: JSONEncoder().encode(item), as: UTF8.self)) == item)
     }
 }
+
+@Suite struct DevicePreferencesToleranceTests {
+    @Test func aMissingSilenceWhileAtMacFallsBackToOn() throws {
+        #expect(try decode(DevicePreferences.self, #"{"turnDoneAlerts":false}"#) == DevicePreferences(turnDoneAlerts: false, silenceWhileAtMac: true))
+        #expect(try decode(DevicePreferences.self, #"{"turnDoneAlerts":true,"silenceWhileAtMac":false}"#) == DevicePreferences(turnDoneAlerts: true, silenceWhileAtMac: false))
+        #expect(throws: DecodingError.self) {
+            try decode(DevicePreferences.self, #"{"silenceWhileAtMac":false}"#)
+        }
+        #expect(try encodedJSON(DevicePreferences()) == JSONValue(data: Data(#"{"turnDoneAlerts":true,"silenceWhileAtMac":true}"#.utf8)))
+    }
+}

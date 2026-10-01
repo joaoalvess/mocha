@@ -15,9 +15,17 @@ public struct ApnsRegistration: Codable, Sendable, Hashable {
 
 public struct DevicePreferences: Codable, Sendable, Hashable {
     public var turnDoneAlerts: Bool
+    public var silenceWhileAtMac: Bool
 
-    public init(turnDoneAlerts: Bool = true) {
+    public init(turnDoneAlerts: Bool = true, silenceWhileAtMac: Bool = true) {
         self.turnDoneAlerts = turnDoneAlerts
+        self.silenceWhileAtMac = silenceWhileAtMac
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        turnDoneAlerts = try container.decode(Bool.self, forKey: .turnDoneAlerts)
+        silenceWhileAtMac = try container.decodeIfPresent(Bool.self, forKey: .silenceWhileAtMac) ?? true
     }
 }
 
