@@ -402,6 +402,19 @@ final class AppSession {
         }
     }
 
+    func setSilenceWhileAtMac(_ isOn: Bool) async throws {
+        let previous = preferences
+        var updated = preferences ?? DevicePreferences()
+        updated.silenceWhileAtMac = isOn
+        preferences = updated
+        do {
+            try await request(.setPreferences(updated))
+        } catch {
+            preferences = previous
+            throw error
+        }
+    }
+
     func archive(sessionId: String, provider: AgentProvider = .claude) async throws {
         try await request(.archive(sessionId: sessionId, provider: provider))
     }
