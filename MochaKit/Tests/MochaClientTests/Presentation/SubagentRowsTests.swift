@@ -45,6 +45,13 @@ struct SubagentRowsTests {
         #expect(rows[1].target == .subagent(sessionId: sessionId, agentId: "a-script"))
     }
 
+    @Test func codexRowsOpenTheChildThread() {
+        let child = SubagentSummary(agentId: "9f5e4d3c-6a7b-4c8d-9e0f-2a3b4c5d6e7f", agentType: "explorer", description: "Revisar migrations de índice", status: .running, toolUses: 2, startedAt: now.addingTimeInterval(-140))
+        let rows = SubagentRows.make(items: [child], sessionId: "8e4d3c2b-5f6a-4b7c-8d9e-1f2a3b4c5d6e", provider: .codex, now: now)
+        #expect(rows.map(\.target) == [.codexThread("9f5e4d3c-6a7b-4c8d-9e0f-2a3b4c5d6e7f")])
+        #expect(SubagentRoute.target(agentId: "a-load", sessionId: sessionId, provider: .claude) == .subagent(sessionId: sessionId, agentId: "a-load"))
+    }
+
     @Test func runningCountOnlyWhenSomethingRuns() {
         #expect(SubagentRows.runningCount(items) == "1 rodando")
         #expect(SubagentRows.runningCount(Array(items.dropFirst())) == nil)

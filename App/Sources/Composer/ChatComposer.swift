@@ -8,7 +8,6 @@ struct ChatComposer<ControlsPanel: View>: View {
     @Binding var isExpanded: Bool
     var isFocused: FocusState<Bool>.Binding
     let attachments: ComposerAttachments
-    var showsSlashMenu = true
     var isWorking = false
     var effort: EffortLevel?
     var onModelPicker: (() -> Void)?
@@ -181,9 +180,8 @@ struct ChatComposer<ControlsPanel: View>: View {
     }
 
     private var expandedButtons: ComposerButtons {
-        var buttons: ComposerButtons = [.attach]
+        var buttons: ComposerButtons = [.attach, .slashMenu]
         if onModelPicker != nil { buttons.insert(.modelPicker) }
-        if showsSlashMenu { buttons.insert(.slashMenu) }
         return buttons
     }
 
@@ -202,7 +200,6 @@ struct ChatComposer<ControlsPanel: View>: View {
     }
 
     private func toggleSlashMenu() {
-        guard showsSlashMenu else { return }
         isAttachMenuOpen = false
         isSlashMenuOpen.toggle()
     }

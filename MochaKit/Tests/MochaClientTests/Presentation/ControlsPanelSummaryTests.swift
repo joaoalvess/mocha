@@ -21,6 +21,14 @@ struct ControlsPanelSummaryTests {
         #expect(ControlsPanelSummary.modeText(mode) == expected)
     }
 
+    @Test func codexModeTextIsDefaultOrPlan() {
+        #expect(ControlsPanelSummary.modeText(.default, provider: .codex) == "Padrão")
+        #expect(ControlsPanelSummary.modeText(.plan, provider: .codex) == "Plano")
+        #expect(ControlsPanelSummary.modeText(nil, provider: .codex) == "Padrão")
+        let summary = ControlsPanelSummary(contextLeftPercent: 76, contextUsedTokens: 61_400, mode: .plan, provider: .codex, usage: [], subagents: [])
+        #expect(summary.modeText == "Plano")
+    }
+
     @Test func modeChoicesHaveShortDetails() {
         #expect(SessionControlChoices.modes.map(\.detail) == ["aceita edições", "decide sozinho", "planeja antes"])
     }

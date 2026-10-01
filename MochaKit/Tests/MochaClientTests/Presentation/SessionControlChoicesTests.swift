@@ -83,6 +83,110 @@ struct SessionControlChoicesTests {
         #expect(ComposerSendMode.mode(hasContent: true, isWorking: true, isDictating: true, canDictate: true) == .dictating)
     }
 
+    private var codexModels: [ModelOption] {
+        [
+            ModelOption(
+                id: "gpt-6.1-sol",
+                displayName: "GPT-6.1-Sol",
+                isDefault: true,
+                defaultEffort: "low",
+                efforts: [EffortOption(level: "low", description: "Rápido, com pouco raciocínio"), EffortOption(level: "max"), EffortOption(level: "ultra")]
+            ),
+            ModelOption(id: "gpt-6-luna", displayName: "GPT-6-Luna", defaultEffort: "medium", efforts: [EffortOption(level: "low"), EffortOption(level: "high")]),
+        ]
+    }
+
+    @Test func codexOffersOnlyDefaultAndPlan() {
+        #expect(SessionControlChoices.modes(for: .codex).map(\.title) == ["Padrão", "Plano"])
+        #expect(SessionControlChoices.modes(for: .codex).map(\.mode) == [.default, .plan])
+        #expect(SessionControlChoices.modes(for: .claude) == SessionControlChoices.modes)
+    }
+
+    @Test func codexModeIsPlanOrDefault() {
+        #expect(SessionControlChoices.mode("plan", provider: .codex) == .plan)
+        #expect(SessionControlChoices.mode("default", provider: .codex) == .default)
+        #expect(SessionControlChoices.mode(nil, provider: .codex) == .default)
+        #expect(SessionControlChoices.mode("default", provider: .claude) == nil)
+        #expect(SessionControlChoices.mode("acceptEdits", provider: .claude) == .acceptEdits)
+    }
+
+    @Test func confirmedValuesKeepCodexStringsAndClaudeAliases() {
+        #expect(SessionControlChoices.confirmedModel("gpt-6.1-sol", provider: .codex) == "gpt-6.1-sol")
+        #expect(SessionControlChoices.confirmedModel("claude-opus-5-5", provider: .claude) == "opus")
+        #expect(SessionControlChoices.confirmedEffort("ultra", provider: .codex) == "ultra")
+        #expect(SessionControlChoices.confirmedEffort("ultra", provider: .claude) == nil)
+        #expect(SessionControlChoices.confirmedEffort("xhigh", provider: .claude) == "xhigh")
+    }
+
+    @Test func codexPickerListsEveryModelAndTheEffortsOfTheCurrentOne() {
+        let picker = SessionControlChoices.codexPicker(options: codexModels, model: "gpt-6.1-sol", effort: "max")
+        #expect(picker.models.map(\.id) == ["gpt-6.1-sol", "gpt-6-luna"])
+        #expect(picker.models.map(\.title) == ["GPT-6.1-Sol", "GPT-6-Luna"])
+        #expect(picker.models.map(\.detail) == ["padrão do Codex", nil])
+        #expect(picker.efforts.map(\.id) == ["low", "max", "ultra"])
+        #expect(picker.efforts.map(\.title) == ["Low", "Max", "Ultra"])
+        #expect(picker.efforts.first?.detail == "Rápido, com pouco raciocínio")
+        #expect(picker.selectedModel == "gpt-6.1-sol")
+        #expect(picker.selectedEffort == "max")
+    }
+
+    @Test func codexPickerFollowsTheChosenModel() {
+        let picker = SessionControlChoices.codexPicker(options: codexModels, model: "GPT-6-Luna", effort: "high")
+        #expect(picker.selectedModel == "gpt-6-luna")
+        #expect(picker.efforts.map(\.id) == ["low", "high"])
+    }
+
+    @Test func codexPickerWithoutTheListOrAnUnknownModelOffersNoEffort() {
+        #expect(SessionControlChoices.codexPicker(options: [], model: "gpt-6.1-sol", effort: "low").models.isEmpty)
+        let unknown = SessionControlChoices.codexPicker(options: codexModels, model: "gpt-oculto", effort: "low")
+        #expect(unknown.efforts.isEmpty)
+        #expect(unknown.selectedModel == "gpt-oculto")
+    }
+
+    @Test func claudePickerKeepsTheFixedListAndHidesEffortOnHaiku() {
+        let opus = SessionControlChoices.claudePicker(model: "opus", effort: "high")
+        #expect(opus.models.map(\.title) == ["Fable", "Opus", "Sonnet", "Haiku"])
+        #expect(opus.efforts.map(\.title) == ["Low", "Medium", "High", "Extra high", "Max"])
+        #expect(opus.selectedModel == "opus")
+        #expect(opus.selectedEffort == "high")
+        #expect(SessionControlChoices.claudePicker(model: "haiku", effort: nil).efforts.isEmpty)
+    }
+
+    @Test func gaugeLevelMapsCodexEfforts() {
+        #expect(SessionControlChoices.gaugeLevel("xhigh") == .xhigh)
+        #expect(SessionControlChoices.gaugeLevel("ultra") == .max)
+        #expect(SessionControlChoices.gaugeLevel("minimal") == .low)
+        #expect(SessionControlChoices.gaugeLevel("outro") == nil)
+        #expect(SessionControlChoices.gaugeLevel(nil) == nil)
+    }
+
+    @Test func headerShowsTheCodexModelWithItsEffort() {
+        #expect(SessionControlChoices.headerModel("gpt-6.1-sol", effort: "low", provider: .codex) == "gpt-6.1-sol low")
+        #expect(SessionControlChoices.headerModel("gpt-6.1-sol", effort: nil, provider: .codex) == "gpt-6.1-sol")
+        #expect(SessionControlChoices.headerModel(nil, effort: "low", provider: .codex) == nil)
+        #expect(SessionControlChoices.headerModel("claude-opus-5-5", effort: "high", provider: .claude) == "claude-opus-5-5")
+    }
+
+    @Test func modelListStateDrivesThePickerNotice() {
+        #expect(ModelListState.idle.needsLoad)
+        #expect(ModelListState.failed.needsLoad)
+        #expect(!ModelListState.loading.needsLoad)
+        #expect(!ModelListState.loaded(codexModels).needsLoad)
+        #expect(ModelListState.loading.notice == "Carregando modelos…")
+        #expect(ModelListState.failed.notice == "Não foi possível carregar os modelos")
+        #expect(ModelListState.loaded(codexModels).notice == nil)
+        #expect(ModelListState.loaded(codexModels).options.count == 2)
+        #expect(ModelListState.failed.options.isEmpty)
+    }
+
+    @Test func overrideHoldsCodexStrings() {
+        var override = ControlOverride<String>()
+        override.choose("gpt-6-luna")
+        #expect(override.displayed(confirmed: "gpt-6.1-sol") == "gpt-6-luna")
+        override.release("gpt-6-luna")
+        #expect(override.displayed(confirmed: "gpt-6.1-sol") == "gpt-6.1-sol")
+    }
+
     @Test func mergesWorkflowAgentsAfterSubagents() {
         let started = Date(timeIntervalSince1970: 1_000)
         let subagent = SubagentSummary(agentId: "a1", agentType: "general-purpose", description: "Revisar", status: .running)

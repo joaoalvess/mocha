@@ -82,7 +82,7 @@ struct SettingsScreen: View {
                 .toggleStyle(SettingsSwitchStyle())
                 .disabled(!canChangePreferences)
             }
-            SheetFootnote(text: Text("Avisa quando o Claude termina um turno e o chat dele não está aberto. Pedidos de aprovação sempre avisam."))
+            SheetFootnote(text: Text("Avisa quando o Claude ou o Codex termina um turno e o chat dele não está aberto. Pedidos de aprovação sempre avisam."))
         }
     }
 

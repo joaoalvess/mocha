@@ -7,14 +7,22 @@ public struct ControlsPanelSummary: Sendable, Hashable {
     public var usageText: String?
     public var subagentsText: String?
 
-    public init(contextLeftPercent: Int?, contextUsedTokens: Int? = nil, mode: PermissionModeTarget?, usage: [UsageWindowSummary], subagents: [SubagentSummary]) {
+    public init(
+        contextLeftPercent: Int?,
+        contextUsedTokens: Int? = nil,
+        mode: PermissionModeTarget?,
+        provider: AgentProvider = .claude,
+        usage: [UsageWindowSummary],
+        subagents: [SubagentSummary]
+    ) {
         contextText = contextLeftPercent.map { Self.contextText(leftPercent: $0, usedTokens: contextUsedTokens) }
-        modeText = Self.modeText(mode)
+        modeText = Self.modeText(mode, provider: provider)
         usageText = Self.tightestWindow(usage)?.percentText
         subagentsText = Self.subagentsText(subagents)
     }
 
     public static let manualModeText = "Manual"
+    public static let codexDefaultModeText = "Padrão"
 
     public static func contextUsedPercent(leftPercent: Int) -> Int {
         100 - min(max(leftPercent, 0), 100)
@@ -37,8 +45,9 @@ public struct ControlsPanelSummary: Sendable, Hashable {
         return "\(tokens)"
     }
 
-    public static func modeText(_ mode: PermissionModeTarget?) -> String {
-        SessionControlChoices.modes.first { $0.mode == mode }?.title ?? manualModeText
+    public static func modeText(_ mode: PermissionModeTarget?, provider: AgentProvider = .claude) -> String {
+        let fallback = provider == .codex ? codexDefaultModeText : manualModeText
+        return SessionControlChoices.modes(for: provider).first { $0.mode == mode }?.title ?? fallback
     }
 
     public static func tightestWindow(_ windows: [UsageWindowSummary]) -> UsageWindowSummary? {

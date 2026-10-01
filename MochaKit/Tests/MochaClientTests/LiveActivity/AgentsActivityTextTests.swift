@@ -115,6 +115,16 @@ struct AgentsActivityTextTests {
         #expect(AgentsActivityText.permissionHeadline(toolName: " ").verb == AgentsActivityText.permissionFallbackVerb)
     }
 
+    @Test func codexTextsNameCodexWhenTheRequestHasNoName() {
+        #expect(AgentsActivityText.permissionHeadline(toolName: nil, provider: .codex).toolName == "Codex")
+        #expect(AgentsActivityText.permissionHeadline(toolName: nil).toolName == "Claude")
+        let blank = AgentsActivityContent.Pending(requestId: "req-1", kind: .question, toolName: nil, text: " ", options: [])
+        var codex = Self.content(.blocked, pending: blank)
+        codex.provider = .codex
+        #expect(AgentsActivityText.lines(of: codex).headline == "Pergunta do Codex")
+        #expect(AgentsActivityText.lines(of: Self.content(.blocked, pending: blank)).headline == "Pergunta do Claude")
+    }
+
     @Test func aPlanAsksToFollowThePlanWithItsFirstLine() {
         let lines = AgentsActivityText.lines(of: Self.content(.blocked, pending: Self.permission("ExitPlanMode", text: "Criar o arquivo f.txt")))
         #expect(lines == AgentsActivityLines(headline: "Exit plan mode", detail: .text("Criar o arquivo f.txt"), emphasizesDetail: true))

@@ -132,7 +132,7 @@ private func age(_ date: Date?, at now: Date) throws -> TimeInterval {
     }
 
     @Test func archivedSessionsAreOneClearedAndOneEndedFromYesterday() throws {
-        let sessions = dataset.archived
+        let sessions = dataset.archived.filter { $0.provider == .claude }
         #expect(sessions.map(\.reason) == [.cleared, .ended])
         #expect(sessions.map(\.workspaceLabel) == ["login-social", "demo-app"])
         #expect(sessions.map(\.contextLeftPercent) == [47, 90])

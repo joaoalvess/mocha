@@ -139,7 +139,7 @@ private let screen18 = [
     @Test func runningSubagentsIsSetOnlyOnSessionsWithSubagents() {
         let counts = Dictionary(uniqueKeysWithValues: dataset.workspaces.allAgents.map { ($0.id, $0.runningSubagents) })
         #expect(counts == [
-            "w1:p1": 2, "w5:p1": 0, "w2:p1": nil, "w3:p1": 1, "w3:p2": nil, "w4:p2": nil, "w4:p3": nil,
+            "w1:p1": 2, "w5:p1": 0, "w2:p1": nil, "w3:p1": 1, "w3:p2": nil, "w4:p2": nil, "w4:p3": nil, "w3:p5": nil, "w3:p6": 1,
         ])
     }
 
@@ -382,8 +382,8 @@ struct DemoSubagentConnectionTests {
         let unknown = try await harness.error(for: .listSubagents(agentId: "w99:p1"))
         #expect(unknown.code == .agentNotFound)
         let codex = try await harness.error(for: .listSubagents(agentId: "w4:p3"))
-        #expect(codex.code == .invalidPayload)
-        #expect(codex.message == DemoServerConnection.claudeOnlyMessage)
+        #expect(codex.code == .codexUnavailable)
+        #expect(codex.message == DemoServerConnection.codexUnavailableMessage)
     }
 
     @Test func scriptFinishesTheRunningSubagentEverywhereItIsShown() async throws {

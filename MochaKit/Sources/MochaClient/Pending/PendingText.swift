@@ -29,7 +29,6 @@ public struct PendingNotice: Sendable, Equatable {
 
 public enum PendingText {
     public static let permissionHeader = "Precisa de você"
-    public static let questionHeader = "Pergunta do Claude"
     public static let inboxTitle = "Precisa de você"
     public static let emptyInbox = "Nada esperando você."
     public static let showFullInput = "Ver entrada completa"
@@ -51,7 +50,6 @@ public enum PendingText {
         let trimmed = header.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? position : "\(trimmed) · \(position)"
     }
-    public static let unknownAgent = "Claude"
     public static let unreachableTitle = "Não consegui falar com o Mac"
     public static let unreachableBody = "A resposta não foi enviada. Abra o Mocha para responder."
     public static let refusedTitle = "O Mac recusou a resposta"
@@ -60,10 +58,21 @@ public enum PendingText {
     public static let goneTitle = "Esse pedido já foi resolvido no Mac"
     public static let goneBody = "Ele foi respondido no terminal ou expirou."
 
-    public static func header(for kind: PendingKind) -> String {
+    public static func header(for kind: PendingKind, provider: AgentProvider = .claude) -> String {
         switch kind {
         case .permission: permissionHeader
-        case .question: questionHeader
+        case .question: questionHeader(for: provider)
+        }
+    }
+
+    public static func questionHeader(for provider: AgentProvider) -> String {
+        "Pergunta do \(agentName(for: provider))"
+    }
+
+    public static func agentName(for provider: AgentProvider) -> String {
+        switch provider {
+        case .claude: "Claude"
+        case .codex: "Codex"
         }
     }
 

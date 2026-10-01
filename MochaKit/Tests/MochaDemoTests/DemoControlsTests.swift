@@ -59,14 +59,14 @@ struct DemoControlsTests {
         #expect(try await nextTreeAgent(harness).permissionMode == "plan")
     }
 
-    @Test func controlsRejectCodexAgents() async throws {
+    @Test func controlsRejectCodexWithoutControl() async throws {
         let harness = try DemoHarness()
         try await harness.connect()
-        let codex = try #require(harness.dataset.workspaces.allAgents.first { $0.kind == "codex" })
+        let codex = try #require(harness.dataset.workspaces.allAgents.first { $0.kind == "codex" && $0.controlAvailable == false })
 
         let failure = try await harness.error(for: .setMode(agentId: codex.id, mode: .plan))
 
-        #expect(failure.code == .invalidPayload)
+        #expect(failure.code == .codexUnavailable)
     }
 
     private func nextMeta(_ harness: DemoHarness) async throws -> ChatMeta {

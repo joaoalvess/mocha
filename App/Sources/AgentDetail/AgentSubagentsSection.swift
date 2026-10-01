@@ -5,6 +5,7 @@ import SwiftUI
 struct AgentSubagentsSection: View {
     let items: [SubagentSummary]
     let sessionId: String
+    let provider: AgentProvider
     let onOpen: (ChatTarget) -> Void
 
     var body: some View {
@@ -39,7 +40,7 @@ struct AgentSubagentsSection: View {
     }
 
     private func card(now: Date) -> some View {
-        let rows = SubagentRows.make(items: items, sessionId: sessionId, now: now)
+        let rows = SubagentRows.make(items: items, sessionId: sessionId, provider: provider, now: now)
         return VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 {

@@ -9,7 +9,7 @@ struct PendingChatCard: View {
     var body: some View {
         PendingRequestCard(
             request: request,
-            heading: .chat,
+            heading: .chat(session.provider(of: .agent(request.agentId))),
             isSending: session.pending.isSending(request.id),
             failure: session.pending.failure(for: request.id)
         ) { response in
