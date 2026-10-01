@@ -338,6 +338,8 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 
 **Marcadores de imagem do Mocha** (§6.5): no texto de todo `userPrompt` (content string, blocos `text` ou `prompt` do `queued_command`), cada linha que é exatamente `[imagem: <caminho>]`, com `<caminho>` absoluto dentro de `~/Library/Application Support/Mocha/uploads/`, sai do `text`, soma 1 no `imageCount` e põe o caminho no `imagePaths` do item, na ordem (fase imagens). As linhas vazias que sobram no fim do texto são aparadas. Um marcador com caminho fora de `uploads/` fica no texto.
 
+**Texto colado** (`PastedContent`, `MochaTranscript`): o Claude Code grava o texto colado de várias linhas, inclusive o que o Mocha envia pelo Herdr, entre uma linha `<pasted_content id="…">` e uma `</pasted_content id="…">`. Antes dos marcadores, as linhas que são só uma dessas tags saem do texto do `userPrompt`, e as quebras de linha que sobram nas pontas são aparadas. Assim a bolha definitiva tem o mesmo texto da pendente. Uma tag no meio de uma linha fica.
+
 **Imagens do Claude** (fase imagens, §6.5): o `imagePaths` (§5.2) recebe o que o Claude abriu ou citou:
 - **`Read` de imagem**: um `toolCall` de `Read` cujo `file_path` é absoluto, termina numa extensão de imagem e não fica em `uploads/` ganha `imagePaths = [file_path]`. Do `uploads/` fica de fora porque essa foto já aparece na bolha do usuário.
 - **Menções no texto**: um `assistantText` ganha os caminhos de imagem citados no markdown (`ImageMentions`, `MochaTranscript`):
