@@ -23,4 +23,8 @@ protocol CodexServing: Actor {
     func prompt(_ agent: HerdrAgent, text: String) async throws
     func interrupt(_ agent: HerdrAgent) async throws
     func respond(to requestId: RequestID, with response: PendingResponse) async throws
+    func models() async throws -> [ModelOption]
+    func applySettings(_ change: CodexSettingsChange, to threadId: String) async throws
+    func compact(_ threadId: String) async throws
+    func waitForThread(of paneId: AgentID, timeout: Duration) async -> String?
 }
