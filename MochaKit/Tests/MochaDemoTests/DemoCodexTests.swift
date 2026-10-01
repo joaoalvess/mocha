@@ -49,10 +49,10 @@ struct DemoCodexTests {
     @Test func planChatEndsWithThePlanAndTheTurnFooter() throws {
         let dataset = try DemoDataset.bundled()
         let items = try #require(dataset.chats.first { $0.agentId == plan }?.items)
-        #expect(items.map(\.kind.type).suffix(2) == ["assistantText", "turnFooter"])
+        #expect(items.map(\.kind.type).suffix(2) == ["plan", "turnFooter"])
         let last = items[items.count - 2]
         #expect(last.id == DemoCodex.planItemId)
-        if case .assistantText(let markdown) = last.kind {
+        if case .plan(let markdown) = last.kind {
             #expect(markdown.hasPrefix("## Plano"))
         } else {
             Issue.record("o turno não termina num plano")

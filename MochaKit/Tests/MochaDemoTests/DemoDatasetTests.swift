@@ -49,8 +49,8 @@ private let forbiddenNames = ["initech", "acme", "globex", "bank-app"]
 
     @Test func bundledChatsTogetherCoverEveryKind() {
         let everyKind: Set<String> = [
-            "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "subagent", "workflow", "turnFooter", "recap",
-            "notice", "unsupported",
+            "userPrompt", "slashCommand", "assistantText", "plan", "thinking", "toolCall", "subagent", "workflow", "turnFooter",
+            "recap", "notice", "unsupported",
         ]
         let bundled = dataset.chats.filter { $0.agentId != DemoLongChat.agentId }
         #expect(bundled.count == 8)

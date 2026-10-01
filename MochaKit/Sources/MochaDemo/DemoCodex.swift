@@ -188,7 +188,7 @@ enum DemoCodex {
                     resultPreview: "internal/http/receitas.go:42"
                 ))
             ),
-            ChatItem(id: planItemId, at: at(-305), kind: .assistantText(markdown: planMarkdown)),
+            ChatItem(id: planItemId, at: at(-305), kind: .plan(markdown: planMarkdown)),
             ChatItem(id: "codex-plan-footer", at: at(-300), kind: .turnFooter(durationMs: 120_000)),
         ]
     }
