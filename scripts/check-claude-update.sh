@@ -6,7 +6,7 @@ HERDR=/opt/homebrew/bin/herdr
 JQ=/usr/bin/jq
 VERSION_FILE="$ROOT/MochaKit/Sources/MochaDaemonCore/App/ClaudeCodeVersion.swift"
 LAB="$HOME/Developer/mocha-lab/claude-update"
-SUITES='ClaudeScreenIntegrationTests|RealTranscriptCensusTests|ClaudeHooksRealSettingsTests'
+SUITES='ClaudeScreenIntegrationTests|ClaudeImagePasteIntegrationTests|RealTranscriptCensusTests|ClaudeHooksRealSettingsTests'
 
 installed="$(claude --version 2>/dev/null | awk '{print $1}')"
 validated="$(sed -n 's/.*lastValidated = "\(.*\)".*/\1/p' "$VERSION_FILE")"
