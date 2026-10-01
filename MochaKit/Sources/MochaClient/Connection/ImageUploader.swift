@@ -101,6 +101,23 @@ public struct GatewayImageUploader: ImageUploading {
     }
 
     static func uploadURL(forPairingURL pairingURL: URL) -> URL? {
+        GatewayURL.components(forPairingURL: pairingURL, path: uploadPath)?.url
+    }
+
+    static func error(forStatus status: Int) -> ImageUploadError {
+        switch status {
+        case 400: .emptyBody
+        case 401: .unauthorized
+        case 411: .lengthRequired
+        case 413: .payloadTooLarge
+        case 415: .unsupportedMediaType
+        default: .unexpectedStatus(status)
+        }
+    }
+}
+
+enum GatewayURL {
+    static func components(forPairingURL pairingURL: URL, path: String) -> URLComponents? {
         guard
             var components = URLComponents(url: pairingURL, resolvingAgainstBaseURL: false),
             let host = components.host, !host.isEmpty
@@ -115,20 +132,9 @@ public struct GatewayImageUploader: ImageUploading {
         }
         components.user = nil
         components.password = nil
-        components.path = uploadPath
+        components.path = path
         components.query = nil
         components.fragment = nil
-        return components.url
-    }
-
-    static func error(forStatus status: Int) -> ImageUploadError {
-        switch status {
-        case 400: .emptyBody
-        case 401: .unauthorized
-        case 411: .lengthRequired
-        case 413: .payloadTooLarge
-        case 415: .unsupportedMediaType
-        default: .unexpectedStatus(status)
-        }
+        return components
     }
 }

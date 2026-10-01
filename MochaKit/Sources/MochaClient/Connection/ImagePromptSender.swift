@@ -8,6 +8,7 @@ public enum ImagePromptSender {
         text: String,
         images: [PromptImage],
         uploader: any ImageUploading,
+        onUploaded: @Sendable ([String]) async -> Void = { _ in },
         sendPrompt: @Sendable (String) async throws -> Void
     ) async throws {
         var paths: [String] = []
@@ -18,6 +19,7 @@ public enum ImagePromptSender {
                 throw ImagePromptUploadFailure(imageIndex: index, error: error)
             }
         }
+        await onUploaded(paths)
         try await sendPrompt(PromptImages.promptText(text, imagePaths: paths))
     }
 }
