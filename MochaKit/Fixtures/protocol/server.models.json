@@ -1,0 +1,37 @@
+{
+  "v": 2,
+  "id": "c-50",
+  "type": "models",
+  "payload": {
+    "agentId": "w17:p3",
+    "options": [
+      {
+        "id": "gpt-6.1-sol",
+        "displayName": "GPT-6.1-Sol",
+        "isDefault": true,
+        "defaultEffort": "low",
+        "efforts": [
+          { "level": "low", "description": "Rápido, com pouco raciocínio" },
+          { "level": "medium" },
+          { "level": "high" },
+          { "level": "xhigh" },
+          { "level": "max" },
+          { "level": "ultra" }
+        ]
+      },
+      {
+        "id": "gpt-6-luna",
+        "displayName": "GPT-6-Luna",
+        "isDefault": false,
+        "defaultEffort": "medium",
+        "efforts": [
+          { "level": "low" },
+          { "level": "medium" },
+          { "level": "high" },
+          { "level": "xhigh" },
+          { "level": "max" }
+        ]
+      }
+    ]
+  }
+}

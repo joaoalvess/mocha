@@ -638,7 +638,7 @@ final class AppSession {
             updateChats(target: target) { $0.meta = meta }
         case .pending(let requests):
             pending.replace(with: requests)
-        case .chatPage, .subagentList, .webServers, .ack, .pong, .error, .unknown:
+        case .chatPage, .subagentList, .models, .webServers, .ack, .pong, .error, .unknown:
             break
         }
     }

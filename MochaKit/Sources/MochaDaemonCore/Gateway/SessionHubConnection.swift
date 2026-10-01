@@ -270,12 +270,20 @@ extension SessionHub {
         case .registerLiveActivity(let registration):
             await registerLiveActivity(registration, id: id, clientId: clientId)
         case .setModel(let agentId, let model):
-            await runControl(.model(model), agentId: agentId, id: id, clientId: clientId)
+            guard let alias = ModelAlias(rawValue: model) else {
+                send(.invalidMessage, id: id, to: clientId)
+                return
+            }
+            await runControl(.model(alias), agentId: agentId, id: id, clientId: clientId)
         case .setEffort(let agentId, let level):
-            await runControl(.effort(level), agentId: agentId, id: id, clientId: clientId)
+            guard let effort = EffortLevel(rawValue: level) else {
+                send(.invalidMessage, id: id, to: clientId)
+                return
+            }
+            await runControl(.effort(effort), agentId: agentId, id: id, clientId: clientId)
         case .setMode(let agentId, let mode):
             await runControl(.mode(mode), agentId: agentId, id: id, clientId: clientId)
-        case .respond, .unknown:
+        case .respond, .listModels, .unknown:
             send(.unknownType(message.type), id: id, to: clientId)
         }
     }

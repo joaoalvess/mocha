@@ -463,13 +463,13 @@ struct ChatConversation: View {
         isModelPickerOpen = false
         guard case .agent(let agentId) = liveTarget, model != displayedModel else { return }
         modelOverride.choose(model)
-        sendControl(.setModel(agentId: agentId, model: model)) { modelOverride.release(model) }
+        sendControl(.setModel(agentId: agentId, model: model.rawValue)) { modelOverride.release(model) }
     }
 
     private func chooseEffort(_ level: EffortLevel) {
         guard case .agent(let agentId) = liveTarget, level != displayedEffort else { return }
         effortOverride.choose(level)
-        sendControl(.setEffort(agentId: agentId, level: level)) { effortOverride.release(level) }
+        sendControl(.setEffort(agentId: agentId, level: level.rawValue)) { effortOverride.release(level) }
     }
 
     private func chooseMode(_ mode: PermissionModeTarget) {

@@ -1,0 +1,9 @@
+{
+  "v": 2,
+  "id": "c-52",
+  "type": "setEffort",
+  "payload": {
+    "agentId": "w17:p3",
+    "level": "ultra"
+  }
+}

@@ -25,6 +25,7 @@ public enum ClientMessage: Sendable, Hashable {
     case openChat(target: ChatTarget, before: String? = nil, limit: Int? = nil)
     case closeChat(target: ChatTarget)
     case listSubagents(agentId: AgentID)
+    case listModels(agentId: AgentID)
     case sendPrompt(agentId: AgentID, text: String)
     case interrupt(agentId: AgentID)
     case closeAgent(agentId: AgentID)
@@ -38,8 +39,8 @@ public enum ClientMessage: Sendable, Hashable {
     case newAgentTab(workspaceId: WorkspaceID, kind: AgentProvider = .claude)
     case registerLiveActivity(LiveActivityRegistration)
     case listWebServers
-    case setModel(agentId: AgentID, model: ModelAlias)
-    case setEffort(agentId: AgentID, level: EffortLevel)
+    case setModel(agentId: AgentID, model: String)
+    case setEffort(agentId: AgentID, level: String)
     case setMode(agentId: AgentID, mode: PermissionModeTarget)
     case unknown(type: String)
 
@@ -49,6 +50,7 @@ public enum ClientMessage: Sendable, Hashable {
         case .openChat: "openChat"
         case .closeChat: "closeChat"
         case .listSubagents: "listSubagents"
+        case .listModels: "listModels"
         case .sendPrompt: "sendPrompt"
         case .interrupt: "interrupt"
         case .closeAgent: "closeAgent"
@@ -94,6 +96,9 @@ extension ClientMessage {
         case "listSubagents":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .listSubagents(agentId: try payload.decode(AgentID.self, forKey: .agentId))
+        case "listModels":
+            let payload = try envelope.payload(keyedBy: PayloadKey.self)
+            self = .listModels(agentId: try payload.decode(AgentID.self, forKey: .agentId))
         case "sendPrompt":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .sendPrompt(
@@ -150,13 +155,13 @@ extension ClientMessage {
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .setModel(
                 agentId: try payload.decode(AgentID.self, forKey: .agentId),
-                model: try payload.decode(ModelAlias.self, forKey: .model)
+                model: try payload.decode(String.self, forKey: .model)
             )
         case "setEffort":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
             self = .setEffort(
                 agentId: try payload.decode(AgentID.self, forKey: .agentId),
-                level: try payload.decode(EffortLevel.self, forKey: .level)
+                level: try payload.decode(String.self, forKey: .level)
             )
         case "setMode":
             let payload = try envelope.payload(keyedBy: PayloadKey.self)
@@ -181,7 +186,7 @@ extension ClientMessage {
         case .closeChat(let target):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encodeChatTarget(target, agentIdKey: .agentId, sessionIdKey: .sessionId, subagentIdKey: .subagentId, providerKey: .provider)
-        case .listSubagents(let agentId):
+        case .listSubagents(let agentId), .listModels(let agentId):
             var payload = envelope.nestedContainer(keyedBy: PayloadKey.self, forKey: .payload)
             try payload.encode(agentId, forKey: .agentId)
         case .interrupt(let agentId), .closeAgent(let agentId):

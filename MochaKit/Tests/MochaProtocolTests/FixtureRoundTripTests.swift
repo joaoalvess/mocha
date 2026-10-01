@@ -79,12 +79,12 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
         let clientTypes = [
             "hello", "openChat", "closeChat", "sendPrompt", "interrupt", "closeAgent", "setForeground", "unpair", "ping",
             "archive", "slash", "setPreferences", "respond", "newAgentTab", "registerLiveActivity", "listSubagents",
-            "listWebServers", "setModel", "setEffort", "setMode",
+            "listWebServers", "setModel", "setEffort", "setMode", "listModels",
         ]
         let serverTypes = [
             "helloOk", "tree", "archived", "usage", "herdrStatus", "treeChanged", "agentStatus", "chatPage",
             "chatAppend", "chatUpdate", "chatMeta", "pending", "ack", "pong", "error", "subagentList",
-            "webServers",
+            "webServers", "models",
         ]
         let chatItemTypes = [
             "userPrompt", "slashCommand", "assistantText", "thinking", "toolCall", "turnFooter", "recap", "notice",
@@ -109,7 +109,9 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
             "chatItem.toolCall.read-image.json",
         ]
 
-        for name in expected + subagentPhase + imagesPhase {
+        let codexParityPhase = ["client.setModel.codex.json", "client.setEffort.codex.json"]
+
+        for name in expected + subagentPhase + imagesPhase + codexParityPhase {
             #expect(ProtocolFixtures.names.contains(name), "Falta a fixture \(name)")
         }
     }

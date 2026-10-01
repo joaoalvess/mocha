@@ -13,6 +13,7 @@ public actor DemoServerConnection: ServerConnection {
     static let deviceToken = "demo-device-token"
     static let freshContextLeftPercent = 100
     static let claudeOnlyMessage = "Chat disponível só para Claude Code."
+    static let invalidModelMessage = "Modelo ou effort inválido."
     static let agentNotFoundMessage = "Agente não encontrado."
     static let repeatedHelloMessage = "O hello já foi feito nesta conexão."
     static let invalidSessionMessage = "Id de sessão inválido."
@@ -268,7 +269,7 @@ public actor DemoServerConnection: ServerConnection {
             fail(id, .requestNotFound, "Pedido não encontrado.")
         case .newAgentTab(let workspaceId, let kind):
             newAgentTab(in: workspaceId, kind: kind, id: id)
-        case .unknown:
+        case .listModels, .unknown:
             fail(id, .unknownType, "Tipo de mensagem desconhecido: \(message.type).")
         }
     }
@@ -511,8 +512,11 @@ public actor DemoServerConnection: ServerConnection {
         return chat
     }
 
-    private func setModel(agentId: AgentID, model: ModelAlias, id: String) {
+    private func setModel(agentId: AgentID, model: String, id: String) {
         guard let chat = controlledChat(agentId, replyingTo: id) else { return }
+        guard let model = ModelAlias(rawValue: model) else {
+            return fail(id, .invalidPayload, Self.invalidModelMessage)
+        }
         let modelId = DemoControls.modelId(for: model)
         let effort = model == .haiku ? nil : chat.meta.effort ?? DemoControls.defaultEffort
         let mode = model == .haiku && chat.meta.permissionMode == PermissionModeTarget.auto.rawValue ? PermissionModeTarget.default.rawValue : chat.meta.permissionMode
@@ -524,8 +528,11 @@ public actor DemoServerConnection: ServerConnection {
         }
     }
 
-    private func setEffort(agentId: AgentID, level: EffortLevel, id: String) {
+    private func setEffort(agentId: AgentID, level: String, id: String) {
         guard let chat = controlledChat(agentId, replyingTo: id) else { return }
+        guard let level = EffortLevel(rawValue: level) else {
+            return fail(id, .invalidPayload, Self.invalidModelMessage)
+        }
         guard DemoControls.hasEffort(model: chat.meta.model) else {
             return fail(id, .invalidPayload, DemoControls.noEffortMessage)
         }
