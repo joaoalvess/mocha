@@ -1,3 +1,4 @@
+import CoreGraphics
 import MochaClient
 import MochaProtocol
 import SwiftUI
@@ -80,12 +81,13 @@ struct StopTurnButton: View {
 
 struct PendingBubbleRow: View {
     let bubble: PendingBubble
+    let thumbnails: [CGImage]?
     let onDiscard: () -> Void
     @State private var now = Date()
 
     var body: some View {
         let isUnconfirmed = bubble.isUnconfirmed(at: now)
-        UserBubble(text: bubble.displayText, delivery: isUnconfirmed ? .unconfirmed : .sending)
+        UserBubble(text: bubble.text, delivery: isUnconfirmed ? .unconfirmed : .sending) { thumbnailGrid }
             .contentShape(Rectangle())
             .onTapGesture {
                 if isUnconfirmed { onDiscard() }
@@ -100,6 +102,20 @@ struct PendingBubbleRow: View {
                 guard !Task.isCancelled else { return }
                 now = Date()
             }
+    }
+
+    private var thumbnailGrid: some View {
+        ChatImageGrid(count: bubble.imageCount, alignment: .trailing) { index, side in
+            ChatImageSquare(side: side) {
+                if let thumbnails, thumbnails.indices.contains(index) {
+                    ChatImageFill(image: thumbnails[index])
+                } else if thumbnails == nil {
+                    ChatImageLoading()
+                } else {
+                    ChatImageUnavailable(side: side)
+                }
+            }
+        }
     }
 }
 

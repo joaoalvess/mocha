@@ -6,21 +6,27 @@ enum BubbleDelivery: Equatable {
     case unconfirmed
 }
 
-struct UserBubble: View {
+struct UserBubble<Images: View>: View {
     let text: String
     var delivery: BubbleDelivery = .delivered
+    @ViewBuilder var images: Images
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 5) {
-            TrailingBubbleLayout(maxWidthFraction: 0.85) {
-                Text(text)
-                    .chatBodyStyle()
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .circular)
-                            .fill(Palette.userBubble)
-                    )
+            VStack(alignment: .trailing, spacing: ChatImageLayout.contentSpacing) {
+                images
+                if showsBalloon {
+                    TrailingBubbleLayout(maxWidthFraction: 0.85) {
+                        Text(text)
+                            .chatBodyStyle()
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .circular)
+                                    .fill(Palette.userBubble)
+                            )
+                    }
+                }
             }
             .opacity(delivery == .delivered ? 1 : 0.5)
             if let label = deliveryLabel {
@@ -37,12 +43,22 @@ struct UserBubble: View {
         }
     }
 
+    private var showsBalloon: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var deliveryLabel: String? {
         switch delivery {
         case .delivered: nil
         case .sending: "enviando…"
         case .unconfirmed: "sem confirmação"
         }
+    }
+}
+
+extension UserBubble where Images == EmptyView {
+    init(text: String, delivery: BubbleDelivery = .delivered) {
+        self.init(text: text, delivery: delivery) { EmptyView() }
     }
 }
 
