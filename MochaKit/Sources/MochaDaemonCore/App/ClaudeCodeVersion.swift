@@ -1,5 +1,5 @@
 public enum ClaudeCodeVersion {
-    public static let lastValidated = "2.1.284"
+    public static let lastValidated = "2.1.286"
 
     public static func isNewer(_ version: String, than reference: String = lastValidated) -> Bool {
         let lhs = components(version)
