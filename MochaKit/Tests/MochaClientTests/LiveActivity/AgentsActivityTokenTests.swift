@@ -88,21 +88,50 @@ struct AgentsActivityTokenBookTests {
         #expect(!markedForOldEnvironment)
     }
 
-    @Test func forgottenActivitiesAreNotSentAgain() {
+    @Test func forgottenActivitiesAreNotSentAgainButReportedAsEndedUntilDelivered() {
         var book = AgentsActivityTokenBook()
         book.use(.sandbox)
+        book.recordPushToStartToken("aa01")
         book.recordUpdateToken("bb02", activityId: "A")
         book.recordUpdateToken("cc03", activityId: "B")
         let forgotA = book.forgetActivities(except: ["B"])
         let forgotNothing = book.forgetActivities(except: ["B"])
         #expect(forgotA)
         #expect(!forgotNothing)
-        #expect(book.registrations(includingDelivered: true).map(\.activityId) == ["B"])
+        #expect(book.registrations(includingDelivered: true) == [
+            LiveActivityRegistration(pushToStartToken: "aa01", activityId: "B", updateToken: "cc03", env: .sandbox),
+            LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "A"),
+        ])
         let forgotB = book.forgetActivity("B")
         let forgotBAgain = book.forgetActivity("B")
         #expect(forgotB)
         #expect(!forgotBAgain)
-        #expect(book.registrations(includingDelivered: true).isEmpty)
+        #expect(book.ended == ["A", "B"])
+        #expect(book.hasUndelivered)
+
+        let deliveredA = book.markDelivered(LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "A"))
+        let deliveredAAgain = book.markDelivered(LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "A"))
+        #expect(deliveredA)
+        #expect(!deliveredAAgain)
+        #expect(book.registrations(includingDelivered: false) == [
+            LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "B"),
+        ])
+        book.markDelivered(LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "B"))
+        #expect(book.ended.isEmpty)
+        #expect(!book.hasUndelivered)
+        #expect(book.registrations(includingDelivered: true) == [LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox)])
+    }
+
+    @Test func onlyTheLatestEndedActivitiesAreKept() {
+        var book = AgentsActivityTokenBook()
+        book.use(.production)
+        for index in 0..<10 {
+            book.recordUpdateToken(String(format: "%02d", index), activityId: "A\(index)")
+            book.forgetActivity("A\(index)")
+        }
+        #expect(book.ended == (2..<10).map { "A\($0)" })
+        #expect(book.registrations(includingDelivered: false).map(\.endedActivityId) == (2..<10).map { "A\($0)" })
+        #expect(book.registrations(includingDelivered: false).allSatisfy { $0.pushToStartToken == nil && $0.env == .production })
     }
 
     @Test func fileRoundTripsAndStartsEmptyWhenMissingOrUnreadable() throws {
@@ -115,8 +144,11 @@ struct AgentsActivityTokenBookTests {
         book.recordPushToStartToken("aa01")
         book.recordUpdateToken("bb02", activityId: "A")
         book.markDelivered(LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox))
+        book.recordUpdateToken("cc03", activityId: "B")
+        book.forgetActivity("B")
         try file.save(book)
         #expect(file.load() == book)
+        #expect(file.load().ended == ["B"])
         try Data(#"{"pushToStartToken":"aa01","activities":{}}"#.utf8).write(to: file.url)
         #expect(file.load() == AgentsActivityTokenBook())
     }
@@ -129,6 +161,7 @@ struct AgentsActivityTokenBookTests {
         let old = #"{"environment":"sandbox","pushToStart":{"value":"aa01","isDelivered":true},"activities":{"A":{"value":"bb02","agentId":"w1:p1","isDelivered":true}}}"#
         try Data(old.utf8).write(to: file.url)
         let book = file.load()
+        #expect(book.ended.isEmpty)
         #expect(book.registrations(includingDelivered: true) == [
             LiveActivityRegistration(pushToStartToken: "aa01", activityId: "A", updateToken: "bb02", env: .sandbox),
         ])
@@ -214,22 +247,46 @@ struct AgentsActivityTokenSyncTests {
         #expect(socket.calls.count == 2)
     }
 
-    @Test func endedActivitiesAreNotResent() async {
+    @Test func endedActivitiesAreReportedOnceAndNotResent() async {
         defer { try? FileManager.default.removeItem(at: directory) }
-        let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: FakeActivityRegistrar())
+        let gateway = FakeActivityRegistrar()
+        let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: gateway)
         await sync.recordPushToStartToken("aa01")
         await sync.recordUpdateToken("bb02", activityId: "A")
         await sync.recordUpdateToken("cc03", activityId: "B")
         await sync.forgetActivity("A")
+        #expect(gateway.calls.last == LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "A"))
+        #expect(file.load().ended.isEmpty)
         let socket = FakeActivityRegistrar()
         await sync.socketOpened(socket)
         #expect(socket.calls == [LiveActivityRegistration(pushToStartToken: "aa01", activityId: "B", updateToken: "cc03", env: .sandbox)])
 
         let relaunched = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: FakeActivityRegistrar())
         #expect(file.load().activities.isEmpty)
+        #expect(file.load().ended == ["B"])
         let relaunchSocket = FakeActivityRegistrar()
         await relaunched.socketOpened(relaunchSocket)
-        #expect(relaunchSocket.calls == [LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox)])
+        #expect(relaunchSocket.calls == [LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "B")])
+        #expect(file.load().ended.isEmpty)
+
+        let again = FakeActivityRegistrar()
+        await relaunched.socketOpened(again)
+        #expect(again.calls == [LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox)])
+    }
+
+    @Test func anEndedActivityThatFailsToReachTheMacIsSentOnTheNextOpportunity() async {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let gateway = FakeActivityRegistrar(.delivered, .delivered, .unreachable)
+        let sync = AgentsActivityTokenSync(environment: .sandbox, liveActivityIds: [], file: file, gateway: gateway)
+        await sync.recordPushToStartToken("aa01")
+        await sync.recordUpdateToken("bb02", activityId: "A")
+        await sync.forgetActivity("A")
+        #expect(gateway.calls.count == 3)
+        #expect(await sync.tokens.ended == ["A"])
+
+        await sync.deliverPending()
+        #expect(gateway.calls.last == LiveActivityRegistration(pushToStartToken: "aa01", env: .sandbox, endedActivityId: "A"))
+        #expect(await sync.tokens.ended.isEmpty)
     }
 
     @Test func tokensSavedForAnotherEnvironmentAreSentAgain() async {
