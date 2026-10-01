@@ -9,7 +9,7 @@ struct PlanApprovalTests {
     private var items: [ChatItem] {
         [
             ChatItem(id: "prompt", at: start, kind: .userPrompt(text: "planeja o cache", imageCount: 0)),
-            ChatItem(id: "plan", at: start.addingTimeInterval(60), kind: .assistantText(markdown: "## Plano")),
+            ChatItem(id: "plan", at: start.addingTimeInterval(60), kind: .plan(markdown: "## Plano")),
             ChatItem(id: "footer", at: start.addingTimeInterval(61), kind: .turnFooter(durationMs: 61_000)),
         ]
     }
@@ -48,5 +48,10 @@ struct PlanApprovalTests {
         #expect(planItemId(items: Array(toolLast)) == nil)
         #expect(planItemId(items: [items[0]]) == nil)
         #expect(planItemId(items: []) == nil)
+    }
+
+    @Test func noButtonWhenTheLastAnswerIsPlainText() {
+        let answer = items.dropLast() + [ChatItem(id: "answer", at: start.addingTimeInterval(62), kind: .assistantText(markdown: "O cache fica no Redis."))]
+        #expect(planItemId(items: Array(answer)) == nil)
     }
 }

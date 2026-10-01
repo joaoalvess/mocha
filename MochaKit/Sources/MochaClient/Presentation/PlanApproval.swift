@@ -17,7 +17,7 @@ public enum PlanApproval {
             permissionMode == PermissionModeTarget.plan.rawValue,
             status == .idle || status == .done,
             let last = items.last(where: { !isTurnFooter($0) }),
-            case .assistantText = last.kind
+            case .plan = last.kind
         else { return nil }
         return last.id
     }
