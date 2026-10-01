@@ -7,6 +7,7 @@ struct AgentDetailSheet: View {
     @Bindable var session: AppSession
     let target: ChatTarget
     @State private var subagents: [SubagentSummary] = []
+    @State private var subagentsFailure: String?
 
     private static let contentTop: CGFloat = 4
     private static let closeInset: CGFloat = 16
@@ -21,7 +22,8 @@ struct AgentDetailSheet: View {
                     usage: session.usage(for: info.provider),
                     now: context.date,
                     subagents: subagents,
-                    onOpenSubagent: { session.openChat($0) },
+                    subagentsFailure: subagentsFailure,
+                    onOpenSubagent: { session.openSubagent($0) },
                     onRespond: pendingAgentId.map { agentId in { session.revealPendingRequest(of: agentId) } }
                 )
                 .padding(.horizontal, Metrics.contentMargin)
@@ -55,11 +57,14 @@ struct AgentDetailSheet: View {
 
     private func loadSubagents() async {
         guard let key = subagentListKey, key.isConnected else { return }
-        guard
-            let reply = try? await session.request(.listSubagents(agentId: key.agentId)),
-            case .subagentList(_, let items) = reply
-        else { return }
-        subagents = items
+        do {
+            subagents = try await session.listSubagents(agentId: key.agentId)
+            subagentsFailure = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            subagentsFailure = SubagentText.loadFailure
+        }
     }
 }
 
@@ -77,6 +82,8 @@ struct AgentDetailInfo {
     var activityAt: Date?
     var badge: StateBadgeStyle
     var model: String?
+    var effort: String?
+    var branch: String?
     var tabTitle: String?
     var sessionId: String?
     var isAgent = false
@@ -93,6 +100,8 @@ struct AgentDetailInfo {
             activityAt = agent?.lastActivityAt
             badge = Self.badge(for: agent?.status ?? .unknown)
             model = agent?.model
+            effort = agent?.effort
+            branch = agent?.branch
             tabTitle = session.workspaces.tab(containingAgent: agentId)?.title
             sessionId = agent?.sessionId
             isAgent = true
@@ -114,6 +123,7 @@ struct AgentDetailInfo {
             activityAt = archived.map { $0.lastActivityAt ?? $0.endedAt }
             badge = .ended
             model = archived?.model
+            branch = archived?.branch
             tabTitle = archived?.agentId.flatMap { session.workspaces.tab(containingAgent: $0)?.title }
             sessionId = threadId
         case .subagent:
@@ -144,6 +154,7 @@ private struct AgentDetailContent: View {
     let usage: UsageSnapshot?
     let now: Date
     let subagents: [SubagentSummary]
+    let subagentsFailure: String?
     let onOpenSubagent: (ChatTarget) -> Void
     let onRespond: (() -> Void)?
 
@@ -155,7 +166,15 @@ private struct AgentDetailContent: View {
                     .padding(.top, 20.3)
             }
             if info.isAgent, let sessionId = info.sessionId, !subagents.isEmpty {
-                AgentSubagentsSection(items: subagents, sessionId: sessionId, onOpen: onOpenSubagent)
+                AgentSubagentsSection(items: subagents, sessionId: sessionId, provider: info.provider, onOpen: onOpenSubagent)
+            }
+            if info.isAgent, let subagentsFailure {
+                Text(subagentsFailure)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16.3)
+                    .padding(.top, 12)
             }
             if let usage, usage.provider == info.provider {
                 let windows = UsagePace.summaries(of: usage, now: now)
@@ -288,6 +307,10 @@ private struct AgentDetailList: View {
             SheetListRow(label: "Agente", value: info.provider == .codex ? "Codex CLI" : "Claude Code", isCompact: true)
             SheetListRow(label: "Host", value: hostName ?? AgentDetailInfo.missing, isCompact: true)
             SheetListRow(label: "Modelo", value: info.model.map(ModelName.abbreviated) ?? AgentDetailInfo.missing, isCompact: true)
+            if info.provider == .codex {
+                SheetListRow(label: "Effort", value: info.effort.map(SessionControlChoices.effortTitle) ?? AgentDetailInfo.missing, isCompact: true)
+                SheetListRow(label: "Branch", value: info.branch ?? AgentDetailInfo.missing, valueStyle: .mono, isCompact: true)
+            }
             SheetListRow(label: "Workspace do Herdr", value: info.workspace, valueStyle: .mono, isCompact: true)
             SheetListRow(label: "Tab do Herdr", value: info.tabTitle ?? AgentDetailInfo.missing, valueStyle: .mono, isCompact: true)
             sessionRow

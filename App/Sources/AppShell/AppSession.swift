@@ -7,6 +7,7 @@ import SwiftUI
 struct ChatState: Equatable {
     let route: ChatTarget
     var target: ChatTarget
+    var isSubagent = false
     var sessionId: String?
     var meta: ChatMeta?
     var items: [ChatItem] = []
@@ -244,9 +245,26 @@ final class AppSession {
         navigate(ChatNavigation.setPath(path, stack: stackEntries))
     }
 
+    func openSubagent(_ target: ChatTarget) {
+        isDrawerOpen = false
+        sheet = nil
+        isInboxOpen = false
+        navigate(ChatNavigation.openSubagent(target, stack: stackEntries), subagents: [target])
+    }
+
     func subagentTarget(agentId: String?, in route: ChatTarget) -> ChatTarget? {
-        guard let agentId, let sessionId = chat(for: route)?.sessionId else { return nil }
-        return .subagent(sessionId: sessionId, agentId: agentId)
+        guard let agentId, let chat = chat(for: route) else { return nil }
+        let provider = provider(of: chat.target)
+        guard provider == .codex || chat.sessionId != nil else { return nil }
+        return SubagentRoute.target(agentId: agentId, sessionId: chat.sessionId ?? agentId, provider: provider)
+    }
+
+    func provider(of target: ChatTarget) -> AgentProvider {
+        switch target {
+        case .agent(let agentId): workspaces.agent(withId: agentId)?.kind == AgentKind.codex ? .codex : .claude
+        case .codexThread: .codex
+        case .session, .subagent: .claude
+        }
     }
 
     func openDrawer() {
@@ -410,6 +428,30 @@ final class AppSession {
         try await request(.closeAgent(agentId: agentId))
     }
 
+    func listSubagents(agentId: AgentID) async throws -> [SubagentSummary] {
+        let reply = try await request(.listSubagents(agentId: agentId))
+        guard case .subagentList(_, let items) = reply else {
+            throw AppSessionError.unexpectedReply(type: reply.type)
+        }
+        return items
+    }
+
+    func listModels(agentId: AgentID) async throws -> [ModelOption] {
+        let reply = try await request(.listModels(agentId: agentId))
+        guard case .models(_, let options) = reply else {
+            throw AppSessionError.unexpectedReply(type: reply.type)
+        }
+        return options
+    }
+
+    func slash(_ command: String, in route: ChatTarget) async throws {
+        guard let current = chat(for: route)?.target else { throw AppSessionError.notConnected }
+        guard case .agent(let agentId) = current else { throw AppSessionError.readOnlyChat }
+        let reply = try await request(.slash(agentId: agentId, command: command))
+        guard case .ack(let movedTo) = reply, let moved = ChatTargetTracking.target(afterAck: movedTo, from: current) else { return }
+        follow(route, to: moved)
+    }
+
     func sendPrompt(_ text: String) async throws {
         try await request(.sendPrompt(agentId: try visibleAgentId(), text: text))
     }
@@ -498,7 +540,7 @@ final class AppSession {
         chatStack.map(\.stackEntry)
     }
 
-    private func navigate(_ step: ChatNavigationStep) {
+    private func navigate(_ step: ChatNavigationStep, subagents: Set<ChatTarget> = []) {
         switch step {
         case .stay:
             if let visible = visibleChat, visible.failure != nil {
@@ -511,7 +553,12 @@ final class AppSession {
             let previous = chatStack
             departingChats = previous.filter { !path.contains($0.route) }
             chatStack = path.map { route in
-                previous.first { $0.route == route } ?? ChatState(route: route, target: route, sessionId: sessionId(for: route))
+                previous.first { $0.route == route } ?? ChatState(
+                    route: route,
+                    target: route,
+                    isSubagent: subagents.contains(route) || route.isClaudeSubagent,
+                    sessionId: sessionId(for: route)
+                )
             }
             for dropped in previous where !path.contains(dropped.route) {
                 chatGenerations[dropped.route] = nil
@@ -572,6 +619,16 @@ final class AppSession {
                 await self?.registerLiveActivity(registration) ?? false
             }
         }
+    }
+
+    private func follow(_ route: ChatTarget, to target: ChatTarget) {
+        guard case .agent(let agentId) = target else { return }
+        updateChat(route) {
+            $0.target = target
+            $0.sessionId = workspaces.agent(withId: agentId)?.sessionId
+        }
+        loadLatestPage(route)
+        sendForeground()
     }
 
     private func registerLiveActivity(_ registration: LiveActivityRegistration) async -> Bool {
@@ -747,6 +804,7 @@ final class AppSession {
         let replaced = ChatState(
             route: current.route,
             target: page.target,
+            isSubagent: current.isSubagent,
             sessionId: sessionId(for: page.target) ?? current.sessionId,
             meta: page.meta,
             items: page.items,
@@ -789,4 +847,10 @@ final class AppSession {
 enum AgentKind {
     static let claude = "claude"
     static let codex = "codex"
+}
+
+private extension ChatTarget {
+    var isClaudeSubagent: Bool {
+        if case .subagent = self { true } else { false }
+    }
 }

@@ -3,7 +3,7 @@ import MochaProtocol
 import SwiftUI
 
 enum PendingCardHeading {
-    case chat
+    case chat(AgentProvider)
     case inbox(agentTitle: String, workspace: String?, onOpenAgent: () -> Void)
 }
 
@@ -80,8 +80,8 @@ private struct PendingCardHeader: View {
     @ViewBuilder
     private var title: some View {
         switch heading {
-        case .chat:
-            titleText(PendingText.header(for: request.kind))
+        case .chat(let provider):
+            titleText(PendingText.header(for: request.kind, provider: provider))
                 .accessibilityAddTraits(.isHeader)
         case .inbox(let agentTitle, _, let onOpenAgent):
             Button(action: onOpenAgent) {

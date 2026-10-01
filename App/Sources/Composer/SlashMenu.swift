@@ -1,4 +1,3 @@
-import MochaProtocol
 import SwiftUI
 
 enum SlashMenuAction: CaseIterable, Identifiable {
@@ -31,10 +30,6 @@ enum SlashMenuAction: CaseIterable, Identifiable {
 
     var isDestructive: Bool {
         self == .clear
-    }
-
-    func message(for agentId: AgentID) -> ClientMessage {
-        .slash(agentId: agentId, command: command)
     }
 
     static func matching(command: String) -> SlashMenuAction? {

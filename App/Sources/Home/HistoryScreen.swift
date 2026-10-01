@@ -73,6 +73,7 @@ private struct HomeList: View {
     let isOffline: Bool
     let topInset: CGFloat
     let bottomInset: CGFloat
+    @State private var archiveFailure: String?
 
     var body: some View {
         ScrollView {
@@ -100,6 +101,18 @@ private struct HomeList: View {
         }
         .scrollIndicators(.hidden)
         .animation(.smooth(duration: 0.3), value: sections)
+        .alert("Não foi possível arquivar a sessão", isPresented: archiveFailureBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(archiveFailure ?? "")
+        }
+    }
+
+    private var archiveFailureBinding: Binding<Bool> {
+        Binding(
+            get: { archiveFailure != nil },
+            set: { if !$0 { archiveFailure = nil } }
+        )
     }
 
     private func archiveAction(for card: HomeCard) -> HomeCardSwipeAction? {
@@ -119,6 +132,7 @@ private struct HomeList: View {
             try await session.archive(sessionId: sessionId, provider: provider)
             return true
         } catch {
+            archiveFailure = (error as? AppSessionError)?.message ?? AppSessionError.notConnected.message
             return false
         }
     }
