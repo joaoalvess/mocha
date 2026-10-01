@@ -28,16 +28,12 @@ extension SessionHub {
     }
 
     func respond(to requestId: RequestID, with response: PendingResponse, id: String, clientId: UUID) async {
-        if requestId.hasPrefix(Self.codexRequestPrefix) {
-            await respondCodex(to: requestId, with: response, id: id, clientId: clientId)
-            return
-        }
-        guard let pending else {
+        guard pending != nil || requestId.hasPrefix(Self.codexRequestPrefix) else {
             send(.unknownType("respond"), id: id, to: clientId)
             return
         }
         do {
-            try await pending.respond(to: requestId, with: response)
+            try await answer(requestId, with: response)
             send(.ack(), id: id, to: clientId)
         } catch {
             switch error {
@@ -47,6 +43,19 @@ extension SessionHub {
                 send(.invalidResponse(message), id: id, to: clientId)
             }
         }
+    }
+
+    func answer(_ requestId: RequestID, with response: PendingResponse) async throws(PendingRespondError) {
+        if requestId.hasPrefix(Self.codexRequestPrefix) {
+            try await answerCodex(requestId, with: response)
+            return
+        }
+        guard let pending else { throw PendingRespondError.requestNotFound }
+        try await pending.respond(to: requestId, with: response)
+    }
+
+    func mergeDecisions() {
+        pendingDecisions = storePendingDecisions.merging(codexDecisions) { _, codex in codex }
     }
 
     func mergePending() {
@@ -61,7 +70,8 @@ extension SessionHub {
 
     private func pendingChanged(_ requests: [PendingRequest]) async {
         guard requests != storePendingRequests else { return }
-        pendingDecisions = await pending?.decisions ?? [:]
+        storePendingDecisions = await pending?.decisions ?? [:]
+        mergeDecisions()
         storePendingRequests = requests
         mergePending()
     }

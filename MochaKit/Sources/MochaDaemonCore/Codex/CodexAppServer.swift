@@ -18,21 +18,24 @@ actor CodexAppServer {
 
     private let continuation: AsyncStream<CodexServerEvent>.Continuation
     private let socketPath: String
+    private let requestTimeout: Duration
     private var socket: CodexSocket?
     private var connectionId: UUID?
     private var receiver: Task<Void, Never>?
     private var nextId = 1
     private var waiters: [Int: CheckedContinuation<OrderedJSON, any Error>] = [:]
 
-    init(socketPath: String) {
+    init(socketPath: String, requestTimeout: Duration = .seconds(30)) {
         self.socketPath = socketPath
+        self.requestTimeout = requestTimeout
         (events, continuation) = AsyncStream.makeStream(of: CodexServerEvent.self)
     }
 
     var isConnected: Bool { socket != nil }
 
-    func connect() async throws {
-        guard socket == nil else { return }
+    @discardableResult
+    func connect() async throws -> OrderedJSON {
+        guard socket == nil else { return .object([]) }
         let opened = try await CodexSocket.open(path: socketPath)
         let generation = UUID()
         socket = opened
@@ -41,11 +44,12 @@ actor CodexAppServer {
             await self?.receive(on: opened, generation: generation)
         }
         do {
-            _ = try await request("initialize", params: .object([
+            let result = try await request("initialize", params: .object([
                 .init("clientInfo", .object([.init("name", .string("mochad")), .init("version", .string(DaemonVersion.current))])),
                 .init("capabilities", .object([.init("experimentalApi", .bool(true))])),
             ]))
             try await notify("initialized", params: .object([]))
+            return result
         } catch {
             disconnect(generation: generation)
             throw error
@@ -62,6 +66,7 @@ actor CodexAppServer {
     func request(_ method: String, params: OrderedJSON) async throws -> OrderedJSON {
         guard let socket, let generation = connectionId else { throw CodexAppServerError.unavailable }
         let id = nextId
+        let timeout = requestTimeout
         nextId += 1
         let frame = OrderedJSON.object([
             .init("id", .number(String(id))),
@@ -78,7 +83,7 @@ actor CodexAppServer {
                 }
             }
             Task { [weak self] in
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: timeout)
                 await self?.fail(id: id, generation: generation, error: CodexAppServerError.unavailable)
             }
         }

@@ -106,6 +106,7 @@ public actor PushService {
     private var lastNeedsInput: [AgentID: Date] = [:]
     private var blockedAgents: Set<AgentID> = []
     private var blockedChecks: [AgentID: BlockedCheck] = [:]
+    private var codexBlockedChecks: [AgentID: BlockedCheck] = [:]
     private var deliveries: [UUID: Task<Void, Never>] = [:]
     private var issues: [ApnsEnvironment: ApnsConfigurationIssue] = [:]
     private var liveActivityCards: (any LiveActivityCardHolding)?
@@ -187,6 +188,11 @@ public actor PushService {
                 category: PushAlertText.codexCategory(request.kind),
                 requestId: request.id
             )
+        case .needsInputWithoutActions(let agentId, let body):
+            rememberNeedsInput(agentId, at: clock.now())
+            await self.alert(.needsInput, agentId: agentId, body: PushAlertText.codexWithoutActionsBody(body))
+        case .blocked(let agentId):
+            scheduleCodexBlockedCheck(agentId)
         }
     }
 
@@ -267,6 +273,10 @@ public actor PushService {
             check.task.cancel()
         }
         blockedChecks.removeAll()
+        for check in codexBlockedChecks.values {
+            check.task.cancel()
+        }
+        codexBlockedChecks.removeAll()
         let running = Array(deliveries.values)
         deliveries.removeAll()
         for task in running {
@@ -278,7 +288,7 @@ public actor PushService {
     }
 
     var pendingBlockedChecks: Int {
-        blockedChecks.count
+        blockedChecks.count + codexBlockedChecks.count
     }
 
     func waitForDeliveries() async {
@@ -292,6 +302,25 @@ public actor PushService {
         blockedChecks[agentId] = nil
         guard blockedAgents.contains(agentId) else { return }
         guard let agent = await audience.agentSummary(agentId), agent.kind == TreeComposer.claudeKind else { return }
+        await secondaryNeedsInput(agentId, agent: agent)
+    }
+
+    private func scheduleCodexBlockedCheck(_ agentId: AgentID) {
+        codexBlockedChecks[agentId]?.task.cancel()
+        let token = UUID()
+        let clock = clock
+        let grace = configuration.blockedGrace
+        let task = Task { [weak self] in
+            guard (try? await clock.sleep(for: grace)) != nil else { return }
+            await self?.codexBlockedGraceElapsed(agentId, token: token)
+        }
+        codexBlockedChecks[agentId] = BlockedCheck(token: token, task: task)
+    }
+
+    private func codexBlockedGraceElapsed(_ agentId: AgentID, token: UUID) async {
+        guard codexBlockedChecks[agentId]?.token == token else { return }
+        codexBlockedChecks[agentId] = nil
+        guard let agent = await audience.agentSummary(agentId), agent.kind == TreeComposer.codexKind, agent.status == .blocked else { return }
         await secondaryNeedsInput(agentId, agent: agent)
     }
 

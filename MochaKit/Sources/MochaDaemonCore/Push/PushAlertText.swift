@@ -49,6 +49,7 @@ enum PushAlertText {
         case .permission(_, let summary, _):
             return String(firstNonEmptyLine(summary).prefix(summaryLimit))
         case .question(let questions):
+            if let question = codexInlineQuestion(questions) { return question }
             return PlainText.preview(fromMarkdown: questions.first?.question ?? "", limit: bodyLimit)
         }
     }
@@ -56,8 +57,20 @@ enum PushAlertText {
     static func codexCategory(_ kind: PendingKind) -> String {
         switch kind {
         case .permission: permissionCategory
-        case .question: PushAlertKind.needsInput.category
+        case .question(let questions): codexInlineQuestion(questions) == nil ? PushAlertKind.needsInput.category : questionCategory
         }
+    }
+
+    static func codexInlineQuestion(_ questions: [PendingQuestion]) -> String? {
+        guard questions.count == 1, let question = questions.first, !question.multiSelect,
+              !question.question.allSatisfy(\.isWhitespace), question.question.utf8.count <= inlineQuestionByteLimit
+        else { return nil }
+        return question.question
+    }
+
+    static func codexWithoutActionsBody(_ text: String) -> String {
+        let preview = PlainText.preview(fromMarkdown: text, limit: bodyLimit)
+        return preview.isEmpty ? secondaryBody : preview
     }
 
     static func turnDoneBody(_ lastAssistantMessage: String?) -> String {

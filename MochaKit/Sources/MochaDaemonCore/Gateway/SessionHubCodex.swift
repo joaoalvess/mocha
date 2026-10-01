@@ -1,13 +1,8 @@
 import Foundation
 import MochaProtocol
 
-enum CodexAlert: Sendable, Equatable {
-    case turnDone(AgentID, lastMessage: String?)
-    case needsInput(PendingRequest)
-}
-
 extension HubError {
-    static let codexUnavailable = HubError(code: .internal, message: "Controle indisponível nesta tab Codex.")
+    static let codexUnavailable = HubError(code: .codexUnavailable, message: "Controle indisponível nesta tab Codex.")
     static let codexFailed = HubError(code: .internal, message: "Falha ao falar com o Codex no Mac.")
     static let codexInvalidImage = HubError(code: .invalidPayload, message: "Imagem inválida para o Codex.")
 }
@@ -16,7 +11,7 @@ extension SessionHub {
     static let codexRefreshDelay: Duration = .milliseconds(250)
     static let codexRefreshLimit = 30
 
-    func attachCodex(_ codex: CodexService) {
+    func attachCodex(_ codex: any CodexServing) {
         self.codex = codex
     }
 
@@ -95,22 +90,26 @@ extension SessionHub {
         }
     }
 
-    func respondCodex(to requestId: RequestID, with response: PendingResponse, id: String, clientId: UUID) async {
-        guard let codex else {
-            send(.requestNotFound, id: id, to: clientId)
-            return
-        }
+    func answerCodex(_ requestId: RequestID, with response: PendingResponse) async throws(PendingRespondError) {
+        guard let codex else { throw PendingRespondError.requestNotFound }
         do {
             try await codex.respond(to: requestId, with: response)
-            send(.ack(), id: id, to: clientId)
-        } catch CodexServiceError.requestNotFound {
-            send(.requestNotFound, id: id, to: clientId)
         } catch CodexServiceError.invalidResponse {
-            send(.invalidResponse("Resposta inválida para este pedido do Codex."), id: id, to: clientId)
+            throw PendingRespondError.invalidPayload("Resposta inválida para este pedido do Codex.")
+        } catch CodexServiceError.requestNotFound {
+            throw PendingRespondError.requestNotFound
         } catch {
             gatewayLogger.error("codex respond failed: \(String(describing: error), privacy: .public)")
-            send(.codexFailed, id: id, to: clientId)
+            throw PendingRespondError.requestNotFound
         }
+    }
+
+    func moveCodexPane(from oldId: AgentID, to newId: AgentID) async {
+        guard let codex, oldId != newId else { return }
+        if let pane = codexPanes.removeValue(forKey: oldId) {
+            codexPanes[newId] = pane
+        }
+        await codex.movePane(from: oldId, to: newId)
     }
 
     func openCodexChat(_ target: ChatTarget, threadId: String?, before: String?, limit: Int, id: String, clientId: UUID) async {
@@ -206,13 +205,15 @@ extension SessionHub {
             guard requests != codexPendingRequests else { return }
             codexPendingRequests = requests
             mergePending()
+        case .decisions(let decisions):
+            codexDecisions = decisions
+            mergeDecisions()
+            scheduleTreeFlush()
         case .usage(let snapshot):
             codexUsage = snapshot
             broadcast(.usage(snapshot))
-        case .turnDone(let agentId, let lastMessage):
-            codexAlertContinuation.yield(.turnDone(agentId, lastMessage: lastMessage))
-        case .needsInput(let request):
-            codexAlertContinuation.yield(.needsInput(request))
+        case .alert(let alert):
+            codexAlertContinuation.yield(alert)
         }
     }
 
