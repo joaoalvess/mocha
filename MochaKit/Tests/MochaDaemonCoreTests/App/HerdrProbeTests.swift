@@ -25,8 +25,8 @@ struct HerdrProbeTests {
 
             #expect(ping == .reachable(HerdrServerInfo(version: "0.9.1", protocolVersion: 22)))
             #expect(DoctorChecks.herdr(ping, socketPath: server.socketPath) == DoctorItem("Herdr", .ok, "0.9.1 · protocolo 22 · \(server.socketPath)"))
-            #expect(await probe.agents() == .counted(total: 2, claude: 2))
-            #expect(DoctorChecks.agentList(.counted(total: 2, claude: 2)) == DoctorItem("agent.list", .ok, "2 agentes, 2 do Claude Code"))
+            #expect(await probe.agents() == .counted(total: 2, claude: 2, codex: 0))
+            #expect(DoctorChecks.agentList(.counted(total: 3, claude: 2, codex: 1)) == DoctorItem("agent.list", .ok, "3 agentes, 2 do Claude Code, 1 do Codex"))
         }
     }
 

@@ -23,7 +23,11 @@ enum StatusCommand {
             setupCommand: inspector.setupCommand,
             expectedTarget: inspector.expectedTarget
         )
-        let report = StatusReport.make(local: local, herdrPing: herdrPing, serve: serve, now: Date())
+        var codexServer: String?
+        if case .success = local {
+            codexServer = DoctorChecks.codexServerLine(await CodexInspector.appServer(at: paths.codexSocket.path(percentEncoded: false), timeout: statusTimeout))
+        }
+        let report = StatusReport.make(local: local, herdrPing: herdrPing, codexServer: codexServer, serve: serve, now: Date())
         Console.line(report.text)
         return report.exitCode
     }

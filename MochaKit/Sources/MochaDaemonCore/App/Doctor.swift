@@ -48,7 +48,7 @@ public struct Doctor: Sendable {
             DoctorChecks.codex(
                 executable: codex.executable,
                 version: await codex.version(),
-                socketReady: FileManager.default.fileExists(atPath: paths.codexSocket.fileSystemPath)
+                server: await CodexInspector.appServer(at: paths.codexSocket.fileSystemPath)
             ),
             DoctorChecks.serve(await serve.diagnose(), setupCommand: serve.setupCommand, expectedTarget: serve.expectedTarget),
             DoctorChecks.apns(

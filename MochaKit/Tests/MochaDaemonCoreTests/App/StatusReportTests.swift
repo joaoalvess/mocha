@@ -51,6 +51,14 @@ struct StatusReportTests {
         #expect(lines[4] == "Serve: ✅ https://mac.example.ts.net → http://127.0.0.1:47421, /v1/health 200")
     }
 
+    @Test func codexAppServerLineComesBeforeServe() {
+        let status = LocalStatus(version: "0.1.0", startedAt: DoctorTests.startedAt, herdr: LocalStatus.Herdr(available: false), clients: [], sessions: [])
+        let report = StatusReport.make(local: .success(status), herdrPing: nil, codexServer: "no ar · 0.159.2", serve: Self.serveReady, now: DoctorTests.now)
+        let lines = report.text.split(separator: "\n").map(String.init)
+        #expect(lines[3] == "Codex App Server: no ar · 0.159.2")
+        #expect(lines[4].hasPrefix("Serve: "))
+    }
+
     @Test func unavailableHerdrAndNoClients() {
         let status = LocalStatus(version: "0.1.0", startedAt: DoctorTests.startedAt, herdr: LocalStatus.Herdr(available: false), clients: [], sessions: [])
         let report = StatusReport.make(local: .success(status), herdrPing: nil, serve: Self.serveReady, now: DoctorTests.now)
