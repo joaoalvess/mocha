@@ -223,6 +223,21 @@ public actor HerdrBridge: HerdrBridging {
             try await client.tabCreate(workspaceId: workspaceId, cwd: directory)
         }
         let paneId = created.rootPane.paneId
+        try await startCodexAgent(in: paneId, directory: directory, remote: remote, extraArguments: [])
+        return (paneId, directory)
+    }
+
+    public func splitPane(_ id: AgentID) async throws -> (paneId: AgentID, cwd: String?) {
+        guard available else { throw HerdrBridgeError.unavailable }
+        guard let pane = state.pane(id) else { throw HerdrBridgeError.agentNotFound }
+        let directory = pane.cwd ?? pane.foregroundCwd
+        let created = try await command { client in
+            try await client.paneSplit(targetPaneId: id, direction: .right, cwd: directory)
+        }
+        return (created.paneId, created.cwd ?? directory)
+    }
+
+    public func startCodexAgent(in paneId: AgentID, directory: String?, remote: String, extraArguments: [String]) async throws {
         let statusEvents = try? await client.subscribe([.agentStatusChanged(paneId: paneId)])
         defer { statusEvents?.cancel() }
         let namesInUse = try await command { client in
@@ -237,7 +252,7 @@ public actor HerdrBridge: HerdrBridging {
                     name: name,
                     kind: Self.codexAgentKind,
                     paneId: paneId,
-                    args: Self.codexArguments(remote: remote, directory: directory),
+                    args: Self.codexArguments(remote: remote, directory: directory) + extraArguments,
                     timeout: Self.codexStartTimeout
                 )
             }
@@ -246,7 +261,12 @@ public actor HerdrBridge: HerdrBridging {
         if available {
             await refreshSnapshotNow(cycle: generation)
         }
-        return (paneId, directory)
+    }
+
+    public func closePane(_ id: AgentID) async throws {
+        try await command { client in
+            try await client.paneClose(paneId: id)
+        }
     }
 
     static func newAgentName(excluding namesInUse: Set<String>) -> String {

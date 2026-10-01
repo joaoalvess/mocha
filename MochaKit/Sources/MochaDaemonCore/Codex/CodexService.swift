@@ -834,4 +834,9 @@ actor CodexService: CodexServing {
         publishedOutcomes = outcomes
         continuation.yield(.decisions(outcomes))
     }
+
+    func request(_ method: String, params: OrderedJSON) async throws -> OrderedJSON {
+        guard await server.isConnected else { throw CodexServiceError.unavailable }
+        return try await server.request(method, params: params)
+    }
 }

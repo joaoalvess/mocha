@@ -21,6 +21,9 @@ public protocol HerdrBridging: Sendable {
     func newCodexTab(in workspaceId: WorkspaceID, remote: String) async throws -> (paneId: AgentID, cwd: String?)
     var serverInfo: HerdrServerInfo? { get async }
     func workspaceRoots() async -> [WorkspaceRoot]
+    func splitPane(_ id: AgentID) async throws -> (paneId: AgentID, cwd: String?)
+    func startCodexAgent(in paneId: AgentID, directory: String?, remote: String, extraArguments: [String]) async throws
+    func closePane(_ id: AgentID) async throws
 }
 
 extension HerdrBridging {
@@ -30,6 +33,18 @@ extension HerdrBridging {
 
     public func workspaceRoots() async -> [WorkspaceRoot] {
         []
+    }
+
+    public func splitPane(_ id: AgentID) async throws -> (paneId: AgentID, cwd: String?) {
+        throw HerdrBridgeError.unavailable
+    }
+
+    public func startCodexAgent(in paneId: AgentID, directory: String?, remote: String, extraArguments: [String]) async throws {
+        throw HerdrBridgeError.unavailable
+    }
+
+    public func closePane(_ id: AgentID) async throws {
+        throw HerdrBridgeError.unavailable
     }
 }
 
