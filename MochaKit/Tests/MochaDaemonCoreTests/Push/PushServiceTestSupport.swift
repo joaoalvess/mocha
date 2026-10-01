@@ -9,6 +9,7 @@ final class FakePushAudience: PushAudience {
     private struct State {
         var agents: [AgentID: AgentSummary]
         var foreground: [AgentID: Set<DeviceID>] = [:]
+        var herdrStatuses: [AgentID: AgentStatus] = [:]
     }
 
     private let state: Mutex<State>
@@ -27,6 +28,14 @@ final class FakePushAudience: PushAudience {
 
     func setForeground(_ devices: Set<DeviceID>, for agentId: AgentID) {
         state.withLock { $0.foreground[agentId] = devices }
+    }
+
+    func herdrStatus(of agentId: AgentID) async -> AgentStatus? {
+        state.withLock { $0.herdrStatuses[agentId] }
+    }
+
+    func setHerdrStatus(_ status: AgentStatus, for agentId: AgentID) {
+        state.withLock { $0.herdrStatuses[agentId] = status }
     }
 
     func setAgent(_ agent: AgentSummary) {

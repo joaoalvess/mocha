@@ -115,6 +115,7 @@ public actor DaemonRuntime {
         let presence = PresenceMonitor()
         let liveActivity = LiveActivityService(devices: devices, sender: push, presence: presence)
         await push.attachLiveActivity(liveActivity)
+        await push.attachPresence(presence)
         await hub.attachLiveActivity(liveActivity)
         let codexSocket = paths.codexSocket.fileSystemPath
         let codexProcess = CodexAppServerProcess(socketPath: codexSocket, resolveExecutable: options.codexExecutable)

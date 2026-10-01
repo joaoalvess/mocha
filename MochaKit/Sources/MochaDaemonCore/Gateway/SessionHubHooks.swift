@@ -8,6 +8,10 @@ extension SessionHub: PushAudience {
         composedAgent(id)
     }
 
+    public func herdrStatus(of agentId: AgentID) -> AgentStatus? {
+        TreeComposer.agents(in: baseTree).first { $0.id == agentId }?.status
+    }
+
     public func foregroundDevices(for agentId: AgentID) -> Set<DeviceID> {
         var devices: Set<DeviceID> = []
         for client in clients.values where !client.isClosing {

@@ -40,6 +40,7 @@ public struct ApnsConfigurationIssue: Codable, Sendable, Equatable {
 public protocol PushAudience: Sendable {
     func agentSummary(_ id: AgentID) async -> AgentSummary?
     func foregroundDevices(for agentId: AgentID) async -> Set<DeviceID>
+    func herdrStatus(of agentId: AgentID) async -> AgentStatus?
 }
 
 public struct PushServiceConfiguration: Sendable {
@@ -76,6 +77,17 @@ public actor PushService {
     private struct Recipient {
         let device: DeviceID
         let apns: ApnsRegistration
+        let silencesAtMac: Bool
+    }
+
+    private struct SilencedAlert {
+        let kind: PushAlertKind
+        let requestId: RequestID?
+        let title: String
+        let body: String
+        let category: String
+        let at: Date
+        let recipient: Recipient
     }
 
     private struct BlockedCheck {
@@ -112,6 +124,10 @@ public actor PushService {
     private var issues: [ApnsEnvironment: ApnsConfigurationIssue] = [:]
     private var liveActivityCards: (any LiveActivityCardHolding)?
     private var handedOff: [HandedOffAlert: Date] = [:]
+    private var presence: PresenceMonitor?
+    private var presenceTask: Task<Void, Never>?
+    private var lock: ConsoleLock = .unknown
+    private var silenced: [DeviceID: [AgentID: SilencedAlert]] = [:]
     private var isShutDown = false
 
     public init(
@@ -135,6 +151,68 @@ public actor PushService {
         await cards.attachAlertHandoff(self)
     }
 
+    public func attachPresence(_ presence: PresenceMonitor) async {
+        self.presence = presence
+        lock = await presence.current()
+        let transitions = await presence.transitions()
+        presenceTask = Task { [weak self] in
+            for await lock in transitions {
+                guard let self else { break }
+                await self.presenceChanged(to: lock)
+            }
+        }
+    }
+
+    func presenceChanged(to newLock: ConsoleLock) async {
+        let wasAtMac = lock.isAtMac
+        lock = newLock
+        guard wasAtMac, !newLock.isAtMac, !silenced.isEmpty else { return }
+        let pending = silenced
+        silenced = [:]
+        guard let sender = loadSender() else { return }
+        for (device, alerts) in pending.sorted(by: { $0.key < $1.key }) {
+            var unseen: [(agentId: AgentID, alert: SilencedAlert)] = []
+            for (agentId, alert) in alerts where await isUnseen(alert, of: agentId) {
+                unseen.append((agentId, alert))
+            }
+            guard !isShutDown, let chosen = unseen.max(by: { Self.urgency($0.alert) < Self.urgency($1.alert) }) else {
+                pushLogger.notice("lock-ring none device \(device, privacy: .public)")
+                continue
+            }
+            pushLogger.notice("lock-ring \(chosen.agentId, privacy: .public) \(chosen.alert.kind.rawValue, privacy: .public) device \(device, privacy: .public)")
+            let alert = chosen.alert
+            send(
+                alert.kind,
+                agentId: chosen.agentId,
+                title: alert.title,
+                body: alert.body,
+                category: alert.category,
+                requestId: alert.requestId,
+                to: [alert.recipient],
+                isFallback: false,
+                sender: sender
+            )
+        }
+    }
+
+    private func isUnseen(_ alert: SilencedAlert, of agentId: AgentID) async -> Bool {
+        switch alert.kind {
+        case .needsInput:
+            guard let agent = await audience.agentSummary(agentId) else { return false }
+            return agent.status == .blocked || agent.pendingCount > 0
+        case .turnDone:
+            return await audience.herdrStatus(of: agentId) == .done
+        }
+    }
+
+    private static func urgency(_ alert: SilencedAlert) -> (Int, Date) {
+        let rank = switch alert.kind {
+        case .needsInput: alert.requestId == nil ? 1 : 2
+        case .turnDone: 0
+        }
+        return (rank, alert.at)
+    }
+
     public func cardLost(_ alerts: [LiveActivityLostAlert], on device: DeviceID) async {
         guard !isShutDown, !alerts.isEmpty else { return }
         let record: DeviceRecord?
@@ -145,7 +223,7 @@ public actor PushService {
             return
         }
         guard let record, let apns = record.apns, ApnsRequest.isValidDeviceToken(apns.token), let sender = loadSender() else { return }
-        let recipient = Recipient(device: device, apns: apns)
+        let recipient = Recipient(device: device, apns: apns, silencesAtMac: record.preferences.silenceWhileAtMac)
         for alert in alerts where alert.kind != .turnDone || record.preferences.turnDoneAlerts {
             guard !isShutDown, await !audience.foregroundDevices(for: alert.agentId).contains(device) else { continue }
             handedOff[HandedOffAlert(device: device, agentId: alert.agentId, kind: alert.kind)] = clock.now()
@@ -282,6 +360,8 @@ public actor PushService {
             check.task.cancel()
         }
         turnDoneChecks.removeAll()
+        presenceTask?.cancel()
+        presenceTask = nil
         let running = Array(deliveries.values)
         deliveries.removeAll()
         for task in running {
@@ -401,6 +481,25 @@ public actor PushService {
         sender: Sender
     ) {
         let now = clock.now()
+        var recipients = recipients
+        if lock.isAtMac {
+            for recipient in recipients where recipient.silencesAtMac {
+                silenced[recipient.device, default: [:]][agentId] = SilencedAlert(
+                    kind: kind,
+                    requestId: requestId,
+                    title: title,
+                    body: body,
+                    category: category,
+                    at: now,
+                    recipient: recipient
+                )
+                pushLogger.notice(
+                    "alert \(kind.rawValue, privacy: .public) of \(agentId, privacy: .public) device \(recipient.device, privacy: .public) silent reason=atMac"
+                )
+            }
+            recipients.removeAll { $0.silencesAtMac }
+        }
+        guard !recipients.isEmpty else { return }
         let payload: Data
         do {
             payload = try ApnsAlertPush(
@@ -465,7 +564,7 @@ public actor PushService {
             guard let apns = record.apns, ApnsRequest.isValidDeviceToken(apns.token), tokens.insert(apns.token.lowercased()).inserted else {
                 continue
             }
-            recipients.append(Recipient(device: record.id, apns: apns))
+            recipients.append(Recipient(device: record.id, apns: apns, silencesAtMac: record.preferences.silenceWhileAtMac))
         }
         return recipients
     }
