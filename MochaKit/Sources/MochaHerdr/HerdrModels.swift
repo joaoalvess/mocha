@@ -263,6 +263,11 @@ public enum HerdrReadSource: String, Sendable, Hashable, Decodable {
     case detection
 }
 
+public enum HerdrSplitDirection: String, Sendable, Hashable {
+    case right
+    case down
+}
+
 public struct HerdrPaneRead: Sendable, Hashable, Decodable {
     public var paneId: String
     public var workspaceId: String

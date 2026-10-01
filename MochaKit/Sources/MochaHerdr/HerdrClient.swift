@@ -84,6 +84,10 @@ public struct HerdrClient: Sendable {
         _ = try await perform(.paneClose(paneId: paneId), expecting: "ok", as: HerdrResponse.Empty.self)
     }
 
+    public func paneSplit(targetPaneId: String, direction: HerdrSplitDirection, cwd: String?) async throws -> HerdrPane {
+        try await perform(.paneSplit(targetPaneId: targetPaneId, direction: direction, cwd: cwd), expecting: "pane_info", as: HerdrResponse.Pane.self).pane
+    }
+
     public func tabCreate(workspaceId: String, cwd: String?) async throws -> HerdrTabCreated {
         try await perform(.tabCreate(workspaceId: workspaceId, cwd: cwd), expecting: "tab_created", as: HerdrTabCreated.self)
     }
