@@ -66,6 +66,15 @@ read_log |
       else lockRing[after(after("lock-ring"))]++
       next
     }
+    / silent reason=atMac/ {
+      silencedAtMac[after("alert")]++
+      next
+    }
+    / lock-ring / {
+      if (after("lock-ring") == "none") realLockNone++
+      else realLockRing[after(after("lock-ring"))]++
+      next
+    }
     / card update of / {
       hour = $1 " " substr($2, 1, 2)
       priority = after(after("of"))
@@ -114,6 +123,8 @@ read_log |
       printf "  de reserva do card (somem no modelo novo): %d\n\n", pushes["yes"]
       printf "Toques ao bloquear o Mac\n"
       printf "  tocaria: %d (needsInput %d, turnDone %d)  nada a tocar: %d\n", lockRing["needsInput"] + lockRing["turnDone"], lockRing["needsInput"], lockRing["turnDone"], lockNone
+      printf "  tocou de verdade (E3, por aparelho): %d (needsInput %d, turnDone %d)  nada a tocar: %d\n", realLockRing["needsInput"] + realLockRing["turnDone"], realLockRing["needsInput"], realLockRing["turnDone"], realLockNone
+      printf "  silenciados com o Mac desbloqueado (E3, por aparelho): turnDone %d, needsInput %d\n", silencedAtMac["turnDone"], silencedAtMac["needsInput"]
       printf "  transições: locked %d, unlocked %d, unknown %d\n\n", presence["locked"], presence["unlocked"], presence["unknown"]
       printf "Updates do card\n"
       printf "  p10: %d  p5: %d  horas com update: %d\n", updates["p10"], updates["p5"], hourCount
