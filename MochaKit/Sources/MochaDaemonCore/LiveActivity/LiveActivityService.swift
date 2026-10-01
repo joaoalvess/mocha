@@ -29,6 +29,8 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         var retired: [String] = []
         var alerted: [AgentID: Int] = [:]
         var pushedAfter = 0
+        var silenced: [AgentID: Int] = [:]
+        var revived: [AgentID: Int] = [:]
         var preferences = DevicePreferences()
 
         var isReady: Bool {
@@ -327,11 +329,41 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         }
     }
 
-    private func presenceChanged(to newLock: ConsoleLock) {
+    func presenceChanged(to newLock: ConsoleLock) {
         let wasAtMac = lock.isAtMac
         lock = newLock
-        guard wasAtMac, !newLock.isAtMac else {
-            if newLock.isAtMac {
+        logShadowLockRing(wasAtMac: wasAtMac)
+        guard wasAtMac, !newLock.isAtMac else { return }
+        for id in states.keys.sorted() {
+            reviveMostUrgentSilencedAlert(on: id)
+        }
+        evaluate()
+    }
+
+    private func reviveMostUrgentSilencedAlert(on id: DeviceID) {
+        guard var device = states[id], !device.silenced.isEmpty else { return }
+        let candidate = device.silenced
+            .compactMap { agentId, generation in
+                tracker.alerts[agentId].flatMap { $0.generation == generation ? (agentId: agentId, alert: $0) : nil }
+            }
+            .filter { device.preferences.silenceWhileAtMac && isUnseen($0.alert, of: $0.agentId) }
+            .max { shadowUrgency($0.alert, of: $0.agentId) < shadowUrgency($1.alert, of: $1.agentId) }
+        device.silenced = [:]
+        if let candidate {
+            device.alerted[candidate.agentId] = candidate.alert.generation - 1
+            device.revived[candidate.agentId] = candidate.alert.generation
+            liveActivityLogger.notice(
+                "lock-ring \(candidate.agentId, privacy: .public) \(candidate.alert.kind.rawValue, privacy: .public) device \(id, privacy: .public)"
+            )
+        } else {
+            liveActivityLogger.notice("lock-ring none device \(id, privacy: .public)")
+        }
+        states[id] = device
+    }
+
+    private func logShadowLockRing(wasAtMac: Bool) {
+        guard wasAtMac, !lock.isAtMac else {
+            if lock.isAtMac {
                 shadowSilenced.removeAll()
             }
             return
@@ -372,6 +404,13 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             let isLeftToThePush = !device.hasUpdateToken && alert.generation > device.pushedAfter
             if isLeftToThePush || !rings(alert, of: agentId, on: device, id: id) {
                 device.alerted[agentId] = alert.generation
+            } else if device.preferences.silenceWhileAtMac, lock.isAtMac {
+                device.alerted[agentId] = alert.generation
+                guard device.revived[agentId] != alert.generation else { continue }
+                device.silenced[agentId] = alert.generation
+                liveActivityLogger.notice(
+                    "alert \(alert.kind.rawValue, privacy: .public) of \(agentId, privacy: .public) gen=\(alert.generation, privacy: .public) device \(id, privacy: .public) silent reason=atMac"
+                )
             }
         }
     }

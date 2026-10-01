@@ -128,9 +128,16 @@ struct LiveActivityHarness {
         _ agents: [AgentSummary],
         pending: [PendingRequest] = [],
         foreground: Set<DeviceID> = [],
-        foregroundAgents: [DeviceID: AgentID] = [:]
+        foregroundAgents: [DeviceID: AgentID] = [:],
+        herdrStatuses: [AgentID: AgentStatus] = [:]
     ) async throws {
-        await service.apply(LiveActivityInput(agents: agents, pending: pending, foregroundDevices: foreground, foregroundAgents: foregroundAgents))
+        await service.apply(LiveActivityInput(
+            agents: agents,
+            pending: pending,
+            foregroundDevices: foreground,
+            foregroundAgents: foregroundAgents,
+            herdrStatuses: herdrStatuses
+        ))
         try await settle()
     }
 
