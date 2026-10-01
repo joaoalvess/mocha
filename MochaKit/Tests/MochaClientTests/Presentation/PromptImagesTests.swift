@@ -39,4 +39,14 @@ struct PromptImagesTests {
         #expect(PromptImages.bubbleText(" \n", imageCount: 3) == "📎 3 imagens")
         #expect(PromptImages.bubbleText("sem imagem", imageCount: 0) == "sem imagem")
     }
+
+    @Test func attachmentLineCountsOnlyTheImagesWithoutAFile() {
+        let paths = ["\(Self.uploads)/a.jpg", "\(Self.uploads)/b.jpg"]
+        #expect(PromptImages.bubbleText("olha isso", imageCount: 3, imagePaths: paths) == "olha isso\n📎 1 imagem")
+        #expect(PromptImages.bubbleText("", imageCount: 4, imagePaths: paths) == "📎 2 imagens")
+        #expect(PromptImages.bubbleText("olha isso", imageCount: 2, imagePaths: paths) == "olha isso")
+        #expect(PromptImages.bubbleText("", imageCount: 2, imagePaths: paths).isEmpty)
+        #expect(PromptImages.missingImageCount(imageCount: 1, imagePaths: paths) == 0)
+        #expect(PromptImages.missingImageCount(imageCount: 5, imagePaths: paths) == 3)
+    }
 }

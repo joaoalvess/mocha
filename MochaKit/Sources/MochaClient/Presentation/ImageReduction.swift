@@ -24,6 +24,10 @@ public enum ImageReduction {
         try reduce(try jpegData(image, quality: 1, orientation: orientation))
     }
 
+    public static func jpeg(_ image: CGImage) throws(ImageReductionError) -> Data {
+        try jpegData(image, quality: jpegQuality)
+    }
+
     public static func thumbnail(of data: Data, maximumPixelSize: Int) -> CGImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0 else { return nil }
         return downsample(source, maximumPixelSize: maximumPixelSize)

@@ -13,9 +13,14 @@ public enum PromptImages {
         imageCount == 1 ? "📎 1 imagem" : "📎 \(imageCount) imagens"
     }
 
-    public static func bubbleText(_ text: String, imageCount: Int) -> String {
-        guard imageCount > 0 else { return text }
-        let label = attachmentLabel(imageCount: imageCount)
+    public static func missingImageCount(imageCount: Int, imagePaths: [String]) -> Int {
+        max(0, imageCount - imagePaths.count)
+    }
+
+    public static func bubbleText(_ text: String, imageCount: Int, imagePaths: [String] = []) -> String {
+        let missing = missingImageCount(imageCount: imageCount, imagePaths: imagePaths)
+        guard missing > 0 else { return text }
+        let label = attachmentLabel(imageCount: missing)
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return label }
         return text + "\n" + label
     }

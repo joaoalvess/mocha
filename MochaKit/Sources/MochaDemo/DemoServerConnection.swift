@@ -467,7 +467,10 @@ public actor DemoServerConnection: ServerConnection {
         let current = currentId(for: agentId)
         let now = Date()
         let prompt = DemoImageMarkers.split(text)
-        append([ChatItem(id: Self.newItemId(), at: now, kind: .userPrompt(text: prompt.text, imageCount: prompt.imageCount))], to: current)
+        append(
+            [ChatItem(id: Self.newItemId(), at: now, kind: .userPrompt(text: prompt.text, imageCount: prompt.imageCount), imagePaths: prompt.imagePaths)],
+            to: current
+        )
         setStatus(.working, for: current)
         return now
     }

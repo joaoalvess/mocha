@@ -36,14 +36,17 @@ enum AppStartup {
             return .session(AppSession(
                 connection: debugConnection(LiveConnection.make(), launch: launch),
                 uploader: GatewayImageUploader(tokenStore: KeychainTokenStore()),
+                imageLoader: GatewayImageLoader(tokenStore: KeychainTokenStore()),
                 pairingDates: UserDefaultsPairingDateStore()
             ))
         }
         guard let demo = try? DemoServerConnection(options: options) else { return .demoUnavailable }
         let pairedAt = options.startsPaired ? Date().addingTimeInterval(-demoPairingAge) : nil
+        let images = SimulatedImageLibrary()
         return .session(AppSession(
             connection: debugConnection(demo, launch: launch),
-            uploader: SimulatedImageUploader(),
+            uploader: SimulatedImageUploader(library: images),
+            imageLoader: SimulatedImageLoader(library: images),
             pairingDates: InMemoryPairingDateStore(pairedAt: pairedAt)
         ))
     }

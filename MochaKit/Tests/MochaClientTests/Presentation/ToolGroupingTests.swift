@@ -116,6 +116,19 @@ struct ToolGroupingTests {
         #expect(Self.groups(entries).first?.itemIds == ["a", "b"])
     }
 
+    @Test func groupCollectsTheImagePathsOfItsCallsInOrder() {
+        var first = Self.tool("r1", "Read", "a.png")
+        first.imagePaths = ["/a.png"]
+        let second = Self.tool("r2", "Read", "notes.txt")
+        var third = Self.tool("r3", "Read", "b.png")
+        third.imagePaths = ["/b.png", "/a.png"]
+        var other = Self.tool("e1", "Edit", "c.png")
+        other.imagePaths = ["/c.png"]
+        let groups = Self.groups(ToolGrouping.entries(from: [first, second, third, other]))
+        #expect(groups.map(\.imagePaths) == [["/a.png", "/b.png"], ["/c.png"]])
+        #expect(Self.groups(ToolGrouping.entries(from: [second])).first?.imagePaths == [])
+    }
+
     @Test func otherItemsPassThroughInOrder() {
         let items = [
             Self.item("s", .slashCommand(name: "/clear", args: "", output: nil)),

@@ -54,6 +54,39 @@ struct ImagePromptSenderTests {
         ])
     }
 
+    @Test func uploadedPathsArriveBeforeThePromptIsSent() async throws {
+        let uploader = ScriptedUploader()
+        let recorder = PromptRecorder()
+        try await ImagePromptSender.send(
+            text: "olha",
+            images: Array(Self.images.prefix(2)),
+            uploader: uploader,
+            onUploaded: { paths in recorder.record("uploaded " + paths.joined(separator: ",")) }
+        ) { prompt in
+            recorder.record(prompt)
+        }
+        #expect(recorder.sent == [
+            "uploaded \(Self.uploads)/1.jpg,\(Self.uploads)/2.jpg",
+            "olha\n[imagem: \(Self.uploads)/1.jpg]\n[imagem: \(Self.uploads)/2.jpg]",
+        ])
+    }
+
+    @Test func failedUploadNeverReportsPaths() async throws {
+        let uploader = ScriptedUploader(failingAt: 0)
+        let recorder = PromptRecorder()
+        await #expect(throws: ImagePromptUploadFailure.self) {
+            try await ImagePromptSender.send(
+                text: "olha",
+                images: Self.images,
+                uploader: uploader,
+                onUploaded: { _ in recorder.record("uploaded") }
+            ) { prompt in
+                recorder.record(prompt)
+            }
+        }
+        #expect(recorder.sent.isEmpty)
+    }
+
     @Test func failedUploadStopsTheRestAndNeverSendsThePrompt() async throws {
         let uploader = ScriptedUploader(failingAt: 1)
         let recorder = PromptRecorder()
