@@ -104,8 +104,12 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
         let subagentPhase: [String] = subagentStates.map { "chatItem.subagent.\($0).json" }
             + subagentTargets.map { "\($0).subagent.json" }
             + ["server.tree.subagents.json"]
+        let imagesPhase = [
+            "chatItem.userPrompt.imagePaths.json", "chatItem.assistantText.imagePaths.json",
+            "chatItem.toolCall.read-image.json",
+        ]
 
-        for name in expected + subagentPhase {
+        for name in expected + subagentPhase + imagesPhase {
             #expect(ProtocolFixtures.names.contains(name), "Falta a fixture \(name)")
         }
     }
@@ -134,6 +138,10 @@ enum CanonicalExamples {
         #"{"id":"d2a9…","at":"2026-09-25T15:45:11.000Z","type":"slashCommand","name":"/clear","args":""}"#,
     ]
 
+    static let imageItems = [
+        #"{"id":"8f2e…","at":"2026-09-25T15:46:02.000Z","type":"userPrompt","text":"olha o print","imageCount":1,"imagePaths":["/Users/joaoalves/Library/Application Support/Mocha/uploads/0B7C1E2A-5D4F-4A8B-9C3E-2F1A6B7C8D9E.jpg"]}"#,
+    ]
+
     static let subagentItems = [
         #"{"id":"e4b1…","at":"2026-09-26T13:52:10.000Z","type":"subagent","toolUseId":"toolu_01AG…","agentId":"a0123456789abcdef","agentType":"general-purpose","description":"Teste de carga /receitas","status":"running","activity":{"toolName":"Bash","summary":"k6 run --vus 50 --duration 2m load/list-recipes.js","status":"running"},"toolUses":9,"startedAt":"2026-09-26T13:52:11.000Z"}"#,
         #"{"id":"f5c2…","at":"2026-09-26T13:50:02.000Z","type":"subagent","toolUseId":"toolu_01PL…","agentId":"a89abcdef01234567","agentType":"Plan","description":"Revisar o índice de receitas","status":"failed","toolUses":3,"startedAt":"2026-09-26T13:50:03.000Z","durationMs":48000,"failureReason":"Agent terminated early due to an API error: …"}"#,
@@ -147,6 +155,7 @@ enum CanonicalExamples {
         CanonicalExample(fixture: "chatItem.toolCall.json", json: chatPageItems[2]),
         CanonicalExample(fixture: "chatItem.turnFooter.json", json: chatPageItems[3]),
         CanonicalExample(fixture: "chatItem.slashCommand.json", json: chatPageItems[4]),
+        CanonicalExample(fixture: "chatItem.userPrompt.imagePaths.json", json: imageItems[0]),
         CanonicalExample(
             fixture: "pendingRequest.permission.json",
             json: #"{"id":"5e3b…","agentId":"w17:p1","createdAt":"2026-09-25T15:50:00.000Z","type":"permission","toolName":"Bash","summary":"rm -rf build","inputJSON":"{\"command\":\"rm -rf build\"}"}"#

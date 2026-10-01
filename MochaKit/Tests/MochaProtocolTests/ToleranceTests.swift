@@ -217,4 +217,22 @@ private func encodedJSON<Value: Encodable>(_ value: Value) throws -> JSONValue {
             "inputJSON": .string("{}"), "status": .string("running"),
         ]))
     }
+
+    @Test func missingImagePathsDecodeAsEmptyAndEmptyImagePathsAreOmitted() throws {
+        let item = try decode(
+            ChatItem.self,
+            #"{"id":"a","at":"2026-09-25T15:44:34.551Z","type":"userPrompt","text":"oi","imageCount":1}"#
+        )
+        #expect(item.imagePaths.isEmpty)
+        #expect(try encodedJSON(item)["imagePaths"] == nil)
+    }
+
+    @Test func imagePathsAreFlattenedNextToTheItemFields() throws {
+        let call = ToolCall(toolUseId: "t1", name: "Read", summary: "a.png", inputJSON: "{}", status: .succeeded)
+        let item = ChatItem(id: "i", at: Date(timeIntervalSince1970: 0), kind: .toolCall(call), imagePaths: ["/tmp/a.png"])
+        let json = try encodedJSON(item)
+        #expect(json["imagePaths"] == .array([.string("/tmp/a.png")]))
+        #expect(json["toolUseId"] == .string("t1"))
+        #expect(try decode(ChatItem.self, String(decoding: JSONEncoder().encode(item), as: UTF8.self)) == item)
+    }
 }
