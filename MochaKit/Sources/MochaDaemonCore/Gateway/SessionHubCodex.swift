@@ -23,6 +23,12 @@ extension SessionHub {
                 await self?.codexUpdated(update)
             }
         })
+        let events = codex.threadEvents()
+        sessionServiceTasks.append(Task { [weak self] in
+            for await event in events {
+                await self?.codexThreadEvent(event)
+            }
+        })
     }
 
     func retainCodexPanes() async {
@@ -147,7 +153,7 @@ extension SessionHub {
             }
         }
         send(
-            .chatPage(ChatPage(target: target, meta: meta, items: page.items, before: page.before, hasMore: page.before != nil)),
+            .chatPage(ChatPage(target: target, meta: meta, items: overlaid(page.items), before: page.before, hasMore: page.before != nil)),
             id: id,
             to: clientId
         )
@@ -194,13 +200,11 @@ extension SessionHub {
         case .panes(let panes):
             let previous = codexPanes
             codexPanes = panes
-            for (agentId, pane) in panes where previous[agentId] != pane {
+            for (agentId, pane) in panes where previous[agentId]?.status != pane.status || previous[agentId]?.title != pane.title {
                 broadcast(.agentStatus(agentId: agentId, status: pane.status, title: composedAgent(agentId)?.title))
             }
             await followCodexThreads()
             scheduleTreeFlush()
-        case .thread(let threadId):
-            scheduleCodexRefresh(threadId)
         case .pending(let requests):
             guard requests != codexPendingRequests else { return }
             codexPendingRequests = requests
@@ -217,16 +221,58 @@ extension SessionHub {
         }
     }
 
+    private func codexThreadEvent(_ event: CodexThreadEvent) async {
+        switch event {
+        case .item(let item):
+            deliverCodexItems(item.chatItems, threadId: item.threadId)
+        case .turn(let threadId, let turn, let chatItems):
+            deliverCodexItems(chatItems, threadId: threadId)
+            guard turn.status != .inProgress,
+                  let agentId = codexPanes.first(where: { $0.value.threadId == threadId })?.key else { return }
+            let herdr = herdr
+            Task { await herdr.refreshDirtyState(ofAgent: agentId) }
+        case .settings:
+            break
+        case .resubscribed(let threadId):
+            scheduleCodexRefresh(threadId)
+        }
+    }
+
+    private func deliverCodexItems(_ items: [ChatItem], threadId: String) {
+        guard !items.isEmpty else { return }
+        for (clientId, client) in clients {
+            for chat in client.chats.values where chat.codexThreadId == threadId {
+                let appended = items.filter { chat.codexItems[$0.id] == nil }
+                let changed = items.filter { item in chat.codexItems[item.id].map { $0 != item } ?? false }
+                guard !appended.isEmpty || !changed.isEmpty else { continue }
+                updateChat(chat.token, clientId: clientId) { chat in
+                    for item in items {
+                        chat.codexItems[item.id] = item
+                    }
+                }
+                if !appended.isEmpty {
+                    send(.chatAppend(target: chat.target, items: overlaid(appended)), to: clientId)
+                }
+                if !changed.isEmpty {
+                    send(.chatUpdate(target: chat.target, items: overlaid(changed)), to: clientId)
+                }
+            }
+        }
+    }
+
     private func followCodexThreads() async {
         for (clientId, client) in clients {
             for (target, chat) in client.chats {
                 guard case .agent(let agentId) = target, let threadId = codexPanes[agentId]?.threadId,
                       chat.codexThreadId != threadId, chat.subscription == nil else { continue }
+                let switched = chat.codexThreadId != nil
                 updateChat(chat.token, clientId: clientId) { chat in
                     chat.codexThreadId = threadId
                     chat.codexItems = [:]
                 }
-                scheduleCodexRefresh(threadId)
+                if !switched {
+                    scheduleCodexRefresh(threadId)
+                }
             }
         }
     }
@@ -258,10 +304,10 @@ extension SessionHub {
                 }
             }
             if !appended.isEmpty {
-                send(.chatAppend(target: chat.target, items: appended), to: clientId)
+                send(.chatAppend(target: chat.target, items: overlaid(appended)), to: clientId)
             }
             if !changed.isEmpty {
-                send(.chatUpdate(target: chat.target, items: changed), to: clientId)
+                send(.chatUpdate(target: chat.target, items: overlaid(changed)), to: clientId)
             }
         }
         refreshChatMetas()

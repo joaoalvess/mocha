@@ -13,13 +13,15 @@ enum CodexServiceError: Error, Sendable, Equatable {
 struct CodexPaneState: Sendable, Equatable {
     let threadId: String
     var status: AgentStatus
-    var title: String?
+    var summary = CodexThreadSummary()
+    var settings = CodexThreadSettings()
+
+    var title: String? { summary.title }
 }
 
 enum CodexServiceUpdate: Sendable {
     case availability(Bool)
     case panes([AgentID: CodexPaneState])
-    case thread(String)
     case pending([PendingRequest])
     case decisions([AgentID: PendingDecision])
     case usage(UsageSnapshot)
@@ -29,6 +31,11 @@ enum CodexServiceUpdate: Sendable {
 actor CodexService: CodexServing {
     static let requestPrefix = "codex:"
     static let waitingFlags: Set<String> = ["waitingOnApproval", "waitingOnUserInput"]
+    static let pageLimits = 1...200
+    static let turnPageSize = 100
+    static let turnPagesLimit = 20
+    static let hydrationItems = 20
+    static let pageNeighborsLimit = 64
 
     nonisolated let updates: AsyncStream<CodexServiceUpdate>
     nonisolated let socketPath: String
@@ -64,9 +71,11 @@ actor CodexService: CodexServing {
     private var subscribed: Set<String> = []
     private var threadStatuses: [String: AgentStatus] = [:]
     private var waitingThreads: Set<String> = []
-    private var threadTitles: [String: String] = [:]
-    private var activeTurns: [String: String] = [:]
-    private var lastAgentMessages: [String: String] = [:]
+    private var threads: [String: CodexThreadState] = [:]
+    private var pageNeighbors: [String: String] = [:]
+    private var account: CodexAccount?
+    private var rateLimits: OrderedJSON?
+    private let threadEventHub = CodexThreadEventHub()
     private var fileChanges: [String: [String]] = [:]
     private var matcher = CodexPaneMatcher()
     private var publishedPanes: [AgentID: CodexPaneState] = [:]
@@ -115,6 +124,23 @@ actor CodexService: CodexServing {
         suspendConnection()
         await server.shutdown()
         continuation.finish()
+        threadEventHub.finish()
+    }
+
+    nonisolated func threadEvents() -> AsyncStream<CodexThreadEvent> {
+        threadEventHub.events()
+    }
+
+    func threadSettings(for threadId: String) -> CodexThreadSettings? {
+        threads[threadId]?.settings
+    }
+
+    func threadSummary(for threadId: String) -> CodexThreadSummary? {
+        threads[threadId]?.summary
+    }
+
+    func activeTurnId(for threadId: String) async -> String? {
+        await activeTurn(threadId)
     }
 
     func expectPane(_ paneId: AgentID, cwd: String, since: Date) {
@@ -161,24 +187,49 @@ actor CodexService: CodexServing {
 
     func page(threadId: String, before: String?, limit: Int) async throws -> CodexThreadPage {
         guard await server.isConnected else { throw CodexServiceError.unavailable }
-        let metadata = try await server.request("thread/read", params: .object([
-            .init("threadId", .string(threadId)), .init("includeTurns", .bool(false)),
-        ]))
+        let thread: OrderedJSON
+        do {
+            thread = try await server.request("thread/read", params: .object([
+                .init("threadId", .string(threadId)), .init("includeTurns", .bool(false)),
+            ]))["thread"] ?? .null
+        } catch CodexAppServerError.rejected where before == nil {
+            guard let cwd = threads[threadId]?.cwd else { throw CodexServiceError.unavailable }
+            thread = .object([.init("id", .string(threadId)), .init("cwd", .string(cwd))])
+        }
         var members: [OrderedJSON.Member] = [
             .init("threadId", .string(threadId)),
-            .init("itemsView", .string("full")),
+            .init("limit", .number(String(min(max(limit, Self.pageLimits.lowerBound), Self.pageLimits.upperBound)))),
             .init("sortDirection", .string("desc")),
-            .init("limit", .number(String(min(max(limit, 1), 200)))),
         ]
         if let before { members.append(.init("cursor", .string(before))) }
-        let turns: OrderedJSON
+        let listed: OrderedJSON
         do {
-            turns = try await server.request("thread/turns/list", params: .object(members))
+            listed = try await server.request("thread/items/list", params: .object(members))
         } catch CodexAppServerError.rejected where before == nil {
-            turns = .object([])
+            listed = .object([])
         }
-        guard let page = CodexProjection.page(thread: metadata["thread"] ?? .null, turns: turns) else {
+        let entries = CodexProjection.entries(listed)
+        let turns = await turns(Set(entries.compactMap(\.turnId)), of: threadId)
+        let state = threads[threadId]
+        guard let page = CodexProjection.page(
+            thread: thread,
+            listed: listed,
+            turns: turns,
+            newerTurnId: before.flatMap { pageNeighbors[$0] },
+            cards: state?.cards ?? [:],
+            outcomes: state?.outcomes ?? [:]
+        ) else {
             throw CodexAppServerError.invalidResponse
+        }
+        if let next = page.before, let oldest = entries.last?.turnId {
+            if pageNeighbors.count >= Self.pageNeighborsLimit { pageNeighbors.removeAll() }
+            pageNeighbors[next] = oldest
+        }
+        if var state {
+            state.absorb(thread: thread)
+            state.absorb(page: page)
+            threads[threadId] = state
+            publishPanes()
         }
         return page
     }
@@ -240,8 +291,24 @@ actor CodexService: CodexServing {
     }
 
     func refreshUsage() async {
-        guard let result = try? await server.request("account/rateLimits/read", params: .object([])),
-              let snapshot = CodexProjection.usage(result) else { return }
+        if let result = try? await server.request("account/read", params: .object([])) {
+            account = CodexProjection.account(result)
+        }
+        guard let result = try? await server.request("account/rateLimits/read", params: .object([])) else { return }
+        rateLimits = result
+        publishUsage()
+    }
+
+    private func refreshAccount() async {
+        guard let result = try? await server.request("account/read", params: .object([])) else { return }
+        let refreshed = CodexProjection.account(result)
+        guard refreshed != account else { return }
+        account = refreshed
+        publishUsage()
+    }
+
+    private func publishUsage() {
+        guard let rateLimits, let snapshot = CodexProjection.usage(rateLimits, account: account) else { return }
         continuation.yield(.usage(snapshot))
     }
 
@@ -374,9 +441,61 @@ actor CodexService: CodexServing {
     }
 
     private func activeTurn(_ threadId: String) async -> String? {
-        if let turnId = activeTurns[threadId] { return turnId }
-        guard subscribed.contains(threadId) else { return nil }
-        return try? await page(threadId: threadId, before: nil, limit: 1).activeTurnId
+        if let turnId = threads[threadId]?.activeTurnId { return turnId }
+        guard subscribed.contains(threadId),
+              let result = try? await server.request("thread/turns/list", params: Self.turnsParams(threadId, limit: 1, cursor: nil)),
+              let turn = result["data"]?.arrayValue?.first.flatMap(CodexTurn.init),
+              turn.status == .inProgress else { return nil }
+        return turn.id
+    }
+
+    private func turns(_ ids: Set<String>, of threadId: String) async -> [String: CodexTurn] {
+        let cached = threads[threadId]?.closedTurns ?? [:]
+        var found = cached.filter { ids.contains($0.key) }
+        if let active = threads[threadId]?.activeTurnId, ids.contains(active) {
+            found[active] = CodexTurn(id: active, status: .inProgress)
+        }
+        var missing = ids.subtracting(found.keys)
+        var cursor: String?
+        var requests = 0
+        while !missing.isEmpty, requests < Self.turnPagesLimit {
+            requests += 1
+            guard let result = try? await server.request("thread/turns/list", params: Self.turnsParams(threadId, limit: Self.turnPageSize, cursor: cursor)) else { break }
+            for turn in (result["data"]?.arrayValue ?? []).compactMap(CodexTurn.init) where missing.contains(turn.id) {
+                found[turn.id] = turn
+                missing.remove(turn.id)
+            }
+            cursor = result["nextCursor"]?.stringValue
+            if cursor == nil { break }
+        }
+        return found
+    }
+
+    private static func turnsParams(_ threadId: String, limit: Int, cursor: String?) -> OrderedJSON {
+        var members: [OrderedJSON.Member] = [
+            .init("threadId", .string(threadId)),
+            .init("itemsView", .string("notLoaded")),
+            .init("sortDirection", .string("desc")),
+            .init("limit", .number(String(limit))),
+        ]
+        if let cursor { members.append(.init("cursor", .string(cursor))) }
+        return .object(members)
+    }
+
+    private func hydrate(_ threadId: String) async {
+        let turns = try? await server.request("thread/turns/list", params: Self.turnsParams(threadId, limit: 2, cursor: nil))
+        let items = try? await server.request("thread/items/list", params: .object([
+            .init("threadId", .string(threadId)),
+            .init("limit", .number(String(Self.hydrationItems))),
+            .init("sortDirection", .string("desc")),
+        ]))
+        guard subscribed.contains(threadId), var state = threads[threadId] else { return }
+        state.hydrate(
+            turns: (turns?["data"]?.arrayValue ?? []).compactMap(CodexTurn.init),
+            entries: items.map(CodexProjection.entries) ?? []
+        )
+        threads[threadId] = state
+        publishPanes()
     }
 
     private func pane(of threadId: String) -> AgentID? {
@@ -409,6 +528,11 @@ actor CodexService: CodexServing {
         unanswerable = unanswerable.filter { $0.value.threadId != threadId }
         suspended = suspended.filter { !$0.hasPrefix(Self.requestPrefix + threadId + ":") && !$0.hasPrefix(threadId + ":") }
         waitingThreads.remove(threadId)
+        if let state = threads.removeValue(forKey: threadId) {
+            for child in state.cards.keys where !paneThreads.values.contains(child) {
+                threads[child] = nil
+            }
+        }
         guard subscribed.remove(threadId) != nil else { return }
         let server = server
         Task {
@@ -420,10 +544,14 @@ actor CodexService: CodexServing {
         guard !subscribed.contains(threadId), paneThreads.values.contains(threadId) else { return }
         subscribed.insert(threadId)
         do {
-            _ = try await server.request("thread/resume", params: .object([
+            let result = try await server.request("thread/resume", params: .object([
                 .init("threadId", .string(threadId)), .init("excludeTurns", .bool(true)),
             ]))
-            continuation.yield(.thread(threadId))
+            guard subscribed.contains(threadId) else { return }
+            threads[threadId, default: CodexThreadState(threadId: threadId)].absorb(resume: result)
+            publishPanes()
+            await hydrate(threadId)
+            threadEventHub.publish(.resubscribed(threadId: threadId))
         } catch {
             subscribed.remove(threadId)
         }
@@ -537,8 +665,10 @@ actor CodexService: CodexServing {
         subscribed.removeAll()
         threadStatuses.removeAll()
         waitingThreads.removeAll()
-        activeTurns.removeAll()
-        lastAgentMessages.removeAll()
+        for threadId in threads.keys {
+            threads[threadId]?.suspend()
+        }
+        pageNeighbors.removeAll()
         fileChanges.removeAll()
     }
 
@@ -570,21 +700,10 @@ actor CodexService: CodexServing {
             threadStarted(event.params["thread"] ?? .null)
         case "thread/status/changed":
             if let threadId { statusChanged(threadId, status: event.params["status"]) }
-        case "thread/name/updated":
-            if let threadId { threadTitles[threadId] = event.params["threadName"]?.stringValue }
         case "turn/started":
-            if let threadId {
-                threadStatuses[threadId] = .working
-                activeTurns[threadId] = event.params["turn"]?["id"]?.stringValue
-            }
+            if let threadId { threadStatuses[threadId] = .working }
         case "turn/completed":
-            if let threadId {
-                threadStatuses[threadId] = .idle
-                activeTurns[threadId] = nil
-                if let paneId = pane(of: threadId) {
-                    continuation.yield(.alert(.turnDone(paneId, lastMessage: lastAgentMessages[threadId])))
-                }
-            }
+            if let threadId { threadStatuses[threadId] = .idle }
         case "item/started":
             if let item = event.params["item"], item["type"]?.stringValue == "fileChange", let itemId = item["id"]?.stringValue {
                 fileChanges[itemId] = (item["changes"]?.arrayValue ?? []).compactMap { $0["path"]?.stringValue }
@@ -593,19 +712,30 @@ actor CodexService: CodexServing {
             if let item = event.params["item"], let itemId = item["id"]?.stringValue {
                 fileChanges[itemId] = nil
             }
-            if let threadId, event.params["item"]?["type"]?.stringValue == "agentMessage",
-               let text = event.params["item"]?["text"]?.stringValue {
-                lastAgentMessages[threadId] = text
-            }
         case "account/rateLimits/updated":
-            if let snapshot = CodexProjection.usage(event.params) { continuation.yield(.usage(snapshot)) }
+            rateLimits = event.params
+            publishUsage()
+        case "account/updated":
+            Task { await self.refreshAccount() }
         default:
             break
         }
-        publishPanes()
-        if let threadId, paneThreads.values.contains(threadId) {
-            continuation.yield(.thread(threadId))
+        if let threadId, CodexThreadState.liveMethods.contains(event.method) {
+            apply(event.method, params: event.params, to: threadId)
         }
+        publishPanes()
+    }
+
+    private func apply(_ method: String, params: OrderedJSON, to threadId: String) {
+        var state = threads[threadId] ?? CodexThreadState(threadId: threadId)
+        let events = state.apply(method, params, now: Date())
+        threads[threadId] = state
+        for event in events {
+            threadEventHub.publish(event)
+        }
+        guard method == "turn/completed", let paneId = pane(of: threadId),
+              let turn = params["turn"].flatMap(CodexTurn.init), turn.status == .completed else { return }
+        continuation.yield(.alert(.turnDone(paneId, lastMessage: state.lastAgentMessage)))
     }
 
     private func statusChanged(_ threadId: String, status: OrderedJSON?) {
@@ -622,16 +752,17 @@ actor CodexService: CodexServing {
     private func threadStarted(_ thread: OrderedJSON) {
         guard let threadId = thread["id"]?.stringValue, let info = remember(thread), info.isOwnable else { return }
         threadStatuses[threadId] = CodexProjection.status(thread["status"])
-        threadTitles[threadId] = thread["name"]?.stringValue
         let at = thread["createdAt"]?.doubleValue.map { Date(timeIntervalSince1970: $0) } ?? Date()
         if let paneId = matcher.threadStarted(threadId, cwd: info.cwd, at: at) {
             associate(paneId, threadId: threadId)
-            return
+        } else {
+            let sameCwd = Set(paneThreads.keys).union(staleThreads.keys).filter { paneCwds[$0] == info.cwd }
+            if sameCwd.count == 1, let paneId = sameCwd.first {
+                associate(paneId, threadId: threadId)
+            }
         }
-        let sameCwd = Set(paneThreads.keys).union(staleThreads.keys).filter { paneCwds[$0] == info.cwd }
-        if sameCwd.count == 1, let paneId = sameCwd.first {
-            associate(paneId, threadId: threadId)
-        }
+        guard pane(of: threadId) != nil else { return }
+        threads[threadId, default: CodexThreadState(threadId: threadId)].absorb(thread: thread)
     }
 
     private func serverRequest(_ event: CodexServerEvent, rpcId: OrderedJSON) {
@@ -681,7 +812,13 @@ actor CodexService: CodexServing {
         let blocked = waitingThreads.union(decisions.values.map(\.threadId)).union(unanswerable.values.map(\.threadId))
         for (paneId, threadId) in paneThreads {
             let status = blocked.contains(threadId) ? .blocked : threadStatuses[threadId] ?? .idle
-            panes[paneId] = CodexPaneState(threadId: threadId, status: status, title: threadTitles[threadId])
+            let state = threads[threadId]
+            panes[paneId] = CodexPaneState(
+                threadId: threadId,
+                status: status,
+                summary: state?.summary ?? CodexThreadSummary(),
+                settings: state?.settings ?? CodexThreadSettings()
+            )
         }
         guard panes != publishedPanes else { return }
         publishedPanes = panes
