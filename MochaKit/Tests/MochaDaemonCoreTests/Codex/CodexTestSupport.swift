@@ -95,6 +95,10 @@ final class CodexUpdateRecorder: Sendable {
         updates.withLock { $0.last { if case .decisions = $0 { true } else { false } } }.flatMap { if case .decisions(let decisions) = $0 { decisions } else { nil } } ?? [:]
     }
 
+    var usages: [UsageSnapshot] {
+        updates.withLock { $0.compactMap { if case .usage(let snapshot) = $0 { snapshot } else { nil } } }
+    }
+
     var availability: [Bool] {
         updates.withLock { $0.compactMap { if case .availability(let connected) = $0 { connected } else { nil } } }
     }

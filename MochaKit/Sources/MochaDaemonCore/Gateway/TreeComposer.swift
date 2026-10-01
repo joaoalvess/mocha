@@ -83,6 +83,9 @@ enum TreeComposer {
     }
 
     static func agentChatMeta(summary: AgentSummary?, meta: TranscriptMeta?, controls: AgentControls? = nil) -> ChatMeta {
+        if let summary, summary.kind == codexKind {
+            return codexChatMeta(summary)
+        }
         let controls = controls.flatMap { $0.sessionId == summary?.sessionId ? $0 : nil }
         return ChatMeta(
             title: title(meta) ?? summary?.title ?? HerdrTreeBuilder.defaultAgentTitle,
@@ -121,12 +124,37 @@ enum TreeComposer {
         var agent = agent
         agent.controlAvailable = connected && pane != nil
         guard let pane else { return agent }
+        let summary = pane.summary
         agent.sessionId = pane.threadId
         agent.status = pane.status
-        if let title = pane.title, !title.isEmpty {
+        if let title = summary.title {
             agent.title = title
         }
+        agent.model = pane.settings.model ?? agent.model
+        agent.effort = pane.settings.effort
+        agent.permissionMode = pane.settings.mode
+        agent.branch = summary.branch ?? agent.branch
+        agent.lastActivityAt = summary.lastActivityAt ?? agent.lastActivityAt
+        agent.preview = summary.preview
+        agent.activity = summary.activity
+        agent.contextLeftPercent = summary.contextLeftPercent
+        agent.contextUsedTokens = summary.contextUsedTokens
+        agent.sessionStartedAt = summary.sessionStartedAt
+        agent.turnStartedAt = summary.turnStartedAt
+        agent.turnEndedAt = summary.turnEndedAt
         return agent
+    }
+
+    static func codexChatMeta(_ summary: AgentSummary) -> ChatMeta {
+        ChatMeta(
+            title: summary.title,
+            workspaceLabel: summary.workspaceLabel,
+            model: summary.model,
+            branch: summary.branch,
+            status: summary.status,
+            permissionMode: summary.permissionMode,
+            effort: summary.effort
+        )
     }
 
     static func codexOverlay(_ tree: [WorkspaceNode], panes: [AgentID: CodexPaneState], connected: Bool) -> [WorkspaceNode] {

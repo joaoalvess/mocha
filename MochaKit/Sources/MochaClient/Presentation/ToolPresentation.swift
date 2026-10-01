@@ -12,7 +12,7 @@ public enum ToolPresentation {
 
     public static func icon(for toolName: String) -> ToolIcon {
         switch toolName {
-        case "Bash", "BashOutput", "KillShell": .shell
+        case "Bash", "BashOutput", "KillShell", "Shell": .shell
         case "Read", "NotebookRead": .document
         case "Edit", "MultiEdit", "Write", "NotebookEdit": .pencil
         default: .sparkles

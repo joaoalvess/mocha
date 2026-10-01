@@ -14,6 +14,7 @@ struct ToolPresentationTests {
     @Test(arguments: [
         ("Bash", ToolIcon.shell),
         ("BashOutput", .shell),
+        ("Shell", .shell),
         ("Read", .document),
         ("Edit", .pencil),
         ("MultiEdit", .pencil),
