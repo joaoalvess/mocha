@@ -2277,11 +2277,13 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
   - O swipe de arquivar e o Histórico valem para Codex, e o anel interno da Início conta os Codex em Plano.
   - O botão "Implementar plano" segue a regra acima.
   - Os textos que hoje dizem "Claude" para um agente Codex passam a dizer "Codex".
-- **Diagnóstico**: §4.2. O `scripts/check-codex-update.sh` valida uma versão nova num lab com `CODEX_HOME` próprio, sem tocar no `~/.codex`.
+- **Diagnóstico**: §4.2. O `scripts/check-codex-update.sh` valida uma versão nova num lab com `CODEX_HOME` próprio, sem tocar no `~/.codex`, e falha se o `~/.codex/config.toml` mudar. Ele compara os métodos e os tipos de item dos schemas estável e experimental com `MochaKit/Fixtures/codex/schema/methods.json`: um método ou tipo removido falha, e um novo só aparece na saída. Ao validar uma versão nova, atualiza essa cópia.
 - **Limitações** (S9):
   - sem pergunta `multiSelect`, sem motivo na negação, sem chip de slash, recap ou workflow;
   - um steer feito durante uma ferramenta longa se perde se o turno for interrompido antes;
   - toda thread nova cria uma thread `ephemeral` de título, que o daemon ignora;
   - o primeiro SIGINT do App Server espera os turnos ativos;
+  - numa thread nova, o `thread/resume` logo depois do `turn/start` falha ("rollout … is empty") até o rollout ser gravado, cerca de 250 ms depois; o daemon repete;
+  - quem se inscreve depois do `turn/start` não recebe o `turn/started` do primeiro turno, e às vezes nem o `item/started` do `userMessage`; o `Turn.startedAt` do `turn/completed` é a fonte do início do turno;
   - `requestUserInput` e a elicitação MCP não trazem `startedAtMs`: uma pergunta que já estava pendente quando o `mochad` reiniciou gera push de novo no `thread/resume`;
   - se o `mochad` reiniciar menos de cerca de 1 min depois de um `/new` no TUI, a thread antiga ainda está carregada e o pane religa nela até o próximo `thread/started` no mesmo cwd.
