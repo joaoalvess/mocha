@@ -112,7 +112,7 @@ struct SessionHubSessionControlsTests {
         try await Self.withControlsHub { harness in
             let (socket, _) = try await harness.pairedClient()
 
-            #expect(try await socket.reply(to: .setMode(agentId: "w1:p2", mode: .plan), id: "c-1").errorCode == .invalidPayload)
+            #expect(try await socket.reply(to: .setMode(agentId: "w1:p2", mode: .plan), id: "c-1").errorCode == .codexUnavailable)
             #expect(try await socket.reply(to: .setModel(agentId: "w9:p9", model: "opus"), id: "c-2").errorCode == .agentNotFound)
             harness.herdr.setAvailable(false)
             _ = try await socket.nextMessage { $0 == .herdrStatus(connected: false) }
