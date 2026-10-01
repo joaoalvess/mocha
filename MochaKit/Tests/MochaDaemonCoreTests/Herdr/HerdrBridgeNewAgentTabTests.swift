@@ -97,7 +97,11 @@ struct HerdrBridgeNewAgentTabTests {
 
     @Test func codexTabStartsTheRemoteTuiWithoutTheUpdatePrompt() async throws {
         let harness = try await HerdrBridgeHarness.make(configuration: NewAgentTabSupport.configuration(readyTimeout: .seconds(20)))
-        let created = try await harness.bridge.newCodexTab(in: "w1A", remote: "unix:///tmp/codex.sock")
+        async let pending = harness.bridge.newCodexTab(in: "w1A", remote: "unix:///tmp/codex.sock")
+        let paneId = try await NewAgentTabSupport.startedPane(harness.server)
+        await harness.server.setAgent(paneId: paneId, agent: "codex")
+        await harness.server.setAgentStatus(paneId: paneId, status: "idle")
+        let created = try await pending
         let start = try #require(await harness.server.requests(method: "agent.start").first)
         #expect(start.stringParam("kind") == "codex")
         #expect(start.stringParam("pane_id") == created.paneId)
@@ -107,6 +111,31 @@ struct HerdrBridgeNewAgentTabTests {
             "--cd", "/Users/dev/projects/demo-app",
         ])
         #expect(created.cwd == "/Users/dev/projects/demo-app")
+        try await harness.finish()
+    }
+
+    @Test func codexTabAnswersOnlyAfterHerdrDetectsTheCodexAgent() async throws {
+        let harness = try await HerdrBridgeHarness.make(configuration: NewAgentTabSupport.configuration(readyTimeout: .seconds(20)))
+        await harness.server.override("agent.wait", with: .noReply)
+        let start = ContinuousClock.now
+        async let created = harness.bridge.newCodexTab(in: "w1A", remote: "unix:///tmp/codex.sock")
+        let paneId = try await NewAgentTabSupport.startedPane(harness.server)
+        try #require(await HerdrWait.until { await harness.requestCount("agent.wait") == 1 })
+        #expect(await harness.bridge.agent(paneId) == nil)
+        await harness.server.setAgent(paneId: paneId, agent: "codex")
+        await harness.server.setAgentStatus(paneId: paneId, status: "idle")
+        await harness.server.emit(try NewAgentTabSupport.statusLine(paneId: paneId, status: "idle"))
+        #expect(try await created.paneId == paneId)
+        #expect(start.duration(to: .now) < .seconds(10))
+
+        let requests = await harness.server.requests
+        let subscription = try #require(NewAgentTabSupport.index(requests) { $0.method == "events.subscribe" && $0.subscriptions.contains { $0.paneId == paneId } })
+        let agentStart = try #require(NewAgentTabSupport.index(requests) { $0.method == "agent.start" })
+        let agentWait = try #require(NewAgentTabSupport.index(requests) { $0.method == "agent.wait" })
+        #expect(subscription < agentStart)
+        #expect(agentStart < agentWait)
+        #expect(requests[agentWait].stringArrayParam("until") == ["idle", "blocked"])
+        #expect(await harness.bridge.agent(paneId)?.kind == "codex")
         try await harness.finish()
     }
 

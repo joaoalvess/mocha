@@ -223,6 +223,8 @@ public actor HerdrBridge: HerdrBridging {
             try await client.tabCreate(workspaceId: workspaceId, cwd: directory)
         }
         let paneId = created.rootPane.paneId
+        let statusEvents = try? await client.subscribe([.agentStatusChanged(paneId: paneId)])
+        defer { statusEvents?.cancel() }
         let namesInUse = try await command { client in
             try await client.agentList().compactMap(\.name)
         }
@@ -240,6 +242,7 @@ public actor HerdrBridge: HerdrBridging {
                 )
             }
         } catch HerdrBridgeError.herdr(code: "timeout", _) {}
+        await waitUntilReady(paneId, statusEvents: statusEvents)
         if available {
             await refreshSnapshotNow(cycle: generation)
         }
