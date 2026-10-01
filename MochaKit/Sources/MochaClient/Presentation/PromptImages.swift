@@ -4,8 +4,7 @@ public enum PromptImages {
     public static let limit = 5
 
     public static func promptText(_ text: String, imagePaths: [String]) -> String {
-        let markers = imagePaths.map { "\(markerPrefix)\($0)\(markerSuffix)" }
-        let lines = text.isEmpty ? markers : [text] + markers
+        let lines = text.isEmpty ? imagePaths : [text] + imagePaths
         return lines.joined(separator: "\n")
     }
 
@@ -24,7 +23,4 @@ public enum PromptImages {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return label }
         return text + "\n" + label
     }
-
-    private static let markerPrefix = "[imagem: "
-    private static let markerSuffix = "]"
 }

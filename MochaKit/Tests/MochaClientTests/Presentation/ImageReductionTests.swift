@@ -59,14 +59,14 @@ struct ImageReductionTests {
         let reduced = try ImageReduction.reduce(Self.encoded(width: 4_000, height: 3_000))
         let decoded = try Self.decode(reduced.data)
         #expect(decoded.width == ImageReduction.maximumPixelSize)
-        #expect(abs(decoded.height - 1_536) <= 1)
+        #expect(abs(decoded.height - 1_500) <= 1)
     }
 
     @Test func largePortraitImageShrinksByTheLongerSide() throws {
         let reduced = try ImageReduction.reduce(Self.encoded(width: 3_000, height: 5_000, type: .png))
         let decoded = try Self.decode(reduced.data)
         #expect(decoded.height == ImageReduction.maximumPixelSize)
-        #expect(abs(decoded.width - 1_229) <= 1)
+        #expect(abs(decoded.width - 1_200) <= 1)
     }
 
     @Test func smallImageKeepsItsSize() throws {
@@ -90,7 +90,7 @@ struct ImageReductionTests {
     @Test func bitmapWithOrientationIsReducedUpright() throws {
         let reduced = try ImageReduction.reduce(Self.bitmap(width: 4_096, height: 1_024), orientation: .left)
         let decoded = try Self.decode(reduced.data)
-        #expect(decoded == DecodedImage(width: 512, height: 2_048, orientation: 1, type: UTType.jpeg.identifier))
+        #expect(decoded == DecodedImage(width: 500, height: 2_000, orientation: 1, type: UTType.jpeg.identifier))
     }
 
     @Test func unreadableDataThrows() {
