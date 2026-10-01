@@ -5,12 +5,11 @@ import SwiftUI
 struct InboxSheet: View {
     @Bindable var session: AppSession
 
-    static let detent = PresentationDetent.height(712)
-
     private static let titleTop: CGFloat = 46
     private static let titleSide: CGFloat = 21
     private static let listTop: CGFloat = 16
     private static let listBottom: CGFloat = 24
+    private static let emptyVertical: CGFloat = 32
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,9 +23,10 @@ struct InboxSheet: View {
                 Text(PendingText.emptyInbox)
                     .font(.system(size: 15))
                     .foregroundStyle(Palette.textSecondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Self.emptyVertical)
             } else {
-                ScrollView {
+                FittingScrollView {
                     LazyVStack(spacing: Metrics.listItemSpacing) {
                         ForEach(requests) { request in
                             card(for: request)
@@ -40,7 +40,7 @@ struct InboxSheet: View {
                 .scrollDismissesKeyboard(.interactively)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
         .animation(.smooth(duration: 0.25), value: requests.map(\.id))
     }
 

@@ -25,11 +25,18 @@ struct AppShellView: View {
                     }
             }
             DrawerLayer(session: session)
-            BottomPanelLayer(session: session, sheet: .usage, height: UsageSheet.panelHeight(cardCount: session.usagesByProvider.count)) {
+            BottomPanelLayer(isPresented: session.sheet == .usage, dismiss: session.dismissSheet) {
                 UsageSheet(session: session)
             }
-            BottomPanelLayer(session: session, sheet: .webServers, height: WebServersSheet.panelHeight) {
+            BottomPanelLayer(isPresented: session.sheet == .webServers, dismiss: session.dismissSheet) {
                 WebServersSheet(session: session)
+            }
+            BottomPanelLayer(isPresented: session.sheet == .newSession, dismiss: session.dismissSheet) {
+                NewSessionSheet(session: session, initialKind: launchNewSessionKind)
+                    .onDisappear { launchNewSessionKind = nil }
+            }
+            BottomPanelLayer(isPresented: session.isInboxOpen, dismiss: { session.isInboxOpen = false }) {
+                InboxSheet(session: session)
             }
             if session.showsPairing {
                 PairingScreen(session: session)
@@ -40,13 +47,6 @@ struct AppShellView: View {
         .animation(.smooth(duration: 0.25), value: session.showsPairing)
         .sheet(item: systemSheet) { sheet in
             sheetContent(sheet)
-        }
-        .sheet(isPresented: $session.isInboxOpen) {
-            InboxSheet(session: session)
-                .presentationDetents([InboxSheet.detent])
-                .presentationDragIndicator(.hidden)
-                .presentationBackground(Palette.drawerBg)
-                .presentationCornerRadius(Metrics.sheetCornerRadius)
         }
         .onChange(of: scenePhase, initial: true) { _, phase in
             session.scenePhaseChanged(to: phase)
@@ -87,7 +87,7 @@ struct AppShellView: View {
 
     private var systemSheet: Binding<AppSheet?> {
         Binding(
-            get: { session.sheet == .usage || session.sheet == .webServers ? nil : session.sheet },
+            get: { session.sheet == .usage || session.sheet == .webServers || session.sheet == .newSession ? nil : session.sheet },
             set: { session.sheet = $0 }
         )
     }
@@ -101,11 +101,8 @@ struct AppShellView: View {
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Palette.black)
                 .presentationCornerRadius(Metrics.sheetCornerRadius)
-        case .usage, .webServers:
+        case .usage, .webServers, .newSession:
             EmptyView()
-        case .newSession:
-            NewSessionSheet(session: session, initialKind: launchNewSessionKind)
-                .onDisappear { launchNewSessionKind = nil }
         case .settings:
             SettingsScreen(session: session)
                 .presentationDetents([.large])

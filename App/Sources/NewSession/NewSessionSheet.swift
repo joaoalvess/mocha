@@ -12,7 +12,7 @@ struct NewSessionSheet: View {
     private static let titleTop: CGFloat = 34
     private static let titleHeight: CGFloat = 25
     private static let titleGap: CGFloat = 36
-    private static let bottomSpace: CGFloat = 79
+    private static let bottomSpace: CGFloat = 24
     private static let pickHeight: CGFloat = 78
     private static let pickSpacing: CGFloat = 10
     private static let workspaceRowHeight: CGFloat = 66
@@ -51,16 +51,13 @@ struct NewSessionSheet: View {
         }
         .padding(.horizontal, Metrics.contentMargin)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(height: contentHeight)
         .overlay(alignment: .top) { SheetGrabber() }
-        .presentationDetents([.height(detentHeight)])
-        .presentationDragIndicator(.hidden)
-        .presentationBackground(Palette.drawerBg)
-        .presentationCornerRadius(Metrics.sheetCornerRadius)
         .animation(.smooth(duration: 0.25), value: kind)
         .onAppear { kind = initialKind }
     }
 
-    private var detentHeight: CGFloat {
+    private var contentHeight: CGFloat {
         let content: CGFloat
         if kind == nil {
             content = Self.pickHeight * 3 + Self.pickSpacing * 2
