@@ -2245,9 +2245,12 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
 - **Chat**:
   - página por `thread/items/list {threadId, limit, sortDirection: "desc", cursor}`: o `before` do protocolo é o cursor do App Server, `limit` conta itens e a hora de cada item vem de `startedAtMs`;
   - ao vivo, `item/started` vira `chatAppend` e `item/completed` vira `chatUpdate`. Os deltas não são repassados. Um `item/completed` que chega depois do `turn/completed` (comando de turno interrompido) atualiza o card;
-  - a releitura inteira acontece só na reconexão.
+  - a releitura inteira acontece só na reconexão;
+  - uma `agentMessage` ou um `plan` com texto vazio no `item/started` só entra no `item/completed`, sem bolha vazia; itens em andamento não aparecem no `thread/items/list`;
+  - cada turno fechado ganha um item `<turnId>#end` (rodapé, "Interrompido" ou o erro), com hora = max(`completedAt`, hora do último item do turno), porque o `completedAt` vem em segundos.
   
   Projeção:
+  - nomes das ferramentas: "Shell" (`commandExecution`), "Edit" (`fileChange`), "Read" (`imageView`), "WebSearch" e `mcp__<servidor>__<ferramenta>`; o app mostra "Shell" como shell;
   - `commandExecution` → `toolCall` "Shell" com `commandActions[0].command`; a prévia é o `aggregatedOutput`, e o status vem de `status` e `exitCode`;
   - `fileChange` → `toolCall` com os caminhos;
   - `webSearch` → a query; `mcpToolCall` → servidor, ferramenta e resultado;
@@ -2257,7 +2260,8 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
   - a troca de thread no pane reabre o chat com a thread nova.
 - **Resumo do agente**:
   - `sessionId` = `threadId`; `title` = `thread.name`, ou `preview` sem nome;
-  - prévia = último `agentMessage` ou `userMessage`; atividade = o item em andamento;
+  - prévia = último `agentMessage` ou `userMessage`; atividade = a ferramenta em andamento ou, sem ela, a última, como no Claude;
+  - sem `turn/started` (inscrição tardia), o turno abre pelo `turnId` do primeiro item;
   - `model`, `effort` e `permissionMode` (`plan` ou `default`) vêm da resposta do `thread/resume` e de `thread/settings/updated`; `branch` vem de `gitInfo`;
   - `turnStartedAt` e `turnEndedAt` vêm de `Turn.startedAt` e `completedAt`; `lastActivityAt`, do último evento; `sessionStartedAt`, de `thread.createdAt`. O `isDirty` do workspace é atualizado no `turn/completed`;
   - contexto livre = `(janela − 12000 − max(0, last.totalTokens − 12000)) / (janela − 12000)`, com `last` e `modelContextWindow` de `thread/tokenUsage/updated`. É a conta do `/status` do TUI;
@@ -2284,6 +2288,8 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
   - toda thread nova cria uma thread `ephemeral` de título, que o daemon ignora;
   - o primeiro SIGINT do App Server espera os turnos ativos;
   - numa thread nova, o `thread/resume` logo depois do `turn/start` falha ("rollout … is empty") até o rollout ser gravado, cerca de 250 ms depois; o daemon repete;
+  - depois de um reinício do `mochad`, o contexto fica desconhecido até o próximo `thread/tokenUsage/updated` (o `thread/read` não traz uso de tokens);
+  - a Live Activity mostra "terminou" também num turno interrompido, como no Esc do Claude: o `AgentSummary` não diz como o turno terminou;
   - quem se inscreve depois do `turn/start` não recebe o `turn/started` do primeiro turno, e às vezes nem o `item/started` do `userMessage`; o `Turn.startedAt` do `turn/completed` é a fonte do início do turno;
   - `requestUserInput` e a elicitação MCP não trazem `startedAtMs`: uma pergunta que já estava pendente quando o `mochad` reiniciou gera push de novo no `thread/resume`;
   - se o `mochad` reiniciar menos de cerca de 1 min depois de um `/new` no TUI, a thread antiga ainda está carregada e o pane religa nela até o próximo `thread/started` no mesmo cwd.
