@@ -1374,7 +1374,7 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | S9 | feito (lab de 2026-10-01, L1–L13) | f61a373 |
 | WP-CP1 | feito (a linha do App Server no `mochad status` vai antes do Serve e o log de falha do `respond` Codex voltou, ajustes do orquestrador; `notClaude` para Codex em controles, subagentes e `archive` fica para o CP3 e o CP4; o `PushServiceTests.blockedWithoutARequest…` falhou uma vez sob carga e passou em 10 rodadas) | fc1b12a, 59b9aa8, 37b6185, merge db990f6 |
 | WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |
-| WP-CP2 | todo | |
+| WP-CP2 | feito (estado por thread em `CodexThreadState` e `threadEvents()` para o CP3 e o CP4; achados do CV tratados; `"Shell"` como shell no app, ajuste do orquestrador; `chatMeta` da thread filha fica para o CP4) | a6a14f4, 1f9e0e0, 38278ca, merge 596c1ae |
 | WP-CP3 | todo | |
 | WP-CV | feito (lab `~/Developer/mocha-lab/codex-update` com `CODEX_HOME` próprio e checagem do `~/.codex/config.toml`; 11 testes `.integration` verdes na 0.159.2; cópia do schema só com a lista de métodos e tipos; hook e seção do AGENTS.md aplicados pelo orquestrador) | 0d2079b, 321f559, merge 764a83c |
 | WP-CP4 | todo | |
