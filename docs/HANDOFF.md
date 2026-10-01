@@ -3,7 +3,7 @@
 ## WP-X2: integração da 1a-final
 
 - **Preparado** (2026-09-26, à noite):
-  - `mochad` da `fase/1a-final` (`926af42`) instalado em `~/.local/bin/mochad`, assinado pelo time com `com.joaoalves.mochad`; LaunchAgent `com.joaoalves.mochad` rodando; log em `~/Library/Logs/Mocha/mochad.log`.
+  - `mochad` da `fase/1a-final` (`0abf60c`) instalado em `~/.local/bin/mochad`, assinado pelo time com `com.joaoalves.mochad`; LaunchAgent `com.joaoalves.mochad` rodando; log em `~/Library/Logs/Mocha/mochad.log`.
   - `mochad doctor` verde, com o APNs pronto (key `<KEY_ID>`, time `<TEAM_ID>`). Avisos esperados: hooks até o passo 1 abaixo e moshi-hook instalado até o B7.
   - Serve sem mudança: `https://mac-mini.tail1234.ts.net` → `http://127.0.0.1:47421`.
   - App assinado da mesma fase (`com.example.mocha`, `aps-environment` development), instalado no iPhone 14 por `devicectl`. Build em `build/DerivedData/Build/Products/Debug-iphoneos/Mocha.app`, log em `build/verify/x2-device-build.log`.
@@ -17,7 +17,7 @@
 
 ## Estado
 
-- Fase **1a-final**, branch `fase/1a-final` (criada da `fase/1a-core`; `main` em `fb22739`). Sem remoto. WPs de código feitos e mergeados: M5, I6, I7, M6, I11, M6-fix e M12 (commits na tabela de status do `docs/PLANO.md`). `scripts/test.sh`, `build-daemon.sh` e `build-app.sh` verdes em `926af42`. Worktree aberto: `mock-subagentes` (fase subagentes, sem commit, esperando o ok do João no mock). Simuladores desligados.
+- Fase **1a-final**, branch `fase/1a-final` (criada da `fase/1a-core`; `main` em `6961221`). Sem remoto. WPs de código feitos e mergeados: M5, I6, I7, M6, I11, M6-fix e M12 (commits na tabela de status do `docs/PLANO.md`). `scripts/test.sh`, `build-daemon.sh` e `build-app.sh` verdes em `0abf60c`. Worktree aberto: `mock-subagentes` (fase subagentes, sem commit, esperando o ok do João no mock). Simuladores desligados.
 - Ledger: `~/.local/state/claude-ledgers/2026-09-26-mocha-fase-1a-core.md`.
 - **1a-final concluída**: WP-X2 aprovado pelo João no iPhone e `fase/1a-final` mergeada em `main`. **Próximo passo**: a fase subagentes (`fase/subagentes` a partir de `fase/1a-final`), começando pelo ok do João no mock (worktree `mock-subagentes`, perguntas abertas no ledger) e depois a SPEC.
 - **Medições pendentes** (numa janela sem build, sem nenhum agente rodando):
@@ -39,15 +39,15 @@
 
 | O quê | Commit |
 |---|---|
-| WP-M1 (merge `f749a7c`) | `a95f3c7`, `c54fabd`, `146201b`, `1303675` |
-| SPEC e PLANO do M1 (reconexão no bridge, HEAD destacado, follow-ups no M6/M8) | `261b262`, `78fdbb5`, `4444852` |
-| SPEC do I1 (JetBrains Mono na §11, medidas do print, flags `-demo-unpaired`/`-preview`) | `9c91cfe`, `776845f` |
-| WP-M2 (merge `6163f61`) | `b34bf17`, `7f55ad2`, `0ea19a6`, `52dbc30` |
-| `Package.swift` (deps dos testes do daemon) e remoção do `MochaTestSupport/Placeholder.swift` | `d039870`, `e96efce` |
-| SPEC e PLANO do M2 (Claude Code 2.1.283, paginação, meta; constante no M4) | `c0fba01`, `e81c283`, `cdadb31` |
-| Referências novas e mock aprovado | `b31ed5e`, `9ed758e` |
-| Passo 1 (contratos do escopo B: SPEC, AGENTS, PLANO, PNGs do mock, MochaProtocol) | `2fba5f9`, `be6bd8b`, `5434975`, `d59f9d8`, `4da7f18`, `6ebf98a`, `ad32f29`, `0e28ceb` |
-| Onda 1.A': WP-D2 (merge `cb5a698`), WP-M2b (merge `97e13b4`), WP-I1 Fases A e B (merge `cec977f`) e `-demo-empty` | `9e28bea`, `1d5c283` |
+| WP-M1 (merge `9c31d53`) | `887cc88`, `51de70d`, `883d9bb`, `32208f8` |
+| SPEC e PLANO do M1 (reconexão no bridge, HEAD destacado, follow-ups no M6/M8) | `523bcb7`, `da413c3`, `a9c87ac` |
+| SPEC do I1 (JetBrains Mono na §11, medidas do print, flags `-demo-unpaired`/`-preview`) | `bed6a88`, `3491e29` |
+| WP-M2 (merge `792fc0a`) | `ebfb08e`, `2b1b131`, `c71867e`, `8bf03cd` |
+| `Package.swift` (deps dos testes do daemon) e remoção do `MochaTestSupport/Placeholder.swift` | `b42d9aa`, `cab901e` |
+| SPEC e PLANO do M2 (Claude Code 2.1.283, paginação, meta; constante no M4) | `a581f93`, `7f62432`, `9af4a42` |
+| Referências novas e mock aprovado | `0000000`, `4ca6754` |
+| Passo 1 (contratos do escopo B: SPEC, AGENTS, PLANO, PNGs do mock, MochaProtocol) | `ea592f6`, `5987c60`, `e1c13ec`, `ea1e0cc`, `7b0783f`, `f515aa0`, `7322f57`, `368fc97` |
+| Onda 1.A': WP-D2 (merge `3765ac0`), WP-M2b (merge `f433d19`), WP-I1 Fases A e B (merge `7b9904b`) e `-demo-empty` | `7f5ff07`, `d56dad2` |
 
 Validação: `scripts/test.sh` verde na `fase/1a-core` depois do M2 (protocolo 33, transcript 40, Herdr 44, demo 36, daemon 164, client 1). Medição do M2 em release, sem build: primeira página de 50 MB em 32,5 ms (frio) e ~10 ms.
 

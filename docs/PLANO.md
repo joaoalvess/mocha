@@ -374,7 +374,7 @@ Todos os WPs rodam em worktree (§Como o orquestrador trabalha). Os testes de ca
 ### WP-I1: design system, shell do app e modo demo (Fase B pelo mock)
 
 - **Dono**: `App/Sources/DesignSystem/`, `App/Sources/AppShell/`, `App/Resources/`, `App/Sources/Debug/DesignSystemPreview*`, `MochaKit/Sources/MochaClient/Presentation/` com `MochaKit/Tests/MochaClientTests/Presentation/`, e as telas de encaixe: `App/Sources/Home/HomeScreen.swift` (`HomeScreen(session:)`), `App/Sources/AgentDetail/AgentDetailSheet.swift` (`AgentDetailSheet(session:, target: ChatTarget)`), `App/Sources/Usage/UsageSheet.swift` (`UsageSheet(session:)`), `App/Sources/Settings/SettingsScreen.swift` (`SettingsScreen(session:)`), `App/Sources/Pairing/PairingScreen.swift` (`PairingScreen(session:)`), `App/Sources/Drawer/DrawerScreen.swift` (`DrawerScreen(session:)`), `App/Sources/Chat/ChatScreen.swift` (`ChatScreen(session:, target: ChatTarget)`), `App/Sources/Markdown/MarkdownView.swift` (`MarkdownView(markdown:)`) e `App/Sources/Debug/MarkdownPreviewScreen.swift` (`MarkdownPreviewScreen()`), que o I12, o I2, o I3, o I5 e o I4 substituem.
-- **Depende de**: WP0.1, WP0.2, WP-D1, Passo 1. A Fase A (commits `d09483f`, `fd07098`, `cab25c6`, `1941ba0`) já está em `wp/I1`.
+- **Depende de**: WP0.1, WP0.2, WP-D1, Passo 1. A Fase A (commits `826b65a`, `e0d8336`, `c765d1e`, `1b8fcc9`) já está em `wp/I1`.
 - **SPEC**: §2.2, §6.1, §6.2, §6.3.
 - **Faz**:
   1. Descarta a navegação gaveta-sobre-chat da Fase A (`MainShellView`, `WorkspaceTree`).
@@ -1063,7 +1063,7 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 ### WP-K3: controles no app
 
 - **Dono**: `App/Sources/Composer/`, `App/Sources/DesignSystem/ChatHeaderBar.swift`, `App/Sources/DesignSystem/ComposerBar.swift`, `App/Sources/Chat/ChatScreen.swift`, `MochaKit/Sources/MochaDemo/` e testes.
-- **Header**: toque → seletor; long press → `showDetail`; sem anel nem effort no header (708e51e).
+- **Header**: toque → seletor; long press → `showDetail`; sem anel nem effort no header (6a63c0f).
 - **Painel**: o `SlashMenu` vira o painel de controles, que lê `session.usages` e `contextLeftPercent` e lista os subagentes e workflows da sessão (reúso de `App/Sources/AgentDetail/AgentSubagentsSection.swift`). Tocar num subagente abre o chat dele, como o card faz.
 - **Composer**: o botão de enviar ganha o estado parar.
 - **Seletor**:
@@ -1476,81 +1476,81 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 
 | WP | Status | Commit |
 |---|---|---|
-| WP0.1 | feito | f5adafc |
-| WP0.2 | feito | 51ead39, 8bad988 |
-| WP0.3 | feito | 6213de7 |
-| S1 | feito | ce6ff4f |
-| S2 | feito | 4648a76 |
-| S3 | feito | 0c0c24c |
-| S4 | feito | 51ef5f9, 86de9d4, bd5db4e |
-| S5 | feito | 2fe94d0, 42ebb0f, 5c65255 |
-| WP-D1 | feito | 393ec96, 0ecf4d2, f1045ef |
-| WP-M1 | feito | a95f3c7, c54fabd, 146201b, 1303675 |
-| WP-M2 | feito | b34bf17, 7f55ad2, 0ea19a6, 52dbc30 |
-| WP-I1 | feito (arrastar da borda fica no checklist do WP-X1) | d09483f, fd07098, cab25c6, 1941ba0, e986b09, 8b040f3, 71bf186, 6dcadf6, cb378a0, merge cec977f, 9e28bea |
-| Passo 1 (escopo B) | feito | 2fba5f9, be6bd8b, 5434975, d59f9d8 e os commits do protocolo |
-| WP-D2 | feito | 83ff272, 6f35dc0, bc10208, merge cb5a698 |
-| WP-M2b | feito (medição de 50 MB pendente numa janela sem build) | d8ab1b4, f13a3e4, 739718f, merge 97e13b4 |
-| WP-M3 | feito (os READMEs de `Fixtures/` citam `docs/spikes/` e ficam como exceção do critério do `spike`) | 1b379f5, 7c9d306, f1bf707, merge 3f52771 |
-| WP-I12 | feito (gestos no checklist do WP-X1) | 70ce184, a2713c0, 3508650, caa6aa4, 02b7c4f, merge 03a8201 |
-| WP-I4 | feito; o critério de 16 ms passou a ser só dos blocos visíveis (medir com o WP-I5 numa janela sem build) | e93e84e, 2d28456, merge 4716495 |
-| WP-M4 | feito (RSS de 10 min pendente numa janela sem build) | b17f5fc, a35700c, d044872, a4ae669, merge 953aa1f |
-| WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | 49d329d, d44971b, 6b51ad2, merge 63d873a |
-| WP-I5 | feito (signpost dos 2.000 itens numa janela sem build; gestos no checklist do WP-X1) | 118affb, f8fd224, f621510, merge b0a067f |
-| WP-I2 | feito (QR pela câmera, Keychain real e pareamento com o `mochad` no checklist do WP-X1) | dd92fce, 1f73158, 06354de, 147a24c, 0690dff, 4090942, merge 7d574b1 |
-| WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | e80cfe8, 78b0bce, bb172cb, 2d7b8c5, merge f8b3aea |
-| WP-X1 | feito (aprovado pelo João no iPhone em 2026-09-26; correção do card de ferramenta `49520ac`) | 3c95e82, 49520ac |
-| WP-M11 | feito | fe805ff, fdd4a93, 51fa807, merge 2ae5ac4 |
-| WP-I13 | feito (fotos, câmera e colar no iPhone ficam no checklist do WP-X1) | ba007da, 51dd365, 5b7f1f5, 5635c99, 74488dc, merge 51cbacf |
-| WP-M5 | feito (o `install-hooks` real fica para o WP-X2) | 955b277, 1913d7b, 80fcd6d, f680732, 90ac833, 1b0d0b3, ca1306c, merge 703c834 |
-| WP-M6 | feito (`mochad apns test` real no iPhone fica no checklist do WP-X2) | f1e793c, d36734a, b656fdf, 7a74bff, 4be4a0e, c4d3540, merge ed8f2a1 |
-| WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 4edb3b5, 361288d, ee32e67, 19d4f6c, merge 4a19f28 |
-| WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | e4e6cdf, 1d31ff8, 082bf8c, d368311, merge 80ed3a9 |
-| WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 4697966, ce21252, merge 3c11fdb |
-| WP-M12 | feito (o `+` real, contra o Herdr, no checklist do WP-X2) | bd8cecf, 1dacb64, merge d97c1da |
-| WP-X2 | feito (aprovado pelo João no iPhone em 2026-09-26) | 0c5e708 |
-| Mock dos subagentes | feito | 95f2616, 0829b2f, merge 67347d0 |
-| WP-M13 | feito | b4074ea, 95aed66, d83465c, merge 8a9388e |
-| WP-D3 | feito | 050f7f9, 3de4a2d, merge 9b12d42 |
-| WP-M14 | feito (exceção de dono: `MochaTranscript/Parsing/SubagentSignals.swift`, para o daemon reaproveitar o parser; o transcript principal é acompanhado enquanto a sessão tem subagente ou workflow rodando, com leitura incremental a cada evento de diretório da sessão) | 1d2c5f8, 4e1999b, 8f5a339, da14d05, c3bfd8b, 4ed4348, merge a877bdd |
-| WP-I14 | feito (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Presentation/SubagentText.swift`, textos e tempos "1m 02s" do mock, reaproveitado pelo I15; `AppSession` guarda a pilha de chats com gerações por rota; nome da ferramenta na atividade do card sem negrito, como no mock) | 9db9da6, 81aef9d, 5edf9d0, merge 61b355b |
-| WP-I15 | feito (sem capturas: o João pediu só testes e build; "N RODANDO" em caixa alta, como o `.dlab` do mock) | 48c7139, 57712b9, merge b187453 |
+| WP0.1 | feito | 8f5db2c |
+| WP0.2 | feito | 6c72741, b1d6c77 |
+| WP0.3 | feito | 4bc89b9 |
+| S1 | feito | c6670b2 |
+| S2 | feito | 79da4ed |
+| S3 | feito | 3fee3f8 |
+| S4 | feito | 8bd96a3, d0dbf99, 40da3fa |
+| S5 | feito | 98c6849, 65a0f4c, a708e15 |
+| WP-D1 | feito | 387f154, 6f48ae0, 1548f64 |
+| WP-M1 | feito | 887cc88, 51de70d, 883d9bb, 32208f8 |
+| WP-M2 | feito | ebfb08e, 2b1b131, c71867e, 8bf03cd |
+| WP-I1 | feito (arrastar da borda fica no checklist do WP-X1) | 826b65a, e0d8336, c765d1e, 1b8fcc9, 0e93c84, f0acbf4, 2b070e3, 1261db3, 380de3a, merge 7b9904b, 7f5ff07 |
+| Passo 1 (escopo B) | feito | ea592f6, 5987c60, e1c13ec, ea1e0cc e os commits do protocolo |
+| WP-D2 | feito | 8577229, 15761c9, 0681404, merge 3765ac0 |
+| WP-M2b | feito (medição de 50 MB pendente numa janela sem build) | 6f05278, ad03f25, 1caf55d, merge f433d19 |
+| WP-M3 | feito (os READMEs de `Fixtures/` citam `docs/spikes/` e ficam como exceção do critério do `spike`) | 629f0e2, 665ceb5, 3a3c459, merge 80d0bab |
+| WP-I12 | feito (gestos no checklist do WP-X1) | 66e576e, f4ade65, d5958d1, bdbbe69, 104cf05, merge 0f2544f |
+| WP-I4 | feito; o critério de 16 ms passou a ser só dos blocos visíveis (medir com o WP-I5 numa janela sem build) | 270245f, d18f1f7, merge b1c0dc0 |
+| WP-M4 | feito (RSS de 10 min pendente numa janela sem build) | b2be42a, 9c92429, 9e55cdf, c143df9, merge ded501e |
+| WP-I3 | feito (arrastar para fechar no checklist do WP-X1) | feb1aa9, 1ad77a2, fd0bf15, merge 0cb0f32 |
+| WP-I5 | feito (signpost dos 2.000 itens numa janela sem build; gestos no checklist do WP-X1) | 94266de, d632388, 71cd3e2, merge 86ac44a |
+| WP-I2 | feito (QR pela câmera, Keychain real e pareamento com o `mochad` no checklist do WP-X1) | 488818e, c944244, ba7ebed, a149715, b251937, 6c21f15, merge 984e5ad |
+| WP-M10 | feito (plano, conta e `doctor` real no checklist do WP-X1) | fe663ed, 0919826, d89d042, 12489e8, merge 043b933 |
+| WP-X1 | feito (aprovado pelo João no iPhone em 2026-09-26; correção do card de ferramenta `431e274`) | a19fddc, 431e274 |
+| WP-M11 | feito | e5ceab5, 9c822bf, 5521fc9, merge 46a21cd |
+| WP-I13 | feito (fotos, câmera e colar no iPhone ficam no checklist do WP-X1) | cfaa74e, 84bdb5e, 16589f7, c6798fe, 16df337, merge 4e43d65 |
+| WP-M5 | feito (o `install-hooks` real fica para o WP-X2) | c978d81, 4d18180, ffd7d35, c1dbb10, fef06a4, 8af00eb, 7ca0436, merge ae04293 |
+| WP-M6 | feito (`mochad apns test` real no iPhone fica no checklist do WP-X2) | bf1f068, 38843c7, 9a080a0, 2a57d7f, f92e8df, a375302, merge ed9bdd5 |
+| WP-I6 | feito (os três estados de abertura, o `apns-collapse-id` e o time-sensitive no iPhone ficam no checklist do WP-X2) | 5428808, c01d810, a009b11, 912e071, merge ec9f098 |
+| WP-I7 | feito (`/compact` e `/clear` reais no checklist do WP-X2) | 128ab07, cc371b3, b46b182, c9a8f24, merge b45ce7f |
+| WP-I11 | feito (o `+` real, contra o daemon, no checklist do WP-X2 depois do WP-M12) | 3b09d97, 24d314a, merge cf269c2 |
+| WP-M12 | feito (o `+` real, contra o Herdr, no checklist do WP-X2) | f1b048a, fac4987, merge 51c2a2d |
+| WP-X2 | feito (aprovado pelo João no iPhone em 2026-09-26) | ed2f955 |
+| Mock dos subagentes | feito | bfab270, 8490626, merge c09a386 |
+| WP-M13 | feito | bf817e5, 0a2e988, ac4636c, merge 7ad14bf |
+| WP-D3 | feito | b967f37, ca4e628, merge b36428a |
+| WP-M14 | feito (exceção de dono: `MochaTranscript/Parsing/SubagentSignals.swift`, para o daemon reaproveitar o parser; o transcript principal é acompanhado enquanto a sessão tem subagente ou workflow rodando, com leitura incremental a cada evento de diretório da sessão) | 94aeacf, 158d28c, 2be8eae, d58f068, 3ec0112, 934d3d8, merge 1e91187 |
+| WP-I14 | feito (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Presentation/SubagentText.swift`, textos e tempos "1m 02s" do mock, reaproveitado pelo I15; `AppSession` guarda a pilha de chats com gerações por rota; nome da ferramenta na atividade do card sem negrito, como no mock) | 7415440, 5551d11, c3dbf86, merge e0c9397 |
+| WP-I15 | feito (sem capturas: o João pediu só testes e build; "N RODANDO" em caixa alta, como o `.dlab` do mock) | 0c9bb4d, f9dcb16, merge aa661a0 |
 | WP-X6 | pulado por decisão do João (2026-09-27): checklist fica para o teste do app com ele | |
-| WP-M7 | feito (a rota `respond` fica no `Gateway` ao lado da `live-activity`; sem `PendingStore`, `respond` devolve `unknownType`; pushes secundários calados enquanto há pedido pendente; `blocked` só conta depois da criação do pedido; pedido de subagente não vigia o transcript principal; decisões para o João revisar) | 11ef79a, 61443c3, ebf141d, merge 1964e95 |
-| WP-M8 | feito (fora do dono: `Devices/DeviceStore.swift` ganha `setLiveActivity(_:for:)`, que tira os mesmos tokens de outros aparelhos; `invalidToken` → 400 na rota do WP-M9 e `invalidPayload` no WS; sem push-to-start com o app em primeiro plano; refresh p5 a cada 10 min enquanto há agente ocupado; o `start` não leva `stale-date` e a renovação de uma atividade adotada depois de reiniciar o daemon conta 7 h 50 min a partir da adoção) | f97e451, c8b5d9d, 92976ea, merge 8ce7514 |
-| S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 4de4248 |
-| WP-I8 | feito sem device (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Pending/`, com testes de contrato contra o `PendingHookReply` real; sino só com pedido pendente e conexão; sem `cwd:` na caixa do comando porque o `PendingRequest` não tem o campo; verbos "quer ler/editar/…" escolhidos pelo subagente; o `MochaDemo` não manda `pending`; o orquestrador alinhou o push de pergunta à §7.2 em `69d7b16`) | 3b2c6b9, 2e8440a, 89e815d, a418d63, merge 0b3d3b7, 69d7b16 |
-| WP-I9 | feito sem device, com as ações da atividade (sem capturas: o João pediu só testes e build; exceções de dono: `project.yml` com `Shared/LiveActivity` nos dois alvos, `MOCHA_WIDGETS` e o widget ligado ao `MochaClient`, e `MochaClient/LiveActivity/`; subtítulo só "Mocha", porque o `ContentState` não traz o host; timer em SF Mono no widget; Dynamic Island só no simulador de um Pro) | 9e4beb6, 1314097, a548b8a, c88d363, 885f7c3, merge 47dc9a4 |
-| WP-M15 | feito (agente com pedido conta como `blocked`; pedido de agente fora da árvore é ignorado; o `start` também leva o `pending`; o orquestrador acrescentou o orçamento de 3.200 bytes para o `pending` codificado: acima disso a pergunta vai como prévia sem opções) | 7942c30, 87c2b64, merge 1d1ed12 |
-| WP-M16 | feito (`preview` só do assistente, ajuste do orquestrador; orçamento de 3.840 bytes com descarte dos campos opcionais; resta o caso extremo de `title`/`workspaceLabel` com emoji de 8 bytes somados a um `pending` perto de 3.200 bytes, que passa de 4 KB) | cd2b311, c925b30, merge d96e192 |
-| WP-I16 | feito (linha 2 repete o texto em cinza quando a linha 1 corta; cores da SPEC, mais fortes que as do Moshi; atividade iniciada pelo app só ganha modelo/contexto no primeiro update do daemon; base visual do card por agente) | 1e1b4f6, ca6f061, 8a15786, merge 06c9352 |
-| WP-M17 | feito (alerta também em `blocked` sem pedido; encaixe do payload inteiro em 4 KB fecha o caso extremo do WP-M16; token recusado espera o próximo turno para reiniciar) | 1e7a0ae, 4bb7670, 804f6b4, b2bfa88, merge 844d58a |
-| WP-I17 | feito (`MochaAgentsAttributes` fica só para encerrar atividades agregadas antigas; compacta mostra o projeto; conferência no iPhone pendente) | e0a6228, 0985dc1, bcdd56d, merge 844d58a |
-| WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 24f6934, e76d990, c9e046a, 35f6e3a, merge c087148 |
-| WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 85a3967, merge 95d1574 |
+| WP-M7 | feito (a rota `respond` fica no `Gateway` ao lado da `live-activity`; sem `PendingStore`, `respond` devolve `unknownType`; pushes secundários calados enquanto há pedido pendente; `blocked` só conta depois da criação do pedido; pedido de subagente não vigia o transcript principal; decisões para o João revisar) | 3a2930c, 79d1db6, c5ff6b6, merge 0e8550c |
+| WP-M8 | feito (fora do dono: `Devices/DeviceStore.swift` ganha `setLiveActivity(_:for:)`, que tira os mesmos tokens de outros aparelhos; `invalidToken` → 400 na rota do WP-M9 e `invalidPayload` no WS; sem push-to-start com o app em primeiro plano; refresh p5 a cada 10 min enquanto há agente ocupado; o `start` não leva `stale-date` e a renovação de uma atividade adotada depois de reiniciar o daemon conta 7 h 50 min a partir da adoção) | c3523a1, a8d22e7, df1e1a1, merge ec0ce4f |
+| S6 | parte do Mac feita (pt-BR suportado, preset progressivo, 16 kHz mono); iPhone no WP-X3 | 65b283e |
+| WP-I8 | feito sem device (sem capturas: o João pediu só testes e build; exceção de dono: `MochaClient/Pending/`, com testes de contrato contra o `PendingHookReply` real; sino só com pedido pendente e conexão; sem `cwd:` na caixa do comando porque o `PendingRequest` não tem o campo; verbos "quer ler/editar/…" escolhidos pelo subagente; o `MochaDemo` não manda `pending`; o orquestrador alinhou o push de pergunta à §7.2 em `ea2a3f9`) | f6f7bbd, cc8f462, 30d3aa5, fc420fa, merge 9f81acd, ea2a3f9 |
+| WP-I9 | feito sem device, com as ações da atividade (sem capturas: o João pediu só testes e build; exceções de dono: `project.yml` com `Shared/LiveActivity` nos dois alvos, `MOCHA_WIDGETS` e o widget ligado ao `MochaClient`, e `MochaClient/LiveActivity/`; subtítulo só "Mocha", porque o `ContentState` não traz o host; timer em SF Mono no widget; Dynamic Island só no simulador de um Pro) | 1ad11fd, df1d17e, 91a7075, 8699412, 1acf032, merge cc5072e |
+| WP-M15 | feito (agente com pedido conta como `blocked`; pedido de agente fora da árvore é ignorado; o `start` também leva o `pending`; o orquestrador acrescentou o orçamento de 3.200 bytes para o `pending` codificado: acima disso a pergunta vai como prévia sem opções) | 7ef309a, 59e1b1d, merge 2ab8a5e |
+| WP-M16 | feito (`preview` só do assistente, ajuste do orquestrador; orçamento de 3.840 bytes com descarte dos campos opcionais; resta o caso extremo de `title`/`workspaceLabel` com emoji de 8 bytes somados a um `pending` perto de 3.200 bytes, que passa de 4 KB) | eeaf863, 6d861b3, merge fbcdf5c |
+| WP-I16 | feito (linha 2 repete o texto em cinza quando a linha 1 corta; cores da SPEC, mais fortes que as do Moshi; atividade iniciada pelo app só ganha modelo/contexto no primeiro update do daemon; base visual do card por agente) | 9ed9e36, 622df0d, d9a9e78, merge 3aab8e6 |
+| WP-M17 | feito (alerta também em `blocked` sem pedido; encaixe do payload inteiro em 4 KB fecha o caso extremo do WP-M16; token recusado espera o próximo turno para reiniciar) | 0781684, c7dc70a, 2ef350c, ca8bc9f, merge 3f937ae |
+| WP-I17 | feito (`MochaAgentsAttributes` fica só para encerrar atividades agregadas antigas; compacta mostra o projeto; conferência no iPhone pendente) | f7b6433, 0951aa3, 534452f, merge 3f937ae |
+| WP-I10 | feito sem device (parcial numa linha sob o campo, porque o `TextField` de `String` não pinta só um trecho; o modelo é sempre pedido pela `assetInstallationRequest`, que reserva o locale; o ditado começa sozinho depois do download; conferência no iPhone no WP-X3) | 413732d, 466ddf5, f6c1efd, 16e6fa8, merge 33bc476 |
+| WP-M9 | feito (rota ligada ao `LiveActivityRegistering`; o `DaemonRuntime` passa o componente real do WP-M8 no merge dele; corpo inválido → 400) | 71d4084, merge ecec21b |
 | WP-X3 | todo | |
-| WP-M18 | feito (alertas que o card não mostra saem pela §7.1 via `LiveActivityAlertFallback`, guardados até 60 s; com o app aberto o card atualiza sem alerta; `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude` segue instável, corrida do teste anterior à fase) | 3d3941b, 3199f2c, deeb05c, merge 2f6625e |
-| WP-I18 | feito (foco local pelo pedido visto primeiro, senão a última mudança de status; o daemon corrige no primeiro update) | ed1484e, 17bff10, merge d297c23 |
+| WP-M18 | feito (alertas que o card não mostra saem pela §7.1 via `LiveActivityAlertFallback`, guardados até 60 s; com o app aberto o card atualiza sem alerta; `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude` segue instável, corrida do teste anterior à fase) | e454e15, a8b5581, 3904d6c, merge 680ca0e |
+| WP-I18 | feito (foco local pelo pedido visto primeiro, senão a última mudança de status; o daemon corrige no primeiro update) | 94a27f5, c2356d2, merge 97d536e |
 | WP-M19 | feito (causa: `allow` sem `updatedInput` no `ExitPlanMode`, ignorado pelo Claude; aprovar manda o input original + `setMode` `auto`; pedido de subagente não fecha o do agente principal; 404 avisa; fixture de entrada sintetizada pela doc) | fix(daemon), fix(app), test(daemon), merge |
 | WP-XF | feito (aprovado pelo João no iPhone em 2026-09-27) | |
-| S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | 26067bd, merge e704dcb |
-| WP-C1 | feito (73 testes do protocolo passaram; pacote completo aguarda C2/C3 para tratar os novos casos) | d166607, 8fe544f, merge 1361c9f |
-| WP-C2 | feito (peças sem a ligação no daemon; ver WP-C2-wiring) | 3ce45c9, 22f5a52, merge f8d43da |
-| WP-C3 | feito | 2f44cfb, 1e74585, f8defbf, 9a65999, df1e7e4, e01a435, merge c62b69d; correções 66d0821, 826fafa, 9f88a98, 7e16e2b |
+| S7 | gate aprovado para escopo ajustado; casos secundários no WP-XC | ca1eda8, merge c2efde6 |
+| WP-C1 | feito (73 testes do protocolo passaram; pacote completo aguarda C2/C3 para tratar os novos casos) | a24e033, 03a5327, merge 088c546 |
+| WP-C2 | feito (peças sem a ligação no daemon; ver WP-C2-wiring) | 9a56ebe, a10c307, merge 0d1f566 |
+| WP-C3 | feito | b52f80d, bfc3253, b9f0d09, 4ba6ce6, 2a93990, 4258dc1, merge a67e9ad; correções 7be8239, 860dee6, 4bb2111, 01a8906 |
 | WP-C2-wiring | feito (testes e builds passaram; sem teste real, que fica no WP-XC) | merge em `fase/codex` |
 | WP-XC | absorvido pelo WP-CPX (D4 da codex-paridade) | |
 | WP-CD | todo | |
 | WP-H1 | feito sem device (testes e build passaram; gestos e tab real a conferir no iPhone) | `fase/inicio` |
-| WP-W1 | feito (build passou; conexão real depende do B5, no WP-W5) | deedcf1 |
-| WP-W2 | feito (testes do WP e integração passaram; suíte completa com 1 falha de latência fora do WP, sob carga) | 990f09a |
-| WP-W3 | feito com pendência visual (folha recuada das bordas; decisão do João) | d49ccf2 |
-| WP-W3b | done | `32b5b7f` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
-| WP-W4 | done | `80e683d` (SSH e Navegador; conexão real no WP-W5 com o B5) |
+| WP-W1 | feito (build passou; conexão real depende do B5, no WP-W5) | eea483c |
+| WP-W2 | feito (testes do WP e integração passaram; suíte completa com 1 falha de latência fora do WP, sob carga) | 535d5f1 |
+| WP-W3 | feito com pendência visual (folha recuada das bordas; decisão do João) | 6618c0f |
+| WP-W3b | done | `cb09795` (painel próprio; test.sh com 2 falhas de tempo sob carga a reconferir) |
+| WP-W4 | done | `93da555` (SSH e Navegador; conexão real no WP-W5 com o B5) |
 | WP-W5 | done | ok do João no iPhone: lista, túnel, Navegador, bússola por workspace e anéis |
-| S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 949040c |
-| WP-K1 | feito (test.sh da fase combinada verde; `install-hooks` real e teste com Claude real no WP-K4) | 41710e2, 1a61e3b, 0c852e2, 0374325, merge 1077586 |
+| S8 | feito (troca de modelo e effort só na sessão, decisão do João) | 68ece3d |
+| WP-K1 | feito (test.sh da fase combinada verde; `install-hooks` real e teste com Claude real no WP-K4) | 511cfed, 3d6a455, fe39b48, a863503, merge c4e7a7f |
 | WP-K2 | cancelado (sem mock, decisão do João) | |
-| WP-K3 | feito sem device (test.sh com 1 falha de tempo conhecida em TranscriptStoreFollowTests; conferência visual no WP-K4) | 73eb388, e43991d, df7aa3b, 214d648, merge 540bb71 |
+| WP-K3 | feito sem device (test.sh com 1 falha de tempo conhecida em TranscriptStoreFollowTests; conferência visual no WP-K4) | 653c3a6, 5b47703, 42e8bba, 8c1b61c, merge 4c09293 |
 | WP-K4 | todo | |
 | WP-T1 | todo | |
 | WP-T2 | todo | |
@@ -1559,28 +1559,28 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-T4 | todo | |
 | WP-T5 | todo | |
 | WP-X5 | todo | |
-| WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 8b3acb4, 61b989f, merge 7d516ab, 114637b |
-| WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | e09b3b4, 4532880, 39eb843, merge ea93311 |
-| WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b4e4bc0, 463ad77 |
-| S10 | feito (colagem do caminho, sem clipboard) | 33ec237 |
-| WP-IN1 | feito (subagente; `DaemonRuntime`, `DaemonPaths` e o snapshot `images-and-queued` aplicados pelo orquestrador; `check-claude-update.sh` verde com o Claude 2.1.286) | f36a0ad, 26748a4, 24b0d3b, merge 4001ed1 |
-| WP-IN2 | feito pelo orquestrador (testes do escopo verdes; `build-app.sh` e `build-device.sh` verdes) | 51188c1, f900964, 0312489, merge 43ffc77 |
-| WP-IN3 | feito (`test.sh` completo verde, exceto `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude`, instável sob carga e verde sozinho; pelo iPhone, 3 fotos e depois 1 foto com texto chegaram como `[Image #N]` com os blocos `image` no transcript e os arquivos no `transcript-images/`; o João fechou a fase sem conferir a fila, o texto de 4 linhas, a colagem no terminal, a conversa antiga e a tela cheia) | d422b0c |
-| WP-AL1 | código feito (109 testes do escopo verdes; falta instalar o `mochad`, o Dia 1 e o resumo aprovado) | a5a509d, cc8dc1d, 6e57931, ca7275b, merge d22828f |
+| WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 203f630, 24d11a8, merge 19e531b, 079e25f |
+| WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | 9957349, 34d3d4c, 43cbb98, merge 85ca4b2 |
+| WP-IM3 | feito (checklist conferido pelo João no iPhone; achado: o Claude Code embrulha texto de várias linhas em `<pasted_content>`, e o parser passou a tirar as tags do `userPrompt`) | b6970e9, c205029 |
+| S10 | feito (colagem do caminho, sem clipboard) | f795792 |
+| WP-IN1 | feito (subagente; `DaemonRuntime`, `DaemonPaths` e o snapshot `images-and-queued` aplicados pelo orquestrador; `check-claude-update.sh` verde com o Claude 2.1.286) | f6b8027, 24f6e6c, ecc9559, merge a3c4fef |
+| WP-IN2 | feito pelo orquestrador (testes do escopo verdes; `build-app.sh` e `build-device.sh` verdes) | c10e0f6, ee18605, fee3f79, merge 546ad4e |
+| WP-IN3 | feito (`test.sh` completo verde, exceto `PushServiceTests.blockedWithoutARequestAlertsAfterTheGraceOnlyForClaude`, instável sob carga e verde sozinho; pelo iPhone, 3 fotos e depois 1 foto com texto chegaram como `[Image #N]` com os blocos `image` no transcript e os arquivos no `transcript-images/`; o João fechou a fase sem conferir a fila, o texto de 4 linhas, a colagem no terminal, a conversa antiga e a tela cheia) | d045916 |
+| WP-AL1 | código feito (109 testes do escopo verdes; falta instalar o `mochad`, o Dia 1 e o resumo aprovado) | 397db9c, 2c69f9e, 54f52a3, 2f1968c, merge f70c35b |
 | U1 | todo | |
-| WP-AL2 | código feito (canal único, espera de 5 s do "terminou" e de 1 s do `blocked` no tracker, fila de um ciclo, pedido que fura o limite com 2 s de intervalo, card perdido repassa os pendentes ao push; extras: `pushedAfter` contra a renovação que engolia alertas e o alerta do foco sai antes do card acabar; revisão independente com 4 correções; falta instalar e o Dia 2) | 19d65a6, merge 3c753e9, 99a81ad |
-| WP-AL3 | código feito (`endedActivityId` com até 8 ids no livro de tokens; o `forgetActivity` dá `flush`; 22 testes verdes; `build-device.sh` verde; falta instalar no iPhone) | 64dfd20, merge 1a4d59d |
+| WP-AL2 | código feito (canal único, espera de 5 s do "terminou" e de 1 s do `blocked` no tracker, fila de um ciclo, pedido que fura o limite com 2 s de intervalo, card perdido repassa os pendentes ao push; extras: `pushedAfter` contra a renovação que engolia alertas e o alerta do foco sai antes do card acabar; revisão independente com 4 correções; falta instalar e o Dia 2) | 451d3e5, merge 6fe57dc, d4660f8 |
+| WP-AL3 | código feito (`endedActivityId` com até 8 ids no livro de tokens; o `forgetActivity` dá `flush`; 22 testes verdes; `build-device.sh` verde; falta instalar no iPhone) | 7128af9, merge b176a86 |
 | U2 | feito (Herdr 0.9.3 marca `done` no pane do Codex 0.159.2 ao fim do turno, e o `done` fica enquanto o pane não ganha foco: o Codex entra no toque ao bloquear; o diálogo de confiança da pasta aparece como `blocked` e tocou um `needsInput` no card) | |
-| WP-AL4 | código feito (silêncio com o Mac desbloqueado e um toque ao bloquear no card e no push; o `PushService` usa o `lock` em cache das transições; logs reais `silent reason=atMac` e `lock-ring … device`, contados pelo `alerts-summary.sh`; revisão independente com 3 correções (card que acabou repassa o toque ao push; o push ao bloquear reconfere preferências, primeiro plano, token e card); `test.sh` completo verde; falta instalar e o U2) | 4d64f7a, 22cec29, 781a6a3, merge 8b4eed8, f3cc708, f47715b, fa5fc65 |
-| WP-AL5 | código feito (toggle "Silenciar enquanto uso o Mac" e o rodapé novo; `build-device.sh` verde; falta instalar no iPhone e o checklist) | 4f37913, merge b9e0d2a |
+| WP-AL4 | código feito (silêncio com o Mac desbloqueado e um toque ao bloquear no card e no push; o `PushService` usa o `lock` em cache das transições; logs reais `silent reason=atMac` e `lock-ring … device`, contados pelo `alerts-summary.sh`; revisão independente com 3 correções (card que acabou repassa o toque ao push; o push ao bloquear reconfere preferências, primeiro plano, token e card); `test.sh` completo verde; falta instalar e o U2) | ce682ec, 548da65, 9e03eab, merge a9942fd, 175ef53, ea51ea3, af4bb38 |
+| WP-AL5 | código feito (toggle "Silenciar enquanto uso o Mac" e o rodapé novo; `build-device.sh` verde; falta instalar no iPhone e o checklist) | 7775e5a, merge 151635f |
 | WP-AL6 | todo | |
 | WP-AL7 | todo (adiado pelo João em 2026-10-01: conferir na Apple o `NSSupportsLiveActivitiesFrequentUpdates` e o `frequentPushesEnabled`, `updateInterval` 10 → 6 s, a chave no `App/Info.plist`, testes fixando 10 s, SPEC §7.5) | |
 | U3 | todo (depois do WP-AL7: 1 h com 4 agentes, `alerts-summary.sh` contra o uso de 2026-10-01) | |
-| S9 | feito (lab de 2026-10-01, L1–L13) | f61a373 |
-| WP-CP1 | feito (a linha do App Server no `mochad status` vai antes do Serve e o log de falha do `respond` Codex voltou, ajustes do orquestrador; `notClaude` para Codex em controles, subagentes e `archive` fica para o CP3 e o CP4; o `PushServiceTests.blockedWithoutARequest…` falhou uma vez sob carga e passou em 10 rodadas) | fc1b12a, 59b9aa8, 37b6185, merge db990f6 |
-| WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |
-| WP-CP2 | feito (estado por thread em `CodexThreadState` e `threadEvents()` para o CP3 e o CP4; achados do CV tratados; `"Shell"` como shell no app, ajuste do orquestrador; `chatMeta` da thread filha fica para o CP4) | a6a14f4, 1f9e0e0, 38278ca, merge 596c1ae |
-| WP-CP3 | feito (`pane.split` no `MochaHerdr` só para o `/clear` do Codex; `/clear` por split/start/close com trava e timeout de 15 s; conferir no WP-CPX: `turn/settings/update` com turno ativo, o argv `-c model_reasoning_effort` e o pane novo que fica aberto quando o `/clear` falha) | 85a862e, 42d2ecc, dfd51e6, 712cf16, merge 5335c74 |
-| WP-CV | feito (lab `~/Developer/mocha-lab/codex-update` com `CODEX_HOME` próprio e checagem do `~/.codex/config.toml`; 11 testes `.integration` verdes na 0.159.2; cópia do schema só com a lista de métodos e tipos; hook e seção do AGENTS.md aplicados pelo orquestrador) | 0d2079b, 321f559, merge 764a83c |
-| WP-CP4 | feito (filhas por `subAgentActivity` e `thread/list`, apelido pelo `agentNickname`; Histórico por `threadId` com `.ended`/`.cleared`; conferir no WP-CPX: rodapé duplo no chat da filha e `thread/items/list` de filha arquivada) | 2c2d813, e56a095, 84a8e1b, merge 679c92a |
-| WP-CPX | feito (testado pelo João no iPhone em 2026-10-01, que aprovou o merge; ajustes visuais dessa rodada: marca da OpenAI em verde-escuro, painéis de baixo colados às bordas e na altura do conteúdo, pílula de uso com Claude e Codex) | a7338ef, 721cc9b, d9e0439, 96bde3c |
+| S9 | feito (lab de 2026-10-01, L1–L13) | e2b035b |
+| WP-CP1 | feito (a linha do App Server no `mochad status` vai antes do Serve e o log de falha do `respond` Codex voltou, ajustes do orquestrador; `notClaude` para Codex em controles, subagentes e `archive` fica para o CP3 e o CP4; o `PushServiceTests.blockedWithoutARequest…` falhou uma vez sob carga e passou em 10 rodadas) | 350b35d, 175519a, d433e69, merge 1e33893 |
+| WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | 99216c1, bc2bcec, b9130b8, e7f8c88, merge 49b903c |
+| WP-CP2 | feito (estado por thread em `CodexThreadState` e `threadEvents()` para o CP3 e o CP4; achados do CV tratados; `"Shell"` como shell no app, ajuste do orquestrador; `chatMeta` da thread filha fica para o CP4) | d4a504f, 1872df3, fcd3875, merge 14e972b |
+| WP-CP3 | feito (`pane.split` no `MochaHerdr` só para o `/clear` do Codex; `/clear` por split/start/close com trava e timeout de 15 s; conferir no WP-CPX: `turn/settings/update` com turno ativo, o argv `-c model_reasoning_effort` e o pane novo que fica aberto quando o `/clear` falha) | 13134f2, cf9068d, b573e54, deddab6, merge c0d52bc |
+| WP-CV | feito (lab `~/Developer/mocha-lab/codex-update` com `CODEX_HOME` próprio e checagem do `~/.codex/config.toml`; 11 testes `.integration` verdes na 0.159.2; cópia do schema só com a lista de métodos e tipos; hook e seção do AGENTS.md aplicados pelo orquestrador) | f70ea46, 1c05e1b, merge 2e02350 |
+| WP-CP4 | feito (filhas por `subAgentActivity` e `thread/list`, apelido pelo `agentNickname`; Histórico por `threadId` com `.ended`/`.cleared`; conferir no WP-CPX: rodapé duplo no chat da filha e `thread/items/list` de filha arquivada) | 9dcffc9, 50e1f37, 8c78c82, merge 055f06d |
+| WP-CPX | feito (testado pelo João no iPhone em 2026-10-01, que aprovou o merge; ajustes visuais dessa rodada: marca da OpenAI em verde-escuro, painéis de baixo colados às bordas e na altura do conteúdo, pílula de uso com Claude e Codex) | 82fa840, 69849c5, b921161, ac4b4a0 |
