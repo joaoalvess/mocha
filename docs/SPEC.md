@@ -909,7 +909,7 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
 | `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico da Live Activity (§7.5), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
 | `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados, o App Server do Codex (no ar e versão) e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
-| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon. **Codex** (codex-paridade): executável e versão contra a última validada, `initialize` e `account/read` no socket do App Server, e os panes Codex contados no item `agent.list` (§13.4) |
+| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon. **Codex** (codex-paridade): executável e versão contra a última validada, `initialize` e `account/read` no socket do App Server, e os panes Codex contados no item `agent.list` (§13.4). ❌ sem o socket ou sem resposta ao `initialize`; ⚠️ sem login ou com versão acima da validada; mostra o plano da conta, nunca o email |
 
 ### §4.3 Caminhos e configuração
 
@@ -2220,9 +2220,11 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
   - a queda do App Server interrompe o turno e apaga os pedidos;
   - `POST /v1/respond` aceita pedidos Codex (§7.2). Em `answers`, a chave pode ser o `id` (o WS usa `PendingQuestion.id`) ou o texto exato da pergunta (notificação e Live Activity), e o daemon traduz para o `id`;
   - `deny` vira `decline`, sem motivo; o App Server aceita `decline` mesmo fora de `availableDecisions`;
-  - `item/permissions/requestApproval` (feature `request_permissions_tool` desligada por padrão) e `mcpServer/elicitation/request` viram push `NEEDS_INPUT` sem ações. Um `thread/status/changed` com `waitingOnApproval` ou `waitingOnUserInput` sem pedido mapeado vira o alerta de agente bloqueado (§7.1);
+  - `item/permissions/requestApproval` (feature `request_permissions_tool` desligada por padrão) e `mcpServer/elicitation/request` viram push `NEEDS_INPUT` sem ações e deixam o pane `blocked`. O corpo é o `reason` da permissão ("O Codex pede uma permissão no terminal." sem ele) ou "<servidor>: <mensagem>" da elicitação. Um `thread/status/changed` com `waitingOnApproval` ou `waitingOnUserInput` sem pedido mapeado vira o alerta de agente bloqueado (§7.1), depois da carência e só se o agente continuar `blocked` sem pedido;
+  - uma pergunta Codex única, sem `multiSelect` e com até 2000 bytes, sai com a categoria `QUESTION` e o corpo igual ao texto exato da pergunta, que a resposta pela notificação usa como chave;
+  - os outros `ServerRequest` ficam para o TUI;
   - o desfecho (Aprovado, Negado, Respondido) entra no snapshot da Live Activity como no Claude (§7.5);
-  - texto do pedido: `commandActions[].command` (o `command` vem embrulhado em `/bin/zsh -lc '…'`), `reason` e `cwd`; num `fileChange`, `changes[].path`.
+  - texto do pedido: `commandActions[].command` (o `command` vem embrulhado em `/bin/zsh -lc '…'`), `reason` e `cwd`, com `toolName` "Bash"; num `fileChange`, os `changes[].path` do `item/started`, relativos ao cwd e separados por ", ", com `toolName` "Edit" (sem o `item/started`, o `reason`).
 - **Controles**. São API experimental; o daemon inicializa com `experimentalApi: true`, e o `scripts/check-codex-update.sh` compara o schema experimental a cada versão.
   - Num agente Codex com `controlAvailable: false`, `listModels`, `listSubagents`, `setModel`, `setEffort`, `setMode` e `slash` respondem `codexUnavailable`, como `sendPrompt` e `interrupt`.
   - `listModels` → `model/list` sem os `hidden`, com o `supportedReasoningEfforts` e o `defaultReasoningEffort` de cada modelo.
@@ -2278,4 +2280,6 @@ Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App
   - sem pergunta `multiSelect`, sem motivo na negação, sem chip de slash, recap ou workflow;
   - um steer feito durante uma ferramenta longa se perde se o turno for interrompido antes;
   - toda thread nova cria uma thread `ephemeral` de título, que o daemon ignora;
-  - o primeiro SIGINT do App Server espera os turnos ativos.
+  - o primeiro SIGINT do App Server espera os turnos ativos;
+  - `requestUserInput` e a elicitação MCP não trazem `startedAtMs`: uma pergunta que já estava pendente quando o `mochad` reiniciou gera push de novo no `thread/resume`;
+  - se o `mochad` reiniciar menos de cerca de 1 min depois de um `/new` no TUI, a thread antiga ainda está carregada e o pane religa nela até o próximo `thread/started` no mesmo cwd.
