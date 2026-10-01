@@ -57,6 +57,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Card vivo de cada subagente (`Agent`) no chat, que abre o transcript do subagente só de leitura | subagentes |
 | Selo de subagentes rodando no card da Home e lista de subagentes no Detalhe do agente | subagentes |
 | Card de workflow com as fases e os agentes de cada fase | subagentes |
+| Codex CLI parelho com o Claude: ações pela notificação e pela Live Activity, controles (modelo, effort, modo, `/compact`, `/clear`), aprovar plano, chat ao vivo, contexto, subagentes e histórico (§13.4) | codex-paridade |
 | Terminal SSH (`herdr agent attach`) | 2 |
 | Transporte Mosh no terminal | 3 |
 
@@ -907,8 +908,8 @@ O `SessionHub` junta o `HerdrBridging`, o `TranscriptProviding` e, na fase subag
 | `mochad apns import <arquivo.p8> --key-id <KID> --team-id <TID> [--bundle-id <id>]` | Guarda a `.p8` no Keychain de login (serviço `com.joaoalves.mocha.apns`, conta = Key ID) e grava `apns{teamId, keyId, bundleId}` no config (0600) |
 | `mochad apns test [--device <id>] [--token <hex> --env sandbox\|production]` | Manda um alerta de teste para o aparelho, ou para um token cru (diagnóstico). Mostra headers, payload, status, `reason`, tempo e `apns-unique-id`; nunca o token inteiro nem o JWT |
 | `mochad apns liveactivity start\|update\|end --token <hex> --env …` | Diagnóstico da Live Activity (§7.5), com `--agent`, `--status working\|blocked\|idle`, `--title`, `--workspace`, `--priority`, `--stale-in` e `--dismiss-in` |
-| `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
-| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon |
+| `mochad status` | Com o daemon (§4.8): versão, tempo no ar, estado do Herdr (versão e protocolo do `ping`), clientes conectados, o App Server do Codex (no ar e versão) e o Serve. Sem o daemon: "mochad parado", o `ping` direto do Herdr e o Serve, e sai com código diferente de zero. O `doctor` também sai com código diferente de zero quando algum item é ❌ |
+| `mochad doctor` | Diagnóstico com ✅/⚠️/❌: socket do Herdr, `agent.list`, hooks instalados, moshi-hook, Serve, APNs, permissões do diretório de dados, Transcript e Uso (§3.4). **Transcript**: por sessão acompanhada, a versão do Claude (`version` da última linha), as linhas descartadas e os tipos desconhecidos por nome, com aviso quando a versão passa da última validada (§3.2.2, política item 3). Os dados vêm de `/local/status` (§4.8); sem daemon, o item diz que precisa do daemon. **Codex** (codex-paridade): executável e versão contra a última validada, `initialize` e `account/read` no socket do App Server, e os panes Codex contados no item `agent.list` (§13.4) |
 
 ### §4.3 Caminhos e configuração
 
@@ -1357,7 +1358,7 @@ Envelope completo:
 
 Todas as requisições do cliente podem receber `error` em vez da resposta indicada.
 
-Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json`, `server.webServers.json` e `server.helloOk.ssh.json` (com `sshUser` e `sshHostKeys`).
+Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown(type:)`), `ChatTarget`, os envelopes `ClientEnvelope` e `ServerEnvelope`, `EnvelopeHeader` (lê `v`, `id` e `type` sem falhar, para o daemon responder `protocolMismatch` ou `invalidPayload` com o `id` certo; o `ClientEnvelope` não valida `v`), os payloads `HelloPayload`, `HelloOkPayload`, `ChatPage`, `LiveActivityRegistration` e `WebServer`, e `ProtocolDate` (formato e parse das datas, reutilizado pelo daemon). A regra "exatamente um entre `deviceToken` e `pairingCode`" é validada pelo daemon, não na decodificação. Fixtures em `MochaKit/Fixtures/protocol/`: `client.<type>[.<variante>].json`, `server.<type>[.<variante>].json`, `chatItem.<kind>[.<variante>].json`, `pendingRequest.<kind>.json` e `pendingResponse.<type>[.<variante>].json`. As variantes `.session` usam `ChatTarget.session`, e as `.subagent`, `ChatTarget.subagent`. Na fase subagentes entram `chatItem.subagent.running.json`, `chatItem.subagent.completed.json`, `chatItem.subagent.failed.json`, `chatItem.subagent.stopped.json`, `chatItem.workflow.json`, `chatItem.task.json`, `client.listSubagents.json`, `server.subagentList.json`, `server.tree.subagents.json` (com `runningSubagents`) e as variantes `.subagent` de `openChat`, `closeChat`, `chatPage`, `chatUpdate` e `chatMeta`. Na fase preview-web entram `client.listWebServers.json`, `server.webServers.json` e `server.helloOk.ssh.json` (com `sshUser` e `sshHostKeys`). Na fase codex-paridade entram `client.listModels.json`, `server.models.json`, `client.setModel.codex.json` e `client.setEffort.codex.json`.
 
 **Cliente → servidor**
 
@@ -1367,6 +1368,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `openChat` | `{<ChatTarget>, before?: String, limit?: Int}` (`agentId`, `sessionId`, ou `sessionId` com `subagentId`; `limit` padrão 60, máximo 200) | `chatPage` | 1a-core (`subagentId`: subagentes) |
 | `closeChat` | `{<ChatTarget>}` | `ack{}` | 1a-core (`subagentId`: subagentes) |
 | `listSubagents` | `{agentId}` | `subagentList` | subagentes |
+| `listModels` | `{agentId}` (agente Codex) | `models` (§13.4) | codex-paridade |
 | `sendPrompt` | `{agentId, text}` | `ack{}` | 1a-core |
 | `interrupt` | `{agentId}` | `ack{}` | 1a-core |
 | `closeAgent` | `{agentId}` | `ack{}`. Vale para Claude e Codex; o card sai da árvore pelo `pane_closed`/`pane_updated` do Herdr. Erros: `herdrUnavailable`, `agentNotFound` | uso-codex |
@@ -1374,15 +1376,15 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `unpair` | `{}` | `ack{}` e o daemon fecha a conexão e apaga o aparelho | 1a-core |
 | `ping` | `{}` | `pong{}` | 1a-core |
 | `archive` | `{sessionId}` (sessão atual de um agente) | `ack{}` e `treeChanged` | 1a-core |
-| `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}` | 1a-final |
+| `slash` | `{agentId, command: String}` (ex.: `"/compact"`) | `ack{}`; o `/clear` do Codex responde `ack{agentId}` com o pane novo (§13.4) | 1a-final |
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
 | `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
 | `listWebServers` | `{}` | `webServers` (§9.3) | preview-web |
-| `setModel` | `{agentId, model: "opus" \| "sonnet" \| "haiku" \| "fable"}` | `ack{}` | controles |
-| `setEffort` | `{agentId, level: "low" \| "medium" \| "high" \| "xhigh" \| "max"}` | `ack{}` | controles |
-| `setMode` | `{agentId, mode: "default" \| "acceptEdits" \| "plan" \| "auto"}` | `ack{}` | controles |
+| `setModel` | `{agentId, model: String}`: no Claude, `"opus" \| "sonnet" \| "haiku" \| "fable"`; no Codex, um `id` do `models` | `ack{}` | controles (Codex: codex-paridade) |
+| `setEffort` | `{agentId, level: String}`: no Claude, `"low" \| "medium" \| "high" \| "xhigh" \| "max"`; no Codex, um `level` do modelo atual no `models` | `ack{}` | controles (Codex: codex-paridade) |
+| `setMode` | `{agentId, mode: "default" \| "acceptEdits" \| "plan" \| "auto"}`; no Codex, só `default` e `plan` | `ack{}` | controles (Codex: codex-paridade) |
 
 **Servidor → cliente**
 
@@ -1397,12 +1399,13 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `agentStatus` | `{agentId, status: AgentStatus, title?: String}` | Evento: mudança de status |
 | `chatPage` | `{<ChatTarget>, meta: ChatMeta, items: [ChatItem], before: String?, hasMore: Bool}` | Resposta a `openChat` |
 | `subagentList` | `{agentId, items: [SubagentSummary]}` (lista tolerante, na ordem da §5.3.1) | Resposta a `listSubagents` |
+| `models` | `{agentId, options: [ModelOption]}`; `ModelOption` = `{id, displayName, isDefault: Bool, defaultEffort?: String, efforts: [{level, description?}]}` (lista tolerante, na ordem do App Server) | Resposta a `listModels` (codex-paridade) |
 | `webServers` | `{host: String, servers: [WebServer]}` (`host` é o `hostName` do daemon; `WebServer` = `{pid: Int, process: String, port: Int, title?: String, directory?: String, workspaceId?: WorkspaceID}`; lista tolerante, por porta crescente) | Resposta a `listWebServers` (§9.3) |
 | `chatAppend` | `{<ChatTarget>, items: [ChatItem]}` | Evento: itens novos num chat aberto |
 | `chatUpdate` | `{<ChatTarget>, items: [ChatItem]}` (substitui por `id`) | Evento: um item já enviado mudou (ex.: `tool_result` chegou) |
 | `chatMeta` | `{<ChatTarget>, meta: ChatMeta}` | Evento: título, modelo, branch, status ou modo mudou |
 | `pending` | `{requests: [PendingRequest]}` (lista completa) | 1b. Evento: mudança na lista (também enviado logo depois de `tree`) |
-| `ack` | `{}`, ou `{agentId}` para `newAgentTab` | Resposta simples |
+| `ack` | `{}`, ou `{agentId}` para `newAgentTab` e para o `/clear` do Codex | Resposta simples |
 | `pong` | `{}` | Resposta a `ping` |
 | `error` | `{code, message}` | Resposta a uma requisição. Códigos: `unauthorized`, `pairingExpired`, `protocolMismatch`, `unknownType`, `invalidPayload`, `agentNotFound`, `sessionNotFound`, `agentBlocked`, `requestNotFound`, `herdrUnavailable`, `modeUnavailable`, `screenBusy`, `internal` |
 
@@ -1447,6 +1450,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
   - o `ack` sai depois da troca conferida na tela (§4.1.1). Em seguida vêm `treeChanged` e `chatMeta` com o valor lido, não o pedido;
   - `HerdrBridgeError.modeUnavailable` → `modeUnavailable` ("Modo indisponível neste modelo"); `screenBusy` → `screenBusy` ("Feche o seletor aberto no terminal");
   - `setEffort` num modelo sem effort → `invalidPayload`.
+- **Agentes Codex** (codex-paridade): as regras acima que pedem `kind == "claude"` continuam valendo para o Claude; um agente Codex segue a §13.4 em `openChat`, `sendPrompt`, `interrupt`, `slash`, `archive`, `listSubagents`, `listModels`, `setModel`, `setEffort` e `setMode`. `listModels` num agente Claude → `invalidPayload` ("Lista de modelos só para Codex").
 - **`newAgentTab`**:
   - `workspaceId` fora da árvore → `invalidPayload` ("Workspace não encontrado");
   - o daemon chama `tab.create {workspace_id, cwd: <diretório do workspace (§3.1.4)>, focus: false}` e depois `agent.start {name: "mocha-<n>", kind: "claude", pane_id: <root_pane.pane_id>, args: []}`, com `<n>` o menor inteiro a partir de 1 cujo nome não está em uso entre os agentes do Herdr;
@@ -1864,6 +1868,7 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 - `PERMISSION`: "Permitir" (`.authenticationRequired`, sem `.foreground`) e "Negar" (`.destructive`). "Negar" manda `deny` com a mensagem padrão (§8.2): o Claude recebe a negação e continua o turno.
 - `QUESTION`: "Responder" (`UNTextInputNotificationAction`), só para uma pergunta sem `multiSelect`. Um texto igual a um rótulo vira esse rótulo; qualquer outro texto vai como resposta livre, que o Claude aceita. Com `QUESTION`, o corpo é o texto exato da pergunta (até 2.000 bytes), que o app usa como chave de `answers`. Várias perguntas, `multiSelect` ou uma pergunta maior vão com a categoria `NEEDS_INPUT`, sem ações, e o corpo é a prévia de `questions[0].question`: o toque abre o chat com o card.
 - O app, acordado em background, faz `POST /v1/respond` com o token do Keychain. Se o tailnet estiver fora, a ação falha e a notificação local "Não consegui falar com o Mac" aparece.
+- Pedidos Codex (codex-paridade, §13.4) usam as mesmas categorias e ações. O `POST /v1/respond` roteia o prefixo `codex:`, e o daemon troca a chave de `answers` (o texto exato da pergunta) pelo `id` da pergunta do App Server. "Negar" vira `decline`, sem motivo.
 
 ### §7.3 Live Activity agregada (1b, substituída pela §7.5)
 
@@ -1973,7 +1978,7 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
 
 - **Tipo**: `MochaFeedAttributes` (`MochaProtocol`, só iOS), sem atributos estáticos; `attributes-type: "MochaFeedAttributes"` e `attributes: {}` no push-to-start. `ContentState`: `agentId` (o agente em foco) e os campos da `MochaAgentAttributes` (§7.4): `status`, `title`, `workspaceLabel`, `since`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `prompt?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as regras de preenchimento, limites e orçamentos da §7.3. O daemon codifica pelo espelho `LiveActivityContentState` com o `agentId`.
 - **Uma atividade por aparelho.** O app, ao abrir, encerra as `MochaAgentAttributes` e as `MochaAgentsAttributes` que achar; os dois tipos ficam no protocolo só para isso.
-- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada, entre os agentes Claude da árvore:
+- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada, entre os agentes Claude e Codex da árvore:
   1. com pedido pendente em algum agente: o agente do pedido mais antigo (`createdAt`, depois `id`). O pedido segura o card até ser resolvido;
   2. senão: o agente com o **evento** mais recente. Evento = a `preview` mudou, o `status` efetivo mudou (inclusive o turno concluído) ou o agente ficou `blocked` sem pedido. Empate: o agente em foco continua; depois o menor `agentId`.
   - Mudança só de `activity`, `prompt`, `model`, `contextLeftPercent` ou `title` atualiza o card quando é do agente em foco, e não puxa o foco.
@@ -2197,3 +2202,79 @@ Esta fase acrescenta Codex sem alterar os contratos específicos do Claude das �
 
 - O desktop fornece `thread/list` e leitura paginada pelo App Server sem `thread/resume`, envio, interrupção ou resposta. A Home mostra até 20 conversas recentes; a gaveta pagina o histórico inteiro. As conversas desktop não se associam a panes Herdr.
 - Uma conexão separada pode devolver `notLoaded` para uma conversa ativa no desktop; nesse caso o Mocha mostra estado desconhecido. Hooks `SessionStart`, `UserPromptSubmit`, `Stop`, `PermissionRequest`, `Interrupt` e `SessionEnd` podem complementar estado e alertas, mas sua configuração exata deve ser revista pelo João antes da instalação real. A leitura não depende dos hooks.
+
+### §13.4 Paridade do CLI (codex-paridade)
+
+Mapa e evidências: `docs/spikes/S9.md` (codex-cli 0.159.2). Tudo passa pelo App Server ou por ações do Herdr (`pane split`, `agent start`, `pane close`). Nenhuma tecla vai para o pane do Codex, e o JSONL não é lido.
+
+- **Ligação pane–thread durável**:
+  - o daemon grava `~/Library/Application Support/Mocha/codex-panes.json` (0600) com pane → `{threadId, cwd}` a cada mudança;
+  - no boot e a cada reconexão ao App Server, chama `thread/loaded/list`. Se a thread do mapa estiver carregada, faz `thread/resume`;
+  - se não estiver (o TUI trocou de thread enquanto o daemon estava fora; uma thread sem inscritos recebe `thread/closed` cerca de 1 min depois), o pane assume a única thread carregada com o mesmo cwd (`thread/read`) que não tenha dono, não seja `ephemeral` e não tenha `parentThreadId`;
+  - sem candidata única, o pane fica com `controlAvailable: false` até o próximo `thread/started` com o mesmo cwd;
+  - `pane_moved` move a ligação e os pedidos do pane;
+  - quando o pane troca de thread ou fecha, o daemon manda `thread/unsubscribe` da antiga. Enquanto ele estiver inscrito, a thread não fecha.
+- **Pedidos**:
+  - a chave interna é `codex:<threadId>:<itemId>`;
+  - o `thread/resume` reentrega os pendentes com o mesmo `itemId` e um id JSON-RPC novo, que substitui o anterior sem push nem Live Activity novos;
+  - a queda do App Server interrompe o turno e apaga os pedidos;
+  - `POST /v1/respond` aceita pedidos Codex (§7.2). Em `answers`, a chave pode ser o `id` (o WS usa `PendingQuestion.id`) ou o texto exato da pergunta (notificação e Live Activity), e o daemon traduz para o `id`;
+  - `deny` vira `decline`, sem motivo; o App Server aceita `decline` mesmo fora de `availableDecisions`;
+  - `item/permissions/requestApproval` (feature `request_permissions_tool` desligada por padrão) e `mcpServer/elicitation/request` viram push `NEEDS_INPUT` sem ações. Um `thread/status/changed` com `waitingOnApproval` ou `waitingOnUserInput` sem pedido mapeado vira o alerta de agente bloqueado (§7.1);
+  - o desfecho (Aprovado, Negado, Respondido) entra no snapshot da Live Activity como no Claude (§7.5);
+  - texto do pedido: `commandActions[].command` (o `command` vem embrulhado em `/bin/zsh -lc '…'`), `reason` e `cwd`; num `fileChange`, `changes[].path`.
+- **Controles**. São API experimental; o daemon inicializa com `experimentalApi: true`, e o `scripts/check-codex-update.sh` compara o schema experimental a cada versão.
+  - `listModels` → `model/list` sem os `hidden`, com o `supportedReasoningEfforts` e o `defaultReasoningEffort` de cada modelo.
+  - `setModel` e `setEffort` → `thread/settings/update {threadId, model}` ou `{threadId, effort}`. Com turno ativo, também `turn/settings/update` no turno atual. Modelo fora do `model/list` ou effort fora do modelo → `invalidPayload`.
+  - `setMode` com `plan` ou `default` → `thread/settings/update {collaborationMode: {mode, settings: {model, reasoning_effort, developer_instructions: null}}}`, com o modelo e o effort atuais. `acceptEdits` e `auto` → `invalidPayload` ("Modo indisponível no Codex"). Os perfis de permissão (`permissions`) ficam fora desta fase.
+  - O `ack` sai na resposta `{}`. O valor mostrado vem da resposta do `thread/resume` e de `thread/settings/updated`, que só chega a quem está inscrito e também traz o `/plan` e o `/model` digitados no TUI. Em seguida vêm `treeChanged` e `chatMeta`.
+  - `slash "/compact"` → `thread/compact/start`, que roda como um turno próprio com o item `contextCompaction`.
+  - `slash "/clear"` → sessão nova no mesmo lugar:
+    1. `pane split` do pane atual, no mesmo cwd;
+    2. `agent start` Codex com os argumentos da tab Codex (§13.1) mais `-m <modelo>` e `-c model_reasoning_effort="<effort>"`, com a espera de prontidão do `newAgentTab`;
+    3. depois do `thread/started`, `thread/settings/update` com o modo atual;
+    4. `pane close` do pane antigo.
+    O daemon move chats, foreground e controles do pane antigo para o novo, como no `pane_moved`, e responde `ack{agentId}` com o pane novo. A thread antiga vai para o Histórico. Uma falha antes do passo 4 deixa o pane antigo aberto.
+  - Outros comandos em `slash` → `invalidPayload` ("Comando indisponível no Codex").
+  - **Aprovar plano**: no último item `plan` de um agente Codex em Plano, sem turno ativo, o app manda `setMode default` e depois `sendPrompt` com "Implemente o plano.". O "Implement this plan?" do TUI continua aberto no Mac. Fechá-lo com Esc fica para o shell mode, como exceção à §13.1 a decidir nessa fase.
+- **Chat**:
+  - página por `thread/items/list {threadId, limit, sortDirection: "desc", cursor}`: o `before` do protocolo é o cursor do App Server, `limit` conta itens e a hora de cada item vem de `startedAtMs`;
+  - ao vivo, `item/started` vira `chatAppend` e `item/completed` vira `chatUpdate`. Os deltas não são repassados. Um `item/completed` que chega depois do `turn/completed` (comando de turno interrompido) atualiza o card;
+  - a releitura inteira acontece só na reconexão.
+  
+  Projeção:
+  - `commandExecution` → `toolCall` "Shell" com `commandActions[0].command`; a prévia é o `aggregatedOutput`, e o status vem de `status` e `exitCode`;
+  - `fileChange` → `toolCall` com os caminhos;
+  - `webSearch` → a query; `mcpToolCall` → servidor, ferramenta e resultado;
+  - `subAgentActivity` com `kind: started` → card de subagente (`agentId` = `agentThreadId`), concluído pelo `kind: completed`; `collabAgentToolCall` (`wait`, `sendInput`…) não vira card;
+  - `contextCompaction` → aviso "Contexto compactado"; turno `interrupted` → aviso "Interrompido"; `failed` → aviso com o `error`; rodapé `turnFooter` com o `durationMs`;
+  - `plan` (Plan mode) → texto do plano; `localImage` e `imageView` → `imagePaths` (§3.2, §6.5);
+  - a troca de thread no pane reabre o chat com a thread nova.
+- **Resumo do agente**:
+  - `sessionId` = `threadId`; `title` = `thread.name`, ou `preview` sem nome;
+  - prévia = último `agentMessage` ou `userMessage`; atividade = o item em andamento;
+  - `model`, `effort` e `permissionMode` (`plan` ou `default`) vêm da resposta do `thread/resume` e de `thread/settings/updated`; `branch` vem de `gitInfo`;
+  - `turnStartedAt` e `turnEndedAt` vêm de `Turn.startedAt` e `completedAt`; `lastActivityAt`, do último evento; `sessionStartedAt`, de `thread.createdAt`. O `isDirty` do workspace é atualizado no `turn/completed`;
+  - contexto livre = `(janela − 12000 − max(0, last.totalTokens − 12000)) / (janela − 12000)`, com `last` e `modelContextWindow` de `thread/tokenUsage/updated`. É a conta do `/status` do TUI;
+  - push "terminou" só com `turn.status == completed`.
+- **Uso**: `account/read` dá o plano e o email, junto com o `account/rateLimits/read`.
+- **Subagentes**:
+  - as filhas não emitem `thread/started`; os eventos delas chegam a quem está inscrito no pai;
+  - o daemon acompanha pelo `subAgentActivity` e pelos eventos com o `threadId` da filha; na reconexão, por `thread/list {parentThreadId}`;
+  - `runningSubagents` e `listSubagents` (`agentId` = thread filha; `agentType` = `agentNickname` ou o último trecho de `agentPath`) seguem a ordem da §5.3.1;
+  - o chat da filha abre por `openChat` com `ChatTarget.codexThread(<filha>)`, só leitura e com `ChatMeta.subagent`.
+- **Histórico**: a thread do pane que fecha ou troca de thread vira `ArchivedSession(provider: codex)` (§4.9). `archive` com `provider: codex` aceita a thread atual de um agente Codex e é desfeito no turno seguinte, como no Claude.
+- **App**. Sem mock: segue os componentes existentes.
+  - O painel ↻ do Codex mostra Contexto, Modo (Padrão ou Plano), Uso do Codex, Subagentes, `/compact` e `/clear`.
+  - O seletor de modelo e effort usa a lista `models`; o effort oferecido é o do modelo atual.
+  - O header e o Detalhe mostram modelo, effort, branch e Sessão.
+  - O card de subagente Codex abre a thread filha, no chat vivo e no arquivado.
+  - O swipe de arquivar e o Histórico valem para Codex, e o anel interno da Início conta os Codex em Plano.
+  - O botão "Implementar plano" segue a regra acima.
+  - Os textos que hoje dizem "Claude" para um agente Codex passam a dizer "Codex".
+- **Diagnóstico**: §4.2. O `scripts/check-codex-update.sh` valida uma versão nova num lab com `CODEX_HOME` próprio, sem tocar no `~/.codex`.
+- **Limitações** (S9):
+  - sem pergunta `multiSelect`, sem motivo na negação, sem chip de slash, recap ou workflow;
+  - um steer feito durante uma ferramenta longa se perde se o turno for interrompido antes;
+  - toda thread nova cria uma thread `ephemeral` de título, que o daemon ignora;
+  - o primeiro SIGINT do App Server espera os turnos ativos.
