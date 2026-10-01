@@ -48,6 +48,10 @@ struct CodexPaneMatcher: Sendable {
         expected.removeAll { $0.paneId == paneId }
     }
 
+    mutating func move(from oldId: AgentID, to newId: AgentID) {
+        expected = expected.map { $0.paneId == oldId ? Expected(paneId: newId, cwd: $0.cwd, since: $0.since) : $0 }
+    }
+
     mutating func reset() {
         expected.removeAll()
         started.removeAll()

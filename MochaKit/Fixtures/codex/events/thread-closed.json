@@ -1,0 +1,7 @@
+{
+  "method": "thread/closed",
+  "params": {
+    "threadId": "01a0f59e-a038-71a3-924d-60e161da9f17"
+  },
+  "emittedAtMs": 1790827272938
+}

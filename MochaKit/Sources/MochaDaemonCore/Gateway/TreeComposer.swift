@@ -121,6 +121,7 @@ enum TreeComposer {
         var agent = agent
         agent.controlAvailable = connected && pane != nil
         guard let pane else { return agent }
+        agent.sessionId = pane.threadId
         agent.status = pane.status
         if let title = pane.title, !title.isEmpty {
             agent.title = title

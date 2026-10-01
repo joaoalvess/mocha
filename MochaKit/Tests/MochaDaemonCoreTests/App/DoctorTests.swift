@@ -74,7 +74,7 @@ struct DoctorTests {
 
                 #expect(items[0] == DoctorItem("mochad", .ok, "rodando · 0.1.0 · no ar há 1 h 05 min · 0 clientes"))
                 #expect(items[1].status == .ok)
-                #expect(items[2] == DoctorItem("agent.list", .ok, "2 agentes, 2 do Claude Code"))
+                #expect(items[2] == DoctorItem("agent.list", .ok, "2 agentes, 2 do Claude Code, 0 do Codex"))
                 let transcript = items[9]
                 #expect(transcript.status == .warning)
                 #expect(transcript.summary == "2 sessões acompanhadas (validado até o Claude \(ClaudeCodeVersion.lastValidated))")
@@ -158,23 +158,31 @@ struct DoctorTests {
         }
     }
 
-    @Test func codexItemReadsTheVersionAndTheAppServerSocket() async throws {
-        try await withTemporaryHome { home in
+    @Test func codexItemReadsTheVersionAndProbesTheAppServerSocket() async throws {
+        try await withTemporaryHome(short: true) { home in
             let runner = FakeProcessRunner { _ in ProcessOutput(output: "codex-cli 0.157.1\n") }
             let codex = CodexInspector(executable: "/opt/fake/codex", runner: runner)
             let herdrSocket = FakeHerdrServer.temporarySocketPath()
+            let socket = home.paths.codexSocket.path(percentEncoded: false)
             let down = await Self.doctor(home, local: FakeLocalControl(), herdrSocket: herdrSocket, codex: codex).run()[5]
             #expect(runner.commands == ["codex --version"])
-            #expect(down == DoctorItem("Codex", .warning, "0.157.1 · /opt/fake/codex · App Server fora do ar", details: ["o mochad sobe o App Server; rode o mochad e confira de novo"]))
+            #expect(down == DoctorItem(
+                "Codex",
+                .failure,
+                "0.157.1 · /opt/fake/codex · App Server fora do ar",
+                details: ["sem o socket \(socket); o mochad sobe o App Server, rode o mochad e confira de novo"]
+            ))
 
             try home.write("", to: "Library/Application Support/Mocha/codex.sock")
-            let up = await Self.doctor(home, local: FakeLocalControl(), herdrSocket: herdrSocket, codex: codex).run()[5]
-            #expect(up == DoctorItem("Codex", .ok, "0.157.1 · /opt/fake/codex · App Server no ar"))
+            let stale = await Self.doctor(home, local: FakeLocalControl(), herdrSocket: herdrSocket, codex: codex).run()[5]
+            #expect(stale.status == .failure)
+            #expect(stale.summary == "0.157.1 · /opt/fake/codex · App Server não respondeu ao initialize")
         }
     }
 
     @Test func codexItemWarnsAboutAVersionNewerThanTheValidatedOne() {
-        let item = DoctorChecks.codex(executable: "/opt/fake/codex", version: "0.160.0", socketReady: true)
+        let server = CodexServerProbe.reachable(CodexServerInfo(version: "0.160.0", signedIn: true, plan: "plus"))
+        let item = DoctorChecks.codex(executable: "/opt/fake/codex", version: "0.160.0", server: server)
         #expect(item.status == .warning)
         #expect(item.details == ["versão mais nova que a \(CodexExecutable.lastValidatedVersion) validada"])
     }

@@ -9,7 +9,7 @@ struct RespondRoute: Sendable {
 
     static let accepted = HttpResponse(status: .ok, headers: ["Content-Type": "application/json"], body: Data("{}".utf8))
 
-    let pending: any PendingProviding
+    let hub: SessionHub
     let authenticator: BearerAuthenticator
 
     func respond(to request: HttpRequest) async -> HttpResponse {
@@ -18,7 +18,7 @@ struct RespondRoute: Sendable {
             return HttpResponse(status: .badRequest)
         }
         do {
-            try await pending.respond(to: body.requestId, with: body.response)
+            try await hub.answer(body.requestId, with: body.response)
             return Self.accepted
         } catch {
             switch error {

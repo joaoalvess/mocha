@@ -10,7 +10,7 @@ public enum HerdrPing: Sendable, Equatable {
 public enum HerdrAgentCount: Sendable, Equatable {
     case missingSocket(String)
     case failed(String)
-    case counted(total: Int, claude: Int)
+    case counted(total: Int, claude: Int, codex: Int)
 }
 
 public struct HerdrProbe: Sendable {
@@ -36,7 +36,11 @@ public struct HerdrProbe: Sendable {
         guard socketExists else { return .missingSocket(socketPath) }
         do {
             let panes = try await client.agentList().filter { $0.agent != nil }
-            return .counted(total: panes.count, claude: panes.filter { $0.agent == TreeComposer.claudeKind }.count)
+            return .counted(
+                total: panes.count,
+                claude: panes.filter { $0.agent == TreeComposer.claudeKind }.count,
+                codex: panes.filter { $0.agent == TreeComposer.codexKind }.count
+            )
         } catch {
             return .failed(Self.describe(error))
         }

@@ -34,8 +34,8 @@ public enum DoctorChecks {
             return DoctorItem("agent.list", .failure, "sem o socket do Herdr")
         case .failed(let detail):
             return DoctorItem("agent.list", .failure, detail)
-        case .counted(let total, let claude):
-            return DoctorItem("agent.list", .ok, "\(total) \(total == 1 ? "agente" : "agentes"), \(claude) do Claude Code")
+        case .counted(let total, let claude, let codex):
+            return DoctorItem("agent.list", .ok, "\(total) \(total == 1 ? "agente" : "agentes"), \(claude) do Claude Code, \(codex) do Codex")
         }
     }
 
@@ -76,19 +76,48 @@ public enum DoctorChecks {
         }
     }
 
-    public static func codex(executable: String?, version: String?, socketReady: Bool) -> DoctorItem {
+    public static func codex(executable: String?, version: String?, server: CodexServerProbe) -> DoctorItem {
         guard let executable else {
             return DoctorItem("Codex", .warning, "codex não encontrado; tabs Codex ficam indisponíveis")
         }
-        let summary = "\(version ?? "versão desconhecida") · \(executable) · App Server \(socketReady ? "no ar" : "fora do ar")"
+        let cli = "\(version ?? "versão desconhecida") · \(executable)"
         var notes: [String] = []
         if let version, ClaudeCodeVersion.isNewer(version, than: CodexExecutable.lastValidatedVersion) {
             notes.append("versão mais nova que a \(CodexExecutable.lastValidatedVersion) validada")
         }
-        if !socketReady {
-            notes.append("o mochad sobe o App Server; rode o mochad e confira de novo")
+        switch server {
+        case .missingSocket(let path):
+            notes.append("sem o socket \(path); o mochad sobe o App Server, rode o mochad e confira de novo")
+            return DoctorItem("Codex", .failure, "\(cli) · App Server fora do ar", details: notes)
+        case .failed(let detail):
+            notes.append(detail)
+            return DoctorItem("Codex", .failure, "\(cli) · App Server não respondeu ao initialize", details: notes)
+        case .reachable(let info):
+            var summary = "\(cli) · App Server no ar"
+            if let serverVersion = info.version, serverVersion != version {
+                summary += " (\(serverVersion))"
+            }
+            switch info.signedIn {
+            case true?:
+                summary += " · conta \(info.plan ?? "conectada")"
+            case false?:
+                notes.append("sem login no Codex: rode codex login")
+            case nil:
+                notes.append("o account/read não respondeu")
+            }
+            return DoctorItem("Codex", notes.isEmpty ? .ok : .warning, summary, details: notes)
         }
-        return DoctorItem("Codex", notes.isEmpty ? .ok : .warning, summary, details: notes)
+    }
+
+    public static func codexServerLine(_ server: CodexServerProbe) -> String {
+        switch server {
+        case .missingSocket(let path):
+            return "❌ fora do ar (sem o socket \(path))"
+        case .failed(let detail):
+            return "❌ não respondeu ao initialize (\(detail))"
+        case .reachable(let info):
+            return "no ar · \(info.version ?? "versão desconhecida")"
+        }
     }
 
     public static func serve(_ diagnosis: ServeDiagnosis, setupCommand: String, expectedTarget: String) -> DoctorItem {

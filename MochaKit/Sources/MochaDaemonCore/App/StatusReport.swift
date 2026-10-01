@@ -7,6 +7,7 @@ public struct StatusReport: Sendable, Equatable {
     public static func make(
         local: Result<LocalStatus, LocalControlError>,
         herdrPing: HerdrPing?,
+        codexServer: String? = nil,
         serve: DoctorItem,
         now: Date
     ) -> StatusReport {
@@ -20,6 +21,9 @@ public struct StatusReport: Sendable, Equatable {
             lines.append(status.clients.isEmpty ? "Clientes: nenhum conectado" : "Clientes: \(status.clients.count)")
             for client in status.clients {
                 lines.append("  \(client.name) · \(client.deviceId) · conectado há \(ElapsedText.since(client.connectedAt, now: now))")
+            }
+            if let codexServer {
+                lines.append("Codex App Server: " + codexServer)
             }
         case .failure(let error):
             exitCode = 1

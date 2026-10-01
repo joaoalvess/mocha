@@ -1,0 +1,39 @@
+{
+  "method": "item/commandExecution/requestApproval",
+  "id": 0,
+  "params": {
+    "kind": "command",
+    "threadId": "01a0f59e-6845-7403-880c-44a4e20672d1",
+    "turnId": "01a0f5a3-9897-7e41-8c29-41d1b3bfc6be",
+    "itemId": "exec-e1e5e97c-f52c-4f69-beaf-f75504587451",
+    "startedAtMs": 1790827538906,
+    "environmentId": "local",
+    "reason": "Você autoriza gravar o texto x em /Users/dev/Developer/mocha-lab/S9/fora.txt, que fica fora do workspace?",
+    "command": "/bin/zsh -lc \"printf 'x' > /Users/dev/Developer/mocha-lab/S9/fora.txt\"",
+    "cwd": "/Users/dev/Developer/mocha-lab/S9/work",
+    "commandActions": [
+      {
+        "type": "unknown",
+        "command": "printf 'x' > /Users/dev/Developer/mocha-lab/S9/fora.txt"
+      }
+    ],
+    "proposedExecpolicyAmendment": [
+      "/bin/zsh",
+      "-lc",
+      "printf 'x' > /Users/dev/Developer/mocha-lab/S9/fora.txt"
+    ],
+    "availableDecisions": [
+      "accept",
+      {
+        "acceptWithExecpolicyAmendment": {
+          "execpolicy_amendment": [
+            "/bin/zsh",
+            "-lc",
+            "printf 'x' > /Users/dev/Developer/mocha-lab/S9/fora.txt"
+          ]
+        }
+      },
+      "cancel"
+    ]
+  }
+}

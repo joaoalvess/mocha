@@ -157,7 +157,7 @@ struct SessionHubRulesTests {
             }
             #expect(page.items.isEmpty)
             #expect(page.hasMore == false)
-            let unavailable = ServerMessage.error(code: .internal, message: "Controle indisponível nesta tab Codex.")
+            let unavailable = ServerMessage.error(code: .codexUnavailable, message: "Controle indisponível nesta tab Codex.")
             #expect(try await socket.reply(to: .sendPrompt(agentId: "w1:p2", text: "oi"), id: "c-2") == unavailable)
             #expect(try await socket.reply(to: .interrupt(agentId: "w1:p2"), id: "c-3") == unavailable)
             #expect(harness.herdr.promptCalls.isEmpty)
