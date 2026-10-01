@@ -34,7 +34,7 @@ struct SubagentHeaderBar: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                LineIconView(icon: .agent, size: 15, strokeWidth: 2.1, color: provider == .codex ? Palette.textPrimary : Palette.claude)
+                LineIconView(icon: .agent, size: 15, strokeWidth: 2.1, color: provider == .codex ? Palette.codex : Palette.claude)
                 Text(title)
                     .font(Typography.headerTitle)
                     .foregroundStyle(Palette.textPrimary)

@@ -172,7 +172,7 @@ private enum PickTile {
     var background: Color {
         switch self {
         case .claude: Palette.claudeTile
-        case .codex: Color(hex: 0x26282B)
+        case .codex: Palette.codexTile
         case .shell: Color(hex: 0x1D1F21)
         }
     }

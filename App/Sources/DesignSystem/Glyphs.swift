@@ -12,14 +12,23 @@ struct ProviderMark: View {
             case .claude:
                 ClaudeMark(size: size)
             case .codex:
-                Image(systemName: "diamond.inset.filled")
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(Palette.textPrimary)
-                    .frame(width: size, height: size)
-                    .accessibilityHidden(true)
+                CodexMark(size: size)
             }
         }
+    }
+}
+
+struct CodexMark: View {
+    var size: CGFloat = Metrics.claudeMarkHeaderSize
+    var color: Color = Palette.codex
+
+    var body: some View {
+        Image("CodexMark")
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(color)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 

@@ -84,7 +84,7 @@ struct HomeCardMeta: View {
             MetaSeparator()
             Text(provider == .codex ? "Codex CLI" : "Claude Code")
                 .systemText(.cardMetaClaude)
-                .foregroundStyle(tone == .offline ? Palette.offlineClaude : provider == .codex ? Palette.textPrimary : Palette.claude)
+                .foregroundStyle(tone == .offline ? Palette.offlineClaude : provider == .codex ? Palette.codex : Palette.claude)
                 .fixedSize()
             MetaSeparator()
             Text(time)
