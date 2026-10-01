@@ -74,7 +74,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 **Regras de segurança dos spikes**
 - **Herdr**: o Herdr do João é real e está em uso. Spikes só **leem** estado do Herdr, exceto dentro do próprio workspace de laboratório (`mocha-lab-<Sx>`, com diretório em `~/Developer/mocha-lab/<Sx>/`, fora do repositório), fechado no fim do spike. Nunca mandar texto ou teclas para panes fora dele.
 - **Claude**: sessões de teste rodam dentro do laboratório, iniciadas com `herdr pane run <pane do lab> "claude --setting-sources project,local --settings <arquivo>"`. Assim os hooks globais do João (inclusive os do moshi-hook) não carregam e o `~/.claude/settings.json` não é tocado. O arquivo de settings do teste inclui o hook `SessionStart` do Herdr (`bash ~/.claude/hooks/herdr-agent-state.sh session`) para o Herdr continuar reconhecendo a sessão.
-- **Redação**: fixtures tiradas do ambiente real trocam nomes e caminhos de projetos de trabalho (initech, acme, bank-app) e textos de conversa por equivalentes neutros (`demo-app`, `/Users/dev/projects/demo-app`), preservando a estrutura.
+- **Redação**: fixtures tiradas do ambiente real trocam nomes e caminhos de projetos de trabalho e textos de conversa por equivalentes neutros (`demo-app`, `/Users/dev/projects/demo-app`), preservando a estrutura.
 
 ### WP0.1: scaffold do repositório
 
@@ -135,7 +135,7 @@ Os spikes registram o resultado em `docs/spikes/Sx.md` (formato em `docs/spikes/
 - **SPEC a atualizar**: §3.2.
 - **Faz**:
   1. Catalogar os tipos e subtipos em transcripts reais de `~/.claude/projects` (versão atual do Claude Code), incluindo imagens coladas, `/clear`, `/compact` (`compact_boundary`), subagentes (`isSidechain`, arquivos em `<session>/subagents/`), erros de ferramenta, interrupção (Esc), AskUserQuestion, pedidos de permissão e plan mode.
-  2. Gerar 6–10 fixtures pequenas (≤ 300 linhas cada) cobrindo esses casos. Texto de trabalho (initech, acme) é trocado por texto neutro, preservando a estrutura.
+  2. Gerar 6–10 fixtures pequenas (≤ 300 linhas cada) cobrindo esses casos. Texto de trabalho é trocado por texto neutro, preservando a estrutura.
   3. Gerar uma fixture sintética grande (≥ 50 MB) por script, para medir desempenho, em `MochaKit/Fixtures/transcripts/generated/` (ignorado pelo git). Ela não vai para o git: o script sim.
   4. No laboratório, confirmar se `/clear` cria um novo `session_id` e como o Herdr reflete isso em `agent.list`.
 - **Aceite**:

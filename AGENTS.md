@@ -4,7 +4,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 
 - `docs/SPEC.md`: fonte da verdade (o quê e como).
 - `docs/PLANO.md`: fases, ondas, WPs, critérios de aceite, bloqueios e status.
-- `docs/design/mock.html` e as capturas 3x em `docs/design/mock/NN-nome.png`: referência visual obrigatória para toda UI (SPEC §6.2). Os prints do Moshi em `docs/referencias/moshi/` são a base do mock; quando divergem, vale o mock.
+- `docs/design/mock.html` e as capturas 3x em `docs/design/mock/NN-nome.png`: referência visual obrigatória para toda UI (SPEC §6.2). Os prints do Moshi em `docs/referencias/moshi/` (só no repositório principal, fora do git) são a base do mock; quando divergem, vale o mock.
 
 ## Orquestrador
 
@@ -16,7 +16,7 @@ O trabalho é feito por um **orquestrador** (a sessão principal) que delega **p
 6. Você é o dono de `MochaKit/Package.swift`, `project.yml`, `MochaKit/Sources/MochaProtocol/**`, `MochaKit/Fixtures/protocol/**`, `App/Info.plist`, `App/Mocha.entitlements`, `Widgets/Info.plist`, `AGENTS.md`, `.gitignore`, `docs/SPEC.md`, `docs/PLANO.md` e `docs/HANDOFF.md`. Aplique você as mudanças que os subagentes propuserem nesses arquivos. A exceção é um arquivo que o bloco do WP no PLANO entrega ao WP, só naquela onda. Spikes escrevem só no diretório dono listado no PLANO, que inclui o próprio `docs/spikes/<Sx>.md`.
 7. **Worktree por WP** (a partir da 1a-core):
    - no início da onda, crie um worktree do Herdr por WP: `herdr worktree create --cwd ~/Developer/mocha --branch wp/<id> --base fase/<fase> --path ~/Developer/mocha/.claude/worktrees/<id> --no-focus`;
-   - copie `Config/Signing.xcconfig` do repositório principal para o worktree;
+   - copie `Config/Signing.xcconfig` e o `.env` do repositório principal para o worktree;
    - se o WP precisa da fixture grande, ligue `MochaKit/Fixtures/transcripts/generated/` do worktree por symlink ao mesmo diretório do repositório principal;
    - no fim do WP, revise, commite em `wp/<id>`, faça `git merge --no-ff wp/<id>` na branch da fase e rode `herdr worktree remove --workspace <id do workspace>`, que mantém a branch;
    - mudança num arquivo seu no meio de uma onda: aplique no worktree do WP que precisa dela, em commit separado;
