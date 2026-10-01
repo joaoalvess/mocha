@@ -43,12 +43,21 @@ public struct LiveActivityRegistration: Codable, Sendable, Hashable {
     public var updateToken: String?
     public var agentId: String?
     public var env: ApnsEnvironment
+    public var endedActivityId: String?
 
-    public init(pushToStartToken: String? = nil, activityId: String? = nil, updateToken: String? = nil, agentId: String? = nil, env: ApnsEnvironment) {
+    public init(
+        pushToStartToken: String? = nil,
+        activityId: String? = nil,
+        updateToken: String? = nil,
+        agentId: String? = nil,
+        env: ApnsEnvironment,
+        endedActivityId: String? = nil
+    ) {
         self.pushToStartToken = pushToStartToken
         self.activityId = activityId
         self.updateToken = updateToken
         self.agentId = agentId
         self.env = env
+        self.endedActivityId = endedActivityId
     }
 }

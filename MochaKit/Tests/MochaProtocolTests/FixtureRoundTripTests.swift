@@ -109,7 +109,9 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
             "chatItem.toolCall.read-image.json",
         ]
 
-        for name in expected + subagentPhase + imagesPhase {
+        let alertsPhase = ["client.registerLiveActivity.ended.json"]
+
+        for name in expected + subagentPhase + imagesPhase + alertsPhase {
             #expect(ProtocolFixtures.names.contains(name), "Falta a fixture \(name)")
         }
     }
