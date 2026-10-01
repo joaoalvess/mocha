@@ -2057,7 +2057,7 @@ O modelo e os casos estão em `docs/estudos/alertas-live-activity.md`.
 - **Silêncio no Mac (E3)**: a preferência `silenceWhileAtMac` do aparelho (padrão `true`; desligada, toca sempre).
   - Com ela ligada e o Mac `unlocked`, o alerta não toca: no card, o update sai sem `alert`; sem card, o push da §7.1 não sai. O alerta entra na lista de silenciados do aparelho, uma vez por agente e geração.
   - Na transição para `locked`/`unknown`, para cada aparelho com a preferência ligada, toca **um** item: o mais urgente entre os silenciados ainda não vistos (pedido ainda aberto > agente ainda `blocked` > turno concluído com o status cru `done`; no empate, o mais recente). No card, ele volta a não resolvido e sai pelo fluxo normal; sem card, sai o push guardado. O resto da lista é limpo, e um item que tocou ou foi limpo não toca de novo.
-  - Os logs de sombra viram a decisão: `alert <kind> of <agent> gen=<n> channel=card|push lock=<…> ring|silent reason=<…>` e `lock-ring <agent> <kind>` (ou `lock-ring none`).
+  - Os logs de sombra continuam, e a decisão real ganha linhas próprias, por aparelho: `alert <kind> of <agent> [gen=<n>] device <id> silent reason=atMac` e, ao bloquear, `lock-ring <agent> <kind> device <id>` (ou `lock-ring none device <id>`).
 - **Resumo**: `scripts/alerts-summary.sh [--last <tempo>] [--file <log salvo>]` (padrão `24h`) lê o `log show --style compact` do processo `mochad` no subsystem `com.joaoalves.mocha` e conta:
   - alertas `ring`, `silent` e `cancelled`;
   - pushes com e sem `fallback`;
