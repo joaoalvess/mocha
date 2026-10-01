@@ -17,6 +17,11 @@ public struct PendingBubble: Sendable, Hashable, Identifiable {
     }
 }
 
+public struct PendingMatch: Sendable, Hashable {
+    public let bubbleId: PendingBubble.ID
+    public let item: ChatItem
+}
+
 public struct PendingBubbles: Sendable, Hashable {
     public static let confirmationTimeout: TimeInterval = 60
 
@@ -38,11 +43,11 @@ public struct PendingBubbles: Sendable, Hashable {
     }
 
     @discardableResult
-    public mutating func match(_ items: [ChatItem]) -> [PendingBubble.ID] {
-        var matched: [PendingBubble.ID] = []
+    public mutating func match(_ items: [ChatItem]) -> [PendingMatch] {
+        var matched: [PendingMatch] = []
         for item in items {
             guard let index = bubbles.firstIndex(where: { Self.matches($0, item.kind) }) else { continue }
-            matched.append(bubbles.remove(at: index).id)
+            matched.append(PendingMatch(bubbleId: bubbles.remove(at: index).id, item: item))
         }
         return matched
     }

@@ -499,7 +499,7 @@ struct ChatConversation: View {
     }
 
     private func itemsChanged(_ items: [ChatItem]) {
-        switch list.apply(items) {
+        switch list.apply(items, imageCache: session.imageCache) {
         case .replaced:
             listGeneration += 1
             pinToBottom()
