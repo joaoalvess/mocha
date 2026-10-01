@@ -24,7 +24,8 @@ extension SessionHub {
                 pending: pendingRequests,
                 foregroundDevices: activeDevices(),
                 prompts: prompts(of: agents),
-                decisions: pendingDecisions
+                decisions: pendingDecisions,
+                herdrStatuses: Dictionary(TreeComposer.agents(in: baseTree).map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
             )
         )
     }

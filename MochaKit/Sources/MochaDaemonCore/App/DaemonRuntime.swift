@@ -66,6 +66,7 @@ public actor DaemonRuntime {
     private var push: PushService?
     private var pending: PendingStore?
     private var liveActivity: LiveActivityService?
+    private var presence: PresenceMonitor?
     private var uploadCleanup: Task<Void, Never>?
     private var codexProcess: CodexAppServerProcess?
     private var codex: CodexService?
@@ -111,7 +112,8 @@ public actor DaemonRuntime {
             credentials: options.apnsCredentials ?? ApnsCredentials.loader(configFile: paths.configFile),
             transport: options.apnsTransport ?? URLSessionApnsTransport()
         )
-        let liveActivity = LiveActivityService(devices: devices, sender: push)
+        let presence = PresenceMonitor()
+        let liveActivity = LiveActivityService(devices: devices, sender: push, presence: presence)
         await push.attachLiveActivity(liveActivity)
         await hub.attachLiveActivity(liveActivity)
         let codexSocket = paths.codexSocket.fileSystemPath
@@ -152,6 +154,7 @@ public actor DaemonRuntime {
         self.push = push
         self.pending = pending
         self.liveActivity = liveActivity
+        self.presence = presence
         self.hookRouter = hookRouter
         self.codexProcess = codexProcess
         self.codex = codex
@@ -163,6 +166,7 @@ public actor DaemonRuntime {
             async let imagesCleanup: Void = transcriptImages.removeExpiredPeriodically(clock: clock)
             _ = await (uploadsCleanup, imagesCleanup)
         }
+        await presence.start()
         await usage.start()
         await codexProcess.start()
         await codex.start()
@@ -221,6 +225,8 @@ public actor DaemonRuntime {
         hookRouter = nil
         await liveActivity?.shutdown()
         liveActivity = nil
+        await presence?.shutdown()
+        presence = nil
         await push?.shutdown()
         push = nil
         await gateway?.shutdown()
