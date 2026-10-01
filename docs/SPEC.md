@@ -2013,6 +2013,31 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
 - Notificação **local** do app, sem daemon nem protocolo: o sino da folha Uso (§6.3) agenda um `UNNotificationRequest` com `UNTimeIntervalNotificationTrigger` até o `resetsAt` da janela `fiveHour` daquele provedor. Id `usage-reset-<provider>`; título "Janela de 5h zerada", corpo "O limite de 5h do Claude Code renovou." ou "…do Codex renovou.", som padrão. Ligar pede a permissão de notificação se ela ainda não foi pedida.
 - Vale **só o próximo reset**: o horário armado por provedor fica no `UserDefaults` (`usage.resetReminders`), e o sino conta como ligado enquanto esse horário está no futuro. Tocar de novo desliga e remove o pedido pendente. Um `usage` novo com outro `resetsAt` de 5h enquanto armado reagenda para o novo horário.
 
+### §7.7 Presença no Mac (fase alertas)
+
+O modelo e os casos estão em `docs/estudos/alertas-live-activity.md`.
+
+- **Sonda**: o daemon lê `IOConsoleLocked` na raiz do IORegistry (`IORegistryGetRootEntry(kIOMainPortDefault)` + `IORegistryEntryCreateCFProperty`), sem permissão do sistema. É a mesma leitura do `ioreg -n Root -d1`.
+  - `No` → `unlocked`; `Yes` → `locked`.
+  - Com a tampa fechada, o valor continua `Yes`. Na tomada com `caffeinate`, o Mac fica em DarkWake e o daemon segue lendo.
+  - Sem a propriedade → `unknown`, que conta como fora do Mac (falha segura: toca).
+- **Monitor**: um `PresenceMonitor` (actor) único no daemon.
+  - `current()` lê na hora.
+  - Um polling de 3 s avisa as transições aos assinantes (`transitions()`).
+  - Cada mudança vai ao log `presence: locked|unlocked|unknown` (`.notice`, categoria `presence`).
+- **Status cru do Herdr**: a entrada da Live Activity leva `herdrStatuses` (o status do Herdr antes da troca pelo do app-server do Codex). `done` = ainda não visto no Herdr (§3.1). O status cru nunca conta como evento do card.
+- **Modo sombra (E1)**: só log, com `.notice` (o `.info` não fica guardado), na categoria `alerts`. O comportamento não muda.
+  - Para cada alerta novo do tracker do card, o desfecho que o modelo novo daria: `shadow alert <kind> of <agent> gen=<n> channel=card|push lock=<…> would=ring|silent`. O `turnDone` que deixa de valer em menos de 5 s registra `would=cancelled`.
+  - Cada update do card: `card update of <agent> p<5|10> alert=<kind|none> lag=<s>`. O `lag` é o tempo desde o último evento do agente em foco.
+  - Cada push da §7.1: `push <kind> of <agent> device <id> fallback=yes|no`.
+  - Na transição para bloqueado: `shadow lock-ring <agent> <kind>`, para o item mais urgente ainda não visto (pedido aberto, agente `blocked` ou status cru `done`) entre os `would=silent` desde o último desbloqueio. Sem candidato, `shadow lock-ring none`.
+- **Resumo**: `scripts/alerts-summary.sh [--last <tempo>]` (padrão `24h`) lê o `log show` do subsystem `com.joaoalves.mocha` e conta:
+  - alertas `ring`, `silent` e `cancelled`;
+  - pushes com e sem `fallback`;
+  - toques ao bloquear;
+  - updates p10 e p5 por hora;
+  - `lag` mediano e máximo.
+
 ---
 
 ## §8 Aprovações e perguntas (1b)
