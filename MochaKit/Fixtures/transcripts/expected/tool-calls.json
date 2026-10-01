@@ -124,6 +124,9 @@
     {
       "at" : "2026-09-25T15:00:36.811Z",
       "id" : "26e79f0b-33b1-5099-9620-126710a87a65",
+      "imagePaths" : [
+        "/Users/dev/projects/demo-app/docs/tela-login.png"
+      ],
       "inputJSON" : "{\"file_path\":\"/Users/dev/projects/demo-app/docs/tela-login.png\"}",
       "name" : "Read",
       "resultPreview" : "[imagem]",

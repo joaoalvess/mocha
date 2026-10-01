@@ -6,7 +6,7 @@ struct BearerAuthenticator: Sendable {
     let devices: DeviceStore
     let clock: any GatewayClock
 
-    func device(for request: HttpRequest) async -> DeviceRecord? {
+    func device(for request: HttpRequest, marksSeen: Bool = true) async -> DeviceRecord? {
         guard let token = Self.token(in: request.headers) else { return nil }
         let record: DeviceRecord?
         do {
@@ -16,6 +16,7 @@ struct BearerAuthenticator: Sendable {
             return nil
         }
         guard let record else { return nil }
+        guard marksSeen else { return record }
         do {
             try await devices.markSeen(record.id, at: clock.now())
         } catch {

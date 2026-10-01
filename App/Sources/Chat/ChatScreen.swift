@@ -1,3 +1,4 @@
+import CoreGraphics
 import MochaClient
 import MochaProtocol
 import SwiftUI
@@ -31,6 +32,7 @@ struct ChatConversation: View {
     @State private var effortOverride = ControlOverride<EffortLevel>()
     @State private var modeOverride = ControlOverride<PermissionModeTarget>()
     @State private var toast: ControlToastMessage?
+    @State private var imageViewer = ChatImageViewerPresenter()
     @FocusState private var isFieldFocused: Bool
 
     var body: some View {
@@ -47,6 +49,16 @@ struct ChatConversation: View {
                     .padding(.bottom, Metrics.composerBottomInset)
             }
             .overlay { clearConfirmation }
+            .environment(\.chatImageCache, session.imageCache)
+            .environment(\.chatImageViewer, imageViewer)
+            .fullScreenCover(item: $imageViewer.selection) { selection in
+                ImageViewerScreen(path: selection.path, cache: session.imageCache, onClose: imageViewer.close)
+            }
+            .onChange(of: imageViewer.selection) { _, selection in
+                guard selection != nil else { return }
+                dismissComposer()
+                closeModelPicker()
+            }
             .onChange(of: chat?.items ?? [], initial: true) { _, items in
                 itemsChanged(items)
             }
@@ -104,7 +116,7 @@ struct ChatConversation: View {
                     .onDisappear { viewport.rowFrames[row.id] = nil }
                 }
                 ForEach(list.pending.bubbles) { bubble in
-                    PendingBubbleRow(bubble: bubble) { list.discardPending(bubble.id) }
+                    PendingBubbleRow(bubble: bubble, thumbnails: list.pendingThumbnails[bubble.id]) { list.discardPending(bubble.id) }
                         .padding(.horizontal, Metrics.contentMargin)
                         .padding(.bottom, ChatRowSpacing.standard)
                 }
@@ -580,9 +592,20 @@ struct ChatConversation: View {
     private func submit(_ text: String, attachments sent: [ComposerAttachment]) {
         guard let bubble = list.addPending(text, imageCount: sent.count) else { return }
         pinToBottom()
+        let images = sent.compactMap(\.image)
+        let thumbnails = Task { await Self.thumbnails(of: images) }
+        let cache = session.imageCache
+        if !images.isEmpty {
+            Task { list.setPendingThumbnails(await thumbnails.value.compactMap { $0 }, for: bubble.id) }
+        }
         Task {
             do {
-                try await session.sendPrompt(text, images: sent.compactMap(\.image))
+                try await session.sendPrompt(text, images: images) { @MainActor paths in
+                    for (path, thumbnail) in zip(paths, await thumbnails.value) {
+                        guard let thumbnail else { continue }
+                        cache.seed(path: path, image: thumbnail, maxPixelSize: ChatImageCache.thumbnailPixelSize)
+                    }
+                }
             } catch AppSessionError.uploadFailed {
                 list.rejectPending(bubble.id)
                 restoreComposer(text, attachments: sent)
@@ -590,6 +613,11 @@ struct ChatConversation: View {
                 list.rejectPending(bubble.id)
             }
         }
+    }
+
+    @concurrent
+    private nonisolated static func thumbnails(of images: [PromptImage]) async -> [CGImage?] {
+        images.map { ImageReduction.thumbnail(of: $0.data, maximumPixelSize: ChatImageCache.thumbnailPixelSize) }
     }
 
     private func restoreComposer(_ text: String, attachments restored: [ComposerAttachment]) {

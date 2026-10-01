@@ -34,7 +34,10 @@ extension WorkspaceNode {
 
 extension ChatItem {
     func shifted(by interval: TimeInterval) -> ChatItem {
-        ChatItem(id: id, at: at.addingTimeInterval(interval), kind: kind.shifted(by: interval))
+        var item = self
+        item.at = at.addingTimeInterval(interval)
+        item.kind = kind.shifted(by: interval)
+        return item
     }
 }
 

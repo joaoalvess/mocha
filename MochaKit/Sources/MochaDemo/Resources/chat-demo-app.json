@@ -210,13 +210,29 @@
    "at": "2026-09-25T10:51:37.386Z",
    "type": "userPrompt",
    "text": "o toggle de notificações ficou desalinhado com o picker, olha o print",
-   "imageCount": 1
+   "imageCount": 1,
+   "imagePaths": [
+    "/Users/dev/Library/Application Support/Mocha/uploads/0b7c1e2a-5d4f-4a8b-9c3e-2f1a6b7c8d9e.jpg"
+   ]
   },
   {
    "id": "5712f59c-c4df-583a-8000-1ccfad9279d0",
    "at": "2026-09-25T10:51:39.589Z",
    "type": "thinking",
    "text": "Pelo print, o Toggle está com padding extra. Deve ser o .padding() herdado do Form customizado."
+  },
+  {
+   "id": "3c8e5f1a-7b2d-5e94-a6c1-8d4f2b9e7a35",
+   "at": "2026-09-25T10:51:41.902Z",
+   "type": "toolCall",
+   "toolUseId": "toolu_01a7c3e9b5d2f8a4c6e1b3d5",
+   "name": "Read",
+   "summary": "docs/design/ajustes.png",
+   "inputJSON": "{\"file_path\":\"/Users/dev/projects/demo-app/docs/design/ajustes.png\"}",
+   "status": "succeeded",
+   "imagePaths": [
+    "/Users/dev/projects/demo-app/docs/design/ajustes.png"
+   ]
   },
   {
    "id": "bb1540c4-7c76-5156-b857-34d864598f70",
@@ -255,7 +271,10 @@
    "id": "c9c99bf7-66b9-5628-bd22-8d1bcea7479f",
    "at": "2026-09-25T10:52:08.870Z",
    "type": "assistantText",
-   "markdown": "Era um `.padding(.horizontal)` sobrando no `Toggle`. Tirei e agora ele alinha com o `Picker`, como no resto do `Form`."
+   "markdown": "Era um `.padding(.horizontal)` sobrando no `Toggle`. Tirei e agora ele alinha com o `Picker`, como no resto do `Form`.\n\nPrint do simulador depois da correção: `build/prints/ajustes-depois.png`.",
+   "imagePaths": [
+    "/Users/dev/projects/demo-app/build/prints/ajustes-depois.png"
+   ]
   },
   {
    "id": "fb9da1f7-6e33-5283-8489-5433147362ad",

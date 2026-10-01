@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import MochaClient
 import MochaProtocol
@@ -8,6 +9,7 @@ import Observation
 final class ChatListModel {
     private(set) var rows: [ChatRow] = []
     private(set) var pending = PendingBubbles()
+    private(set) var pendingThumbnails: [PendingBubble.ID: [CGImage]] = [:]
     private(set) var expandedRowIds: Set<String> = []
 
     @ObservationIgnored private var itemIds: [String] = []
@@ -29,9 +31,12 @@ final class ChatListModel {
         }
         switch change {
         case .appended(let appended):
-            pending.match(appended)
+            for id in pending.match(appended) {
+                pendingThumbnails[id] = nil
+            }
         case .replaced:
             pending.removeAll()
+            pendingThumbnails.removeAll()
         case .unchanged, .prepended:
             break
         }
@@ -40,10 +45,16 @@ final class ChatListModel {
 
     func pageReplaced() {
         pending.removeAll()
+        pendingThumbnails.removeAll()
     }
 
     func addPending(_ text: String, imageCount: Int) -> PendingBubble? {
         pending.add(text, imageCount: imageCount, at: Date())
+    }
+
+    func setPendingThumbnails(_ thumbnails: [CGImage], for id: PendingBubble.ID) {
+        guard pending.bubbles.contains(where: { $0.id == id }) else { return }
+        pendingThumbnails[id] = thumbnails
     }
 
     func rejectPending(_ id: PendingBubble.ID) {
@@ -51,7 +62,9 @@ final class ChatListModel {
     }
 
     func discardPending(_ id: PendingBubble.ID) {
-        pending.discard(id, at: Date())
+        if pending.discard(id, at: Date()) {
+            pendingThumbnails[id] = nil
+        }
     }
 
     func isExpanded(_ rowId: String) -> Bool {

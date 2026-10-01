@@ -52,6 +52,7 @@ O visual de todas as telas está no mock aprovado, `docs/design/mock.html`, com 
 | Live Activity agregada / Dynamic Island | 1b |
 | Ditado por voz on-device | 1b |
 | Anexar imagem ao prompt | 1a-core |
+| Fotos enviadas e imagens do Claude (`Read` e caminhos citados) como miniaturas no chat, com tela cheia, zoom e compartilhar | imagens |
 | Abrir nova tab com Claude num workspace existente | 1a-final |
 | Card vivo de cada subagente (`Agent`) no chat, que abre o transcript do subagente só de leitura | subagentes |
 | Selo de subagentes rodando no card da Home e lista de subagentes no Detalhe do agente | subagentes |
@@ -335,7 +336,18 @@ As regras são avaliadas em ordem; vale a primeira que casar.
 | `system`, outro `subtype` | — | ignorado e contado |
 | outro `type` | — | ignorado e contado |
 
-**Marcadores de imagem do Mocha** (§6.5): no texto de todo `userPrompt` (content string, blocos `text` ou `prompt` do `queued_command`), cada linha que é exatamente `[imagem: <caminho>]`, com `<caminho>` absoluto dentro de `~/Library/Application Support/Mocha/uploads/`, sai do `text` e soma 1 no `imageCount`. As linhas vazias que sobram no fim do texto são aparadas. Um marcador com caminho fora de `uploads/` fica no texto.
+**Marcadores de imagem do Mocha** (§6.5): no texto de todo `userPrompt` (content string, blocos `text` ou `prompt` do `queued_command`), cada linha que é exatamente `[imagem: <caminho>]`, com `<caminho>` absoluto dentro de `~/Library/Application Support/Mocha/uploads/`, sai do `text`, soma 1 no `imageCount` e põe o caminho no `imagePaths` do item, na ordem (fase imagens). As linhas vazias que sobram no fim do texto são aparadas. Um marcador com caminho fora de `uploads/` fica no texto.
+
+**Texto colado** (`PastedContent`, `MochaTranscript`): o Claude Code grava o texto colado de várias linhas, inclusive o que o Mocha envia pelo Herdr, entre uma linha `<pasted_content id="…">` e uma `</pasted_content id="…">`. Antes dos marcadores, as linhas que são só uma dessas tags saem do texto do `userPrompt`, e as quebras de linha que sobram nas pontas são aparadas. Assim a bolha definitiva tem o mesmo texto da pendente. Uma tag no meio de uma linha fica.
+
+**Imagens do Claude** (fase imagens, §6.5): o `imagePaths` (§5.2) recebe o que o Claude abriu ou citou:
+- **`Read` de imagem**: um `toolCall` de `Read` cujo `file_path` é absoluto, termina numa extensão de imagem e não fica em `uploads/` ganha `imagePaths = [file_path]`. Do `uploads/` fica de fora porque essa foto já aparece na bolha do usuário.
+- **Menções no texto**: um `assistantText` ganha os caminhos de imagem citados no markdown (`ImageMentions`, `MochaTranscript`):
+  - Candidatos: o conteúdo de cada span de código inline, cada alvo `](…)` (inclusive `![…](…)`, `<…>` e título) e cada token separado por espaço que termina numa extensão de imagem. Os blocos cercados por ` ``` ` ou `~~~` e as URLs com `://` ficam de fora. Saem das pontas do candidato `(`, aspas e `*` no começo e `.,;:!?)`, aspas e `*` no fim, e assim `**docs/a.png**` e "(veja docs/a.png)" valem. Uma extensão sem nome antes do ponto (`.png`) não é imagem.
+  - Resolução: `/…` como está; `~/…` a partir do home; o resto, inclusive um nome de arquivo sem `/`, a partir do `cwd` da linha. Sem `cwd`, o candidato relativo cai.
+  - O caminho é padronizado só pelo texto (`URL(filePath:).standardized`, sem ler o disco), os repetidos saem na ordem de aparição, e ficam no máximo 6 por item.
+- Extensões de imagem: `png`, `jpg`, `jpeg`, `gif`, `webp`, `heic` e `heif`, sem diferenciar maiúscula e minúscula.
+- O parser não confere se o arquivo existe. Quem confere é o daemon, ao enviar o item (§4.1, `SessionHub`), e tira de `imagePaths` os caminhos que não são arquivo regular. Um symlink para arquivo regular conta como arquivo, e qualquer erro (inclusive EPERM) conta como ausente.
 
 `toolCall.summary` (uma linha, até 120 caracteres):
 
@@ -594,11 +606,11 @@ Todos são `actor`s ou tipos `Sendable`, com Swift 6 e strict concurrency comple
 | `HerdrBridge` | Snapshot inicial, inscrições e reconexão (§3.1.3), árvore derivada (§3.1.4), comandos (prompt, Esc, teclas, nova tab) |
 | `TranscriptStore` | Resolução de arquivo, índice de offsets, páginas, acompanhamento, deltas por sessão |
 | `SubagentStore` | Subagentes e workflows das sessões observadas: estado, métricas, contagem dos que rodam e resolução do arquivo do subagente (§3.5) |
-| `SessionHub` | Clientes conectados, chats abertos por cliente, primeiro plano por cliente, broadcast |
+| `SessionHub` | Clientes conectados, chats abertos por cliente, primeiro plano por cliente, broadcast. Antes de enviar itens de chat do Claude, tira de `imagePaths` os caminhos que não são arquivo regular (§3.2, fase imagens) |
 | `UsageMonitor` | Cache de uso do plugin e plano da conta (§3.4); contexto usado por sessão |
 | `SessionArchive` | Sessões encerradas e arquivamento pelo usuário, persistidos em `sessions.json` (§4.9) |
 | `HttpServer` | HTTP/1.1 mínimo sobre `NWListener` (§4.4) |
-| `Gateway` | Rotas do app sobre o `HttpServer`: WebSocket `/v1` e HTTP de ações e upload (§5) |
+| `Gateway` | Rotas do app sobre o `HttpServer`: WebSocket `/v1` e HTTP de ações, upload e imagem (§5) |
 | `HookServer` | Rotas `/hooks/<evento>` no listener local, validação do segredo, tradução em eventos internos |
 | `PendingStore` | Pedidos pendentes (1b), timeouts e resolução |
 | `PushService` | APNs: JWT, alertas, Live Activity, escolha de ambiente (§7) |
@@ -1217,6 +1229,7 @@ public struct ChatItem: Codable, Sendable, Identifiable {
     public var id: String
     public var at: Date
     public var kind: ChatItemKind
+    public var imagePaths: [String]        // fase imagens: caminhos absolutos de imagem no Mac (§3.2); omitido quando vazio
 }
 
 public struct ChatMeta: Codable, Sendable {
@@ -1295,12 +1308,14 @@ Enums com valor associado **não** usam a codificação sintetizada do Swift (`{
 - **`ChatTarget`** é achatado no payload que o carrega: `.agent(id)` vira `"agentId": id`, `.session(id)` vira `"sessionId": id`, e `.subagent(sessionId, agentId)` vira `"sessionId": sessionId, "subagentId": agentId`. Na decodificação, exatamente um entre `agentId` e `sessionId` precisa existir, e `subagentId` só vale junto com `sessionId`; os dois, nenhum, ou `subagentId` sem `sessionId` é erro de decodificação.
 - `ArchiveReason` e `UsageWindowKind` com valor desconhecido decodificam como `.unknown`. `AgentSummary.preview` e `AgentSummary.activity` inválidos (autor ou status desconhecido) decodificam como `nil`, sem derrubar a árvore. `windows` de `usage` e `sessions` de `archived` são listas tolerantes.
 - `SubagentStatus`, `WorkflowStatus` e `WorkflowPhaseStatus` com valor desconhecido são erro de decodificação do item que os carrega (o item sai da lista tolerante). `ChatMeta.subagent` inválido decodifica como `nil`.
+- `ChatItem.imagePaths` (fase imagens) vai no mesmo nível de `id` e `at`, só quando não está vazio, e decodifica como `[]` quando falta. Ele guarda os uploads do `userPrompt` (o `imageCount` continua sendo o total, inclusive as imagens sem arquivo), os caminhos citados num `assistantText` e o `file_path` de um `toolCall` de `Read` de imagem. Os caminhos que o app recebe existem no Mac no momento do envio (§3.2). O campo é aditivo: um app antigo o ignora.
 - Os campos e casos da fase subagentes são aditivos e o `v` continua 1: um app antigo recebe `subagent`, `workflow` e `task` como `unsupported`, e ignora `runningSubagents`, `ChatMeta.subagent` e a mensagem `subagentList`. O contrário não é suportado: o app da fase exige o `mochad` da mesma fase, e os dois sobem juntos.
 
 Exemplos canônicos (as fixtures do WP0.2 seguem exatamente estes formatos):
 
 ```json
 {"id":"8f1c…","at":"2026-09-25T15:44:34.551Z","type":"userPrompt","text":"roda os testes","imageCount":0}
+{"id":"8f2e…","at":"2026-09-25T15:46:02.000Z","type":"userPrompt","text":"olha o print","imageCount":1,"imagePaths":["/Users/joaoalves/Library/Application Support/Mocha/uploads/0B7C1E2A-5D4F-4A8B-9C3E-2F1A6B7C8D9E.jpg"]}
 {"id":"9a2d…","at":"2026-09-25T15:44:40.120Z","type":"assistantText","markdown":"Rodando `scripts/test.sh`…"}
 {"id":"b7e0…","at":"2026-09-25T15:44:41.000Z","type":"toolCall","toolUseId":"toolu_01H3…","name":"Bash","summary":"scripts/test.sh","inputJSON":"{\"command\":\"scripts/test.sh\"}","status":"succeeded","resultPreview":"All tests passed"}
 {"id":"c1f4…","at":"2026-09-25T15:45:10.000Z","type":"turnFooter","durationMs":45000}
@@ -1467,6 +1482,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `GET /v1` (upgrade) | WebSocket | 1a-core |
 | `POST /v1/respond` | Corpo `{requestId, response}` (mesmo JSON de §5.2.1). Usado pelas ações de notificação sem abrir o app. 200 com `{}`, 404 se o pedido não existe mais | 1b |
 | `POST /v1/upload` | Corpo binário com `Content-Length` (no app, `URLSession.upload(for:from:)` com `Data`; corpo em stream vira chunked no Serve e recebe 411), `Content-Type: image/jpeg`, `image/png` ou `image/heic`. Resposta 200 `UploadResponse` (`{"path": "/Users/…/uploads/<uuid>.<ext>"}`, `MochaProtocol`). Erros: 401 sem Bearer válido, 411 sem `Content-Length`, 413 acima de 20 MiB (o `HttpServer` barra antes do handler, então vem antes do 401), 415 com outro `Content-Type`, 400 com corpo vazio. O arquivo é gravado atômico com 0600 em `uploads/` (0700), com nome UUID gerado pelo daemon e extensão pelo `Content-Type` (`jpg`, `png`, `heic`) | 1a-core |
+| `GET /v1/image?path=<caminho>&max=<px>` | Imagem do Mac para o chat (§6.5). `path` é absoluto (percent-encoded na query); `max` é o lado maior em pixels, de 64 a 4.096, padrão 2.048. A imagem é sempre reencodada pelo ImageIO, com a orientação aplicada, o lado maior até `min(max, lado maior da origem)` (sem ampliar e sem usar a miniatura EXIF embutida) e no máximo 2 decodificações ao mesmo tempo. Resposta 200 com `Content-Type: image/jpeg` (qualidade 0,85) ou `image/png` quando a imagem tem alfa; os bytes originais nunca saem. Erros, nesta ordem: 401 sem Bearer válido (a rota não atualiza o `lastSeenAt`, para não regravar o `devices.json` a cada miniatura); 400 com `path` ausente, relativo, com NUL ou com segmento `.`/`..`, ou `max` fora do intervalo; 415 com extensão fora de `png`, `jpg`, `jpeg`, `gif`, `webp`, `heic`, `heif` (antes de olhar o disco, para a rota não revelar se existe um arquivo que não é imagem); 404 se `path` não é arquivo regular ou não pode ser lido (inclusive EPERM); 413 com origem acima de 50 MiB; 415 com imagem que o ImageIO não decodifica. Um pedido cancelado enquanto espera vaga de decodificação responde 503 | imagens |
 | `POST /v1/live-activity` | Corpo `LiveActivityRegistration` (mesmo JSON do `registerLiveActivity`), com `Authorization: Bearer`. Usado pelo app acordado em background por push-to-start, sem WebSocket aberto, para entregar o token de update da atividade nova. 200 com `{}` | 1b |
 
 ---
@@ -1477,7 +1493,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 
 - SwiftUI, iOS 26+, só iPhone, só retrato na 1a.
 - Estado de UI em classes `@Observable @MainActor`.
-- Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Home/`, `AgentDetail/`, `Usage/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2) e `Debug/` (telas de preview e sondas dos spikes, só em Debug). Na fase subagentes, `Chat/` ganha os cards `SubagentCard`, `WorkflowCard` e `TaskCard` e o chat de subagente (`ChatScreen(target: .subagent)`); `Home/`, o selo de subagentes; e `AgentDetail/`, a lista SUBAGENTES (§6.3).
+- Módulos em `App/Sources/`: `AppShell/` (raiz, navegação, deep links), `DesignSystem/`, `Connection/` (`KeychainTokenStore` e ligação do `MochaClient` à UI), `Pairing/`, `Home/`, `AgentDetail/`, `Usage/`, `Drawer/`, `Chat/`, `Composer/`, `Markdown/`, `Settings/`, `Notifications/`, `Inbox/` (1b), `LiveActivity/` (1b), `Voice/` (1b), `Terminal/` (fase 2), `ImageViewer/` (fase imagens: tela cheia de imagem, §6.5) e `Debug/` (telas de preview e sondas dos spikes, só em Debug). Na fase subagentes, `Chat/` ganha os cards `SubagentCard`, `WorkflowCard` e `TaskCard` e o chat de subagente (`ChatScreen(target: .subagent)`); `Home/`, o selo de subagentes; e `AgentDetail/`, a lista SUBAGENTES (§6.3).
 - Lógica pura de apresentação, testável no macOS, fica em `MochaClient/Presentation/`: seções da Home, ritmo do uso, tempos relativos ("agora", "há 4 min", "ontem"), abreviação do modelo e agrupamento de ferramentas.
 - A lógica de conexão fica no target `MochaClient` do pacote (testável no macOS): `ConnectionManager` (actor) implementa `ServerConnection` sobre `URLSessionWebSocketTask`, com backoff e um `TokenStore` injetado. O app entrega o `KeychainTokenStore`.
 - O WebSocket fica aberto enquanto o app está em primeiro plano. Ele fecha com 1001 quando o `scenePhase` vira `.background` (inclui bloquear a tela) e reabre em `.active`. O `.inactive` (Central de Controle, Central de Notificações) não fecha. A troca de rede também não fecha (§2.3).
@@ -1799,7 +1815,16 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 - As imagens anexadas aparecem como miniaturas quadradas numa faixa acima do campo, cada uma com um "x" para remover. Com imagem anexada, enviar fica habilitado mesmo sem texto.
 - Ao enviar: cada imagem vai por `POST /v1/upload` (§5.5), em sequência, com `Authorization: Bearer <deviceToken>` e a base `https://<host do pareamento>`. Depois de todos os uploads, o app manda um `sendPrompt` com o texto do campo seguido de uma linha `[imagem: <path>]` por imagem, na ordem das miniaturas. O Claude Code lê a imagem pelo caminho.
 - Se um upload falhar, nada é enviado: o texto e as miniaturas ficam no composer e o erro aparece como na falha de `sendPrompt`.
-- A bolha do usuário (pendente e definitiva) mostra o texto sem os marcadores e uma linha "📎 1 imagem" ou "📎 N imagens". O daemon tira os marcadores do texto pela regra da §3.2.
+- A bolha do usuário (pendente e definitiva) mostra o texto sem os marcadores. O daemon tira os marcadores do texto pela regra da §3.2. Na 1a-core, as imagens viravam só uma linha "📎 1 imagem" ou "📎 N imagens"; a fase imagens trocou essa linha pelas miniaturas abaixo.
+
+**Imagens no chat (fase imagens)**: sem mock nem capturas, por decisão do João. A referência são os prints do Moshi em `docs/referencias/moshi/` e os componentes existentes, e a conferência é no iPhone.
+- **Bolha do usuário**: as imagens do `imagePaths` (§5.2) aparecem como miniaturas acima do balão, na mesma linha da bolha, alinhadas à direita. O balão aparece com texto ou com imagens sem arquivo (`imageCount - imagePaths.count > 0`); essas continuam na linha "📎 N imagens" (coladas no terminal, uploads com mais de 7 dias).
+- **Bolha pendente**: mostra as miniaturas locais (600 px, geradas fora da main thread no envio). Logo depois dos uploads, antes do `sendPrompt`, o app guarda essas miniaturas no cache de imagens pelo caminho devolvido pelo upload, e a bolha definitiva aparece sem piscar.
+- **Imagens do Claude**: um `Read` de imagem mostra uma faixa de miniaturas, sempre visível, abaixo do card do grupo de ferramentas, alinhada à esquerda e fora da área de toque do card. Um `assistantText` com imagens mostra a mesma faixa abaixo do último pedaço do texto. As miniaturas ficam dentro das linhas que já existem, sem linha nova no chat.
+- **Uma vez por turno**: entre um `userPrompt` e o próximo, cada caminho aparece só na primeira vez. O upload citado pelo Claude e o print lido e depois citado não se repetem.
+- **Miniatura**: quadrado de tamanho fixo, com fundo `toolCard`, raio contínuo de 12 pt e a imagem em `scaledToFill`. 1 imagem fica num quadrado de 200 pt; de 2 em diante, quadrados de 96 pt em linhas de até 3. Enquanto carrega, aparece um `ProgressView`; se falhar, o ícone `photo` em cinza.
+- **Carregamento**: `GET /v1/image` (§5.5), com 600 px para a miniatura e 4.096 px para a tela cheia, até 4 pedidos simultâneos. O cache fica em memória (LRU por bytes, com consulta síncrona na main thread) e junta os pedidos em voo para o mesmo caminho e tamanho. No demo, um carregador simulado desenha um gradiente a partir do caminho.
+- **Tela cheia**: o toque numa miniatura abre a imagem num `fullScreenCover` preto, com zoom por pinça e duplo toque, arrastar para baixo ou "x" para fechar, e um botão de compartilhar (`ShareLink`, JPEG) que oferece salvar em Fotos (`NSPhotoLibraryAddUsageDescription`).
 
 ---
 
@@ -2091,6 +2116,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 - O `HookServer` exige `X-Mocha-Hook-Secret` e escuta só em `127.0.0.1`.
 - A `.p8` do APNs fica no Keychain do Mac e nunca vai para disco fora dele nem para o log.
 - Uploads são aceitos só de aparelho autenticado, com limite de 20 MB, e o nome é gerado pelo daemon (UUID). O caminho enviado pelo cliente é ignorado.
+- `GET /v1/image` (fase imagens) atende só aparelho autenticado e só serve arquivo regular com extensão de imagem, sempre reencodado pelo ImageIO: um arquivo que não decodifica como imagem não sai, e os bytes originais nunca saem (§5.5).
 - `sendPrompt` e `slash` não viram comandos de shell no Mac: vão só como texto para o agente via Herdr.
 
 ---
@@ -2099,7 +2125,7 @@ Não usadas pelo daemon. Registradas no S3 (Claude Code 2.1.283) para diagnósti
 
 | Dependência | Onde | Licença | Fase |
 |---|---|---|---|
-| Frameworks da Apple (SwiftUI, Network, CryptoKit, Security, ActivityKit, UserNotifications, Speech, VisionKit, PhotosUI, CoreImage) | app e daemon | — | todas |
+| Frameworks da Apple (SwiftUI, Network, CryptoKit, Security, ActivityKit, UserNotifications, Speech, VisionKit, PhotosUI, CoreImage, ImageIO) | app e daemon | — | todas |
 | `swift-markdown` (github.com/swiftlang/swift-markdown), `exactVersion: 0.9.0` | app (`Markdown/`) | Apache-2.0 | 1a-core |
 | `swift-cmark` e `swift-docc-plugin`, transitivas do `swift-markdown` | app | BSD-2 / Apache-2.0 | 1a-core |
 | JetBrains Mono 2.304 (github.com/JetBrains/JetBrainsMono), pesos Regular, Italic, Bold e BoldItalic em `App/Resources/Fonts/`, com a `OFL.txt`. Motivo: é a fonte mono dos prints (§6.2) | app (`DesignSystem/`) | OFL-1.1 | 1a-core |
@@ -2138,6 +2164,7 @@ O markdown do chat é renderizado por um renderizador próprio sobre a AST do `s
 | O cache de uso é privado do plugin `herdr-agent-usage` e pode mudar de formato ou deixar de existir | Leitura tolerante de só quatro campos (§3.4), fixture sintética versionada, contexto com reserva pelo transcript, pílula de uso escondida sem cache e item Uso no `doctor` |
 | O plano e a conta vêm de chaves de `~/.claude.json` inferidas, sem leitura real pelos agentes | Só `organizationRateLimitTier` e `emailAddress`, com fallback para "Claude" sem plano; conferência do João no WP-X1 |
 | Os arquivos de subagentes e workflows (`meta.json`, `journal.jsonl`, `wf_*.json`) e a notificação de tarefa são internos do Claude Code e mudam sem aviso | Estado derivado de mais de um sinal, com o mais recente valendo (§3.5.2), leitura tolerante, fases com reserva pelo journal (§3.5.3), fixtures redigidas versionadas e o aviso de versão do `doctor` (§3.2.2) |
+| O `mochad` (LaunchAgent) lendo uma imagem em `~/Desktop`, `~/Documents` ou `~/Downloads` dispara o pedido de privacidade do macOS ou recebe EPERM | EPERM conta como arquivo ausente: a miniatura não aparece (§3.2). O pedido aparece uma vez no Mac; o checklist da fase imagens confere com um print do `~/Desktop` |
 | A janela de contexto do modelo é inferida pelo nome | Primeiro o `used_percent` do plugin, que vem do próprio Claude Code; a tabela de `ContextWindow` é só reserva |
 
 ---

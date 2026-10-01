@@ -8,10 +8,6 @@ public struct PendingBubble: Sendable, Hashable, Identifiable {
     public let sentAt: Date
     public fileprivate(set) var isRejected = false
 
-    public var displayText: String {
-        PromptImages.bubbleText(text, imageCount: imageCount)
-    }
-
     public var confirmationDeadline: Date {
         sentAt.addingTimeInterval(PendingBubbles.confirmationTimeout)
     }

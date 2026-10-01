@@ -5,6 +5,7 @@ public struct ToolGroup: Sendable, Hashable, Identifiable {
     public let itemIds: [String]
     public let toolName: String
     public let calls: [ToolCall]
+    public internal(set) var imagePaths: [String] = []
 
     public var id: String { itemIds.first ?? toolName }
     public var displayName: String { ToolPresentation.displayName(for: toolName) }
@@ -69,10 +70,15 @@ public enum ToolGrouping {
             case .toolCall(let call):
                 if case .tools(let group) = entries.last, group.toolName == call.name {
                     entries[entries.count - 1] = .tools(
-                        ToolGroup(itemIds: group.itemIds + [item.id], toolName: group.toolName, calls: group.calls + [call])
+                        ToolGroup(
+                            itemIds: group.itemIds + [item.id],
+                            toolName: group.toolName,
+                            calls: group.calls + [call],
+                            imagePaths: unique(group.imagePaths + item.imagePaths)
+                        )
                     )
                 } else {
-                    entries.append(.tools(ToolGroup(itemIds: [item.id], toolName: call.name, calls: [call])))
+                    entries.append(.tools(ToolGroup(itemIds: [item.id], toolName: call.name, calls: [call], imagePaths: unique(item.imagePaths))))
                 }
             case .thinking(let text):
                 let texts = text.map(trimmed).flatMap { $0.isEmpty ? nil : [$0] } ?? []
@@ -114,5 +120,10 @@ public enum ToolGrouping {
 
     private static func trimmed(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func unique(_ paths: [String]) -> [String] {
+        var seen: Set<String> = []
+        return paths.filter { seen.insert($0).inserted }
     }
 }

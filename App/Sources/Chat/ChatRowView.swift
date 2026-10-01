@@ -17,14 +17,27 @@ struct ChatRowView: View {
     @ViewBuilder
     private var content: some View {
         switch row.content {
-        case .userPrompt(let text):
-            UserBubble(text: text)
+        case .userPrompt(let text, let imagePaths):
+            if imagePaths.isEmpty {
+                UserBubble(text: text)
+            } else {
+                UserBubble(text: text) {
+                    ChatImageStrip(paths: imagePaths, alignment: .trailing)
+                }
+            }
         case .slashCommand(let label, let output):
             SlashCommandRow(label: label, output: output, isExpanded: isExpanded, onToggle: onToggle)
         case .sessionStart(let date):
             ChatNoticeText(text: SessionStartNotice.text(at: date, model: model))
-        case .markdown(let markdown):
-            MarkdownView(markdown: markdown)
+        case .markdown(let markdown, let imagePaths):
+            if imagePaths.isEmpty {
+                MarkdownView(markdown: markdown)
+            } else {
+                VStack(alignment: .leading, spacing: ChatImageLayout.contentSpacing) {
+                    MarkdownView(markdown: markdown)
+                    ChatImageStrip(paths: imagePaths, alignment: .leading)
+                }
+            }
         case .thinking(let run):
             ThinkingRow(run: run, isExpanded: isExpanded, onToggle: onToggle)
         case .tools(let group):
@@ -107,6 +120,15 @@ struct ToolGroupRow: View {
     let onToggle: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: ChatImageLayout.contentSpacing) {
+            card
+            if !group.imagePaths.isEmpty {
+                ChatImageStrip(paths: group.imagePaths, alignment: .leading)
+            }
+        }
+    }
+
+    private var card: some View {
         Button(action: onToggle) {
             ToolCallCard(
                 icon: group.icon,

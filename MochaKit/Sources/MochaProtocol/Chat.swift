@@ -139,15 +139,17 @@ public struct ChatItem: Codable, Sendable, Hashable, Identifiable {
     public var id: String
     public var at: Date
     public var kind: ChatItemKind
+    public var imagePaths: [String]
 
-    public init(id: String, at: Date, kind: ChatItemKind) {
+    public init(id: String, at: Date, kind: ChatItemKind, imagePaths: [String] = []) {
         self.id = id
         self.at = at
         self.kind = kind
+        self.imagePaths = imagePaths
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, at
+        case id, at, imagePaths
     }
 
     public init(from decoder: any Decoder) throws {
@@ -155,12 +157,16 @@ public struct ChatItem: Codable, Sendable, Hashable, Identifiable {
         id = try container.decode(String.self, forKey: .id)
         at = try container.decodeProtocolDate(forKey: .at)
         kind = try ChatItemKind(from: decoder)
+        imagePaths = try container.decodeIfPresent([String].self, forKey: .imagePaths) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encodeProtocolDate(at, forKey: .at)
+        if !imagePaths.isEmpty {
+            try container.encode(imagePaths, forKey: .imagePaths)
+        }
         try kind.encode(to: encoder)
     }
 }

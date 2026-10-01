@@ -92,6 +92,7 @@ final class AppSession {
 
     @ObservationIgnored private let connection: any ServerConnection
     @ObservationIgnored private let uploader: any ImageUploading
+    @ObservationIgnored let imageCache: ChatImageCache
     @ObservationIgnored private var replyContinuations: [String: CheckedContinuation<ServerMessage, any Error>] = [:]
     @ObservationIgnored private var nextRequestNumber = 0
     @ObservationIgnored private var consumerTasks: [Task<Void, Never>] = []
@@ -105,9 +106,15 @@ final class AppSession {
     @ObservationIgnored private var webServersGeneration = 0
     @ObservationIgnored let ssh = SSHSession()
 
-    init(connection: any ServerConnection, uploader: any ImageUploading, pairingDates: any PairingDateStore = InMemoryPairingDateStore()) {
+    init(
+        connection: any ServerConnection,
+        uploader: any ImageUploading,
+        imageLoader: any ImageLoading,
+        pairingDates: any PairingDateStore = InMemoryPairingDateStore()
+    ) {
         self.connection = connection
         self.uploader = uploader
+        imageCache = ChatImageCache(loader: imageLoader)
         self.pairingDates = pairingDates
         pairedAt = pairingDates.pairedAt
     }
@@ -407,12 +414,12 @@ final class AppSession {
         try await request(.sendPrompt(agentId: try visibleAgentId(), text: text))
     }
 
-    func sendPrompt(_ text: String, images: [PromptImage]) async throws {
+    func sendPrompt(_ text: String, images: [PromptImage], onUploaded: @Sendable ([String]) async -> Void = { _ in }) async throws {
         guard !images.isEmpty else { return try await sendPrompt(text) }
         let agentId = try visibleAgentId()
         guard connectionState == .connected else { throw AppSessionError.notConnected }
         do {
-            try await ImagePromptSender.send(text: text, images: images, uploader: uploader) { prompt in
+            try await ImagePromptSender.send(text: text, images: images, uploader: uploader, onUploaded: onUploaded) { prompt in
                 _ = try await self.request(.sendPrompt(agentId: agentId, text: prompt))
             }
         } catch let failure as ImagePromptUploadFailure {

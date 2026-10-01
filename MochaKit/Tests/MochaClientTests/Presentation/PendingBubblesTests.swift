@@ -23,16 +23,16 @@ struct PendingBubblesTests {
         #expect(pending.bubbles.map(\.text) == ["roda os testes"])
     }
 
-    @Test func bubbleWithImagesAcceptsAnEmptyTextAndShowsTheAttachmentLine() throws {
+    @Test func bubbleWithImagesAcceptsAnEmptyText() throws {
         var pending = PendingBubbles()
         let imageOnlyAdded = pending.add(" ", imageCount: 2, at: Self.sentAt)
         let withTextAdded = pending.add("olha isso ", imageCount: 1, at: Self.sentAt)
         let imageOnly = try #require(imageOnlyAdded)
         let withText = try #require(withTextAdded)
         #expect(imageOnly.text.isEmpty)
-        #expect(imageOnly.displayText == "📎 2 imagens")
-        #expect(withText.displayText == "olha isso\n📎 1 imagem")
-        #expect(pending.add("texto", at: Self.sentAt)?.displayText == "texto")
+        #expect(imageOnly.imageCount == 2)
+        #expect(withText.text == "olha isso")
+        #expect(withText.imageCount == 1)
     }
 
     @Test func promptWithImagesMatchesByTextAndImageCount() {

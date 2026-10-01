@@ -5,10 +5,10 @@ import MochaProtocol
 
 struct ChatRow: Identifiable, Equatable {
     enum Content: Equatable {
-        case userPrompt(String)
+        case userPrompt(text: String, imagePaths: [String])
         case slashCommand(label: String, output: String?)
         case sessionStart(Date)
-        case markdown(String)
+        case markdown(String, imagePaths: [String])
         case thinking(ThinkingRun)
         case tools(ToolGroup)
         case turnFooter(durationMs: Int)
@@ -71,7 +71,7 @@ final class ChatRowBuilder {
     func rows(for items: [ChatItem]) -> [ChatRow] {
         var rows: [ChatRow] = []
         rows.reserveCapacity(items.count)
-        for entry in ToolGrouping.entries(from: items) {
+        for entry in ToolGrouping.entries(from: ChatImageVisibility.applied(to: items)) {
             switch entry {
             case .tools(let group):
                 rows.append(ChatRow(id: group.id, content: .tools(group), spacingBelow: ChatRowSpacing.standard))
@@ -90,7 +90,8 @@ final class ChatRowBuilder {
     private func append(_ item: ChatItem, to rows: inout [ChatRow]) {
         switch item.kind {
         case .userPrompt(let text, let imageCount):
-            rows.append(ChatRow(id: item.id, content: .userPrompt(PromptImages.bubbleText(text, imageCount: imageCount)), spacingBelow: ChatRowSpacing.standard))
+            let bubbleText = PromptImages.bubbleText(text, imageCount: imageCount, imagePaths: item.imagePaths)
+            rows.append(ChatRow(id: item.id, content: .userPrompt(text: bubbleText, imagePaths: item.imagePaths), spacingBelow: ChatRowSpacing.standard))
         case .slashCommand(let name, let args, let output):
             let label = Self.commandLabel(name: name, args: args)
             rows.append(ChatRow(id: item.id, content: .slashCommand(label: label, output: output), spacingBelow: ChatRowSpacing.standard))
@@ -98,9 +99,11 @@ final class ChatRowBuilder {
                 rows.append(ChatRow(id: item.id + "#start", content: .sessionStart(item.at), spacingBelow: ChatRowSpacing.standard))
             }
         case .assistantText(let markdown):
-            for (index, chunk) in chunks(for: item.id, markdown: markdown).enumerated() {
+            let chunks = chunks(for: item.id, markdown: markdown)
+            for (index, chunk) in chunks.enumerated() {
                 let spacing = chunk.endsWithHeading ? ChatRowSpacing.afterHeading : ChatRowSpacing.standard
-                rows.append(ChatRow(id: index == 0 ? item.id : "\(item.id)#\(index)", content: .markdown(chunk.markdown), spacingBelow: spacing))
+                let imagePaths = index == chunks.count - 1 ? item.imagePaths : []
+                rows.append(ChatRow(id: index == 0 ? item.id : "\(item.id)#\(index)", content: .markdown(chunk.markdown, imagePaths: imagePaths), spacingBelow: spacing))
             }
         case .turnFooter(let durationMs):
             rows.append(ChatRow(id: item.id, content: .turnFooter(durationMs: durationMs), spacingBelow: ChatRowSpacing.standard))

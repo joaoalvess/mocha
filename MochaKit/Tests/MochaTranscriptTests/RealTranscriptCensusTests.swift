@@ -14,6 +14,8 @@ struct RealTranscriptCensusTests {
         var unknown: [String: Int] = [:]
         var kinds: [String: Int] = [:]
         var runningTools = 0
+        var promptsWithPastedTags = 0
+        var images = ImageCensus()
         var lastVersions: [String: Int] = [:]
         for project in projects {
             let entries = (try? FileManager.default.contentsOfDirectory(at: project, includingPropertiesForKeys: nil)) ?? []
@@ -26,6 +28,8 @@ struct RealTranscriptCensusTests {
                 for item in document.items {
                     kinds[item.kind.type, default: 0] += 1
                     if case .toolCall(let call) = item.kind, call.status == .running { runningTools += 1 }
+                    if case .userPrompt(let text, _) = item.kind, text.contains("<pasted_content") { promptsWithPastedTags += 1 }
+                    images.count(item)
                 }
                 lastVersions[document.header.claudeVersion ?? "?", default: 0] += 1
             }
@@ -34,6 +38,8 @@ struct RealTranscriptCensusTests {
         print("census: desconhecidos=\(unknown.sorted { $0.key < $1.key })")
         print("census: itens=\(kinds.sorted { $0.key < $1.key })")
         print("census: versão da última linha por arquivo=\(lastVersions.sorted { $0.key < $1.key })")
+        print("census: imagens \(images.summary)")
+        print("census: userPrompt com <pasted_content> no texto=\(promptsWithPastedTags)")
         #expect(files > 0)
     }
 
@@ -69,6 +75,41 @@ struct RealTranscriptCensusTests {
         print("home meta: divergências=\(mismatches.sorted { $0.key < $1.key })")
         #expect(compared > 0)
         #expect(mismatches.isEmpty)
+    }
+
+    private struct ImageCensus {
+        var mentionItems = 0
+        var mentionPaths = 0
+        var existingMentionPaths = 0
+        var readItems = 0
+        var existingReadPaths = 0
+        var promptItems = 0
+        var existingPromptPaths = 0
+
+        mutating func count(_ item: ChatItem) {
+            guard !item.imagePaths.isEmpty else { return }
+            let existing = item.imagePaths.count(where: { FileManager.default.fileExists(atPath: $0) })
+            switch item.kind {
+            case .assistantText:
+                mentionItems += 1
+                mentionPaths += item.imagePaths.count
+                existingMentionPaths += existing
+            case .toolCall(let call) where call.name == "Read":
+                readItems += 1
+                existingReadPaths += existing
+            case .userPrompt:
+                promptItems += 1
+                existingPromptPaths += existing
+            default:
+                break
+            }
+        }
+
+        var summary: String {
+            "assistantText com imagePaths=\(mentionItems) (caminhos=\(mentionPaths), existem=\(existingMentionPaths)) "
+                + "Read com imagePaths=\(readItems) (existem=\(existingReadPaths)) "
+                + "userPrompt com imagePaths=\(promptItems) (existem=\(existingPromptPaths))"
+        }
     }
 
     private static func differingFields(_ lhs: TranscriptHeader, _ rhs: TranscriptHeader) -> [String] {

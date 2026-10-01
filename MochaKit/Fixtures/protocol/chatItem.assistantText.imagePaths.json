@@ -1,0 +1,10 @@
+{
+  "id": "9b3f…",
+  "at": "2026-09-25T15:47:10.000Z",
+  "type": "assistantText",
+  "markdown": "Salvei o print em `build/verify/12-ajustes.png` e o ícone em `/Users/joaoalves/Developer/mocha/App/Resources/icon.png`.",
+  "imagePaths": [
+    "/Users/joaoalves/Developer/mocha/build/verify/12-ajustes.png",
+    "/Users/joaoalves/Developer/mocha/App/Resources/icon.png"
+  ]
+}

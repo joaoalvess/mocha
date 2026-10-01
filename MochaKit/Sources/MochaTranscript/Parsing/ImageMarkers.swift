@@ -14,30 +14,40 @@ enum ImageMarkers {
         return path + "/Library/Application Support/Mocha/uploads/"
     }
 
-    static func extract(from text: String, uploadsDirectory: String = ImageMarkers.uploadsDirectory) -> (text: String, count: Int) {
-        guard text.contains(prefix) else { return (text, 0) }
+    struct Extraction: Equatable {
+        let text: String
+        let paths: [String]
+
+        var count: Int {
+            paths.count
+        }
+    }
+
+    static func extract(from text: String, uploadsDirectory: String = ImageMarkers.uploadsDirectory) -> Extraction {
+        guard text.contains(prefix) else { return Extraction(text: text, paths: []) }
         var kept: [Substring] = []
-        var count = 0
+        var paths: [String] = []
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            if isMarker(line, uploadsDirectory: uploadsDirectory) {
-                count += 1
+            if let path = markerPath(line, uploadsDirectory: uploadsDirectory) {
+                paths.append(String(path))
             } else {
                 kept.append(line)
             }
         }
-        guard count > 0 else { return (text, 0) }
+        guard !paths.isEmpty else { return Extraction(text: text, paths: []) }
         while kept.last?.isEmpty == true {
             kept.removeLast()
         }
-        return (kept.joined(separator: "\n"), count)
+        return Extraction(text: kept.joined(separator: "\n"), paths: paths)
     }
 
-    private static func isMarker(_ line: Substring, uploadsDirectory: String) -> Bool {
-        guard line.hasPrefix(prefix), line.hasSuffix(suffix) else { return false }
+    private static func markerPath(_ line: Substring, uploadsDirectory: String) -> Substring? {
+        guard line.hasPrefix(prefix), line.hasSuffix(suffix) else { return nil }
         let path = line.dropFirst(prefix.count).dropLast(suffix.count)
-        guard path.hasPrefix(uploadsDirectory) else { return false }
-        return path.dropFirst(uploadsDirectory.count)
+        guard path.hasPrefix(uploadsDirectory) else { return nil }
+        let isInside = path.dropFirst(uploadsDirectory.count)
             .split(separator: "/", omittingEmptySubsequences: false)
             .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+        return isInside ? path : nil
     }
 }
