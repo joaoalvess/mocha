@@ -1,13 +1,11 @@
 import Foundation
 
 public struct ApnsConfig: Codable, Sendable, Equatable {
-    public static let defaultBundleId = "com.example.mocha"
-
     public var teamId: String
     public var keyId: String
     public var bundleId: String
 
-    public init(teamId: String, keyId: String, bundleId: String = Self.defaultBundleId) {
+    public init(teamId: String, keyId: String, bundleId: String) {
         self.teamId = teamId
         self.keyId = keyId
         self.bundleId = bundleId

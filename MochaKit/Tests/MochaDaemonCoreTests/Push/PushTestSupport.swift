@@ -55,6 +55,7 @@ final class TestClock: Sendable {
 enum PushTestData {
     static let keyId = "ABCDE12345"
     static let teamId = "TEAM123456"
+    static let bundleId = "com.example.mocha"
     static let deviceToken = String(repeating: "ab", count: 32)
 
     static func signingKey(_ privateKey: P256.Signing.PrivateKey = P256.Signing.PrivateKey()) throws -> ApnsSigningKey {

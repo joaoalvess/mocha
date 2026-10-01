@@ -9,7 +9,7 @@ public struct ApnsKeyImporter: Sendable {
         self.configStore = configStore
     }
 
-    public func importKey(fileURL: URL, keyId: String, teamId: String, bundleId: String = ApnsConfig.defaultBundleId) throws -> ApnsConfig {
+    public func importKey(fileURL: URL, keyId: String, teamId: String, bundleId: String) throws -> ApnsConfig {
         guard ApnsIdentifier.isValid(keyId) else { throw ApnsError.invalidKeyId }
         guard ApnsIdentifier.isValid(teamId) else { throw ApnsError.invalidTeamId }
         guard ApnsIdentifier.isValidBundleId(bundleId) else { throw ApnsError.invalidBundleId }

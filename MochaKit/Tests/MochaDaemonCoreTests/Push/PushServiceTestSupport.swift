@@ -137,7 +137,7 @@ func withPush(
             if let credentialsError {
                 throw credentialsError
             }
-            return ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId), key: key)
+            return ApnsCredentials(config: ApnsConfig(teamId: PushTestData.teamId, keyId: PushTestData.keyId, bundleId: PushTestData.bundleId), key: key)
         },
         transport: transport,
         clock: clock,
