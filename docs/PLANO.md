@@ -1073,6 +1073,47 @@ A SPEC §6.3 muda no fim do S8: cai a regra "`/model` fica fora".
 
 - Trocar o modelo e o effort, girar os três modos, abrir um subagente pelo painel, `/compact`, `/clear` e parar pelo botão de enviar. Tudo aparece no terminal e no app em até 2 s.
 
+## Fase imagens: fotos enviadas e imagens do Claude no chat
+
+Branch `fase/imagens`, criada de `main`. Contrato do orquestrador (SPEC §3.2, §5.2, §5.5, §6.5, §10, §11 e §12, `ChatItem.imagePaths`, fixtures e `NSPhotoLibraryAddUsageDescription`) → onda única com WP-IM1 e WP-IM2 em paralelo → WP-IM3 no iPhone. Sem mock nem capturas (decisão do João): não há `mock.html` nem tela em `docs/design/mock/` para esta fase. A referência visual são os prints do Moshi em `docs/referencias/moshi/` e os componentes existentes; o aceite de UI é `scripts/test.sh` + `scripts/build-app.sh`, e a conferência é no iPhone. Decisões do João (2026-10-01):
+
+- Imagens do Claude: as abertas com `Read` e os caminhos de imagem citados no texto.
+- Imagem sem arquivo no Mac (colada no terminal, scratchpad apagado, upload com mais de 7 dias) fica como hoje: "📎 N imagens" na bolha, e a miniatura do `Read` some.
+- Tocar numa miniatura abre a tela cheia com zoom e compartilhar.
+- Só Claude; o Codex fica de fora.
+
+### WP-IM1: imagens no transcript e rota de imagem (daemon)
+
+- **Dono**: `MochaKit/Sources/MochaTranscript/Parsing/`, `MochaKit/Sources/MochaDaemonCore/Gateway/`, `MochaKit/Sources/MochaDaemonCore/Images/` (novo) e os testes de `MochaTranscriptTests` e `MochaDaemonCoreTests`.
+- **Transcript** (§3.2):
+  - `ImageMarkers.extract` devolve os caminhos, e o `userPrompt` os põe em `imagePaths`;
+  - `ImageMentions.paths(in:cwd:home:)`, puro, preenche o `imagePaths` do `assistantText`;
+  - um `Read` de imagem fora de `uploads/` ganha `imagePaths = [file_path]`;
+  - as contagens de menções e de `Read` de imagem entram no `RealTranscriptCensusTests`.
+- **Filtro**: no início do `overlaid(_:)` (`SessionHubSubagents.swift`), antes do `switch`, saem de `imagePaths` os caminhos que não são arquivo regular (EPERM conta como ausente).
+- **Rota** `GET /v1/image` (§5.5): `ImageRoute` registrado fora do `if let uploads`, Bearer sem `markSeen`, `ImageTranscoder` com ImageIO (`…WithTransform`, `…FromImageAlways`, `max` limitado à origem), no máximo 2 decodificações simultâneas.
+- **Aceite**: `scripts/test.sh` verde, com testes de marcadores, menções (crase absoluta, relativa, `~`, nome solto, cerca, URL, pontuação, limite, repetidos), `Read` (png, txt, `uploads/`), filtro e rota (401, 400, 404, 413, 415, JPEG com `max`, PNG com alfa, EXIF rotacionado). Imagens de teste geradas com CoreGraphics.
+
+### WP-IM2: miniaturas, cache e tela cheia (app)
+
+- **Dono**: `MochaKit/Sources/MochaClient/Connection/`, `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaDemo/`, `App/Sources/Chat/`, `App/Sources/DesignSystem/`, `App/Sources/Composer/`, `App/Sources/ImageViewer/` (novo), `App/Sources/AppShell/MochaApp.swift` e `App/Sources/AppShell/AppSession.swift` (injeção e envio) e os testes de `MochaClientTests` e `MochaDemoTests`.
+- **Carregador**: `ImageLoading` com `GatewayImageLoader` (mesma URL do uploader, `ws→http` com porta, `path` e `max` em `queryItems`, GET com Bearer, até 4 pedidos simultâneos) e `SimulatedImageLoader` no `MochaClient` (gradiente com `CGColor`, também em Release).
+- **Cache**: `ChatImageCache` `@MainActor` com consulta síncrona e LRU por bytes; um actor junta os pedidos em voo. 600 px para miniatura, 4.096 px para tela cheia.
+- **Apresentação**: "📎" só para `imageCount - imagePaths.count`; `ToolGroup.imagePaths`; `ChatImageVisibility` (uma vez por turno).
+- **UI** (§6.5): miniaturas dentro das linhas existentes (bolha do usuário, grupo de ferramentas fora do `Button`, último pedaço do `assistantText`); bolha pendente com miniaturas locais de 600 px guardadas no `ChatListModel`; callback do `ImagePromptSender` depois dos uploads e antes do `sendPrompt` semeia o cache; `ImageViewer/` com zoom (`UIScrollView`), fechar e `ShareLink`.
+- **Demo**: `imagePaths` no "olha o print" de `chat-demo-app.json`, num `Read` de png e num `assistantText` com caminho em crase; `DemoImageMarkers.split` devolve os caminhos.
+- **Aceite**: `scripts/test.sh` e `scripts/build-app.sh` verdes, com testes do loader (URL, header), do cache (LRU e junção), do "📎" restante, do `ChatImageVisibility` e do `ToolGroup`.
+
+### WP-IM3: checklist no iPhone
+
+- Com o ok do João: `scripts/build-daemon.sh`, reinstalar o `mochad` (`rm` antes do `cp` em `~/.local/bin`) e `scripts/build-device.sh`.
+- Mandar 1 e depois 3 fotos: a bolha pendente mostra as fotos na hora, e a definitiva troca sem piscar.
+- Pedir ao Claude que leia um print do simulador: a miniatura aparece sob o card do `Read`.
+- Pedir que cite `docs/referencias/moshi/chat-conversa.png`: a miniatura aparece sob o texto.
+- Abrir uma sessão antiga com upload de mais de 7 dias: "📎 1 imagem".
+- Tela cheia: zoom, fechar, compartilhar e salvar em Fotos.
+- Citar um print de `~/Desktop`: ver se o macOS pede permissão ao `mochad`.
+
 ## Fase 2: terminal SSH
 
 Branch `fase/2`, criada a partir de `fase/1b`. Ondas: WP-T1 → WP-T2 ∥ WP-T3 → WP-X4.
@@ -1181,3 +1222,6 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-T4 | todo | |
 | WP-T5 | todo | |
 | WP-X5 | todo | |
+| WP-IM1 | todo | |
+| WP-IM2 | todo | |
+| WP-IM3 | todo | |
