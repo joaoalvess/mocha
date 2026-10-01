@@ -88,6 +88,14 @@ public actor PushService {
         let task: Task<Void, Never>
     }
 
+    private struct HandedOffAlert: Hashable {
+        let device: DeviceID
+        let agentId: AgentID
+        let kind: PushAlertKind
+    }
+
+    private static let handoffWindow: TimeInterval = 10
+
     private let devices: DeviceStore
     private let audience: any PushAudience
     private let credentials: ApnsCredentials.Loader
@@ -103,6 +111,7 @@ public actor PushService {
     private var deliveries: [UUID: Task<Void, Never>] = [:]
     private var issues: [ApnsEnvironment: ApnsConfigurationIssue] = [:]
     private var liveActivityCards: (any LiveActivityCardHolding)?
+    private var handedOff: [HandedOffAlert: Date] = [:]
     private var isShutDown = false
 
     public init(
@@ -139,6 +148,7 @@ public actor PushService {
         let recipient = Recipient(device: device, apns: apns)
         for alert in alerts where alert.kind != .turnDone || record.preferences.turnDoneAlerts {
             guard !isShutDown, await !audience.foregroundDevices(for: alert.agentId).contains(device) else { continue }
+            handedOff[HandedOffAlert(device: device, agentId: alert.agentId, kind: alert.kind)] = clock.now()
             send(
                 alert.kind,
                 agentId: alert.agentId,
@@ -332,7 +342,9 @@ public actor PushService {
             }
         }
         guard !isShutDown else { return }
-        if let agent = await audience.agentSummary(agentId), agent.status.isBusy || agent.pendingCount > 0 {
+        let agent = await audience.agentSummary(agentId)
+        guard turnDoneChecks[agentId]?.token == token else { return }
+        if let agent, agent.status.isBusy || agent.pendingCount > 0 {
             pushLogger.notice("push turnDone of \(agentId, privacy: .public) cancelled: the agent is busy again")
             return
         }
@@ -437,11 +449,17 @@ public actor PushService {
         guard !candidates.isEmpty else { return [] }
         let cards = await liveActivityCards?.cardDevices() ?? []
         let foreground = await audience.foregroundDevices(for: agentId)
+        let now = clock.now()
+        handedOff = handedOff.filter { now.timeIntervalSince($0.value) < Self.handoffWindow }
         var tokens: Set<String> = []
         var recipients: [Recipient] = []
         for record in candidates where !foreground.contains(record.id) {
             guard !cards.contains(record.id) else {
                 pushLogger.info("\(kind.rawValue, privacy: .public) alert of \(agentId, privacy: .public) left to the card of device \(record.id, privacy: .public)")
+                continue
+            }
+            guard handedOff[HandedOffAlert(device: record.id, agentId: agentId, kind: kind)] == nil else {
+                pushLogger.info("\(kind.rawValue, privacy: .public) alert of \(agentId, privacy: .public) already handed off from the lost card of device \(record.id, privacy: .public)")
                 continue
             }
             guard let apns = record.apns, ApnsRequest.isValidDeviceToken(apns.token), tokens.insert(apns.token.lowercased()).inserted else {

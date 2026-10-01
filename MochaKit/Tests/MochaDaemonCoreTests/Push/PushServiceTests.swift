@@ -139,6 +139,23 @@ struct PushServiceTests {
         }
     }
 
+    @Test func aHookRightAfterALostCardDoesNotRingTheSameAlertAgain() async throws {
+        try await withPush { harness in
+            let phone = try await harness.device("iPhone")
+            let lost = LiveActivityLostAlert(agentId: "w1:p1", kind: .turnDone, requestId: nil, title: "Claude terminou · Core", body: "pronto")
+
+            await harness.service.cardLost([lost], on: phone.id)
+            await harness.service.waitForDeliveries()
+            await harness.deliver(PushHooks.stop())
+            await harness.deliver(try PushHooks.fixture(.permissionRequest, "PermissionRequest.bash.json"))
+            #expect(try harness.payloads().map { $0["kind"] as? String } == ["turnDone", "needsInput"])
+
+            harness.clock.advance(by: .seconds(10))
+            await harness.deliver(PushHooks.stop())
+            #expect(try harness.payloads().map { $0["kind"] as? String } == ["turnDone", "needsInput", "turnDone"])
+        }
+    }
+
     @Test func aLostCardRespectsTheTurnDonePreference() async throws {
         try await withPush { harness in
             let phone = try await harness.device("iPhone", turnDoneAlerts: false)

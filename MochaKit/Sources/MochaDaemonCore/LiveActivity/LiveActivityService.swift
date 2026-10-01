@@ -80,7 +80,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
     }
 
     private enum Outcome {
-        case delivery(LiveActivityDelivery, preferences: DevicePreferences?)
+        case delivery(LiveActivityDelivery)
         case deviceGone
     }
 
@@ -226,13 +226,13 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             release(registration, from: id)
         }
         states[deviceId] = device
+        handOff(lost, on: deviceId)
         let stored = Self.stored(device)
         if try await devices.setLiveActivities(pushToStart: stored.pushToStart, feedActivity: stored.feedActivity, for: deviceId) == false {
             liveActivityLogger.error("ignored a live activity registration from unknown device \(deviceId, privacy: .public)")
             states[deviceId] = nil
             return
         }
-        handOff(lost, on: deviceId)
         evaluate()
     }
 
@@ -579,8 +579,7 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
                 if alertKind == .turnDone, preferences?.turnDoneAlerts == false {
                     push.event = .update(alert: nil)
                 }
-                let delivery = await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority)
-                outcome = .delivery(delivery, preferences: preferences)
+                outcome = .delivery(await sender.sendLiveActivity(push, to: token, environment: environment, priority: priority))
             }
             await self?.finish(sent, outcome: outcome, device: id, taskId: taskId)
         }
@@ -610,14 +609,11 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
         defer { sends[taskId] = nil }
         guard !isShutDown, var device = states[id] else { return }
         device.isSending = false
-        guard case .delivery(let delivery, let preferences) = outcome else {
+        guard case .delivery(let delivery) = outcome else {
             liveActivityLogger.info("dropped the live activity of removed device \(id, privacy: .public)")
             states[id] = nil
             evaluate()
             return
-        }
-        if let preferences {
-            device.preferences = preferences
         }
         let before = Self.stored(device)
         let now = clock.now()
