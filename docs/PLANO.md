@@ -1376,6 +1376,6 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-CA1 | feito (o anel interno conta o Codex em Plano, ajuste do orquestrador; o botão "Implementar plano" usa a heurística do último `assistantText` até o tipo `plan` da D9; o `/clear` do Codex segue o `ack{agentId}` da resposta) | ecc4544, bc33a95, aeb368f, b79abfa, merge d4d04d0 |
 | WP-CP2 | todo | |
 | WP-CP3 | todo | |
-| WP-CV | todo | |
+| WP-CV | feito (lab `~/Developer/mocha-lab/codex-update` com `CODEX_HOME` próprio e checagem do `~/.codex/config.toml`; 11 testes `.integration` verdes na 0.159.2; cópia do schema só com a lista de métodos e tipos; hook e seção do AGENTS.md aplicados pelo orquestrador) | 0d2079b, 321f559, merge 764a83c |
 | WP-CP4 | todo | |
 | WP-CPX | todo | |
