@@ -1098,7 +1098,7 @@ Branch `fase/imagens`, criada de `main`. Contrato do orquestrador (SPEC §3.2, �
 
 - **Dono**: `MochaKit/Sources/MochaClient/Connection/`, `MochaKit/Sources/MochaClient/Presentation/`, `MochaKit/Sources/MochaDemo/`, `App/Sources/Chat/`, `App/Sources/DesignSystem/`, `App/Sources/Composer/`, `App/Sources/ImageViewer/` (novo), `App/Sources/AppShell/MochaApp.swift` e `App/Sources/AppShell/AppSession.swift` (injeção e envio) e os testes de `MochaClientTests` e `MochaDemoTests`.
 - **Carregador**: `ImageLoading` com `GatewayImageLoader` (mesma URL do uploader, `ws→http` com porta, `path` e `max` em `queryItems`, GET com Bearer, até 4 pedidos simultâneos) e `SimulatedImageLoader` no `MochaClient` (gradiente com `CGColor`, também em Release).
-- **Cache**: `ChatImageCache` `@MainActor` com consulta síncrona e LRU por bytes; um actor junta os pedidos em voo. 600 px para miniatura, 4.096 px para tela cheia.
+- **Cache**: `ChatImageCache` `@MainActor` com consulta síncrona, LRU por bytes e junção dos pedidos em voo; um actor limita o carregador a 4 pedidos simultâneos. 600 px para miniatura, 4.096 px para tela cheia.
 - **Apresentação**: "📎" só para `imageCount - imagePaths.count`; `ToolGroup.imagePaths`; `ChatImageVisibility` (uma vez por turno).
 - **UI** (§6.5): miniaturas dentro das linhas existentes (bolha do usuário, grupo de ferramentas fora do `Button`, último pedaço do `assistantText`); bolha pendente com miniaturas locais de 600 px guardadas no `ChatListModel`; callback do `ImagePromptSender` depois dos uploads e antes do `sendPrompt` semeia o cache; `ImageViewer/` com zoom (`UIScrollView`), fechar e `ShareLink`.
 - **Demo**: `imagePaths` no "olha o print" de `chat-demo-app.json`, num `Read` de png e num `assistantText` com caminho em crase; `DemoImageMarkers.split` devolve os caminhos.
@@ -1223,5 +1223,5 @@ Atualizado só pelo orquestrador, depois do commit de cada WP.
 | WP-T5 | todo | |
 | WP-X5 | todo | |
 | WP-IM1 | feito (`(`, aspas e `*` saem das pontas da menção, ajuste do orquestrador; o `stat` do filtro roda no actor `SessionHub`, e o pedido de privacidade do `~/Desktop` fica para conferir no WP-IM3) | 8b3acb4, 61b989f, merge 7d516ab, 114637b |
-| WP-IM2 | todo | |
+| WP-IM2 | feito (geração das miniaturas locais marcada `@concurrent` pelo orquestrador; a bolha pendente fica a 50% com as miniaturas e não abre tela cheia; espaçamentos de 6 pt, tela cheia e fundo transparente no arraste a conferir no iPhone) | e09b3b4, 4532880, 39eb843, merge ea93311 |
 | WP-IM3 | todo | |
