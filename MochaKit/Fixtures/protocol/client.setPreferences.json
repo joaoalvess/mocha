@@ -3,6 +3,7 @@
   "id": "c-17",
   "type": "setPreferences",
   "payload": {
-    "turnDoneAlerts": false
+    "turnDoneAlerts": false,
+    "silenceWhileAtMac": false
   }
 }

@@ -140,53 +140,57 @@ struct LiveActivityFocusTests {
         }
     }
 
-    @Test func twoTurnsDoneWithinTenSecondsShowTheLatestAndHandTheOtherToTheNotifications() async throws {
+    @Test func twoTurnsDoneWithinTenSecondsRingOnTheCardOneAfterTheOther() async throws {
         try await withLiveActivity { harness in
-            let fallback = FakeAlertFallback()
-            await harness.service.attachAlertFallback(fallback)
-            let device = try await card(harness, agents: [agent("w1:p1"), agent("w2:p1")])
+            let handoff = FakeAlertHandoff()
+            await harness.service.attachAlertHandoff(handoff)
+            _ = try await card(harness, agents: [agent("w1:p1"), agent("w2:p1")])
             try await harness.advance(3)
             try await harness.agents([agent("w1:p1", .idle), agent("w2:p1")])
             try await harness.advance(3)
             try await harness.agents([agent("w1:p1", .idle), agent("w2:p1", .idle, preview: "Testes prontos.")])
             try await harness.advance(4)
             #expect(harness.sent.count == 2)
-            let update = try harness.last()
-            #expect(update.push.agentId == "w2:p1")
-            #expect(update.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Testes prontos.")))
-            #expect(Set(await fallback.reports) == [
-                .init(kind: .turnDone, agentId: "w2:p1", device: device, wasShown: true),
-                .init(kind: .turnDone, agentId: "w1:p1", device: device, wasShown: false),
-            ])
+            let first = try harness.last()
+            #expect(first.push.agentId == "w1:p1")
+            #expect(first.push.timestamp == at(10))
+            #expect(first.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
+
+            try await harness.advance(10)
+            #expect(harness.sent.count == 3)
+            let second = try harness.last()
+            #expect(second.push.agentId == "w2:p1")
+            #expect(second.priority == .high)
+            #expect(second.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Testes prontos.")))
 
             try await harness.advance(60)
-            #expect(harness.sent.count == 2)
-            #expect(await fallback.reports.count == 2)
+            #expect(harness.sent.count == 3)
+            #expect(await handoff.handed.isEmpty)
         }
     }
 
-    @Test func aTieInTheSameInputShowsOneAlertAndHandsTheOtherToTheNotifications() async throws {
+    @Test func aTieInTheSameInputRingsBothAlertsInTurn() async throws {
         try await withLiveActivity { harness in
-            let fallback = FakeAlertFallback()
-            await harness.service.attachAlertFallback(fallback)
-            let device = try await card(harness, agents: [agent("w1:p1"), agent("w2:p1")])
+            _ = try await card(harness, agents: [agent("w1:p1"), agent("w2:p1")])
             try await harness.advance(10)
             try await harness.agents([agent("w1:p1", .idle), agent("w2:p1", .blocked)])
-            let update = try harness.last()
-            #expect(update.push.agentId == "w1:p1")
-            #expect(update.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
-            #expect(Set(await fallback.reports) == [
-                .init(kind: .turnDone, agentId: "w1:p1", device: device, wasShown: true),
-                .init(kind: .needsInput, agentId: "w2:p1", device: device, wasShown: false),
-            ])
+            let first = try harness.last()
+            #expect(first.push.agentId == "w1:p1")
+            #expect(first.push.event == .update(alert: AgentActivityAlert(title: "Claude terminou · demo-app", body: "Turno concluído.")))
+
+            try await harness.advance(10)
+            let second = try harness.last()
+            #expect(second.push.agentId == "w2:p1")
+            #expect(second.push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: PushAlertText.secondaryBody)))
+            #expect(harness.sent.count == 3)
         }
     }
 
-    @Test func alertsHeldOutByARequestOrDroppedBeforeTheNextUpdateGoToTheNotifications() async throws {
+    @Test func aRequestHoldsTheCardWhileOtherAlertsWaitAndStaleOnesAreDropped() async throws {
         try await withLiveActivity { harness in
-            let fallback = FakeAlertFallback()
-            await harness.service.attachAlertFallback(fallback)
-            let device = try await card(harness, agents: [agent("w1:p1"), agent("w2:p1"), agent("w3:p1")])
+            let handoff = FakeAlertHandoff()
+            await harness.service.attachAlertHandoff(handoff)
+            _ = try await card(harness, agents: [agent("w1:p1"), agent("w2:p1"), agent("w3:p1")])
             let request = LiveActivitySample.permission("req-a", agent: "w1:p1")
             var blocked = LiveActivitySample.agent("w1:p1", .blocked, pendingCount: 1)
             blocked.preview = nil
@@ -197,26 +201,17 @@ struct LiveActivityFocusTests {
             try await harness.agents([blocked, agent("w2:p1", .idle), agent("w3:p1", .blocked)], pending: [request])
             try await harness.advance(1)
             try await harness.agents([blocked, agent("w2:p1", .idle), agent("w3:p1")], pending: [request])
-            #expect(Set(await fallback.reports) == [
-                .init(kind: .needsInput, agentId: "w1:p1", device: device, wasShown: true),
-                .init(kind: .turnDone, agentId: "w2:p1", device: device, wasShown: false),
-                .init(kind: .needsInput, agentId: "w3:p1", device: device, wasShown: false),
-            ])
+            try await harness.advance(10)
+            #expect(harness.sent.count == 2)
+
+            try await harness.agents([agent("w1:p1"), agent("w2:p1", .idle), agent("w3:p1")])
+            try await harness.advance(10)
+            let alerts = harness.sent.compactMap { sent -> AgentID? in
+                guard case .update(.some) = sent.push.event else { return nil }
+                return sent.push.agentId
+            }
+            #expect(alerts == ["w1:p1", "w2:p1"])
+            #expect(await handoff.handed.isEmpty)
         }
-    }
-}
-
-actor FakeAlertFallback: LiveActivityAlertFallback {
-    struct Report: Hashable {
-        let kind: PushAlertKind
-        let agentId: AgentID
-        let device: DeviceID
-        let wasShown: Bool
-    }
-
-    private(set) var reports: [Report] = []
-
-    func cardAlert(_ kind: PushAlertKind, of agentId: AgentID, on device: DeviceID, wasShown: Bool) {
-        reports.append(Report(kind: kind, agentId: agentId, device: device, wasShown: wasShown))
     }
 }

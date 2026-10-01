@@ -370,6 +370,7 @@ extension SessionHub {
         do {
             _ = try await devices.setPreferences(preferences, for: deviceId)
             send(.ack(), id: id, to: clientId)
+            await liveActivityRegistrar?.preferencesChanged(preferences, for: deviceId)
         } catch {
             gatewayLogger.error("failed to save preferences: \(String(describing: error), privacy: .public)")
             send(.deviceStoreFailed, id: id, to: clientId)

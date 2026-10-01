@@ -1,3 +1,3 @@
 extension PushService: LiveActivityPushSending {}
 
-extension PushService: LiveActivityAlertFallback {}
+extension PushService: LiveActivityAlertHandoff {}

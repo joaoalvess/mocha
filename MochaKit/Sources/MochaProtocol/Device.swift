@@ -15,9 +15,17 @@ public struct ApnsRegistration: Codable, Sendable, Hashable {
 
 public struct DevicePreferences: Codable, Sendable, Hashable {
     public var turnDoneAlerts: Bool
+    public var silenceWhileAtMac: Bool
 
-    public init(turnDoneAlerts: Bool = true) {
+    public init(turnDoneAlerts: Bool = true, silenceWhileAtMac: Bool = true) {
         self.turnDoneAlerts = turnDoneAlerts
+        self.silenceWhileAtMac = silenceWhileAtMac
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        turnDoneAlerts = try container.decode(Bool.self, forKey: .turnDoneAlerts)
+        silenceWhileAtMac = try container.decodeIfPresent(Bool.self, forKey: .silenceWhileAtMac) ?? true
     }
 }
 
@@ -43,12 +51,21 @@ public struct LiveActivityRegistration: Codable, Sendable, Hashable {
     public var updateToken: String?
     public var agentId: String?
     public var env: ApnsEnvironment
+    public var endedActivityId: String?
 
-    public init(pushToStartToken: String? = nil, activityId: String? = nil, updateToken: String? = nil, agentId: String? = nil, env: ApnsEnvironment) {
+    public init(
+        pushToStartToken: String? = nil,
+        activityId: String? = nil,
+        updateToken: String? = nil,
+        agentId: String? = nil,
+        env: ApnsEnvironment,
+        endedActivityId: String? = nil
+    ) {
         self.pushToStartToken = pushToStartToken
         self.activityId = activityId
         self.updateToken = updateToken
         self.agentId = agentId
         self.env = env
+        self.endedActivityId = endedActivityId
     }
 }

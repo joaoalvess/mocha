@@ -995,7 +995,7 @@ Log: `os.Logger(subsystem: "com.joaoalves.mocha", category: <componente>)`. Toke
   "createdAt": "ISO-8601",
   "lastSeenAt": "ISO-8601",
   "apns": {"token": "hex", "env": "sandbox|production"},
-  "preferences": {"turnDoneAlerts": true},
+  "preferences": {"turnDoneAlerts": true, "silenceWhileAtMac": true},
   "liveActivity": {"pushToStartToken": "hex", "activityId": "…", "updateToken": "hex", "env": "sandbox|production"}
 }]
 ```
@@ -1070,6 +1070,7 @@ public struct ApnsRegistration: Codable, Sendable {
 
 public struct DevicePreferences: Codable, Sendable {
     public var turnDoneAlerts: Bool        // padrão true
+    public var silenceWhileAtMac: Bool     // padrão true (fase alertas); ausente no JSON = true
 }
 
 public struct HostInfo: Codable, Sendable {
@@ -1396,7 +1397,7 @@ Tipos Swift em `MochaProtocol`: `ClientMessage` e `ServerMessage` (com `.unknown
 | `setPreferences` | `DevicePreferences` | `ack{}` | 1a-final |
 | `respond` | `{requestId, response: PendingResponse}` | `ack{}` | 1b |
 | `newAgentTab` | `{workspaceId}` | `ack{agentId}` (§5.3.1) | 1a-final |
-| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5) | 1b |
+| `registerLiveActivity` | `{pushToStartToken?: String, activityId?: String, updateToken?: String, env: ApnsEnvironment, endedActivityId?: String}` | `ack{}`. O app acordado em background sem WebSocket manda o mesmo corpo por `POST /v1/live-activity` (§5.5). `endedActivityId` avisa que aquela atividade acabou no aparelho (dispensada ou encerrada, §7.5) | 1b; `endedActivityId` na fase alertas |
 | `listWebServers` | `{}` | `webServers` (§9.3) | preview-web |
 | `setModel` | `{agentId, model: "opus" \| "sonnet" \| "haiku" \| "fable"}` | `ack{}` | controles |
 | `setEffort` | `{agentId, level: "low" \| "medium" \| "high" \| "xhigh" \| "max"}` | `ack{}` | controles |
@@ -1769,7 +1770,7 @@ Cada tela cita a captura de `docs/design/mock/` que ela precisa reproduzir.
 
 **Ajustes** (`12-ajustes`)
 - Folha aberta pela engrenagem da Início.
-- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com o controle "Turno concluído" (`setPreferences`, 1a-final; volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
+- Host pareado e data do pareamento (guardada no app), estado da conexão (com as mensagens da tela de pareamento), validade do perfil de provisionamento (`ExpirationDate` do `embedded.mobileprovision`, quando existe; em `dirty` abaixo de 7 dias), a seção NOTIFICAÇÕES com os controles "Turno concluído" e "Silenciar enquanto uso o Mac" (fase alertas, ligado por padrão, §7.7) (`setPreferences`, 1a-final; cada um volta ao valor anterior se o daemon responder erro e fica esmaecido sem conexão), versão do app e do daemon, e "Desparear" (pede confirmação, manda `unpair`, limpa o Keychain e volta ao Pareamento).
 
 **Inbox** (1b, `13-inbox`)
 - Sino na cápsula da Início, com a contagem. Abre uma folha.
@@ -1865,7 +1866,12 @@ Validado no S4 (iOS 27, iPhone 14 e simulador). Payloads, headers e medições r
 - **Tipos**:
   - Turno concluído (`Stop`): título "Claude terminou · <workspace>", corpo com os primeiros 180 caracteres de `last_assistant_message` sem markdown (`PlainText.preview(fromMarkdown:)`, §3.2.2). `thread-id` = `agentId`; `category` `TURN_DONE`.
   - Agente precisa de você: disparado pelo `PermissionRequest` (§8), na hora. O `blocked` do Herdr sem pedido (ex.: diálogo de confiança da pasta) e o `Notification` `permission_prompt` são sinais secundários. Título "Claude precisa de você · <workspace>", corpo com o `summary` do pedido ou com `questions[0].question`. `interruption-level: time-sensitive`; `category` `NEEDS_INPUT` (1a-final, sem ações) e `PERMISSION`/`QUESTION` (1b, com ações).
-- **Supressão**: nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X. Alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem.
+- **Supressão**:
+  - nenhum alerta para um aparelho cujo cliente está conectado com `setForeground{agentId: X, isActive: true}` quando o alerta é do agente X;
+  - os alertas de turno concluído respeitam `preferences.turnDoneAlerts` do aparelho; os de "precisa de você" sempre saem;
+  - **fase alertas**: nenhum alerta para um aparelho com card da §7.5 e token de update conhecido. Quem decide é o estado do card em memória (`cardDevices()`), lido quando o alerta sai (na chegada do hook; no turno concluído, depois da espera); o card cuida do alerta;
+  - o turno concluído espera 5 s depois do `Stop` (ou do fim de turno do Codex) e só sai se o agente não voltou a `working`/`blocked` nem tem pedido;
+  - **presença (fase alertas, §7.7)**: com `silenceWhileAtMac` ligado e o Mac desbloqueado, o alerta não sai; ele fica guardado como silenciado. Ao bloquear o Mac, sai um alerta só, o mais urgente ainda não visto, com validade nova.
 - **Deduplicação**: um alerta de "precisa de você" por pedido, contado por `agentId`. Enquanto a sessão tiver pedido pendente (1b), e até 10 s depois do último alerta de "precisa de você" do agente, o `blocked` do Herdr e o `Notification` `permission_prompt` desse agente não geram outro alerta. O `permission_prompt` chega ~6 s depois do diálogo. O `blocked` do Herdr só alerta na transição para `blocked`, só em agente Claude e depois de 1 s ainda `blocked`, para o `PermissionRequest` do mesmo diálogo chegar antes. Os outros tipos de `Notification` não geram alerta. Os sinais secundários usam um corpo fixo em português, porque a mensagem do Claude vem em inglês; sem workspace conhecido, o título sai sem " · <workspace>".
 - **Payload**: `{"aps":{"alert":{"title","body"},"sound":"default","thread-id","category","interruption-level"?},"agentId":"w17:p1","kind":"turnDone|needsInput","requestId?":"…","sentAt":<ms Unix>}`. O `sentAt` serve para diagnóstico de atraso. Payload ≤ 4 KB.
 - **Respostas**:
@@ -1991,9 +1997,12 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
 
 - **Tipo**: `MochaFeedAttributes` (`MochaProtocol`, só iOS), sem atributos estáticos; `attributes-type: "MochaFeedAttributes"` e `attributes: {}` no push-to-start. `ContentState`: `agentId` (o agente em foco) e os campos da `MochaAgentAttributes` (§7.4): `status`, `title`, `workspaceLabel`, `since`, `model?`, `contextLeftPercent?`, `preview?`, `activity?`, `prompt?`, `pending?` (`requestId`, `kind`, `toolName?`, `text`, `options`) e `updatedAt`, com as regras de preenchimento, limites e orçamentos da §7.3. O daemon codifica pelo espelho `LiveActivityContentState` com o `agentId`.
 - **Uma atividade por aparelho.** O app, ao abrir, encerra as `MochaAgentAttributes` e as `MochaAgentsAttributes` que achar; os dois tipos ficam no protocolo só para isso.
-- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada, entre os agentes Claude da árvore:
-  1. com pedido pendente em algum agente: o agente do pedido mais antigo (`createdAt`, depois `id`). O pedido segura o card até ser resolvido;
-  2. senão: o agente com o **evento** mais recente. Evento = a `preview` mudou, o `status` efetivo mudou (inclusive o turno concluído) ou o agente ficou `blocked` sem pedido. Empate: o agente em foco continua; depois o menor `agentId`.
+- **Foco** (o agente que o card mostra), recalculado pelo daemon a cada entrada e por aparelho, entre os agentes Claude e Codex da árvore (ordem da fase alertas):
+  1. com pedido pendente em algum agente: o agente do pedido mais antigo (`createdAt`, depois `id`). O pedido segura o card até ser resolvido; o segundo pedido espera a vez, sem push;
+  2. senão, a **fila de um ciclo**: o alerta mais antigo, sem pedido (turno concluído ou `blocked` sem pedido), que ainda não saiu nesse card e que toca nesse aparelho. Ele ganha o card por um update, com o alerta;
+  3. senão: o agente com o **evento** mais recente. Evento = a `preview` mudou, o `status` efetivo mudou (inclusive o turno concluído) ou o agente ficou `blocked` sem pedido. Empate: o agente em foco continua; depois o menor `agentId`.
+  - O tracker só publica a passagem de `working`/`blocked` para pronto depois de **5 s** ainda pronto, e a passagem para `blocked` sem pedido depois de **1 s**. Assim, um turno que recomeça em menos de 5 s (mensagem na fila do Claude) não gera evento nem alerta, e o pedido que chega em menos de 1 s entra direto como pedido. O `blocked` sem pedido do mesmo agente gera no máximo um alerta a cada 10 s.
+  - O status cru do Herdr (`done` → `idle`, §7.7) nunca conta como evento.
   - Mudança só de `activity`, `prompt`, `model`, `contextLeftPercent` ou `title` atualiza o card quando é do agente em foco, e não puxa o foco.
   - Um agente que some da árvore perde o foco; sem nenhum agente, o card mantém o último estado até o fim.
 - **Card**: o da §7.4 para o agente em foco, sem contagem de outros agentes. `widgetURL` e o botão "Abrir" = deep link do `agentId` do estado. `relevance-score` pelo `status` do agente em foco. Ajustes de 2026-09-27, pelo Moshi:
@@ -2003,15 +2012,58 @@ Decisão do João em 2026-09-27, depois de usar a §7.4 com vários agentes: uma
   - desfecho: o `ContentState` ganha `outcome?` (`allowed`, `denied` ou `answered`). Sem `pending` e com `outcome`, linha 1 "Aprovado", "Negado" ou "Respondido" e linha 2 "Você: <prompt>". O daemon preenche o `outcome` do agente depois de uma resposta do celular a um pedido dele (`respond`), enquanto a `preview` do agente continua a do momento da resposta e não chega outro pedido. A resposta conta como evento para o foco. O `outcome` é o primeiro campo descartado pelo orçamento de 3.840 bytes. O app, ao limpar o `pending` localmente depois de uma resposta aceita, já põe o `outcome` da escolha;
   - o `prompt` (e a prévia de mensagem do usuário) sai sem as tags `<pasted_content …>` e `</pasted_content>`.
 - **Início**: quando algum agente passa a `working`/`blocked` e o aparelho não tem card. App em primeiro plano: `Activity.request` com o foco pelo mesmo critério, calculado no app pela árvore. Senão, push-to-start com `alert` `{"title": "Claude trabalhando · <rótulo>", "body": "<title>"}` do agente em foco.
-- **Atualização**: no máximo uma a cada 10 s, sempre com o estado mais recente. Prioridade 10 em troca de foco e em mudança de `status` ou de `pending`; 5 no resto; refresh 5 a cada 10 min enquanto algum agente está `working`/`blocked`; `stale-date` = agora + 15 min.
-- **Alertas no lugar das notificações**: enquanto o aparelho tem o card com token de update conhecido, o daemon não manda os alertas da §7.1 de **nenhum** agente. O alerta (texto e regras da §7.4) vai no update que traz o foco para o agente do evento. Um evento de outro agente que não ganha o foco, porque um pedido segura o card, sai como alerta da §7.1. Antes do token chegar, vale a §7.1.
+- **Atualização**: no máximo uma a cada 10 s, sempre com o estado mais recente. Prioridade 10 em troca de foco, em mudança de `status` ou de `pending` e em todo update com alerta; 5 no resto; refresh 5 a cada 10 min enquanto algum agente está `working`/`blocked`; `stale-date` = agora + 15 min.
+  - O alerta de um pedido novo que toca fura o limite de 10 s, com no mínimo 2 s desde o último envio. Só esse update fura.
+  - Pode sair um update só com o alerta, com o mesmo conteúdo, quando o card já mostra aquele estado.
+- **Alertas no lugar das notificações** (fase alertas): enquanto o aparelho tem o card com token de update conhecido, o daemon não manda os alertas da §7.1 de **nenhum** agente, e não há push de reserva.
+  - O alerta (texto e regras da §7.4) vai no update do agente do evento: na hora, se ele é o foco, ou na vez dele na fila de um ciclo.
+  - O alerta só sai da fila quando o APNs confirma a entrega; uma falha devolve o alerta.
+  - Antes do token chegar, vale a §7.1, e o alerta daquele momento conta como resolvido no card.
+  - **Quando um alerta toca naquele aparelho**: o app não está aberto naquele agente (`setForeground`), o tipo não está desligado (`turnDoneAlerts`) e, com `silenceWhileAtMac` ligado, o Mac não está desbloqueado (§7.7). Um alerta que não toca sai resolvido na hora, sem update só de alerta; um pedido silenciado não fura o limite de 10 s.
+  - O controle do que já saiu é por aparelho, e não por card. Uma renovação ou um card novo não repete nem engole alertas.
 - **Fim**: 30 min sem nenhum agente `working`/`blocked` → `end` prioridade 10 com `dismissal-date` = agora. Renovação às 7 h 50 min: `end` + push-to-start.
 - **Tokens**: `registerLiveActivity` sem `agentId`: um token de push-to-start para o tipo e o token de update da atividade com `activityId`. O daemon guarda uma atividade por aparelho em `devices.json`; um registro antigo com `agentId` é ignorado.
+- **Card perdido** (fase alertas): o app guarda no livro de tokens as atividades que acabaram (até 8). Elas entram pelo `activityStateUpdates`, com o app vivo, ou na abertura do app, quando a atividade do livro já não está viva. O app manda `endedActivityId` no próximo `registerLiveActivity` (WebSocket ou `POST /v1/live-activity`).
+  - Com `endedActivityId` igual à atividade do card, ou com `410`/`BadDeviceToken` num update, o daemon:
+    - esquece o card;
+    - marca o aparelho como dispensado: não há push-to-start até todos os agentes pararem;
+    - aposenta o token e o id;
+    - repassa à §7.1 **todos** os alertas que tocariam e ainda não saíram, com o título e o corpo do card, a categoria do tipo e sem ações.
+  - Daí em diante, vale a §7.1 até surgir card novo.
 
 ### §7.6 Aviso de reset da janela de 5h
 
 - Notificação **local** do app, sem daemon nem protocolo: o sino da folha Uso (§6.3) agenda um `UNNotificationRequest` com `UNTimeIntervalNotificationTrigger` até o `resetsAt` da janela `fiveHour` daquele provedor. Id `usage-reset-<provider>`; título "Janela de 5h zerada", corpo "O limite de 5h do Claude Code renovou." ou "…do Codex renovou.", som padrão. Ligar pede a permissão de notificação se ela ainda não foi pedida.
 - Vale **só o próximo reset**: o horário armado por provedor fica no `UserDefaults` (`usage.resetReminders`), e o sino conta como ligado enquanto esse horário está no futuro. Tocar de novo desliga e remove o pedido pendente. Um `usage` novo com outro `resetsAt` de 5h enquanto armado reagenda para o novo horário.
+
+### §7.7 Presença no Mac (fase alertas)
+
+O modelo e os casos estão em `docs/estudos/alertas-live-activity.md`.
+
+- **Sonda**: o daemon lê `IOConsoleLocked` na raiz do IORegistry (`IORegistryGetRootEntry(kIOMainPortDefault)` + `IORegistryEntryCreateCFProperty`), sem permissão do sistema. É a mesma leitura do `ioreg -n Root -d1`.
+  - `No` → `unlocked`; `Yes` → `locked`.
+  - Com a tampa fechada, o valor continua `Yes`. Na tomada com `caffeinate`, o Mac fica em DarkWake e o daemon segue lendo.
+  - Sem a propriedade → `unknown`, que conta como fora do Mac (falha segura: toca).
+- **Monitor**: um `PresenceMonitor` (actor) único no daemon.
+  - `current()` lê na hora.
+  - Um polling de 3 s avisa as transições aos assinantes (`transitions()`).
+  - Cada mudança vai ao log `presence: locked|unlocked|unknown` (`.notice`, categoria `presence`).
+- **Status cru do Herdr**: a entrada da Live Activity leva `herdrStatuses` (o status do Herdr antes da troca pelo do app-server do Codex). `done` = ainda não visto no Herdr (§3.1). O status cru nunca conta como evento do card.
+- **Modo sombra (E1)**: só log, com `.notice` (o `.info` não fica guardado), na categoria `alerts`. O comportamento não muda.
+  - Para cada alerta novo do tracker do card, o desfecho que o modelo novo daria: `shadow alert <kind> of <agent> gen=<n> channel=card|push lock=<…> would=ring|silent`. O `turnDone` que deixa de valer em menos de 5 s registra `would=cancelled`.
+  - Cada update do card: `card update of <agent> p<5|10> alert=<kind|none> lag=<s>`. O `lag` é o tempo desde o último evento do agente em foco.
+  - Cada push da §7.1: `push <kind> of <agent> device <id> fallback=yes|no`.
+  - Na transição para bloqueado: `shadow lock-ring <agent> <kind>`, para o item mais urgente ainda não visto (pedido aberto, agente `blocked` ou status cru `done`) entre os `would=silent` desde o último desbloqueio. Sem candidato, `shadow lock-ring none`.
+- **Silêncio no Mac (E3)**: a preferência `silenceWhileAtMac` do aparelho (padrão `true`; desligada, toca sempre).
+  - Com ela ligada e o Mac `unlocked`, o alerta não toca: no card, o update sai sem `alert`; sem card, o push da §7.1 não sai. O alerta entra na lista de silenciados do aparelho, uma vez por agente e geração.
+  - Na transição para `locked`/`unknown`, para cada aparelho com a preferência ligada, toca **um** item: o mais urgente entre os silenciados ainda não vistos (pedido ainda aberto > agente ainda `blocked` > turno concluído com o status cru `done`; no empate, o mais recente). No card, ele volta a não resolvido e sai pelo fluxo normal; se o card acabou depois do silêncio, ele vai para o push (§7.1). Sem card, sai o push guardado, depois de reconferir as preferências, o primeiro plano e o token do aparelho; aparelho que ganhou card no meio tempo não recebe push. O resto da lista é limpo, e um item que tocou ou foi limpo não toca de novo.
+  - Os logs de sombra continuam, e a decisão real ganha linhas próprias, por aparelho: `alert <kind> of <agent> [gen=<n>] device <id> silent reason=atMac` e, ao bloquear, `lock-ring <agent> <kind> device <id>` (ou `lock-ring none device <id>`).
+- **Resumo**: `scripts/alerts-summary.sh [--last <tempo>] [--file <log salvo>]` (padrão `24h`) lê o `log show --style compact` do processo `mochad` no subsystem `com.joaoalves.mocha` e conta:
+  - alertas `ring`, `silent` e `cancelled`;
+  - pushes com e sem `fallback`;
+  - toques ao bloquear;
+  - updates p10 e p5 por hora;
+  - `lag` mediano e máximo.
 
 ---
 

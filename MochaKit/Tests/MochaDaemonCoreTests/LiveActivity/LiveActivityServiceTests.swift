@@ -357,7 +357,7 @@ struct LiveActivityServiceTests {
     }
 
     @Test func theRenewalSpendsAPushToStartFromTheBudget() async throws {
-        let configuration = LiveActivityConfiguration(renewalAge: 120, pushToStartLimit: 2)
+        let configuration = LiveActivityConfiguration(renewalAge: 120, pushToStartLimit: 2, turnDoneCooldown: 0, blockedGrace: 0, blockedAlertWindow: 0)
         try await withLiveActivity(configuration: configuration) { harness in
             let device = try await harness.pairWithPushToStart()
             try await harness.agents(working)
@@ -377,7 +377,7 @@ struct LiveActivityServiceTests {
     }
 
     @Test func atMostTenPushToStartsPerHour() async throws {
-        try await withLiveActivity(configuration: LiveActivityConfiguration(renewalAge: 60)) { harness in
+        try await withLiveActivity(configuration: LiveActivityConfiguration(renewalAge: 60, turnDoneCooldown: 0, blockedGrace: 0, blockedAlertWindow: 0)) { harness in
             _ = try await harness.pairWithPushToStart()
             try await harness.agents(working)
             for index in 1..<10 {
@@ -422,7 +422,7 @@ struct LiveActivityServiceTests {
         }
     }
 
-    @Test func theTurnDoneAlertFollowsThePreferenceAndTheForegroundGetsNoAlert() async throws {
+    @Test func theTurnDoneAlertFollowsThePreferenceAndTheAgentOpenInTheAppGetsNoAlert() async throws {
         try await withLiveActivity { harness in
             let device = try await appStartedActivity(harness, agents: working)
             #expect(try await harness.devices.setPreferences(DevicePreferences(turnDoneAlerts: false), for: device))
@@ -433,7 +433,7 @@ struct LiveActivityServiceTests {
 
             try await harness.advance(10)
             let request = LiveActivitySample.permission("req-1", agent: "w1:p1")
-            try await harness.agents([LiveActivitySample.agent("w1:p1", .blocked)], pending: [request], foreground: [device])
+            try await harness.agents([LiveActivitySample.agent("w1:p1", .blocked)], pending: [request], foreground: [device], foregroundAgents: [device: "w1:p1"])
             #expect(try harness.last().push.event == .update(alert: nil))
             #expect(try harness.last().push.contentState.pending?.requestId == "req-1")
         }

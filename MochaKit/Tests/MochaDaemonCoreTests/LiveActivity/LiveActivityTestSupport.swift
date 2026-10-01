@@ -124,8 +124,20 @@ struct LiveActivityHarness {
         try await settle()
     }
 
-    func agents(_ agents: [AgentSummary], pending: [PendingRequest] = [], foreground: Set<DeviceID> = []) async throws {
-        await service.apply(LiveActivityInput(agents: agents, pending: pending, foregroundDevices: foreground))
+    func agents(
+        _ agents: [AgentSummary],
+        pending: [PendingRequest] = [],
+        foreground: Set<DeviceID> = [],
+        foregroundAgents: [DeviceID: AgentID] = [:],
+        herdrStatuses: [AgentID: AgentStatus] = [:]
+    ) async throws {
+        await service.apply(LiveActivityInput(
+            agents: agents,
+            pending: pending,
+            foregroundDevices: foreground,
+            foregroundAgents: foregroundAgents,
+            herdrStatuses: herdrStatuses
+        ))
         try await settle()
     }
 
@@ -177,8 +189,25 @@ struct LiveActivityHarness {
     }
 }
 
+extension LiveActivityConfiguration {
+    static let withoutHolds = LiveActivityConfiguration(turnDoneCooldown: 0, blockedGrace: 0, blockedAlertWindow: 0)
+}
+
+actor FakeAlertHandoff: LiveActivityAlertHandoff {
+    struct Handed: Equatable {
+        let alerts: [LiveActivityLostAlert]
+        let device: DeviceID
+    }
+
+    private(set) var handed: [Handed] = []
+
+    func cardLost(_ alerts: [LiveActivityLostAlert], on device: DeviceID) {
+        handed.append(Handed(alerts: alerts, device: device))
+    }
+}
+
 func withLiveActivity(
-    configuration: LiveActivityConfiguration = LiveActivityConfiguration(),
+    configuration: LiveActivityConfiguration = .withoutHolds,
     _ body: (LiveActivityHarness) async throws -> Void
 ) async throws {
     let directory = try PushTestData.temporaryDirectory()

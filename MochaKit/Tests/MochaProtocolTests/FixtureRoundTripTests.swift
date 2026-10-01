@@ -109,7 +109,9 @@ func assertRoundTrip<Value: Codable & Equatable>(_ type: Value.Type, from data: 
             "chatItem.toolCall.read-image.json",
         ]
 
-        for name in expected + subagentPhase + imagesPhase {
+        let alertsPhase = ["client.registerLiveActivity.ended.json"]
+
+        for name in expected + subagentPhase + imagesPhase + alertsPhase {
             #expect(ProtocolFixtures.names.contains(name), "Falta a fixture \(name)")
         }
     }
@@ -211,7 +213,7 @@ enum CanonicalExamples {
         ),
         CanonicalExample(
             fixture: "server.helloOk.ssh.json",
-            json: #"{"v":1,"id":"c-1","type":"helloOk","payload":{"host":{"hostName":"MacBook Pro de João","daemonVersion":"0.1.0","herdrConnected":true,"sshUser":"joaoalves","sshHostKeys":["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMochaHostKeyExampleOnlyForFixturesAAAAAAA","ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMochaExample"]},"deviceId":"0F8E2B6A-3C1D-4E5F-9A7B-8C6D5E4F3A2B","preferences":{"turnDoneAlerts":true}}}"#
+            json: #"{"v":1,"id":"c-1","type":"helloOk","payload":{"host":{"hostName":"MacBook Pro de João","daemonVersion":"0.1.0","herdrConnected":true,"sshUser":"joaoalves","sshHostKeys":["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMochaHostKeyExampleOnlyForFixturesAAAAAAA","ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMochaExample"]},"deviceId":"0F8E2B6A-3C1D-4E5F-9A7B-8C6D5E4F3A2B","preferences":{"turnDoneAlerts":true,"silenceWhileAtMac":true}}}"#
         ),
         CanonicalExample(
             fixture: "client.listWebServers.json",
