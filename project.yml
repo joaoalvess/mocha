@@ -38,7 +38,7 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.mocha
+        PRODUCT_BUNDLE_IDENTIFIER: $(MOCHA_BUNDLE_ID)
         INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/Mocha.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -69,7 +69,7 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.mocha.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: $(MOCHA_BUNDLE_ID).widgets
         INFOPLIST_FILE: Widgets/Info.plist
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) MOCHA_WIDGETS
     dependencies:
