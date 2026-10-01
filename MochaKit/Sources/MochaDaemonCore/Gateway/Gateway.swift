@@ -6,6 +6,7 @@ public struct Gateway: Sendable {
     public static let uploadPath = "/v1/upload"
     public static let liveActivityPath = "/v1/live-activity"
     public static let respondPath = "/v1/respond"
+    public static let imagePath = "/v1/image"
     public static let port: UInt16 = 47421
     public static let binding = HttpBinding.loopback(port: port)
 
@@ -41,6 +42,11 @@ public struct Gateway: Sendable {
         }
         router.webSocket(Self.webSocketPath) { request, socket in
             await serve(request, socket)
+        }
+        let image = ImageRoute(authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
+        router.route(.get, Self.imagePath) { request in
+            events(.httpRequest(request))
+            return await image.respond(to: request)
         }
         if let uploads {
             let upload = UploadRoute(store: uploads, authenticator: BearerAuthenticator(devices: hub.devices, clock: hub.clock))
