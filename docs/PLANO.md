@@ -1130,7 +1130,7 @@ Decisões do João (2026-10-01):
 - D8: aprovar plano pelo app é indispensável. O Esc no "Implement this plan?" do TUI fica para o shell mode.
 - D9: o item `plan` do Codex ganha o tipo `ChatItemKind.plan(markdown:)`. O botão "Implementar plano" só aparece nele.
 
-Ondas: contrato do orquestrador (S9, SPEC, PLANO, protocolo) → WP-CP1 ∥ WP-CA1 → WP-CP2 ∥ WP-CP3 ∥ WP-CV → WP-CP4 → WP-CPX.
+Ondas: contrato do orquestrador (S9, SPEC, PLANO, protocolo) → WP-CP1 ∥ WP-CA1 → D9 (orquestrador) → WP-CP2 ∥ WP-CV → WP-CP3 ∥ WP-CP4 → WP-CPX. O CP3 foi para a Onda 3 porque lê o estado da thread (modelo, effort, modo e turno ativo) que o CP2 cria no `CodexService`.
 
 ### Contrato (orquestrador)
 
