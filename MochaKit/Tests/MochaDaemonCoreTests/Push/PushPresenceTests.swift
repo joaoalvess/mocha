@@ -60,4 +60,36 @@ struct PushPresenceTests {
             #expect(harness.transport.requests.count == 4)
         }
     }
+
+    @Test func theLockRingRechecksThePreferencesAndTheForeground() async throws {
+        let audience = FakePushAudience(agents: [Sample.agent("w1:p1", sessionId: Sample.sessionA), Sample.agent("w2:p1", status: .blocked)])
+        audience.setHerdrStatus(.done, for: "w1:p1")
+        try await withPush(audience: audience) { harness in
+            let phone = try await harness.device()
+            await harness.service.presenceChanged(to: .unlocked)
+            await harness.deliver(PushHooks.stop("parser pronto"))
+            await harness.deliver(try PushHooks.fixture(.permissionRequest, "PermissionRequest.bash.json"), agent: "w2:p1")
+            audience.setForeground([phone.id], for: "w2:p1")
+            #expect(try await harness.devices.setPreferences(DevicePreferences(turnDoneAlerts: false, silenceWhileAtMac: true), for: phone.id))
+
+            await harness.service.presenceChanged(to: .locked)
+            await harness.service.waitForDeliveries()
+            #expect(harness.transport.requests.isEmpty)
+        }
+    }
+
+    @Test func turningTheSilenceOffAtTheMacDropsTheLockRing() async throws {
+        let audience = FakePushAudience()
+        audience.setHerdrStatus(.done, for: "w1:p1")
+        try await withPush(audience: audience) { harness in
+            let phone = try await harness.device()
+            await harness.service.presenceChanged(to: .unlocked)
+            await harness.deliver(PushHooks.stop())
+            #expect(try await harness.devices.setPreferences(DevicePreferences(turnDoneAlerts: true, silenceWhileAtMac: false), for: phone.id))
+
+            await harness.service.presenceChanged(to: .locked)
+            await harness.service.waitForDeliveries()
+            #expect(harness.transport.requests.isEmpty)
+        }
+    }
 }

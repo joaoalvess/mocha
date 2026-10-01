@@ -141,4 +141,36 @@ struct LiveActivityPresenceTests {
             #expect(try harness.last().push.event == .update(alert: AgentActivityAlert(title: "Claude precisa de você · demo-app", body: "rm -rf build")))
         }
     }
+
+    @Test func aSilencedAlertOfACardThatEndedRingsThroughTheNotificationsOnLock() async throws {
+        try await withLiveActivity { harness in
+            let handoff = FakeAlertHandoff()
+            await harness.service.attachAlertHandoff(handoff)
+            let device = try await card(harness, agents: [agent("w1:p1")])
+            await harness.service.presenceChanged(to: .unlocked)
+            try await harness.advance(10)
+            try await harness.agents([agent("w1:p1", .idle)], herdrStatuses: ["w1:p1": .done])
+            try await harness.advance(10)
+            try await harness.service.register(
+                LiveActivityRegistration(
+                    pushToStartToken: LiveActivitySample.pushToStartToken,
+                    env: .sandbox,
+                    endedActivityId: LiveActivitySample.activityId
+                ),
+                from: device
+            )
+            try await harness.settle()
+            #expect(await handoff.handed.isEmpty)
+
+            await harness.service.presenceChanged(to: .locked)
+            try await harness.settle()
+            #expect(await handoff.handed == [
+                FakeAlertHandoff.Handed(
+                    alerts: [LiveActivityLostAlert(agentId: "w1:p1", kind: .turnDone, requestId: nil, title: "Claude terminou · demo-app", body: "Turno concluído.")],
+                    device: device
+                ),
+            ])
+            #expect(updateAlerts(harness).allSatisfy { $0 == nil })
+        }
+    }
 }

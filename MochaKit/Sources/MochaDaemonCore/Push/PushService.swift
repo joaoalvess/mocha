@@ -87,7 +87,7 @@ public actor PushService {
         let body: String
         let category: String
         let at: Date
-        let recipient: Recipient
+        let isFallback: Bool
     }
 
     private struct BlockedCheck {
@@ -170,12 +170,28 @@ public actor PushService {
         let pending = silenced
         silenced = [:]
         guard let sender = loadSender() else { return }
+        let records: [DeviceRecord]
+        do {
+            records = try await devices.devices()
+        } catch {
+            pushLogger.error("failed to read devices: \(Self.describe(error), privacy: .public)")
+            return
+        }
+        let cards = await liveActivityCards?.cardDevices() ?? []
         for (device, alerts) in pending.sorted(by: { $0.key < $1.key }) {
+            let record = records.first { $0.id == device }
             var unseen: [(agentId: AgentID, alert: SilencedAlert)] = []
-            for (agentId, alert) in alerts where await isUnseen(alert, of: agentId) {
-                unseen.append((agentId, alert))
+            if let record, record.preferences.silenceWhileAtMac, !cards.contains(device) {
+                for (agentId, alert) in alerts where alert.kind != .turnDone || record.preferences.turnDoneAlerts {
+                    guard await !audience.foregroundDevices(for: agentId).contains(device), await isUnseen(alert, of: agentId) else { continue }
+                    unseen.append((agentId, alert))
+                }
             }
-            guard !isShutDown, let chosen = unseen.max(by: { Self.urgency($0.alert) < Self.urgency($1.alert) }) else {
+            guard !isShutDown,
+                  let chosen = unseen.max(by: { Self.urgency($0.alert) < Self.urgency($1.alert) }),
+                  let apns = record?.apns,
+                  ApnsRequest.isValidDeviceToken(apns.token)
+            else {
                 pushLogger.notice("lock-ring none device \(device, privacy: .public)")
                 continue
             }
@@ -188,8 +204,8 @@ public actor PushService {
                 body: alert.body,
                 category: alert.category,
                 requestId: alert.requestId,
-                to: [alert.recipient],
-                isFallback: false,
+                to: [Recipient(device: device, apns: apns, silencesAtMac: false)],
+                isFallback: alert.isFallback,
                 sender: sender
             )
         }
@@ -491,7 +507,7 @@ public actor PushService {
                     body: body,
                     category: category,
                     at: now,
-                    recipient: recipient
+                    isFallback: isFallback
                 )
                 pushLogger.notice(
                     "alert \(kind.rawValue, privacy: .public) of \(agentId, privacy: .public) device \(recipient.device, privacy: .public) silent reason=atMac"

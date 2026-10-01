@@ -346,15 +346,26 @@ public actor LiveActivityService: LiveActivityRegistering, LiveActivityCardHoldi
             .compactMap { agentId, generation in
                 tracker.alerts[agentId].flatMap { $0.generation == generation ? (agentId: agentId, alert: $0) : nil }
             }
-            .filter { device.preferences.silenceWhileAtMac && isUnseen($0.alert, of: $0.agentId) }
+            .filter {
+                device.preferences.silenceWhileAtMac && snapshots[$0.agentId] != nil
+                    && rings($0.alert, of: $0.agentId, on: device, id: id) && isUnseen($0.alert, of: $0.agentId)
+            }
             .max { shadowUrgency($0.alert, of: $0.agentId) < shadowUrgency($1.alert, of: $1.agentId) }
         device.silenced = [:]
-        if let candidate {
-            device.alerted[candidate.agentId] = candidate.alert.generation - 1
-            device.revived[candidate.agentId] = candidate.alert.generation
+        if let candidate, let snapshot = snapshots[candidate.agentId] {
             liveActivityLogger.notice(
                 "lock-ring \(candidate.agentId, privacy: .public) \(candidate.alert.kind.rawValue, privacy: .public) device \(id, privacy: .public)"
             )
+            if device.hasUpdateToken {
+                device.alerted[candidate.agentId] = candidate.alert.generation - 1
+                device.revived[candidate.agentId] = candidate.alert.generation
+            } else {
+                let content = snapshot.alertContent(candidate.alert.kind)
+                handOff(
+                    [LiveActivityLostAlert(agentId: candidate.agentId, kind: candidate.alert.kind, requestId: candidate.alert.requestId, title: content.title, body: content.body)],
+                    on: id
+                )
+            }
         } else {
             liveActivityLogger.notice("lock-ring none device \(id, privacy: .public)")
         }
