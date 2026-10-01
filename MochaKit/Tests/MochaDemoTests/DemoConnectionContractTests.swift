@@ -32,6 +32,9 @@ struct DemoConnectionContractTests {
         let usage = try await harness.messages.next()
         #expect(usage.id == nil)
         #expect(usage.message == .usage(harness.dataset.usage))
+        let codexUsage = try await harness.messages.next()
+        #expect(codexUsage.id == nil)
+        #expect(codexUsage.message == .usage(try #require(harness.dataset.codexUsage)))
         #expect(await harness.messages.unread().isEmpty)
     }
 

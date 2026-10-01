@@ -153,6 +153,10 @@ final class DemoHarness: Sendable {
         guard case .archived = archived.message else { throw UnexpectedMessage(envelope: archived) }
         let usage = try await messages.next()
         guard case .usage = usage.message else { throw UnexpectedMessage(envelope: usage) }
+        if dataset.codexUsage != nil {
+            let codexUsage = try await messages.next()
+            guard case .usage(let snapshot) = codexUsage.message, snapshot.provider == .codex else { throw UnexpectedMessage(envelope: codexUsage) }
+        }
     }
 
     func request(_ message: ClientMessage) async throws -> ServerEnvelope {

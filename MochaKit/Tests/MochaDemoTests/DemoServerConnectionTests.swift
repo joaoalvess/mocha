@@ -191,7 +191,7 @@ struct DemoServerConnectionTests {
             (.newAgentTab(workspaceId: "w99"), .invalidPayload),
             (.unknown(type: "teleport"), .unknownType),
             (.slash(agentId: "w99:p1", command: "/clear"), .agentNotFound),
-            (.slash(agentId: "w4:p3", command: "/clear"), .invalidPayload),
+            (.slash(agentId: "w4:p3", command: "/clear"), .codexUnavailable),
             (.sendPrompt(agentId: "w99:p1", text: "oi"), .agentNotFound),
             (.interrupt(agentId: "w99:p1"), .agentNotFound),
         ]
